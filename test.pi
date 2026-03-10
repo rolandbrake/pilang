@@ -1,0 +1,3 @@
+import math.{add:a, PI:p}
+
+println(a(2, 3))

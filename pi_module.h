@@ -1,0 +1,35 @@
+#ifndef PI_MODULE_H
+#define PI_MODULE_H
+
+#include <stdbool.h>
+
+#include "pi_vm.h"
+#include "pi_value.h"
+#include "pi_object.h"
+
+typedef enum
+{
+    MODULE_UNLOADED,
+    MODULE_LOADING,
+    MODULE_LOADED,
+} ModuleState;
+
+typedef struct ObjModule
+{
+
+    Object object;
+    char *name;
+    char *path;
+
+    bool builtin;
+    ModuleState state;
+    PiMap *exports;
+
+} ObjModule; // pilang modules
+
+Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin);
+Value load_module(vm_t *vm, const char *name);
+char *module_resolvePath(vm_t *vm, const char *name);
+
+
+#endif // PI_MODULE_H

@@ -1,0 +1,57 @@
+// author: Roland Brake
+// desc:   3d spinning doughnut with shading
+// script: PI-script
+width = 128
+height = 128
+let A = 0.0, B = 0.0
+let R1 = 15, R2 = 40, K2 = 100
+K1 = width * K2 * 3 / (8 * (R1 + R2))
+
+while (true) {
+    let zBuffer = [-1000] * (width * height)
+
+    for(theta in 0.0..6.28:0.25) {
+        let sinTheta = sin(theta), cosTheta = cos(theta)
+
+        for(phi in 0.0..6.28:0.08) {
+            let sinPhi = sin(phi), cosPhi = cos(phi)
+
+            let circleX = R2 + R1 * cosTheta, circleY = R1 * sinTheta
+
+            // 3D rotation
+            let x = circleX * (cos(B) * cosPhi + sin(A) * sin(B) * sinPhi)
+                  - circleY * cos(A) * sin(B)
+            let y = circleX * (cosPhi * sin(B) - cos(B) * sin(A) * sinPhi)
+                  + circleY * cos(A) * cos(B)
+            let z = K2 + cos(A) * circleX * sinPhi + circleY * sin(A)
+
+            if (z > 0) {
+                let ooz = 1.0 / z
+                let xp = round(width / 2 + K1 * ooz * x), yp = round(height / 2 - K1 * ooz * y)
+
+                if (xp >= 0 && xp < width && yp >= 0 && yp < height) {
+                    let idx = xp + yp * width
+                    if (ooz > zBuffer[idx]) {
+                        // Shading calculation
+                        let L = cosPhi * cosTheta * sin(B) - cosTheta * sinPhi * cos(B) - sinTheta * sin(A)
+                              + cosPhi * cosTheta * cos(A) * sin(B) - sinTheta * cos(A)
+
+                        // Map lighting to 16 colors (0-15)
+                        let color = round((L + 1) * 7.5)  // L ranges from -1 to 1
+                        color = max([0, min([15, color])])  // Clamp to 0-15
+
+                        zBuffer[idx] = ooz
+                        pixel(xp, yp, color)
+                    }
+                }
+            }
+        }
+    }
+
+    // Draw the frame
+    draw()
+    A += 0.04
+    B += 0.08
+    clear(0)
+    sleep(30)
+}

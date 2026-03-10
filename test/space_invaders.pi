@@ -1,0 +1,191 @@
+
+PLAYER_WIDTH = 10
+PLAYER_HEIGHT = 5
+PLAYER_Y = HEIGHT - 10
+
+ENEMY_ROWS = 4
+ENEMY_COLS = 8
+ENEMY_WIDTH = 8
+ENEMY_HEIGHT = 6
+ENEMY_SPACING = 12
+
+BULLET_WIDTH = 1
+BULLET_HEIGHT = 4
+
+player = {
+  x: WIDTH / 2 - PLAYER_WIDTH / 2
+}
+
+playerBullets = []
+enemyBullets = []
+
+enemies = []
+
+enemyDir = 1
+enemyStep = 1
+enemyTimer = 0
+enemyDelay = 20
+
+score = 0
+game_over = false
+
+// Initialize enemies
+fun spawnEnemies() {
+  for i in 0..ENEMY_ROWS {
+    for j in 0..ENEMY_COLS {
+      enemies += {
+        x: j * ENEMY_SPACING + 10,
+        y: i * 10 + 10,
+        alive: true
+      }
+    }
+  }
+}
+
+spawnEnemies()
+
+fun drawPlayer() {
+  rect(player.x, PLAYER_Y, PLAYER_WIDTH, PLAYER_HEIGHT, 15, true)
+}
+
+fun drawEnemies() {
+  for e in enemies {
+    if e.alive
+      rect(e.x, e.y, ENEMY_WIDTH, ENEMY_HEIGHT, 10, true)
+  }
+}
+
+fun drawBullets() {
+  for b in playerBullets
+    rect(b.x, b.y, BULLET_WIDTH, BULLET_HEIGHT, 7, true)
+  for b in enemyBullets
+    rect(b.x, b.y, BULLET_WIDTH, BULLET_HEIGHT, 2, true)
+}
+
+fun moveEnemies() {
+  let shouldDescend = false
+
+  for e in enemies {
+    if e.alive {
+      e.x += enemyDir * enemyStep
+      if e.x <= 0 || e.x + ENEMY_WIDTH >= WIDTH
+        shouldDescend = true
+    }
+  }
+
+  if shouldDescend {
+    enemyDir = -enemyDir
+    for e in enemies {
+      if e.alive
+        e.y += 6
+        if e.y + ENEMY_HEIGHT >= PLAYER_Y
+          game_over = true
+    }
+  }
+}
+
+fun shootPlayerBullet() {
+  if len(playerBullets) < 1 {
+    playerBullets += {
+      x: player.x + PLAYER_WIDTH / 2,
+      y: PLAYER_Y - 5
+    }
+    let s = tone(880, 60, 0)  // player shoot sound
+    play(s)
+  }
+}
+
+
+let f =  e -> e.alive
+fun shootEnemyBullet() {
+  let shooters = filter(enemies, f)
+  if len(shooters) > 0 {
+    let e = shooters[rand(0, len(shooters)-1)]
+    enemyBullets += {
+      x: e.x + ENEMY_WIDTH / 2,
+      y: e.y + ENEMY_HEIGHT
+    }
+    let s = tone(440, 60, 1)  // enemy shoot sound
+    play(s)
+  }
+}
+
+
+while true {
+  clear()
+
+  // Controls
+  if key("KEY_LEFT") && player.x > 0
+    player.x -= 2
+  if key("KEY_RIGHT") && player.x + PLAYER_WIDTH < WIDTH
+    player.x += 2
+  if key("KEY_SPACE")
+    shootPlayerBullet()
+
+  // Enemy movement
+  enemyTimer += 1
+  if enemyTimer >= enemyDelay {
+    moveEnemies()
+    if rand(0, 100) < 20
+      shootEnemyBullet()
+    enemyTimer = 0
+  }
+
+  // Move player bullets
+  let newPlayerBullets = []
+  for b in playerBullets {
+    b.y -= 3
+    if b.y > 0
+      newPlayerBullets += b
+  }
+  playerBullets = newPlayerBullets
+
+  // Move enemy bullets
+  let newEnemyBullets = []
+  for b in enemyBullets {
+    b.y += 2
+    if b.y < HEIGHT
+      newEnemyBullets += b
+  }
+  enemyBullets = newEnemyBullets
+
+  // Bullet hits enemy
+  for b in playerBullets {
+    for e in enemies {
+      if e.alive && b.x >= e.x && b.x <= e.x + ENEMY_WIDTH &&
+         b.y >= e.y && b.y <= e.y + ENEMY_HEIGHT {
+        e.alive = false
+        b.y = -1000  // mark bullet for removal
+        score += 10
+        let s = tone(660, 100, 0)  // enemy hit sound
+        play(s)
+      }
+    }
+  }
+
+  // Bullet hits player
+  for b in enemyBullets {
+    if b.x >= player.x && b.x <= player.x + PLAYER_WIDTH &&
+       b.y >= PLAYER_Y && b.y <= PLAYER_Y + PLAYER_HEIGHT {
+      game_over = true
+      let s = tone(110, 300, 1)  // player death sound
+      play(s)
+    }
+  }
+
+  // Draw everything
+  drawPlayer()
+  drawEnemies()
+  drawBullets()
+  text(2, 2, "Score: " + score)
+
+  if game_over {
+    text(40, 60, "GAME OVER", 6)
+    draw()
+    sleep(1000)
+    break
+  }
+
+  draw()
+  sleep(16)
+}

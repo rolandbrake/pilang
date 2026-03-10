@@ -1,0 +1,74 @@
+
+
+## `.gitignore` File for Pilang Project
+
+```gitignore
+# Compiled object files
+*.o
+*.obj
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.lib
+*.a
+
+# Executables
+*.exe
+*.out
+*.wasm
+
+
+# Debug files
+*.log
+*.tmp
+
+
+#log files
+*.log
+
+# Build directories
+build/
+dist/
+bin/
+emsdk/
+
+# Emscripten cache
+.cache/
+emscripten_cache/
+
+# IDE-specific files
+.vscode/
+.idea/
+*.code-workspace
+
+
+
+
+
+#site
+
+piscript-site/
+
+#formatter and minifiers
+# JS/
+
+
+#release files
+release/
+piscript v0.1.0.rar
+piscript v0.1.0/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+
+vids/
+# images/
+objs/
