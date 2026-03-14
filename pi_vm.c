@@ -24,7 +24,7 @@
  * setting initial values for the program counter, stack pointer,
  * base pointer, and other components.
  */
-vm_t *init_vm(compiler_t *comp)
+vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
 {
 
     // Allocate memory for the virtual machine instance
@@ -84,7 +84,13 @@ vm_t *init_vm(compiler_t *comp)
     vm->current_path = getcwd(NULL, 0);
 
     // Expose current module context in every VM as `module`.
-    Object *main_moduleObj = new_module(vm, "__main__", vm->current_path ? vm->current_path : "", false);
+    const char *module_name = entry_name ? entry_name : "";
+    Object *main_moduleObj = new_module(
+        vm,
+        module_name,
+        vm->current_path ? vm->current_path : "",
+        false,
+        is_main);
 
     // Mark main module as loaded to prevent issues with circular imports in the main file.
     ObjModule *main_module = (ObjModule *)main_moduleObj;
@@ -520,6 +526,8 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
     // Copy the function object to keep the original intact
     Object *fn = new_func(function->name, function->body,
                           function->params, NULL, instance);
+    ((Function *)fn)->constants = function->constants;
+    ((Function *)fn)->names = function->names;
 
     // Set the is_method flag to true
     ((Function *)fn)->is_method = true;
@@ -680,7 +688,11 @@ void run(vm_t *vm)
         case OP_STORE_LOCAL:
         {
             op = code[pc++];
-            vm->stack[vm->bp + op] = pop_stack(vm);
+            int slot = vm->bp + op;
+            vm->stack[slot] = pop_stack(vm);
+            // Ensure the stack pointer reserves space for locals.
+            if (vm->sp <= slot)
+                vm->sp = slot + 1;
             break;
         }
 
@@ -1664,6 +1676,8 @@ void run(vm_t *vm)
             // Create a new function object
             Object *function = new_func(name, body, defaults, NULL, NULL);
             ((Function *)function)->need_args = fun_scanSlot(body, (uint8_t)numParams - 1);
+            ((Function *)function)->constants = vm->constants;
+            ((Function *)function)->names = vm->names;
 
             // Push the new function onto the stack
             push_stack(vm, NEW_OBJ(add_obj(vm, function)));
@@ -1712,6 +1726,8 @@ void run(vm_t *vm)
 
             Object *fun_obj = new_func(name, body, defaults, upvalues, NULL);
             ((Function *)fun_obj)->need_args = fun_scanSlot(body, (uint8_t)numParams - 1);
+            ((Function *)fun_obj)->constants = vm->constants;
+            ((Function *)fun_obj)->names = vm->names;
 
             // Push the new closure onto the stack
             push_stack(vm, NEW_OBJ(add_obj(vm, fun_obj)));
@@ -1814,6 +1830,10 @@ void run(vm_t *vm)
                 {
                     char *name = module->name ? module->name : "";
                     item = NEW_OBJ(add_obj(vm, new_pistring(strdup(name))));
+                }
+                else if (strcmp(property, "is_main") == 0)
+                {
+                    item = NEW_BOOL(module->is_main);
                 }
                 else if (strcmp(property, "path") == 0)
                 {
@@ -1976,6 +1996,9 @@ void run(vm_t *vm)
             vm->ip = frame->ip;
 
             vm->code = frame->code;
+            vm->constants = frame->constants;
+            vm->names = frame->names;
+            vm->instrs = frame->instrs;
 
             push_stack(vm, retval);
 

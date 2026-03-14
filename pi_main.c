@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
     parser_t *parser = init_parser(comp, tokens, MODE_FILE);
     parse(parser);    
 
-    vm = init_vm(comp);
+    vm = init_vm(comp, "", true);
 
     emscripten_set_main_loop(main_loop, 0, 1);
     return 0;
@@ -192,7 +192,7 @@ char *read_file(const char *filename)
     return buffer;
 }
 
-static int run_source(const char *source, ParserMode mode)
+static int run_source(const char *source, ParserMode mode, const char *entry_name, bool is_main)
 {
     init_scanner((char *)source);
     token_t *tokens = scan();
@@ -201,12 +201,12 @@ static int run_source(const char *source, ParserMode mode)
     parser_t *parser = init_parser(comp, tokens, mode);
     parse(parser);
 
-
+    dis(comp);
 #ifdef DEBUG_BUILD
     dis(comp);
 #endif
 
-    vm_t *vm = init_vm(comp);
+    vm_t *vm = init_vm(comp, entry_name, is_main);
 
     clock_t start = clock();
     while (vm->running)
@@ -229,7 +229,7 @@ static int run_file(const char *filename)
     if (!source)
         return 1;
 
-    int status = run_source(source, MODE_FILE);
+    int status = run_source(source, MODE_FILE, filename, true);
     free(source);
     return status;
 }

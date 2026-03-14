@@ -22,12 +22,15 @@ typedef struct ObjModule
     char *path;
 
     bool builtin;
+    bool is_main;
     ModuleState state;
     PiMap *exports;
+    list_t *constants;
+    list_t *names;
 
 } ObjModule; // pilang modules
 
-Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin);
+Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin, bool is_main);
 Value load_module(vm_t *vm, const char *name);
 char *module_resolvePath(vm_t *vm, const char *name);
 

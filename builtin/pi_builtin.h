@@ -25,6 +25,15 @@ typedef struct
     Value value; // the value of the constant
 } BuiltinConst;
 
+typedef struct
+{
+    const char *name;       // the name of the module
+    BuiltinFunc *functions; // array of builtin functions
+    int func_count;         // number of builtin functions
+    BuiltinConst *consts;   // array of builtin constants
+    int const_count;        // number of builtin constants
+} BuiltinModule;
+
 // List of all builtin functions
 extern BuiltinFunc builtin_functions[];
 // Number of builtin functions

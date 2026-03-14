@@ -1,12 +1,1 @@
-PI = 3.141592653589793
-TAO = 6.283185307179586
-
-fun add(a, b) {
-    return a + b
-}
-
-if module.name == "__main__" {
-    println("The value of pi is: ", PI)
-    println("The value of tau is: ", TAO)
-    println("Module Exports", module.exports)
-}
+pi = 3.14

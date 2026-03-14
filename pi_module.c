@@ -120,7 +120,7 @@ static char *copy_dirName(const char *path)
     return dir;
 }
 
-Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin)
+Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin, bool is_main)
 {
     ObjModule *module = (ObjModule *)malloc(sizeof(ObjModule));
     if (!module)
@@ -135,7 +135,10 @@ Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin)
     module->name = strdup(name ? name : "");
     module->path = strdup(path ? path : "");
     module->builtin = builtin;
+    module->is_main = is_main;
     module->state = MODULE_LOADING;
+    module->constants = NULL;
+    module->names = NULL;
 
     Object *exports_obj = add_obj(vm, new_map(ht_create(sizeof(Value)), false));
     module->exports = (PiMap *)exports_obj;
@@ -245,7 +248,7 @@ Value load_module(vm_t *vm, const char *name)
     }
 
     // Create/cache module object early to support recursive imports.
-    Object *module_obj = new_module(vm, name, resolved, false);
+    Object *module_obj = new_module(vm, name, resolved, false, false);
     Value module_val = NEW_OBJ(module_obj);
     ht_put(vm->modules, resolved, &module_val);
 
@@ -259,7 +262,10 @@ Value load_module(vm_t *vm, const char *name)
     parser_t *parser = init_parser(comp, tokens, MODE_FILE);
     parse(parser);
 
-    vm_t *module_vm = init_vm(comp);
+    // printf("Module '%s' loaded from '%s'.\n", name, resolved);
+    // dis(comp);
+
+    vm_t *module_vm = init_vm(comp, NULL, false);
 
     // Share the parent VM's module cache with the module VM to allow caching of nested imports.
     ht_free(module_vm->modules);
@@ -296,6 +302,12 @@ Value load_module(vm_t *vm, const char *name)
     }
     ht_free(defined_globals);
     module->state = MODULE_LOADED;
+
+    // Preserve module constants/names for functions created in this module.
+    module->constants = comp->constants;
+    module->names = comp->names;
+    comp->constants = NULL;
+    comp->names = NULL;
 
     free_parser(parser);
     free_compiler(comp);

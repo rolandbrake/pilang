@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <math.h>
+#include <ctype.h>
 #include "pi_parser.h"
 #include "pi_compiler.h"
 #include "pi_opcode.h"
@@ -21,6 +22,7 @@ static void var_decl(parser_t *parser);
 static void func_decl(parser_t *parser);
 static void statement(parser_t *parser);
 static void expr_state(parser_t *parser);
+static bool stmt_hasAssignment(parser_t *parser, int start);
 static void block(parser_t *parser);
 static void if_stmt(parser_t *parser);
 static void while_stmt(parser_t *parser);
@@ -335,6 +337,16 @@ static bool is_lineBreak(parser_t *parser)
     return previous(parser).line < peek(parser).line || peek(parser).type == TK_EOF;
 }
 
+/**
+ * @brief Checks if a semicolon delimiter is needed.
+ *
+ * @details Checks if there is no explicit semicolon, no line break, and the next
+ *          token is not a closing brace. If all conditions are met, returns true.
+ *          Otherwise, returns false.
+ *
+ * @return true if a semicolon delimiter is needed, false otherwise.
+ */
+
 bool need_delimiter(parser_t *parser)
 {
     // If there's no explicit semicolon,
@@ -351,6 +363,31 @@ bool need_delimiter(parser_t *parser)
     }
 
     // If we get here, we don't need a delimiter
+    return false;
+}
+
+// Scan the current statement for any assignment operator.
+// This is used to decide whether expr_state should emit a POP.
+static bool stmt_hasAssignment(parser_t *parser, int start)
+{
+    if (start < 0)
+        return false;
+
+    int line = parser->tokens[start].line;
+    for (int i = start;; i++)
+    {
+        token_t tok = parser->tokens[i];
+
+        // Stop at end of statement.
+        if (tok.type == TK_SEMICOLON || tok.type == TK_EOF)
+            break;
+        if (tok.line > line)
+            break;
+
+        if (tok.type >= TK_ASSIGN && tok.type <= TK_MOD_ASSIGN)
+            return true;
+    }
+
     return false;
 }
 /**
@@ -574,6 +611,10 @@ static void variable(parser_t *parser)
 
     // Store the variable
     add_variable(parser->comp, name);
+
+    // For locals, ensure the initializer value is stored into the local slot.
+    if (is_localScope(parser->comp))
+        store_variable(parser->comp, name);
 }
 
 /**
@@ -764,10 +805,10 @@ static void emit_importBinding(parser_t *parser, token_t export_tok, token_t ali
 {
     // Get the export name and alias name from the tokens
     char *alias_name = token_value(alias_tok);
-    int export_name = store_const(parser->comp, new_value(export_tok));
+    int export_index = store_const(parser->comp, new_value(export_tok));
 
     // Emit the export name and alias name as constants
-    emit_16u(parser->comp, OP_LOAD_CONST, alias_name, export_name);
+    emit_16u(parser->comp, OP_LOAD_CONST, alias_name, export_index);
     emit(parser->comp, OP_GET_EXPORT);
 
     // Add the alias to the current scope
@@ -863,16 +904,6 @@ static void import_stmt(parser_t *parser)
 
         emit_importModule(parser, parts, count - 1);
         emit_importBinding(parser, export_tok, alias_tok);
-        consume_ifExist(parser, 1, TK_SEMICOLON);
-        return;
-    }
-
-    // import path.to.mod.elem (no alias) -> bind elem
-    if (count >= 2)
-    {
-        token_t export_tok = parts[count - 1];
-        emit_importModule(parser, parts, count - 1);
-        emit_importBinding(parser, export_tok, export_tok);
         consume_ifExist(parser, 1, TK_SEMICOLON);
         return;
     }
@@ -1130,7 +1161,10 @@ static void for_stmt(parser_t *parser)
 
     push_scope(parser->comp);
 
-    add_variable(parser->comp, token_value(init));
+    char *loop_var = token_value(init);
+    add_variable(parser->comp, loop_var);
+    // Bind the iterated value to the loop variable each iteration.
+    store_variable(parser->comp, loop_var);
     push_loop(parser->comp, address - 2, true);
 
     if (match(parser, TK_LBRACE))
@@ -1245,37 +1279,11 @@ static void return_stmt(parser_t *parser)
 static void expr_state(parser_t *parser)
 {
 
-    token_t token = peek(parser);
-    bool prev_lookUp, is_assign = false;
-    int current = parser->current;
-
-    // Check if the expression is enclosed in parentheses
-    if (token.type == TK_LPAREN)
-    {
-        prev_lookUp = look_up(parser->comp, true); // Set the look_up flag to true to indicate that the expression is enclosed in parentheses
-        primary(parser);                           // Parse the primary expression
-        look_up(parser->comp, prev_lookUp);        // Reset the look_up flag to false after parsing the expression
-        parser->current = current;                 // Reset the current position to its original value
-    }
-
-    current = parser->current;
-
-    prev_lookUp = look_up(parser->comp, true);
-
-    // Check if the expression is an assignment expression
-    cond_expr(parser);
-    token = peek(parser);
-    if (token.type >= TK_ASSIGN && token.type <= TK_MOD_ASSIGN)
-        is_assign = true;
-    look_up(parser->comp, prev_lookUp);
-
-    parser->current = current;
+    bool is_assign = stmt_hasAssignment(parser, parser->current);
 
     expr(parser); // Parse the expression
 
-    // Check if the expression is an assignment expression
-    // If it is, do not emit the POP bytecode
-    // The assignment expression is handled separately
+    // If it is an assignment expression, do not emit the POP bytecode.
     if (!is_assign)
     {
         if (!parser->comp->is_repl)
@@ -1436,11 +1444,10 @@ static void assignment(parser_t *parser, bool emit_load)
             cond_expr(parser);
         }
 
-        if (emit_load)
-        {
-            parser->current = left;
-            cond_expr(parser);
-        }
+        // Always leave the assigned value on the stack so expression statements
+        // can safely POP and assignments can be used as expressions.
+        parser->current = left;
+        cond_expr(parser);
 
         // Restore the original parsing position
         parser->current = current;

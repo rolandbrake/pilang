@@ -322,6 +322,10 @@ void free_object(Object *obj)
         ObjModule *module = (ObjModule *)obj;
         free(module->name);
         free(module->path);
+        if (module->constants)
+            list_free(module->constants);
+        if (module->names)
+            list_free(module->names);
         break;
     }
 

@@ -11,11 +11,14 @@
  * @param fun_name The name of the function this frame is executing.
  * @return A newly allocated Frame struct.
  */
-Frame *create_frame(int pc, int sp, int bp, list_t *code, int iters_top, int ip, Function *fn)
+Frame *create_frame(int pc, int sp, int bp, list_t *code, list_t *constants, list_t *names, table_t *instrs, int iters_top, int ip, Function *fn)
 {
     Frame *frame = (Frame *)malloc(sizeof(Frame));
 
     frame->code = code;
+    frame->constants = constants;
+    frame->names = names;
+    frame->instrs = instrs;
     frame->pc = pc;
     frame->bp = bp;
     frame->sp = sp;

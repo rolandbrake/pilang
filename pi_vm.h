@@ -73,7 +73,7 @@ typedef struct
 
 } vm_t;
 
-vm_t *init_vm(compiler_t *comp);
+vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main);
 void vm_reset(vm_t *vm, compiler_t *comp);
 
 Object *add_obj(vm_t *vm, Object *obj);

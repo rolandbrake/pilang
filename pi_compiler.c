@@ -1294,6 +1294,7 @@ void dis(compiler_t *comp)
         ht_put(comp->instrs, "<global>", global_ctx->instrs);
     }
 
+
     // Get all function names in order
     char **scope_names = ht_keys(comp->instrs);
 

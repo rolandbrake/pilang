@@ -38,6 +38,9 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
 
     // Set function body
     fn->body = body;
+    fn->constants = NULL;
+    fn->names = NULL;
+    fn->instrs = NULL;
 
     // Set function flags
     fn->is_native = false;
@@ -91,6 +94,9 @@ Value *new_native(const char *name, native_func func)
 
     fn->params = NULL;
     fn->body = NULL;
+    fn->constants = NULL;
+    fn->names = NULL;
+    fn->instrs = NULL;
 
     fn->is_native = true;
     fn->need_args = false; // Native functions don't use the args slot
@@ -125,12 +131,21 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv)
         .bp = vm->bp,
         .ip = vm->ip,
         .code = vm->code,
+        .constants = vm->constants,
+        .names = vm->names,
+        .instrs = vm->instrs,
         .iters_top = vm->iter_sp,
         .function = function};
     push_frame(vm, &frame);
 
     // Update the VM state with the function's bytecode
     vm->code = function->body->data;
+    if (function->constants)
+        vm->constants = function->constants;
+    if (function->names)
+        vm->names = function->names;
+    if (function->instrs)
+        vm->instrs = function->instrs;
 
     vm->pc = 0;
     vm->ip = 0;

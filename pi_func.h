@@ -17,6 +17,9 @@ typedef struct Function
     char *name;     // Function name
     list_t *params; // PiList of parameters    
     ObjCode *body;
+    list_t *constants; // Constants table for this function's bytecode
+    list_t *names;     // Names table for this function's bytecode
+    table_t *instrs;   // Instruction metadata table for this function's bytecode
 
     UpValue **upvalues; // PiList of upvalues used in the function body
     int upvalue_count;  // Number of upvalues
