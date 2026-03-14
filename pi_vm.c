@@ -428,8 +428,6 @@ static inline int _read_short(uint8_t *code, int pc)
     return (high << 8) | low;      // Combine high and low bytes into a 16-bit short
 }
 
-
-
 /**
  * Checks if the given function uses an argument slot.
  *
@@ -1934,7 +1932,7 @@ void run(vm_t *vm)
         case OP_GET_EXPORT:
         {
             Value name = pop_stack(vm);
-            Value module = pop_stack(vm);            
+            Value module = pop_stack(vm);
 
             if (!IS_OBJ(module) || (OBJ_TYPE(module) != OBJ_MAP && OBJ_TYPE(module) != OBJ_MODULE))
                 vm_error(vm, "Attempt to access export from non-module object.");
@@ -1971,6 +1969,27 @@ void run(vm_t *vm)
                     ht_put(vm->globals, key, value);
             }
 
+            break;
+        }
+
+        case OP_IMPORT_DEFAULT:
+        {
+            Value name = pop_stack(vm);
+            Value module = pop_stack(vm);
+
+            if (!IS_OBJ(module) || (OBJ_TYPE(module) != OBJ_MAP && OBJ_TYPE(module) != OBJ_MODULE))
+                vm_error(vm, "Attempt to import from non-module object.");
+
+            if (!IS_STRING(name))
+                vm_error(vm, "Export name must be a string.");
+
+            PiMap *_module = (OBJ_TYPE(module) == OBJ_MODULE) ? AS_MODULE(module)->exports : AS_MAP(module);
+            Value value = map_get(_module, name);
+
+            if (IS_FUN(value))
+                push_stack(vm, value);
+            else
+                push_stack(vm, module);
             break;
         }
 
@@ -2039,36 +2058,36 @@ void run(vm_t *vm)
             vm->counter = 0;
         }
 #else
-//         if (vm->counter >= vm->next_gc)
-//         {
-//             int before = count_objs(vm);
-//             run_gc(vm);
-//             int after = count_objs(vm);
-//             int collected = before - after;
+        if (vm->counter >= vm->next_gc)
+        {
+            int before = count_objs(vm);
+            run_gc(vm);
+            int after = count_objs(vm);
+            int collected = before - after;
 
-//             vm->counter = 0;
+            vm->counter = 0;
 
-//             // Adapt threshold to avoid over-collecting in long-running loops.
-//             if (collected <= 0)
-//                 vm->next_gc += vm->next_gc / 2; // GC reclaimed nothing: back off.
-//             else
-//                 vm->next_gc = after + (after / 2); // Target ~1.5x live set allocations.
-//             vm->obj_count = after;
+            // Adapt threshold to avoid over-collecting in long-running loops.
+            if (collected <= 0)
+                vm->next_gc += vm->next_gc / 2; // GC reclaimed nothing: back off.
+            else
+                vm->next_gc = after + (after / 2); // Target ~1.5x live set allocations.
+            vm->obj_count = after;
 
-//             // Clamp bounds (prevent very frequent or very rare GC).
-//             if (vm->next_gc < GC_MIN_THRESHOLD)
-//                 vm->next_gc = GC_MIN_THRESHOLD;
-//             else if (vm->next_gc > GC_MAX_THRESHOLD)
-//                 vm->next_gc = GC_MAX_THRESHOLD;
+            // Clamp bounds (prevent very frequent or very rare GC).
+            if (vm->next_gc < GC_MIN_THRESHOLD)
+                vm->next_gc = GC_MIN_THRESHOLD;
+            else if (vm->next_gc > GC_MAX_THRESHOLD)
+                vm->next_gc = GC_MAX_THRESHOLD;
 
-// #ifdef DEBUG
-//             printf("[DEBUG] SP: %d\n", vm->sp);
-//             printf("[GC] Running garbage collection...\n");
-//             printf("[GC] Before: %d objects in memory\n", before);
-//             printf("[GC] After: %d objects in memory\n", after);
-//             printf("[GC] Collected: %d, Next threshold: %d\n", collected, vm->next_gc);
-// #endif
-//         }
+#ifdef DEBUG
+            printf("[DEBUG] SP: %d\n", vm->sp);
+            printf("[GC] Running garbage collection...\n");
+            printf("[GC] Before: %d objects in memory\n", before);
+            printf("[GC] After: %d objects in memory\n", after);
+            printf("[GC] Collected: %d, Next threshold: %d\n", collected, vm->next_gc);
+#endif
+        }
 #endif
         vm->pc = pc;
     }

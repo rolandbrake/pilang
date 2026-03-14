@@ -1,3 +1,4 @@
+C = 2;
 fun sum(list = []) {
     let res = 0;
     for(l in list)

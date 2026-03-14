@@ -908,9 +908,12 @@ static void import_stmt(parser_t *parser)
         return;
     }
 
-    // Plain module import: bind the module to its last path segment.
+    // Plain module import: bind to export if same-name function exists, else module.
     emit_importModule(parser, parts, count);
     char *binding_name = token_value(parts[count - 1]);
+    int name_index = store_const(parser->comp, new_value(parts[count - 1]));
+    emit_16u(parser->comp, OP_LOAD_CONST, binding_name, name_index);
+    emit(parser->comp, OP_IMPORT_DEFAULT);
     store_variable(parser->comp, binding_name);
     free(binding_name);
     consume_ifExist(parser, 1, TK_SEMICOLON);

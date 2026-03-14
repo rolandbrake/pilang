@@ -50,7 +50,8 @@ typedef enum
     OP_CLOSE_UPVALUE = 0x3c,
     OP_IMPORT = 0x3d,
     OP_GET_EXPORT = 0x3e,
-    OP_IMPORT_ALL = 0x3f
+    OP_IMPORT_ALL = 0x3f,
+    OP_IMPORT_DEFAULT = 0x40
 } OpCode;
 
 typedef struct
