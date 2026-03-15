@@ -3,6 +3,7 @@
 #include "../pi_value.h"
 #include "../pi_vm.h"
 
+
 // Removes and returns the last element or character from a list or string.
 Value pi_pop(vm_t *vm, int argc, Value *argv);
 

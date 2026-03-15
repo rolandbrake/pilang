@@ -3,6 +3,7 @@
 
 #include "pi_col.h"
 #include "../list.h"
+#include "pi_builtin.h"
 
 /**
  * @brief Compares two values and returns a negative, zero, or positive value.
@@ -886,3 +887,17 @@ Value pi_range(vm_t *vm, int argc, Value *argv)
     Object *range_obj = new_range(start, end, step);
     return NEW_OBJ(range_obj);
 }
+
+// Module definition
+static BuiltinFunc col_functions[] = {
+    {"peek", pi_peek},
+    {"sort", pi_sort},
+    {"unshift", pi_unshift},
+    {"append", pi_append},
+    {"contains", pi_contains},
+    {"indexOf", pi_indexOf},
+    {"reverse", pi_reverse},
+    {"shuffle", pi_shuffle},
+    {"copy", pi_copy}};
+
+DEFINE_BUILTIN_MODULE(col_module, "col", col_functions, NULL);

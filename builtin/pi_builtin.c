@@ -63,18 +63,9 @@ BuiltinFunc builtin_functions[] = {
     // Collections
     {"push", pi_push},
     {"pop", pi_pop},
-    {"peek", pi_peek},
     {"empty", pi_empty},
-    {"sort", pi_sort},
     {"insert", pi_insert},
-    {"unshift", pi_unshift},
     {"remove", pi_remove},
-    {"append", pi_append},
-    {"contains", pi_contains},
-    {"index_of", pi_indexOf},
-    {"reverse", pi_reverse},
-    {"shuffle", pi_shuffle},
-    {"copy", pi_copy},
     {"slice", pi_slice},
     {"len", pi_len},
     {"range", pi_range},
@@ -104,7 +95,9 @@ BuiltinFunc builtin_functions[] = {
 int BUILTIN_FUNC_COUNT = sizeof(builtin_functions) / sizeof(BuiltinFunc);
 
 BuiltinModule *builtin_modules[] = {
-    &math_module,    
-    &io_module,};
+    &math_module,
+    &io_module,
+    &col_module,
+};
 
 int BUILTIN_MODULE_COUNT = sizeof(builtin_modules) / sizeof(BuiltinModule *);

@@ -1,3 +1,5 @@
-import io
+import col.{indexOf, sort}
 
-println(io.exports)
+println(indexOf([1, 2, 3], 20)) // Output: 1
+println(pop([1, 2, 3])) // Output: 3
+println(pop("Hello")) // Output: "o"
