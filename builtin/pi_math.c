@@ -1415,7 +1415,7 @@ static BuiltinConst math_consts[] = {
     {"PHI", {VAL_NUM, {.number = PHI}}},
 };
 
-static BuiltinFunc math_functions[] = {
+static BuiltinFunc math_funcs[] = {
     {"floor", pi_floor},
     {"ceil", pi_ceil},        
     {"sqrt", pi_sqrt},
@@ -1441,4 +1441,4 @@ static BuiltinFunc math_functions[] = {
     {"mode", pi_mode}
 };
 
-DEFINE_BUILTIN_MODULE(math_module, "math", math_functions, math_consts);
+DEFINE_BUILTIN_MODULE(math_module, "math", math_funcs, math_consts);

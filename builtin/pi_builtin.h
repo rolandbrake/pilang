@@ -52,11 +52,11 @@ extern BuiltinModule sys_module;
 extern BuiltinModule math_module;
 extern BuiltinModule io_module;
 extern BuiltinModule col_module;
-extern BuiltinModule time_module;
-extern BuiltinModule fun_module;
+extern BuiltinModule string_module;
 extern BuiltinModule mat_module;
+extern BuiltinModule time_module;
 extern BuiltinModule type_module;
-extern BuiltinModule obj_module;
+
 
 // Helper macro to define a builtin module from local arrays.
 #define DEFINE_BUILTIN_MODULE(module, name, func_list, const_list) \

@@ -1,3 +1,5 @@
-import sys.{stdin, stdout}
+import string.{is_upper, is_lower}
 
-println(stdin)
+println(is_upper("HELLO"))  // true
+println(is_upper("Hello"))  // false
+println(is_lower("hello"))  // true

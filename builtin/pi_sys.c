@@ -168,7 +168,7 @@ static BuiltinConst sys_consts[] = {
 
 };
 
-static BuiltinFunc sys_functions[] = {
+static BuiltinFunc sys_funcs[] = {
     {"argv", pi_argv},
     {"exit", pi_exit},
     {"platform", pi_platform},
@@ -176,4 +176,4 @@ static BuiltinFunc sys_functions[] = {
     {"path", pi_path},
 };
 
-DEFINE_BUILTIN_MODULE(sys_module, "sys", sys_functions, sys_consts);
+DEFINE_BUILTIN_MODULE(sys_module, "sys", sys_funcs, sys_consts);

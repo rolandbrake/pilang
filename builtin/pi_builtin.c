@@ -35,14 +35,6 @@ BuiltinFunc builtin_functions[] = {
     {"trim", pi_trim},
     {"upper", pi_upper},
     {"lower", pi_lower},
-    {"replace", pi_replace},
-    {"is_upper", pi_isUpper},
-    {"is_lower", pi_isLower},
-    {"is_digit", pi_isDigit},
-    {"is_numeric", pi_isNumeric},
-    {"is_alpha", pi_isAlpha},
-    {"is_alnum", pi_isAlnum},
-    {"split", pi_split},
 
     // System
     {"error", pi_error},
@@ -88,7 +80,8 @@ BuiltinModule *builtin_modules[] = {
     &sys_module,
     &math_module,
     &io_module,
-    &col_module,
+    &col_module,    
+    &string_module,
 };
 
 int BUILTIN_MODULE_COUNT = sizeof(builtin_modules) / sizeof(BuiltinModule *);
