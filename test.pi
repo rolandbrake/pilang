@@ -1,5 +1,8 @@
-import test.sum
+// user = { name: "John Doe", age: 10 };
 
-println(sum([1,2,3,4,5]))
+// copiedUser = { ...user };
+// println(copiedUser); // { name: "John Doe", age: 10 }
 
+import math.*
+println(inf); // 6.283185307179586476925286766559
 

@@ -132,3 +132,9 @@ BuiltinFunc builtin_functions[] = {
 };
 
 int BUILTIN_FUNC_COUNT = sizeof(builtin_functions) / sizeof(BuiltinFunc);
+
+BuiltinModule *builtin_modules[] = {
+    &math_module,
+};
+
+int BUILTIN_MODULE_COUNT = sizeof(builtin_modules) / sizeof(BuiltinModule *);

@@ -6,6 +6,7 @@
 #include "pi_vm.h"
 #include "pi_value.h"
 #include "pi_object.h"
+#include "builtin/pi_builtin.h"
 
 typedef enum
 {
@@ -31,8 +32,8 @@ typedef struct ObjModule
 } ObjModule; // pilang modules
 
 Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin, bool is_main);
+BuiltinModule *new_builtinModule(const char *name, BuiltinFunc *functions, int func_count, BuiltinConst *consts, int const_count);
 Value load_module(vm_t *vm, const char *name);
 char *module_resolvePath(vm_t *vm, const char *name);
-
 
 #endif // PI_MODULE_H

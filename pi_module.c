@@ -9,6 +9,8 @@
 #include "pi_compiler.h"
 #include "pi_opcode.h"
 #include "string.h"
+#include "pi_func.h"
+#include "builtin/pi_builtin.h"
 
 #ifdef _WIN32
 #include <direct.h>
@@ -120,30 +122,126 @@ static char *copy_dirName(const char *path)
     return dir;
 }
 
+static const BuiltinModule *find_builtinModule(const char *name)
+{
+    for (int i = 0; i < BUILTIN_MODULE_COUNT; i++)
+    {
+        if (strcmp(builtin_modules[i]->name, name) == 0)
+            return builtin_modules[i];
+    }
+    return NULL;
+}
+
+static Value load_builtinModule(vm_t *vm, const BuiltinModule *builtin)
+{
+    char cache_key[256];
+    snprintf(cache_key, sizeof(cache_key), "@builtin:%s", builtin->name);
+
+    Value *cached = ht_get(vm->modules, cache_key);
+    if (cached)
+        return *cached;
+
+    Object *module_obj = new_module(vm, builtin->name, "<builtin>", true, false);
+    Value module_val = NEW_OBJ(module_obj);
+    ht_put(vm->modules, cache_key, &module_val);
+
+    ObjModule *module = AS_MODULE(module_val);
+    PiMap *exports = module->exports;
+
+    for (int i = 0; i < builtin->const_count; i++)
+    {
+        BuiltinConst *c = &builtin->consts[i];
+        Value key_val = NEW_OBJ(add_obj(vm, new_pistring(strdup(c->name))));
+        map_set(exports, key_val, c->value);
+    }
+
+    for (int i = 0; i < builtin->func_count; i++)
+    {
+        BuiltinFunc *f = &builtin->functions[i];
+        Value *fn_val = new_native(f->name, f->func);
+        Value key_val = NEW_OBJ(add_obj(vm, new_pistring(strdup(f->name))));
+        map_set(exports, key_val, *fn_val);
+        free(fn_val);
+    }
+
+    module->state = MODULE_LOADED;
+    return module_val;
+}
+
+/**
+ * Creates a new module object.
+ *
+ * @param vm The virtual machine.
+ * @param name The name of the module.
+ * @param path The path to the module file.
+ * @param builtin Whether the module is a builtin module.
+ * @param is_main Whether the module is the entry point of the program.
+ *
+ * @return The new module object.
+ */
 Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin, bool is_main)
 {
+    // Allocate memory for the module object
     ObjModule *module = (ObjModule *)malloc(sizeof(ObjModule));
     if (!module)
+        // Out of memory
         vm_error(vm, "Out of memory while creating module object.");
 
+    // Initialize the module object
     module->object.type = OBJ_MODULE;
     module->object.is_marked = false;
     module->object.in_gcList = false;
     module->object.gc_color = GC_WHITE;
     module->object.next = NULL;
 
+    // Set the module name and path
     module->name = strdup(name ? name : "");
     module->path = strdup(path ? path : "");
+
+    // Set whether the module is a builtin module or the entry point
     module->builtin = builtin;
     module->is_main = is_main;
+
+    // Set the initial state of the module
     module->state = MODULE_LOADING;
+
+    // Initialize the constants and names tables
     module->constants = NULL;
     module->names = NULL;
 
+    // Create a new map to store the module's exports
     Object *exports_obj = add_obj(vm, new_map(ht_create(sizeof(Value)), false));
     module->exports = (PiMap *)exports_obj;
 
+    // Add the module object to the VM
     return add_obj(vm, (Object *)module);
+}
+
+/**
+ * Creates a new BuiltinModule.
+ *
+ * @param name The name of the module.
+ * @param functions An array of BuiltinFuncs that will be exposed by the module.
+ * @param func_count The number of functions in the functions array.
+ * @param consts An array of BuiltinConsts that will be exposed by the module.
+ * @param const_count The number of constants in the consts array.
+ *
+ * @return A new BuiltinModule.
+ */
+BuiltinModule *new_builtinModule(const char *name, BuiltinFunc *functions,
+                                 int func_count, BuiltinConst *consts, int const_count)
+{
+    BuiltinModule *module = (BuiltinModule *)malloc(sizeof(BuiltinModule));
+    if (!module)
+        return NULL;
+
+    module->name = strdup(name);
+    module->functions = functions;
+    module->func_count = func_count;
+    module->consts = consts;
+    module->const_count = const_count;
+
+    return module;
 }
 
 static table_t *collect_definedGlobals(compiler_t *comp)
@@ -237,7 +335,12 @@ Value load_module(vm_t *vm, const char *name)
 {
     char *resolved = module_resolvePath(vm, name);
     if (!resolved)
+    {
+        const BuiltinModule *builtin = find_builtinModule(name);
+        if (builtin)
+            return load_builtinModule(vm, builtin);
         vm_errorf(vm, "Cannot resolve module '%s'.", name);
+    }
 
     Value *cached = ht_get(vm->modules, resolved);
     if (cached)

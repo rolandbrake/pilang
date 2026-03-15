@@ -43,4 +43,29 @@ extern BuiltinConst builtin_constants[];
 // Number of builtin constants
 extern int BUILTIN_CONST_COUNT;
 
+// Builtin modules (e.g., math, time, io)
+extern BuiltinModule *builtin_modules[];
+extern int BUILTIN_MODULE_COUNT;
+
+// Builtin module exports
+extern BuiltinModule math_module;
+extern BuiltinModule time_module;
+extern BuiltinModule io_module;
+extern BuiltinModule sys_module;
+extern BuiltinModule col_module;
+extern BuiltinModule fun_module;
+extern BuiltinModule mat_module;
+extern BuiltinModule type_module;
+extern BuiltinModule obj_module;
+
+// Helper macro to define a builtin module from local arrays.
+#define DEFINE_BUILTIN_MODULE(var_name, module_name, func_list, const_list) \
+    BuiltinModule var_name = {                                              \
+        module_name,                                                        \
+        func_list,                                                          \
+        (int)(sizeof(func_list) / sizeof(BuiltinFunc)),                     \
+        const_list,                                                         \
+        (int)(sizeof(const_list) / sizeof(BuiltinConst)),                   \
+    }
+
 #endif // PI_BUILTIN_H
