@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <pthread.h>
 
+#define PI_VERSION "Pi-Lang 0.1.0"
+
 #define PI 3.1415926535897932384626433832795
 #define E 2.7182818284590452353602874713527
 #define TAU 6.283185307179586476925286766559   
@@ -35,6 +37,8 @@ typedef uint8_t byte;
 #define True 1
 
 #define EPSILON 1e-5f
+
+
 
 // A simple 3D vector structure
 typedef struct
@@ -68,6 +72,10 @@ extern error_handlerFn global_errorHandler;
 
 // Function to set a custom error handler
 void set_errorHandler(error_handlerFn handler);
+
+// Command-line arguments (native only; emscripten may leave these empty)
+extern int pi_cli_argc;
+extern char **pi_cli_argv;
 
 
 #endif

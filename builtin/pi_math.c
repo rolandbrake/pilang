@@ -1407,7 +1407,7 @@ Value pi_logE(vm_t *vm, int argc, Value *argv)
 }
 
 
-// --- Module Definition ---
+// Module Defenition
 static BuiltinConst math_consts[] = {
     {"PI", {VAL_NUM, {.number = PI}}},
     {"E", {VAL_NUM, {.number = E}}},

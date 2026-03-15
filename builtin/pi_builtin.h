@@ -48,11 +48,11 @@ extern BuiltinModule *builtin_modules[];
 extern int BUILTIN_MODULE_COUNT;
 
 // Builtin module exports
+extern BuiltinModule sys_module;
 extern BuiltinModule math_module;
 extern BuiltinModule io_module;
 extern BuiltinModule col_module;
 extern BuiltinModule time_module;
-extern BuiltinModule sys_module;
 extern BuiltinModule fun_module;
 extern BuiltinModule mat_module;
 extern BuiltinModule type_module;

@@ -92,6 +92,8 @@ void _init_audio(void)
 
 int main(int argc, char *argv[])
 {
+    pi_cli_argc = argc;
+    pi_cli_argv = argv;
 
     init_audio();
 
@@ -236,6 +238,9 @@ static int run_file(const char *filename)
 
 int main(int argc, char *argv[])
 {
+    pi_cli_argc = 0;
+    pi_cli_argv = NULL;
+
     if (argc < 2)
     {
         print_usage(argv[0]);
@@ -258,11 +263,13 @@ int main(int argc, char *argv[])
 
     if (strcmp(command, "run") == 0)
     {
-        if (argc != 3)
+        if (argc < 3)
         {
-            fprintf(stderr, "Usage: %s run <file>\n", argv[0]);
+            fprintf(stderr, "Usage: %s run <file> [args...]\n", argv[0]);
             return 1;
         }
+        pi_cli_argc = argc - 2;
+        pi_cli_argv = &argv[2];
         return run_file(argv[2]);
     }
 
@@ -278,8 +285,12 @@ int main(int argc, char *argv[])
     }
 
     // Shorthand: allow `pi <file>` as equivalent to `pi run <file>`.
-    if (argc == 2)
+    if (argc >= 2)
+    {
+        pi_cli_argc = argc - 1;
+        pi_cli_argv = &argv[1];
         return run_file(command);
+    }
 
     fprintf(stderr, "Unknown command: %s\nUse '%s help' to see available commands.\n", command, argv[0]);
     return 1;

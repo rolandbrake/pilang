@@ -7,6 +7,8 @@
 #include "common.h"
 
 error_handlerFn global_errorHandler = NULL;
+int pi_cli_argc = 0;
+char **pi_cli_argv = NULL;
 
 char *itos(int num)
 {

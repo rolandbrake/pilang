@@ -45,8 +45,8 @@ BuiltinFunc builtin_functions[] = {
     {"split", pi_split},
 
     // System
-    {"fps", pi_fps},
     {"error", pi_error},
+    {"assert", pi_assert},
     {"zen", pi_zen},
 
     // Type
@@ -76,16 +76,6 @@ BuiltinFunc builtin_functions[] = {
     {"reduce", pi_reduce},
     {"find", pi_find},
 
-    // Matrix
-    {"size", pi_size},
-    {"mult", pi_mult},
-    {"dot", pi_dot},
-    {"cross", pi_cross},
-    {"eye", pi_eye},
-    {"zeros", pi_zeros},
-    {"ones", pi_ones},
-    {"is_mat", pi_isMat},
-
     // Object
     {"clone", pi_clone},
     {"values", pi_values},
@@ -95,6 +85,7 @@ BuiltinFunc builtin_functions[] = {
 int BUILTIN_FUNC_COUNT = sizeof(builtin_functions) / sizeof(BuiltinFunc);
 
 BuiltinModule *builtin_modules[] = {
+    &sys_module,
     &math_module,
     &io_module,
     &col_module,

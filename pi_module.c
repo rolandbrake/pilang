@@ -151,6 +151,7 @@ static Value load_builtinModule(vm_t *vm, const BuiltinModule *builtin)
     for (int i = 0; i < builtin->const_count; i++)
     {
         BuiltinConst *c = &builtin->consts[i];
+
         Value key_val = NEW_OBJ(add_obj(vm, new_pistring(strdup(c->name))));
         map_set(exports, key_val, c->value);
     }

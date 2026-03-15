@@ -8,7 +8,7 @@
 // Function to convert a void pointer to an integer
 #define cast_int64(x) ((int64_t)x)
 
-#define KW_NUM 23
+#define KW_NUM 22
 
 /*
 ** Single-char tokens (terminal symbols) are represented by their own
@@ -40,7 +40,6 @@ typedef enum
     TK_NIL,
     TK_IS,
     TK_PRINT,
-    TK_ASSERT,
     TK_TYPEOF,
     TK_DEBUG,
     TK_ID,
@@ -145,8 +144,7 @@ static keyword_t keywords[KW_NUM] = {
     {"nil", TK_NIL},
     {"is", TK_IS},
     {"return", TK_RETURN},
-    {"class", TK_CLASS},
-    {"assert", TK_ASSERT},
+    {"class", TK_CLASS},    
     {"typeof", TK_TYPEOF},
     {"debug", TK_DEBUG},
     {"import", TK_IMPORT},
