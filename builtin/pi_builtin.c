@@ -8,38 +8,6 @@ BuiltinConst builtin_constants[] = {
 int BUILTIN_CONST_COUNT = sizeof(builtin_constants) / sizeof(BuiltinConst);
 
 BuiltinFunc builtin_functions[] = {
-    // Math
-    {"floor", pi_floor},
-    {"ceil", pi_ceil},
-    {"round", pi_round},
-    {"seed", pi_seed},
-    {"rand", pi_rand},
-    {"rand_n", pi_rand_n},
-    {"sqrt", pi_sqrt},
-    {"sin", pi_sin},
-    {"cos", pi_cos},
-    {"tan", pi_tan},
-    {"asin", pi_asin},
-    {"acos", pi_acos},
-    {"atan", pi_atan},
-    {"deg", pi_deg},
-    {"rad", pi_rad},
-    {"sum", pi_sum},
-    {"exp", pi_exp},
-    {"log2", pi_log2},
-    {"log10", pi_log10},
-    {"logE", pi_logE},
-    {"pow", pi_pow},
-    {"abs", pi_abs},
-    {"mean", pi_mean},
-    {"avg", pi_avg},
-    {"var", pi_var},
-    {"dev", pi_dev},
-    {"median", pi_median},
-    {"mode", pi_mode},
-    {"max", pi_max},
-    {"min", pi_min},
-
 
     // Time
     {"sleep", pi_sleep},
@@ -51,12 +19,15 @@ BuiltinFunc builtin_functions[] = {
     {"printf", pi_printf},
     {"input", pi_input},
 
-    // File
-    {"open", pi_open},
-    {"read", pi_read},
-    {"write", pi_write},
-    {"seek", pi_seek},
-    {"close", pi_close},
+    // Math
+    {"abs", pi_abs},
+    {"min", pi_min},
+    {"max", pi_max},
+    {"pow", pi_pow},
+    {"round", pi_round},
+    {"seed", pi_seed},
+    {"rand", pi_rand},
+    {"rand_n", pi_rand_n},
 
     // String
     {"char", pi_char},
@@ -72,7 +43,6 @@ BuiltinFunc builtin_functions[] = {
     {"is_alpha", pi_isAlpha},
     {"is_alnum", pi_isAlnum},
     {"split", pi_split},
-
 
     // System
     {"fps", pi_fps},
@@ -134,7 +104,7 @@ BuiltinFunc builtin_functions[] = {
 int BUILTIN_FUNC_COUNT = sizeof(builtin_functions) / sizeof(BuiltinFunc);
 
 BuiltinModule *builtin_modules[] = {
-    &math_module,
-};
+    &math_module,    
+    &io_module,};
 
 int BUILTIN_MODULE_COUNT = sizeof(builtin_modules) / sizeof(BuiltinModule *);

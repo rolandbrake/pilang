@@ -1417,11 +1417,7 @@ static BuiltinConst math_consts[] = {
 
 static BuiltinFunc math_functions[] = {
     {"floor", pi_floor},
-    {"ceil", pi_ceil},
-    {"round", pi_round},
-    {"seed", pi_seed},
-    {"rand", pi_rand},
-    {"rand_n", pi_rand_n},
+    {"ceil", pi_ceil},        
     {"sqrt", pi_sqrt},
     {"sin", pi_sin},
     {"cos", pi_cos},
@@ -1436,16 +1432,13 @@ static BuiltinFunc math_functions[] = {
     {"log2", pi_log2},
     {"log10", pi_log10},
     {"logE", pi_logE},
-    {"pow", pi_pow},
-    {"abs", pi_abs},
+    {"pow", pi_pow},    
     {"mean", pi_mean},
     {"avg", pi_avg},
     {"var", pi_var},
     {"dev", pi_dev},
     {"median", pi_median},
-    {"mode", pi_mode},
-    {"max", pi_max},
-    {"min", pi_min},
+    {"mode", pi_mode}
 };
 
 DEFINE_BUILTIN_MODULE(math_module, "math", math_functions, math_consts);

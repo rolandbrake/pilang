@@ -10,16 +10,6 @@ Value pi_fps(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(fps);
 }
 
-Value _pi_type(vm_t *vm, int argc, Value *argv)
-{
-    if (argc == 0)
-        vm_error(vm, "[type] expects at least one argument.");
-
-    char *type = type_name(argv[0]);
-
-    return NEW_OBJ(new_pistring(strdup(type)));
-}
-
 Value pi_error(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -30,8 +20,6 @@ Value pi_error(vm_t *vm, int argc, Value *argv)
     free((void *)str);
     return NEW_NIL();
 }
-
-
 
 Value pi_zen(vm_t *vm, int argc, Value *argv)
 {

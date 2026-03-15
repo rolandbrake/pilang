@@ -4,6 +4,7 @@
 #include "../pi_value.h"
 #include "../pi_vm.h"
 
+Value _pi_type(vm_t *vm, int argc, Value *argv);
 Value pi_isNum(vm_t *vm, int argc, Value *argv);
 Value pi_isStr(vm_t *vm, int argc, Value *argv);
 Value pi_isBool(vm_t *vm, int argc, Value *argv);

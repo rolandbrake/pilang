@@ -6,6 +6,7 @@
 #include "pi_io.h"
 
 #include "../common.h"
+#include "pi_builtin.h"
 
 /**
  * @brief Appends a string to the given buffer.
@@ -427,3 +428,19 @@ Value pi_close(vm_t *vm, int argc, Value *argv)
     file->closed = true;
     return NEW_BOOL(true);
 }
+
+static BuiltinConst io_consts[] = {
+    {"BUFFER_SIZE", NEW_NUM(BUFFER_SIZE)},
+    {"SEEK_SET", NEW_NUM(SEEK_SET)},
+    {"SEEK_CUR", NEW_NUM(SEEK_CUR)},
+    {"SEEK_END", NEW_NUM(SEEK_END)},
+};
+
+static BuiltinFunc io_functions[] = {
+    {"open", pi_open},
+    {"read", pi_read},
+    {"write", pi_write},
+    {"seek", pi_seek},
+    {"close", pi_close}};
+
+DEFINE_BUILTIN_MODULE(io_module, "io", io_functions, io_consts);
