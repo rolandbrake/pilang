@@ -11,5 +11,5 @@ println(myString[0]);  // Expected output: 'h'
 println(myString[7]);  // Expected output: 'w'
 
 
-let myString = "hello, world";
+myString = "hello, world";
 println(myString[-5]);  // Expected output: 'w' (if negative indexing is supported)

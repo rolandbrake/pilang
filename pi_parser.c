@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <math.h>
-#include <ctype.h>
 #include "pi_parser.h"
 #include "pi_compiler.h"
 #include "pi_opcode.h"
@@ -29,7 +28,6 @@ static void for_stmt(parser_t *parser);
 static void break_stmt(parser_t *parser);
 static void continue_stmt(parser_t *parser);
 static void return_stmt(parser_t *parser);
-static void import_stmt(parser_t *parser);
 static void print(parser_t *parser);
 static void variable(parser_t *parser);
 static void expr(parser_t *parser);
@@ -336,16 +334,6 @@ static bool is_lineBreak(parser_t *parser)
     return previous(parser).line < peek(parser).line || peek(parser).type == TK_EOF;
 }
 
-/**
- * @brief Checks if a semicolon delimiter is needed.
- *
- * @details Checks if there is no explicit semicolon, no line break, and the next
- *          token is not a closing brace. If all conditions are met, returns true.
- *          Otherwise, returns false.
- *
- * @return true if a semicolon delimiter is needed, false otherwise.
- */
-
 bool need_delimiter(parser_t *parser)
 {
     // If there's no explicit semicolon,
@@ -364,7 +352,6 @@ bool need_delimiter(parser_t *parser)
     // If we get here, we don't need a delimiter
     return false;
 }
-
 /**
  * Checks if the current token is an assignment operator.
  * The function verifies if the parser is in a store state and if the current
@@ -402,53 +389,39 @@ void mark_tokens(parser_t *parser, int start, int end)
         parser->tokens[i].skip = true;
 }
 
-/**
- * Skips over a let declaration in the parser stream.
- *
- * This function iterates over the parser's token stream and skips over any
- * let declarations until it reaches a semicolon or a line break. It is
- * used to skip over let declarations that are not of interest to the parser.
- */
 static void skip_letDecl(parser_t *parser)
 {
-    int depth = 0; // Depth of the current nesting level
+    int depth = 0;
 
-    // Iterate over the parser's token stream until we reach a semicolon or a line break
     while (!is_atEnd(parser))
     {
-        token_t tok = peek(parser); // Peek at the next token in the stream
+        token_t tok = peek(parser);
 
         switch (tok.type)
         {
-            // If the token is a left parenthesis, bracket, or brace, increase the depth
         case TK_LPAREN:
         case TK_LBRACKET:
         case TK_LBRACE:
             depth++;
             break;
-
-            // If the token is a right parenthesis, bracket, or brace, decrease the depth
         case TK_RPAREN:
         case TK_RBRACKET:
         case TK_RBRACE:
             if (depth > 0)
                 depth--;
             break;
-
-            // If the token is a semicolon or a line break, break out of the loop
         default:
             break;
         }
 
-        // If the depth is zero and the token is a semicolon or a line break, break out of the loop
         if (depth == 0 && (tok.type == TK_SEMICOLON || is_lineBreak(parser)))
         {
             if (tok.type == TK_SEMICOLON)
-                next(parser); // Advance the parser to the next token
+                next(parser);
             break;
         }
 
-        next(parser); // Advance the parser to the next token
+        next(parser);
     }
 }
 
@@ -520,7 +493,7 @@ static void declarations(parser_t *parser)
 {
     int depth = 0;
 
-    // First pass: Hoist functions (do not emit let initializers here)
+    // First pass: Hoist functions and collect globals
     while (!is_atEnd(parser))
     {
         // Track block depth to ignore inner declarations
@@ -544,6 +517,14 @@ static void declarations(parser_t *parser)
             int end = parser->current;
             mark_tokens(parser, start, end); // Mark tokens as processed
         }
+        // // Collect global variable declarations
+        // else if (match(parser, TK_LET))
+        // {
+        //     int start = parser->current - 1; // Start at 'let'
+        //     var_decl(parser);                // Parse variable declaration
+        //     int end = parser->current;
+        //     mark_tokens(parser, start, end); // Mark tokens as processed
+        // }
         // Skip global variable declarations to preserve execution order
         else if (match(parser, TK_LET))
             skip_letDecl(parser);
@@ -561,7 +542,9 @@ static void declarations(parser_t *parser)
         if (parser->tokens[parser->current].skip)
             next(parser);
         else
+            // statement(parser); // Parse remaining statements
             declaration(parser); // Parse remaining declarations/statements in order
+
     }
 }
 
@@ -631,10 +614,6 @@ static void variable(parser_t *parser)
 
     // Store the variable
     add_variable(parser->comp, name);
-
-    // For locals, ensure the initializer value is stored into the local slot.
-    if (is_localScope(parser->comp))
-        store_variable(parser->comp, name);
 }
 
 /**
@@ -1185,10 +1164,7 @@ static void for_stmt(parser_t *parser)
 
     push_scope(parser->comp);
 
-    char *loop_var = token_value(init);
-    add_variable(parser->comp, loop_var);
-    // Bind the iterated value to the loop variable each iteration.
-    store_variable(parser->comp, loop_var);
+    add_variable(parser->comp, token_value(init));
     push_loop(parser->comp, address - 2, true);
 
     if (match(parser, TK_LBRACE))

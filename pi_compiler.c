@@ -228,6 +228,7 @@ compiler_t *init_compiler()
     // names for storing the names of the global variables
     comp->names = list_create(sizeof(String));
     comp->builtin_names = list_create(sizeof(String));
+    comp->declared_globals = ht_create(sizeof(bool));
 
     // Register built-in constant names
     for (int i = 0; i < BUILTIN_CONST_COUNT; i++)
@@ -708,10 +709,11 @@ void add_variable(compiler_t *comp, char *name)
     else
     {
         // Check if the global variable already exists
-        g_index = name_index(comp, name);
-        if (g_index != -1 || is_builtin(comp, name))
-            // Error if the variable already exists
+        if (ht_get(comp->declared_globals, name) != NULL || is_builtin(comp, name))
             p_errorf(comp->current_line, comp->current_col, "Name already exists [%s]", name);
+
+        bool yes = true;
+        ht_put(comp->declared_globals, name, &yes);
 
         // Store the global variable
         g_index = store_name(comp, name);
@@ -1503,6 +1505,8 @@ void free_compiler(compiler_t *comp)
 
     // Free the built-in names list and their contents
     list_free(comp->builtin_names);
+    if (comp->declared_globals)
+        ht_free(comp->declared_globals);
 
     // Free the contexts stack and their contents
     while (!is_empty(comp->contexts))
@@ -1546,6 +1550,8 @@ void reset_compiler(compiler_t *comp)
     // 1. Deep free existing resources
     list_free(comp->code);
     list_free(comp->names);
+    if (comp->declared_globals)
+        ht_free(comp->declared_globals);
 
     while (!is_empty(comp->contexts))
     {
@@ -1569,6 +1575,7 @@ void reset_compiler(compiler_t *comp)
     // 2. Re-initialize all fields as in init_compiler
     comp->code = list_create(sizeof(uint8_t));
     comp->names = list_create(sizeof(String));
+    comp->declared_globals = ht_create(sizeof(bool));
 
     comp->locals = stack_create(sizeof(local_t));
     comp->contexts = stack_create(sizeof(context_t));

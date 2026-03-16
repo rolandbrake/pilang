@@ -51,6 +51,7 @@ typedef struct
 
     list_t *names;         // PiList of variable names
     list_t *builtin_names; // PiList of built-in names
+    table_t *declared_globals; // Tracks globally declared names (let/fun)
 
     stack_t *locals;    // Stack of local variables
     stack_t *contexts;  // Stack of active compilation contexts

@@ -32,7 +32,7 @@ fun interpret(code = "")
             if (ptr == length - 1)//If memory is full
                 ptr = 0;//pointer is returned to zero
             else
-                ptr ++;
+                ptr++;
         }
             
         // < moves the pointer to the left
