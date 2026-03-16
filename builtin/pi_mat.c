@@ -1,5 +1,6 @@
 #include "pi_mat.h"
 #include "../list.h"
+#include "pi_builtin.h"
 
 /**
  * @brief Returns the size of a matrix.
@@ -242,7 +243,6 @@ Value pi_dot(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(sum);
 }
 
-
 /**
  * @brief Computes the cross product of two 3D vectors.
  *
@@ -321,3 +321,18 @@ Value pi_isMat(vm_t *vm, int argc, Value *argv)
 
     return NEW_BOOL(true);
 }
+
+// Module Definition
+
+static BuiltinFunc mat_funcs[] = {
+    {"size", pi_size},
+    {"zeros", pi_zeros},
+    {"ones", pi_ones},
+    {"eye", pi_eye},
+    {"mult", pi_mult},
+    {"dot", pi_dot},
+    {"cross", pi_cross},
+    {"isMat", pi_isMat},
+};
+
+DEFINE_BUILTIN_MODULE(mat_module, "mat", mat_funcs, NULL);

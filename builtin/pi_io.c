@@ -212,6 +212,48 @@ Value pi_printf(vm_t *vm, int argc, Value *argv)
     fflush(stdout);
     return NEW_NIL();
 }
+
+/**
+ * @brief Prints a message to the console.
+ *
+ * This function takes a message as a string and prints it to the console.
+ * It also takes an optional flag string that specifies the type of log message:
+ *   - "e" for error log messages
+ *   - "w" for warning log messages
+ *
+ * If no flag is provided, the message is simply printed to the console.
+ *
+ * @param vm The virtual machine instance.
+ * @param argc The argument count; expects at least 1 argument.
+ * @param argv The argument values; expects the first argument to be a string.
+ * @return A nil value indicating completion.
+ */
+Value pi_log(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1)
+        vm_error(vm, "[log] expects message.");
+
+    char *msg = as_string(argv[0]);
+
+    const char *flag = "i";
+
+    if (argc >= 2 && IS_STRING(argv[1]))
+        flag = AS_CSTRING(argv[1]);
+
+    // Error log message
+    if (strcmp(flag, "e") == 0)
+        printf(ANSI_RED "%s" ANSI_RESET "\n", msg);
+    // Warning log message
+    else if (strcmp(flag, "w") == 0)
+        printf(ANSI_YELLOW "%s" ANSI_RESET "\n", msg);
+    // Normal log message
+    else
+        printf("%s\n", msg);
+    free(msg);
+
+    return NEW_NIL();
+}
+
 /**
  * @brief Prompts the user for input and returns it as a string.
  *

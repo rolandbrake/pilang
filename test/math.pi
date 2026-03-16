@@ -1,3 +1,5 @@
+import math.*
+
 println(floor(3.7))               // Expected: 3
 println(floor([3.7, 4.9, 2.1]))  // Expected: [3, 4, 2]
 

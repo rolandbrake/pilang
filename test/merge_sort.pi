@@ -1,9 +1,11 @@
+import math
+
 fun merge_sort(m) {   
     
     if(#m <= 1) 
         return m    
   
-    let middle = floor(#m / 2)  
+    let middle = math.floor(#m / 2)  
     let left = m[:middle]  
     let right = m[middle:]  
     left = merge_sort(left)    

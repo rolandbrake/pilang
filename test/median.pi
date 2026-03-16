@@ -1,3 +1,5 @@
+import math
+
 fun sort(list = []) {
     let n = #list;
     let swapped = false;
@@ -19,7 +21,7 @@ fun sort(list = []) {
 fun median(list = []){
     let srtd = sort(list);       
     let alen = #srtd;
-    return 0.5*( srtd[floor((alen-1)/2)] + srtd[floor(alen/2)]);
+    return 0.5*( srtd[math.floor((alen-1)/2)] + srtd[math.floor(alen/2)]);
 }
 
 let a = [4.1, 5.6, 7.2, 1.7, 9.3, 4.4, 3.2];

@@ -319,7 +319,7 @@ static inline Value pop_stack(vm_t *vm)
 static inline void push_stack(vm_t *vm, Value value)
 {
     if (vm->sp >= STACK_MAX)
-        vm_error(vm, "Stack overflow: Attempted to push onto a full stack");
+        vm_error(vm, "[stack] Stack overflow: Attempted to push onto a full stack");
 
     vm->stack[vm->sp++] = value;
 }
@@ -366,7 +366,7 @@ static bool stack_isEmpty(vm_t *vm)
 void push_frame(vm_t *vm, Frame *frame)
 {
     if (vm->frame_sp >= STACK_MAX)
-        vm_error(vm, "Stack overflow: Attempted to push onto a full stack");
+        vm_error(vm, "[frame] Stack overflow: Attempted to push onto a full stack");
 
     vm->frames[vm->frame_sp++] = *frame;
 }

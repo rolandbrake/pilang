@@ -1,5 +1,7 @@
+import math
+
 fun isPrime(n) {   
-    for i in 2..floor(n**0.5) + 1
+    for i in 2..math.floor(n**0.5) + 1
         if(n % i == 0)
             return false        
     return true

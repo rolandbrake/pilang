@@ -1,3 +1,5 @@
+import math
+
 fun sum(list =  []) {
     let res = 0;
     for(l in list)
@@ -10,7 +12,7 @@ fun money_change(amounts){
     let total_amount = sum(amounts);
     for (denomination in denominations){        
         if(total_amount >= denomination){                 
-            let count = floor(total_amount / denomination);            
+            let count = math.floor(total_amount / denomination);            
             result[denomination] = count;            
             total_amount -= count * denomination;
         }

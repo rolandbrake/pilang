@@ -22,7 +22,6 @@ static void var_decl(parser_t *parser);
 static void func_decl(parser_t *parser);
 static void statement(parser_t *parser);
 static void expr_state(parser_t *parser);
-static bool stmt_hasAssignment(parser_t *parser, int start);
 static void block(parser_t *parser);
 static void if_stmt(parser_t *parser);
 static void while_stmt(parser_t *parser);
@@ -366,30 +365,6 @@ bool need_delimiter(parser_t *parser)
     return false;
 }
 
-// Scan the current statement for any assignment operator.
-// This is used to decide whether expr_state should emit a POP.
-static bool stmt_hasAssignment(parser_t *parser, int start)
-{
-    if (start < 0)
-        return false;
-
-    int line = parser->tokens[start].line;
-    for (int i = start;; i++)
-    {
-        token_t tok = parser->tokens[i];
-
-        // Stop at end of statement.
-        if (tok.type == TK_SEMICOLON || tok.type == TK_EOF)
-            break;
-        if (tok.line > line)
-            break;
-
-        if (tok.type >= TK_ASSIGN && tok.type <= TK_MOD_ASSIGN)
-            return true;
-    }
-
-    return false;
-}
 /**
  * Checks if the current token is an assignment operator.
  * The function verifies if the parser is in a store state and if the current
@@ -425,6 +400,56 @@ void mark_tokens(parser_t *parser, int start, int end)
     // Iterate over the range of tokens and mark them as skipped
     for (int i = start; i < end; i++)
         parser->tokens[i].skip = true;
+}
+
+/**
+ * Skips over a let declaration in the parser stream.
+ *
+ * This function iterates over the parser's token stream and skips over any
+ * let declarations until it reaches a semicolon or a line break. It is
+ * used to skip over let declarations that are not of interest to the parser.
+ */
+static void skip_letDecl(parser_t *parser)
+{
+    int depth = 0; // Depth of the current nesting level
+
+    // Iterate over the parser's token stream until we reach a semicolon or a line break
+    while (!is_atEnd(parser))
+    {
+        token_t tok = peek(parser); // Peek at the next token in the stream
+
+        switch (tok.type)
+        {
+            // If the token is a left parenthesis, bracket, or brace, increase the depth
+        case TK_LPAREN:
+        case TK_LBRACKET:
+        case TK_LBRACE:
+            depth++;
+            break;
+
+            // If the token is a right parenthesis, bracket, or brace, decrease the depth
+        case TK_RPAREN:
+        case TK_RBRACKET:
+        case TK_RBRACE:
+            if (depth > 0)
+                depth--;
+            break;
+
+            // If the token is a semicolon or a line break, break out of the loop
+        default:
+            break;
+        }
+
+        // If the depth is zero and the token is a semicolon or a line break, break out of the loop
+        if (depth == 0 && (tok.type == TK_SEMICOLON || is_lineBreak(parser)))
+        {
+            if (tok.type == TK_SEMICOLON)
+                next(parser); // Advance the parser to the next token
+            break;
+        }
+
+        next(parser); // Advance the parser to the next token
+    }
 }
 
 /**
@@ -495,7 +520,7 @@ static void declarations(parser_t *parser)
 {
     int depth = 0;
 
-    // First pass: Hoist functions and collect globals
+    // First pass: Hoist functions (do not emit let initializers here)
     while (!is_atEnd(parser))
     {
         // Track block depth to ignore inner declarations
@@ -519,14 +544,9 @@ static void declarations(parser_t *parser)
             int end = parser->current;
             mark_tokens(parser, start, end); // Mark tokens as processed
         }
-        // Collect global variable declarations
+        // Skip global variable declarations to preserve execution order
         else if (match(parser, TK_LET))
-        {
-            int start = parser->current - 1; // Start at 'let'
-            var_decl(parser);                // Parse variable declaration
-            int end = parser->current;
-            mark_tokens(parser, start, end); // Mark tokens as processed
-        }
+            skip_letDecl(parser);
         else
             next(parser); // Move to the next token
     }
@@ -541,7 +561,7 @@ static void declarations(parser_t *parser)
         if (parser->tokens[parser->current].skip)
             next(parser);
         else
-            statement(parser); // Parse remaining statements
+            declaration(parser); // Parse remaining declarations/statements in order
     }
 }
 
@@ -918,6 +938,7 @@ static void import_stmt(parser_t *parser)
     free(binding_name);
     consume_ifExist(parser, 1, TK_SEMICOLON);
 }
+
 /**
  * statement -> block | if_stmt | while_stmt | for_stmt | break_stmt | continue_stmt | return_stmt | expr_state
  * Parses a statement, which is a single expression or a block of expressions.
@@ -1282,11 +1303,37 @@ static void return_stmt(parser_t *parser)
 static void expr_state(parser_t *parser)
 {
 
-    bool is_assign = stmt_hasAssignment(parser, parser->current);
+    token_t token = peek(parser);
+    bool prev_lookUp, is_assign = false;
+    int current = parser->current;
+
+    // Check if the expression is enclosed in parentheses
+    if (token.type == TK_LPAREN)
+    {
+        prev_lookUp = look_up(parser->comp, true); // Set the look_up flag to true to indicate that the expression is enclosed in parentheses
+        primary(parser);                           // Parse the primary expression
+        look_up(parser->comp, prev_lookUp);        // Reset the look_up flag to false after parsing the expression
+        parser->current = current;                 // Reset the current position to its original value
+    }
+
+    current = parser->current;
+
+    prev_lookUp = look_up(parser->comp, true);
+
+    // Check if the expression is an assignment expression
+    cond_expr(parser);
+    token = peek(parser);
+    if (token.type >= TK_ASSIGN && token.type <= TK_MOD_ASSIGN)
+        is_assign = true;
+    look_up(parser->comp, prev_lookUp);
+
+    parser->current = current;
 
     expr(parser); // Parse the expression
 
-    // If it is an assignment expression, do not emit the POP bytecode.
+    // Check if the expression is an assignment expression
+    // If it is, do not emit the POP bytecode
+    // The assignment expression is handled separately
     if (!is_assign)
     {
         if (!parser->comp->is_repl)
@@ -1447,10 +1494,11 @@ static void assignment(parser_t *parser, bool emit_load)
             cond_expr(parser);
         }
 
-        // Always leave the assigned value on the stack so expression statements
-        // can safely POP and assignments can be used as expressions.
-        parser->current = left;
-        cond_expr(parser);
+        if (emit_load)
+        {
+            parser->current = left;
+            cond_expr(parser);
+        }
 
         // Restore the original parsing position
         parser->current = current;

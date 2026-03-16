@@ -1,3 +1,5 @@
+import math.{floor}
+
 fun binary_search(l = [], value =  0) {
     let low = 0;
     let high = #l - 1;

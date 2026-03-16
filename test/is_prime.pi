@@ -1,3 +1,5 @@
+import math.{floor}
+
 fun isPrime(n){       
     for(i in 2..floor(n**0.5) + 1)
         if(n % i == 0)

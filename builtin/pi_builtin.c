@@ -2,8 +2,9 @@
 #include "../pi_value.h"
 
 BuiltinConst builtin_constants[] = {
-    {"PI", {VAL_NUM, {.number = PI}}},
-    {"E", {VAL_NUM, {.number = E}}},
+    {"INF", NEW_NUM(INFINITY)},
+    {"NAN", NEW_NUM(NAN)},
+
 };
 int BUILTIN_CONST_COUNT = sizeof(builtin_constants) / sizeof(BuiltinConst);
 
@@ -17,6 +18,7 @@ BuiltinFunc builtin_functions[] = {
     {"println", pi_println},
     {"print", pi_print},
     {"printf", pi_printf},
+    {"log", pi_log},
     {"input", pi_input},
 
     // Math
@@ -76,12 +78,13 @@ BuiltinFunc builtin_functions[] = {
 
 int BUILTIN_FUNC_COUNT = sizeof(builtin_functions) / sizeof(BuiltinFunc);
 
+
 BuiltinModule *builtin_modules[] = {
     &sys_module,
     &math_module,
+    &string_module,
     &io_module,
     &col_module,    
-    &string_module,
-};
+    &mat_module};
 
 int BUILTIN_MODULE_COUNT = sizeof(builtin_modules) / sizeof(BuiltinModule *);

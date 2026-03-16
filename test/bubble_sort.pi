@@ -17,6 +17,3 @@ fun bubbleSort(list = []) {
   }
   
   println(bubbleSort([5,4,3,2,1]))
-
-  draw()
-  sleep(5000) // Keep the console open to view the output

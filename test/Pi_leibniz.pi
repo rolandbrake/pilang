@@ -14,5 +14,5 @@ fun term(n) {
   return sign / ((2 * n) + 1);
 }
   
-println(getPi(800));
+println(getPi(1000));
   

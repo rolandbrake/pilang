@@ -97,6 +97,3 @@ if(solve_sudoku()){
 }
 else
     println("No solution exists.");
-
-draw()
-sleep(5000) // Keep the console open to view the output   
