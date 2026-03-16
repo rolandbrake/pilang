@@ -1673,7 +1673,7 @@ void run(vm_t *vm)
 
             // Create a new function object
             Object *function = new_func(name, body, defaults, NULL, NULL);
-            ((Function *)function)->need_args = fun_scanSlot(body, (uint8_t)numParams - 1);
+            ((Function *)function)->need_args = fun_scanSlot(body, (uint8_t)numParams);
             ((Function *)function)->constants = vm->constants;
             ((Function *)function)->names = vm->names;
 
@@ -1723,7 +1723,7 @@ void run(vm_t *vm)
             }
 
             Object *fun_obj = new_func(name, body, defaults, upvalues, NULL);
-            ((Function *)fun_obj)->need_args = fun_scanSlot(body, (uint8_t)numParams - 1);
+            ((Function *)fun_obj)->need_args = fun_scanSlot(body, (uint8_t)numParams);
             ((Function *)fun_obj)->constants = vm->constants;
             ((Function *)fun_obj)->names = vm->names;
 
