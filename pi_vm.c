@@ -552,33 +552,13 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv)
 {
     // Create a new table for the instance
     table_t *table = ht_create(sizeof(Value));
-    char **keys = ht_keys(map->table);
-    int size = ht_length(map->table);
 
-    // Create a new map instance and set its prototype
+    // Create a new map instance and set its prototype.
+    // Members stay on the prototype map by default; only `this.*`
+    // assignments create instance-local state.
     Object *instance = new_map(table, true);
 
     ((PiMap *)instance)->proto = map;
-
-    // Iterate over the keys in the prototype map
-    for (size_t i = 0; i < size; i++)
-    {
-
-        char *key = keys[i];
-        if (strcmp(key, "constructor") != 0) // Skip the constructor key
-        {
-            Value value = *(Value *)ht_get(map->table, key);
-            if (IS_FUN(value))
-            {
-                // Bind function to the new instance
-                Value fn = bind(vm, AS_FUN(value), instance);
-                ht_put(table, key, &fn);
-            }
-            else
-                // Copy non-function values directly
-                ht_put(table, key, ht_get(map->table, key));
-        }
-    }
 
     // Push the new instance onto the VM stack
     // vm->stack[vm->sp] = NEW_OBJ(instance);
@@ -1826,10 +1806,13 @@ void run(vm_t *vm)
             }
             case OBJ_MAP:
             {
-                table_t *table = AS_MAP(container)->table;
+                PiMap *map = AS_MAP(container);
+                PiMap *owner = map_owner(map, index);
+                Value item = owner ? map_get(owner, index) : NEW_NIL();
 
-                // Value item = *(Value *)ht_get(table, as_string(index));
-                Value item = map_get(AS_MAP(container), index);
+                if (map->is_instance && owner != NULL && IS_FUN(item))
+                    item = bind(vm, AS_FUN(item), AS_OBJ(container));
+
                 push_stack(vm, item); // Push NIL if key not found
                 break;
             }

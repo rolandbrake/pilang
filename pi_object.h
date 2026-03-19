@@ -160,6 +160,7 @@ Object *new_file(FILE *file, char *filename, char *mode);
 Value map_get(PiMap *map, Value key);
 void map_set(PiMap *map, Value key, Value value);
 bool map_has(PiMap *map, Value key);
+PiMap *map_owner(PiMap *map, Value key);
 
 int map_size(PiMap *map);
 

@@ -172,29 +172,66 @@ Object *new_file(FILE *file, char *filename, char *mode)
     return (Object *)f;
 }
 
-
 /**
- * Retrieves the value associated with a given key from a PiMap.
+ * Finds the owner of a given key in a PiMap.
  *
  * This function searches for the specified key in the map's
- * underlying table. If the key exists, it returns the corresponding
- * value. Otherwise, it returns a nil value.
+ * underlying table, and if found, it returns the map itself.
+ * If the key does not exist in the map, it searches up the prototype
+ * chain until it finds the key or reaches the root of the prototype
+ * chain.
  *
- * @param map The map from which to retrieve the value.
- * @param key The key whose associated value is to be returned.
- * @return The value associated with the specified key, or nil if
- *         the key does not exist in the map.
+ * @param map The map to search for the given key.
+ * @param key_str The key to search for.
+ * @return The owner of the key if found, NULL otherwise.
+ */
+static PiMap *map_findOwner(PiMap *map, const char *key_str)
+{
+    // Search for the key in the map's underlying table
+    while (map != NULL)
+    {
+        // If the key is found in the map, return the map itself
+        if (ht_get(map->table, key_str) != NULL)
+            return map;
+
+        // If the key is not found in the map, move up the prototype chain
+        map = map->proto;
+    }
+
+    // If the key is not found in any map in the prototype chain, return NULL
+    return NULL;
+}
+
+/**
+ * Retrieves a value from a PiMap by a given key.
+ *
+ * This function searches for the specified key in the map's
+ * underlying table. If the key exists, it returns the associated
+ * value. Otherwise, it returns nil.
+ *
+ * @param map The map to search for the given key.
+ * @param key The key to search for.
+ * @return The associated value if the key exists, nil otherwise.
  */
 Value map_get(PiMap *map, Value key)
 {
+    // Convert the key to a string
     char *key_str = as_string(key);
-    // Attempt to retrieve the item from the hash table using the key
-    void *item = ht_get(map->table, key_str);
+
+    // Find the owner map of this key
+    PiMap *owner = map_findOwner(map, key_str);
+
+    // Search for the item in the owner's table
+    void *item = owner ? ht_get(owner->table, key_str) : NULL;
+
+    // Free the allocated key string
     free(key_str);
 
     // Check if the item was found; if not, return nil
     if (item == NULL)
+    {
         return NEW_NIL();
+    }
 
     // Return the found value
     return *(Value *)item;
@@ -214,7 +251,7 @@ Value map_get(PiMap *map, Value key)
 bool map_has(PiMap *map, Value key)
 {
     char *key_str = as_string(key);
-    bool found = ht_get(map->table, key_str) != NULL;
+    bool found = map_findOwner(map, key_str) != NULL;
     free(key_str);
     return found;
 }
@@ -234,14 +271,26 @@ bool map_has(PiMap *map, Value key)
 void map_set(PiMap *map, Value key, Value value)
 {
     char *key_str = as_string(key);
+    PiMap *owner = map_findOwner(map, key_str);
+    if (owner == NULL)
+        owner = map;
+
     // Attempt to set the item in the hash table using the key
-    bool updated = ht_set(map->table, key_str, &value);
+    bool updated = ht_set(owner->table, key_str, &value);
 
     // If the key does not exist in the table, add it
     if (!updated)
-        ht_put(map->table, key_str, &value);
+        ht_put(owner->table, key_str, &value);
 
     free(key_str);
+}
+
+PiMap *map_owner(PiMap *map, Value key)
+{
+    char *key_str = as_string(key);
+    PiMap *owner = map_findOwner(map, key_str);
+    free(key_str);
+    return owner;
 }
 
 /**

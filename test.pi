@@ -4,14 +4,12 @@ Point = {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        println(this.x + " " + this.y);
-        println(args)
-        println(kw_args)
     }
 }
-
-
-
-Point.c++
 point = Point(1, 2);
+point.c++
+other = Point(3, 4);
+
 println(point.c)
+println(other.c)
+println(Point.c)
