@@ -1620,6 +1620,7 @@ void run(vm_t *vm)
             numElements |= code[pc++];
             // create a new hashtable
             table_t *table = ht_create(sizeof(Value));
+            PiMap *proto = NULL;
 
             // Adjust the stack pointer to the first element of the map
             int _sp = vm->sp - (numElements * 2);
@@ -1630,6 +1631,14 @@ void run(vm_t *vm)
                 Value value = vm->stack[i];
 
                 char *key = AS_CSTRING(vm->stack[i + 1]);
+                if (strcmp(key, "extends") == 0 &&
+                    IS_MAP(value) &&
+                    !AS_MAP(value)->is_instance)
+                {
+                    proto = AS_MAP(value);
+                    continue;
+                }
+
                 if (IS_FUN(value))
                     AS_FUN(value)->is_method = true;
 
@@ -1640,6 +1649,7 @@ void run(vm_t *vm)
 
             // Push the new map onto the stack
             Object *map = add_obj(vm, new_map(table, false));
+            ((PiMap *)map)->proto = proto;
             push_stack(vm, NEW_OBJ(map));
 
             break;

@@ -1,15 +1,33 @@
 Point = {
-    c: 10, 
-    _private: 3,
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-    }
-}
-point = Point(1, 2);
-point.c++
-other = Point(3, 4);
+  c: 10,
+  _private: 3,
+  label() {
+    return "Point";
+  },
+};
 
-println(point.c)
-println(other.c)
-println(Point.c)
+
+ColorPoint = {
+  extends: Point,
+  constructor() {
+      super();
+  },
+  color: "red",
+};
+
+
+point = Point();
+child = ColorPoint();
+
+println(point.c);
+println(child.c);
+println(ColorPoint.c);
+println(child.color);
+println(child.label());
+
+child.c++;
+
+println(point.c);
+println(child.c);
+println(ColorPoint.c);
+println(Point.c);
