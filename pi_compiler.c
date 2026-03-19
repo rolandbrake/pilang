@@ -77,6 +77,7 @@ static context_t *create_context(bool is_function, list_t *code, char *fun_name)
     context->upvalues = list_create(sizeof(upvalue_t));
     context->locals = stack_create(sizeof(local_t));
     context->instrs = list_create(sizeof(instr_t));
+    context->param_names = NULL;
 
     context->is_function = is_function;
     context->depth = 0;
@@ -139,6 +140,9 @@ static void free_context(context_t *context)
         }
         list_free(context->instrs);
     }
+
+    if (context->param_names)
+        list_free(context->param_names);
 
     free(context->fun_name);
     free(context);
@@ -1031,11 +1035,14 @@ void pop_function(compiler_t *comp, int params)
         int uv_size = list_size(comp->current->upvalues);
         list_t *upvalues = comp->current->upvalues;
 
-        ObjCode *code = (ObjCode *)new_code(comp->code);
+        ObjCode *code = (ObjCode *)new_code(comp->code);        
         int c_index = store_const(comp, NEW_OBJ(code));
 
         context_t *context = (context_t *)pop(comp->contexts);
 
+        code->param_names = context->param_names;
+        context->param_names = NULL;
+        
         comp->current = (context_t *)top(comp->contexts);
         comp->code = comp->current->code;
         comp->locals = comp->current->locals;

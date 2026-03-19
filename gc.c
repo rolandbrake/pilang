@@ -334,6 +334,8 @@ void free_object(Object *obj)
         // Free the memory allocated for the code list
         ObjCode *code = (ObjCode *)obj;
         list_free(code->data);
+        if (code->param_names)
+            list_free(code->param_names);
         break;
     }
 

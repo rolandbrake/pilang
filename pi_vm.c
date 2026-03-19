@@ -595,7 +595,7 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv)
     if (IS_FUN(constructor))
     {
         AS_FUN(constructor)->is_method = false; // Ensure it's not a method
-        instance = AS_OBJ(call_func(vm, AS_FUN(constructor), argc + 1, fargs));
+        instance = AS_OBJ(call_func(vm, AS_FUN(constructor), argc + 1, fargs, NEW_NIL()));
     }
 
     // Free the allocated arguments array
@@ -1396,10 +1396,20 @@ void run(vm_t *vm)
         {
 
             // Read the number of arguments from the bytecode
-            uint8_t num_args = code[pc++];
+            uint8_t raw_args = code[pc++];
+            bool has_named = (raw_args & 0x80) != 0;
+            uint8_t num_args = raw_args & 0x7F;
 
             // Allocate memory for the arguments
             Value args[num_args];
+            Value kw_args = NEW_NIL();
+
+            if (has_named)
+            {
+                kw_args = pop_stack(vm);
+                if (!IS_OBJ(kw_args) || OBJ_TYPE(kw_args) != OBJ_MAP)
+                    vm_error(vm, "Named arguments must be a map.");
+            }
 
             // Pop the arguments off the VM's stack in reverse order.
             for (int i = num_args - 1; i >= 0; i--)
@@ -1415,7 +1425,7 @@ void run(vm_t *vm)
 
                 vm->pc = pc;
                 // Call native function if it's a built-in
-                Value result = call_func(vm, AS_FUN(callee), num_args, args);
+                Value result = call_func(vm, AS_FUN(callee), num_args, args, kw_args);
                 if (IS_OBJ(result))
                     add_obj(vm, AS_OBJ(result));
                 push_stack(vm, result);
@@ -1426,7 +1436,11 @@ void run(vm_t *vm)
                 if (map->is_instance)
                     vm_error(vm, "Attempt to call an Object instance.");
                 else
+                {
+                    if (has_named)
+                        vm_error(vm, "Named arguments are not supported for map constructors.");
                     push_stack(vm, NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args))));
+                }
             }
             else
                 vm_error(vm, "Attempt to call a non-function object.");
@@ -1674,6 +1688,7 @@ void run(vm_t *vm)
             // Create a new function object
             Object *function = new_func(name, body, defaults, NULL, NULL);
             ((Function *)function)->need_args = fun_scanSlot(body, (uint8_t)numParams);
+            ((Function *)function)->need_kwargs = fun_scanSlot(body, (uint8_t)(numParams + 1));
             ((Function *)function)->constants = vm->constants;
             ((Function *)function)->names = vm->names;
 
@@ -1724,6 +1739,7 @@ void run(vm_t *vm)
 
             Object *fun_obj = new_func(name, body, defaults, upvalues, NULL);
             ((Function *)fun_obj)->need_args = fun_scanSlot(body, (uint8_t)numParams);
+            ((Function *)fun_obj)->need_kwargs = fun_scanSlot(body, (uint8_t)(numParams + 1));
             ((Function *)fun_obj)->constants = vm->constants;
             ((Function *)fun_obj)->names = vm->names;
 

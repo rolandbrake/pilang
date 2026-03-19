@@ -1,5 +1,17 @@
-fun f(a, b) {
-    println(args)
+Point = {
+    c: 10, 
+    _private: 3,
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        println(this.x + " " + this.y);
+        println(args)
+        println(kw_args)
+    }
 }
 
-f(1, 2, 3)
+
+
+Point.c++
+point = Point(1, 2);
+println(point.c)

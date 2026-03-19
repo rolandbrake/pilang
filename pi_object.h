@@ -131,6 +131,7 @@ typedef struct
 {
     Object object;
     list_t *data;
+    list_t *param_names; // Parameter names for functions using this code
 
     uint32_t hash;
 } ObjCode;

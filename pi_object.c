@@ -298,6 +298,7 @@ Object *new_code(list_t *code)
 
     // Store the code list in the object
     c->data = code;
+    c->param_names = NULL;
 
     return (Object *)c;
 }

@@ -26,7 +26,7 @@ Value _pi_map(vm_t *vm, int argc, Value *argv)
     for (int i = 0; i < size; i++)
     {
         Value *item = (Value *)list_getAt(input->items, i);
-        Value ret_val = call_func(vm, fn, 1, item);
+        Value ret_val = call_func(vm, fn, 1, item, NEW_NIL());
         list_add(list, &ret_val);
     }
 
@@ -72,7 +72,7 @@ Value pi_filter(vm_t *vm, int argc, Value *argv)
     for (int i = 0; i < size; i++)
     {
         Value *item = (Value *)list_getAt(input->items, i);
-        Value ret_val = call_func(vm, fn, 1, item);
+        Value ret_val = call_func(vm, fn, 1, item, NEW_NIL());
         if (as_bool(ret_val))
             list_add(list, item);
     }
@@ -142,7 +142,7 @@ Value pi_find(vm_t *vm, int argc, Value *argv)
         for (int i = 0; i < list->items->size; i++)
         {
             Value *item = (Value *)list_getAt(list->items, i);
-            Value result = call_func(vm, fn, 1, item);
+            Value result = call_func(vm, fn, 1, item, NEW_NIL());
             if (as_bool(result))
                 return NEW_NUM(i);
         }
@@ -155,7 +155,7 @@ Value pi_find(vm_t *vm, int argc, Value *argv)
         {
             ch[0] = str->chars[i];
             Value arg = NEW_OBJ(new_pistring(strdup(ch)));
-            Value result = call_func(vm, fn, 1, &arg);
+            Value result = call_func(vm, fn, 1, &arg, NEW_NIL());
             if (as_bool(result))
                 return NEW_NUM(i);
         }

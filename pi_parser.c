@@ -686,11 +686,13 @@ static void func_decl(parser_t *parser)
         token = previous(parser);
 
         push_function(parser->comp, name);
+        parser->comp->current->param_names = params;
 
         // Add parameters as locals
         for (int i = 0; i < size; i++)
             add_local(parser->comp, string_get(params, i));
         add_local(parser->comp, "args");
+        add_local(parser->comp, "kw_args");
 
         bool hit_finalReturn = false;
 
@@ -2142,22 +2144,55 @@ static void member_expr(parser_t *parser)
         else if (match(parser, TK_LPAREN))
         {
             int args = 0;
-            // Handle function call
-            // Call expression logic goes here
+            int named = 0;
+            bool saw_named = false;
+
             if (!check(parser, TK_RPAREN))
             {
-                expr(parser);
-                args++;
-                while (match(parser, TK_COMMA))
+                do
                 {
-                    expr(parser);
-                    args++;
-                }
+                    if (check(parser, TK_ID) && peek_next(parser).type == TK_ASSIGN)
+                    {
+                        token_t key_tok = consume(parser, TK_ID, "Expect identifier for named argument.");
+                        token_t eq_tok = consume(parser, TK_ASSIGN, "Expect '=' after named argument.");
+                        (void)eq_tok;
+
+                        if (!saw_named)
+                            saw_named = true;
+
+                        if (named >= 256)
+                            p_errorf(key_tok.line, key_tok.column, "Too many named arguments.");
+
+                        char *key = token_value(key_tok);
+                        named++;
+
+                        expr(parser); // parse value
+
+                        int index = store_const(parser->comp, NEW_OBJ(new_pistring(key)));
+                        emit_16u(parser->comp, OP_LOAD_CONST, key, index);
+                    }
+                    else
+                    {
+                        if (saw_named)
+                        {
+                            token_t err = peek(parser);
+                            p_errorf(err.line, err.column,
+                                     "Positional arguments must come before named arguments.");
+                        }
+                        expr(parser);
+                        args++;
+                    }
+                } while (match(parser, TK_COMMA));
             }
             token_t _token = consume(parser, TK_RPAREN, "Expect ')' after function call");
             set_pos(parser, _token);
             char *name = strcmp(token_value(token), ")") == 0 ? "<FUN>" : token_value(token);
-            emit_8u(parser->comp, OP_CALL_FUNCTION, name, (byte)args);
+            if (named > 0)
+                emit_16u(parser->comp, OP_PUSH_MAP, "", named);
+            uint8_t operand = (uint8_t)args;
+            if (named > 0)
+                operand |= 0x80;
+            emit_8u(parser->comp, OP_CALL_FUNCTION, name, operand);
         }
         else
             break; // Exit the loop if no member expression is found
@@ -2306,6 +2341,7 @@ static void primary(parser_t *parser)
                 consume(parser, TK_RARROW, "Expect '->' after function parameters.");
 
                 push_function(parser->comp, NULL);
+                parser->comp->current->param_names = params;
 
                 if (is_object(parser->comp))
                     add_local(parser->comp, "this");
@@ -2313,6 +2349,7 @@ static void primary(parser_t *parser)
                 for (int i = 0; i < size; i++)
                     add_local(parser->comp, string_get(params, i));
                 add_local(parser->comp, "args");
+                add_local(parser->comp, "kw_args");
 
                 arrow_func(parser);
 
@@ -2372,12 +2409,16 @@ static void primary(parser_t *parser)
                 emit(parser->comp, OP_PUSH_NIL);
 
             push_function(parser->comp, NULL);
+            list_t *single_params = list_create(sizeof(String));
+            list_add(single_params, new_string(name));
+            parser->comp->current->param_names = single_params;
 
             if (is_object(parser->comp))
                 add_local(parser->comp, "this");
 
             add_local(parser->comp, name);
             add_local(parser->comp, "args");
+            add_local(parser->comp, "kw_args");
 
             arrow_func(parser);
 
@@ -2501,6 +2542,7 @@ static void primary(parser_t *parser)
                     consume(parser, TK_LBRACE, "Expect '{' before function body.");
 
                     push_function(parser->comp, key);
+                    parser->comp->current->param_names = params;
 
                     if (is_object(parser->comp))
                         add_local(parser->comp, "this");
@@ -2508,6 +2550,7 @@ static void primary(parser_t *parser)
                     for (int i = 0; i < size; i++)
                         add_local(parser->comp, string_get(params, i));
                     add_local(parser->comp, "args");
+                    add_local(parser->comp, "kw_args");
 
                     // if (check(parser, TK_RBRACE))
                     if (match(parser, TK_RBRACE))
@@ -2577,6 +2620,7 @@ static void primary(parser_t *parser)
         consume(parser, TK_LBRACE, "Expect '{' before function body.");
 
         push_function(comp, NULL); // Push the function onto the stack
+        comp->current->param_names = params;
 
         if (is_object(comp))
             add_local(comp, "this"); // Add the "this" variable to the local scope
@@ -2585,6 +2629,7 @@ static void primary(parser_t *parser)
         for (int i = 0; i < size; i++)
             add_local(comp, string_get(params, i));
         add_local(comp, "args"); // Add the "args" variable to the local scope
+        add_local(comp, "kw_args");
 
         if (match(parser, TK_RBRACE))
         {
@@ -2633,7 +2678,6 @@ static void primary(parser_t *parser)
  */
 void free_parser(parser_t *parser)
 {
-    free(parser->tokens); // Free the memory allocated for tokens
-    // free_compiler(parser->comp); // Free resources associated with the compiler
+    free(parser->tokens); // Free the memory allocated for tokens    
     free(parser); // Free the parser structure itself
 }

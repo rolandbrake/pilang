@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include "pi_func.h"
 #include "pi_object.h"
+#include "string.h"
 
 /**
  * Create a new function object.
@@ -35,6 +36,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
 
     // Handle parameters
     fn->params = params ? params : list_create(sizeof(Value));
+    fn->param_names = (body && body->param_names) ? body->param_names : NULL;
 
     // Set function body
     fn->body = body;
@@ -46,6 +48,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     fn->is_native = false;
     fn->is_method = false;
     fn->need_args = true;
+    fn->need_kwargs = true;
     fn->native = NULL;
 
     // Handle upvalues
@@ -100,6 +103,7 @@ Value *new_native(const char *name, native_func func)
 
     fn->is_native = true;
     fn->need_args = false; // Native functions don't use the args slot
+    fn->need_kwargs = false; // Native functions don't use the kw_args slot
     fn->native = func;
 
     fn->instance = NULL;
@@ -118,7 +122,7 @@ Value *new_native(const char *name, native_func func)
  * @param argv The arguments to pass to the function.
  * @return The return value of the function.
  */
-Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv)
+Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw_args)
 {
     // If the function is a native function, call it directly
     if (function->is_native)
@@ -150,30 +154,69 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv)
     vm->pc = 0;
     vm->ip = 0;
     vm->bp = vm->sp;
-    vm->sp = vm->bp + list_size(function->params);
+    size_t param_count = list_size(function->params);
+    vm->sp = vm->bp + param_count;
 
     size_t arg_offset = 0;
+    size_t param_offset = 0;
     Value instance = NEW_NIL();
 
     // Bind the function instance (if present)
     if (function->is_method)
     {
         instance = function->instance == NULL ? NEW_NIL() : NEW_OBJ(add_obj(vm, function->instance));
+    }
+
+    // check if [this] instance is part of the parameters list
+    bool param_this = false;
+    if (function->is_method && function->param_names &&
+        list_size(function->param_names) + 1 == (int)param_count)
+        param_this = true;
+
+    if (function->is_method && !param_this)
+    {
         vm->stack[vm->bp] = instance;
         arg_offset = 1;
     }
+    else if (param_this)
+    {
+        arg_offset = 0;
+        param_offset = 1;
+    }
 
     // Set function parameters and arguments
-    for (size_t i = 0; i < argc; i++)
+    Value *param_vals = NULL;
+    if (param_count > 0)
     {
-        vm->stack[vm->bp + arg_offset + i] = argv[i];
+        param_vals = malloc(sizeof(Value) * param_count);
+        for (size_t i = 0; i < param_count; i++)
+        {
+            Value _default = *(Value *)list_getAt(function->params, i);
+            param_vals[i] = _default;
+        }
     }
 
-    for (size_t i = argc + arg_offset; i < function->params->size; i++)
+    if (param_this && param_count > 0)
+        param_vals[0] = instance;
+
+    // Positional arguments
+    size_t positional_count = argc;
+    if (positional_count > param_count)
+        positional_count = param_count;
+    for (size_t i = 0; i < positional_count; i++)
     {
-        Value _default = *(Value *)list_getAt(function->params, i);
-        vm->stack[vm->bp + i] = _default;
+        size_t slot = i + param_offset;
+        if (slot < param_count)
+        {
+            param_vals[slot] = argv[i];
+        }
     }
+
+    for (size_t i = 0; i < param_count; i++)
+        vm->stack[vm->bp + arg_offset + i] = param_vals[i];
+
+    if (param_vals)
+        free(param_vals);
 
     if (function->need_args)
     {
@@ -190,11 +233,24 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv)
     // Start executing the function body
     vm->sp++;
 
+    if (function->need_kwargs)
+    {
+        if (IS_OBJ(kw_args) && OBJ_TYPE(kw_args) == OBJ_MAP)
+            vm->stack[vm->sp] = kw_args;
+        else
+            vm->stack[vm->sp] = NEW_OBJ(add_obj(vm, new_map(ht_create(sizeof(Value)), false)));
+    }
+    else
+        vm->stack[vm->sp] = NEW_NIL();
+
+    vm->sp++;
+
     run(vm);
 
-    // Pop the return value from the stack
-    vm->sp--;
-    return vm->stack[vm->sp];
+    // Pop and return the value pushed by OP_RETURN in the caller frame.
+    if (vm->sp <= 0)
+        vm_error(vm, "Stack underflow: Attempted to pop from an empty stack");
+    return vm->stack[--vm->sp];
 }
 
 /**
@@ -221,7 +277,7 @@ Value call_funcv(vm_t *vm, Function *function, size_t argc, ...)
     va_end(args);
 
     // Call the function with the prepared arguments
-    Value result = call_func(vm, function, argc, argv);
+    Value result = call_func(vm, function, argc, argv, NEW_NIL());
 
     // Clean up after ourselves
     free(argv);
