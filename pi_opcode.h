@@ -51,7 +51,8 @@ typedef enum
     OP_IMPORT = 0x3d,
     OP_GET_EXPORT = 0x3e,
     OP_IMPORT_ALL = 0x3f,
-    OP_IMPORT_DEFAULT = 0x40
+    OP_IMPORT_DEFAULT = 0x40,
+    OP_LOAD_SUPER = 0x41
 } OpCode;
 
 typedef struct

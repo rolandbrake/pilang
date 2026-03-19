@@ -19,6 +19,11 @@
 // Initial GC threshold (number of newly allocated VM objects).
 #define NEXT_GC 4096
 
+#define VM_LABEL(name) L_##name
+#define VM_TARGET(name) &&L_##name
+#define VM_DISPATCH() goto *dispatch[code[pc++]]
+#define VM_CASE(name) VM_LABEL(name)
+
 typedef struct
 {
     int pc; // Program Counter: Points to the current instruction being executed.
@@ -65,11 +70,8 @@ typedef struct
 
     int obj_count;
 
-
-    table_t *modules; // Hash table to store loaded modules by name
+    table_t *modules;   // Hash table to store loaded modules by name
     char *current_path; // Current working directory for resolving relative imports
-
-
 
 } vm_t;
 

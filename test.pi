@@ -1,33 +1,34 @@
 Point = {
-  c: 10,
-  _private: 3,
-  label() {
-    return "Point";
-  },
-};
-
+    c: 10,
+    label() {
+        return "(" + this.x + ", " + this.y + ")";
+    },
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+}
 
 ColorPoint = {
-  extends: Point,
-  constructor() {
-      super();
-  },
-  color: "red",
-};
+    extends: Point,
+    constructor(x, y) {
+        super.constructor(x, y);
+    },
+    label() {
+        return super.label() + " ColorPoint";
+    }
+}
 
+point = Point(1, 2);
+child = ColorPoint(3, 4);
 
-point = Point();
-child = ColorPoint();
+println(point.label())
+println(child.x)
+println(child.y)
+println(child.label())
 
-println(point.c);
-println(child.c);
-println(ColorPoint.c);
-println(child.color);
-println(child.label());
+child.c++
 
-child.c++;
-
-println(point.c);
-println(child.c);
-println(ColorPoint.c);
-println(Point.c);
+println(child.c)
+println(ColorPoint.c)
+println(Point.c)

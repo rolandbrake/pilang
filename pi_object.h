@@ -120,6 +120,7 @@ typedef struct PiMap
     Object object;
     table_t *table;
     bool is_instance;
+    Object *super_instance;
 
     struct PiMap *proto; // Prototype map for inheritance and method lookup
 

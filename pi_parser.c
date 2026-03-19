@@ -2449,6 +2449,11 @@ static void primary(parser_t *parser)
         }
         else
         {
+            if (is_object(parser->comp) && strcmp(name, "super") == 0)
+            {
+                emit(parser->comp, OP_LOAD_SUPER);
+                return;
+            }
             if (is_assign(parser))
                 store_variable(parser->comp, name); // Handle variable assignment
             else                                    // Load variable value

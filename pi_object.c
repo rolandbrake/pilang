@@ -145,6 +145,7 @@ Object *new_map(table_t *table, bool is_instance)
 
     // Store whether this object is an instance of another object
     map->is_instance = is_instance;
+    map->super_instance = NULL;
 
     // Set the prototype to NULL
     map->proto = NULL;

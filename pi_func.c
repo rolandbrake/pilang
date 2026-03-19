@@ -54,6 +54,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     // Handle upvalues
     fn->upvalues = upvalues;
     fn->instance = instance;
+    fn->owner = NULL;
 
     // Count upvalues
     int count = 0;
@@ -107,6 +108,7 @@ Value *new_native(const char *name, native_func func)
     fn->native = func;
 
     fn->instance = NULL;
+    fn->owner = NULL;
 
     return val;
 }
@@ -143,6 +145,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     push_frame(vm, &frame);
 
     // Update the VM state with the function's bytecode
+    vm->function = (Object *)function;
     vm->code = function->body->data;
     if (function->constants)
         vm->constants = function->constants;
@@ -229,9 +232,6 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     }
     else
         vm->stack[vm->sp] = NEW_NIL();
-
-    // Start executing the function body
-    vm->sp++;
 
     if (function->need_kwargs)
     {

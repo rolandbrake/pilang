@@ -526,6 +526,10 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
                           function->params, NULL, instance);
     ((Function *)fn)->constants = function->constants;
     ((Function *)fn)->names = function->names;
+    ((Function *)fn)->instrs = function->instrs;
+    ((Function *)fn)->need_args = function->need_args;
+    ((Function *)fn)->need_kwargs = function->need_kwargs;
+    ((Function *)fn)->owner = function->owner;
 
     // Set the is_method flag to true
     ((Function *)fn)->is_method = true;
@@ -563,23 +567,15 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv)
     // Push the new instance onto the VM stack
     // vm->stack[vm->sp] = NEW_OBJ(instance);
 
-    // Prepare arguments with 'this' as the first argument for the constructor
-    Value *fargs = (Value *)malloc(sizeof(Value) * (argc + 1));
-    fargs[0] = NEW_OBJ(instance); // 'this' reference
-    memcpy(fargs + 1, argv, sizeof(Value) * argc);
-
     // Invoke the constructor if it exists
-    void *item = ht_get(map->table, "constructor");
-    Value constructor = item ? *(Value *)item : NEW_NIL();
+    Value constructor = map_get(map, NEW_OBJ(new_pistring(strdup("constructor"))));
 
     if (IS_FUN(constructor))
     {
-        AS_FUN(constructor)->is_method = false; // Ensure it's not a method
-        instance = AS_OBJ(call_func(vm, AS_FUN(constructor), argc + 1, fargs, NEW_NIL()));
+        Value bound = bind(vm, AS_FUN(constructor), instance);
+        call_func(vm, AS_FUN(bound), argc, argv, NEW_NIL());
     }
 
-    // Free the allocated arguments array
-    free(fargs);
     return instance;
 }
 
@@ -660,6 +656,19 @@ void run(vm_t *vm)
             op = code[pc++];
             Value value = vm->stack[vm->bp + op];
             push_stack(vm, value);
+            break;
+        }
+
+        case OP_LOAD_SUPER:
+        {
+            if (!function->is_method || function->instance == NULL)
+                vm_error(vm, "super is only available inside object methods.");
+
+            Object *super_obj = add_obj(vm, new_map(ht_create(sizeof(Value)), true));
+            PiMap *super = (PiMap *)super_obj;
+            super->proto = function->owner ? ((PiMap *)function->owner)->proto : NULL;
+            super->super_instance = function->instance;
+            push_stack(vm, NEW_OBJ(super_obj));
             break;
         }
 
@@ -1650,6 +1659,14 @@ void run(vm_t *vm)
             // Push the new map onto the stack
             Object *map = add_obj(vm, new_map(table, false));
             ((PiMap *)map)->proto = proto;
+            char **keys = ht_keys(table);
+            int size = ht_length(table);
+            for (int i = 0; i < size; i++)
+            {
+                Value *item = ht_get(table, keys[i]);
+                if (item && IS_FUN(*item))
+                    AS_FUN(*item)->owner = map;
+            }
             push_stack(vm, NEW_OBJ(map));
 
             break;
@@ -1821,7 +1838,10 @@ void run(vm_t *vm)
                 Value item = owner ? map_get(owner, index) : NEW_NIL();
 
                 if (map->is_instance && owner != NULL && IS_FUN(item))
-                    item = bind(vm, AS_FUN(item), AS_OBJ(container));
+                {
+                    Object *target = map->super_instance ? map->super_instance : AS_OBJ(container);
+                    item = bind(vm, AS_FUN(item), target);
+                }
 
                 push_stack(vm, item); // Push NIL if key not found
                 break;
@@ -2027,6 +2047,7 @@ void run(vm_t *vm)
             vm->constants = frame->constants;
             vm->names = frame->names;
             vm->instrs = frame->instrs;
+            vm->function = (Object *)frame->function;
 
             push_stack(vm, retval);
 
