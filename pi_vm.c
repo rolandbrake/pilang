@@ -488,25 +488,44 @@ static UpValue *capture_upvalue(vm_t *vm, int index)
     return _upvalue;
 }
 
+/**
+ * Removes an upvalue from the linked list of open upvalues in the VM.
+ * This function iterates through the linked list of open upvalues and finds
+ * the upvalue with the given index. It then removes the upvalue from the
+ * list and updates the previous upvalue's next pointer if necessary.
+ *
+ * @param vm The virtual machine instance.
+ * @param index The index of the upvalue to remove.
+ */
 static void remove_upvalue(vm_t *vm, int index)
 {
-    UpValue *prev = NULL;
-    UpValue *upvalue = vm->openUpvalues;
+    UpValue *prev = NULL;                // Previous upvalue in the list
+    UpValue *upvalue = vm->openUpvalues; // Current upvalue in the list
 
+    // Iterate through the list of open upvalues until the upvalue with the
+    // given index is found.
     while (upvalue != NULL && upvalue->index != index)
     {
         prev = upvalue;
         upvalue = upvalue->next;
     }
 
+    // If the upvalue with the given index is found, remove it from the list
     if (upvalue != NULL && upvalue->index == index)
     {
+        // Mark the upvalue as removed by setting its index to -1
         upvalue->index = -1;
+
+        // Set the upvalue's value to the value at the given index in the stack
         upvalue->value = vm->stack[index];
 
+        // If the upvalue is at the beginning of the list, update the VM's openUpvalues
+        // pointer to point to the next upvalue in the list.
         if (prev == NULL)
             vm->openUpvalues = upvalue->next;
         else
+            // Otherwise, update the previous upvalue's next pointer to point to the next
+            // upvalue in the list, effectively removing the upvalue from the list.
             prev->next = upvalue->next;
     }
 }
@@ -624,6 +643,7 @@ void run(vm_t *vm)
             push_stack(vm, constant);
 
             break;
+            
         }
 
         case OP_STORE_GLOBAL:

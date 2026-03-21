@@ -158,7 +158,8 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     vm->ip = 0;
     vm->bp = vm->sp;
     size_t param_count = list_size(function->params);
-    vm->sp = vm->bp + param_count;
+    size_t aux_base = vm->bp + param_count;
+    vm->sp = aux_base;
 
     size_t arg_offset = 0;
     size_t param_offset = 0;
@@ -228,22 +229,22 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
             list_add(_args, &instance);
         for (size_t i = 0; i < argc; i++)
             list_add(_args, &argv[i]);
-        vm->stack[vm->sp] = NEW_OBJ(add_obj(vm, new_list(_args)));
+        vm->stack[aux_base] = NEW_OBJ(add_obj(vm, new_list(_args)));
     }
     else
-        vm->stack[vm->sp] = NEW_NIL();
+        vm->stack[aux_base] = NEW_NIL();
 
     if (function->need_kwargs)
     {
         if (IS_OBJ(kw_args) && OBJ_TYPE(kw_args) == OBJ_MAP)
-            vm->stack[vm->sp] = kw_args;
+            vm->stack[aux_base + 1] = kw_args;
         else
-            vm->stack[vm->sp] = NEW_OBJ(add_obj(vm, new_map(ht_create(sizeof(Value)), false)));
+            vm->stack[aux_base + 1] = NEW_OBJ(add_obj(vm, new_map(ht_create(sizeof(Value)), false)));
     }
     else
-        vm->stack[vm->sp] = NEW_NIL();
+        vm->stack[aux_base + 1] = NEW_NIL();
 
-    vm->sp++;
+    vm->sp = aux_base + 2;
 
     run(vm);
 

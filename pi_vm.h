@@ -24,6 +24,18 @@
 #define VM_DISPATCH() goto *dispatch[code[pc++]]
 #define VM_CASE(name) VM_LABEL(name)
 
+#define VM_DISPATCH_SAFE()                  \
+    do                                      \
+    {                                       \
+        uint8_t _op = code[pc++];           \
+        if (!dispatch[_op])                 \
+            vm_error(vm, "Invalid opcode"); \
+        goto *dispatch[_op];                \
+    } while (0)
+
+#define BEGIN_VM_LOOP() VM_DISPATCH()
+#define END_INSTR() VM_DISPATCH()
+
 typedef struct
 {
     int pc; // Program Counter: Points to the current instruction being executed.
