@@ -128,7 +128,21 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
 {
     // If the function is a native function, call it directly
     if (function->is_native)
+    {
+        if (function->is_method && function->instance != NULL)
+        {
+            Value *method_argv = malloc(sizeof(Value) * (argc + 1));
+            method_argv[0] = NEW_OBJ(add_obj(vm, function->instance));
+            for (size_t i = 0; i < argc; i++)
+                method_argv[i + 1] = argv[i];
+
+            Value result = function->native(vm, (int)argc + 1, method_argv);
+            free(method_argv);
+            return result;
+        }
+
         return function->native(vm, argc, argv);
+    }
 
     // Push the current frame onto the call stack
     Frame frame = {

@@ -19,6 +19,8 @@
 #define GC_MIN_THRESHOLD 4096
 #define GC_MAX_THRESHOLD (1024 * 1024 * 8)
 
+static PiMap *create_objectProto(vm_t *vm);
+
 /**
  * Initializes the virtual machine by allocating memory and
  * setting initial values for the program counter, stack pointer,
@@ -82,6 +84,7 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     vm->modules = ht_create(sizeof(Value));
     // Set current path to the working directory at VM initialization
     vm->current_path = getcwd(NULL, 0);
+    vm->object_proto = NULL;
 
     // Expose current module context in every VM as `module`.
     const char *module_name = entry_name ? entry_name : "";
@@ -99,6 +102,10 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     // Add main module to the global modules table so it can be referenced by name.
     Value main_moduleVal = NEW_OBJ(main_moduleObj);
     ht_put(vm->globals, "module", &main_moduleVal);
+
+    vm->object_proto = create_objectProto(vm);
+    Value object_proto_val = NEW_OBJ((Object *)vm->object_proto);
+    ht_put(vm->globals, "Object", &object_proto_val);
 
     return vm;
 }
@@ -540,6 +547,16 @@ static void remove_upvalue(vm_t *vm, int index)
  */
 static Value bind(vm_t *vm, Function *function, Object *instance)
 {
+    if (function->is_native)
+    {
+        Value *native = new_native(function->name, function->native);
+        Function *bound = AS_FUN(*native);
+        bound->instance = instance;
+        bound->owner = function->owner;
+        bound->is_method = true;
+        return *native;
+    }
+
     // Copy the function object to keep the original intact
     Object *fn = new_func(function->name, function->body,
                           function->params, NULL, instance);
@@ -559,6 +576,113 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
 }
 
 /**
+ * Creates the object prototype map.
+ *
+ * @param vm The virtual machine instance.
+ * @return The object prototype map.
+ */
+static PiMap *create_objectProto(vm_t *vm)
+{
+    Object *obj = add_obj(vm, new_map(ht_create(sizeof(Value)), false));
+    PiMap *proto = (PiMap *)obj;
+
+    // Create built-in functions
+    Value tostring = *new_native("tostring", pi_tostring);    
+    Value valueof = *new_native("valueof", pi_valueof);    
+
+    Value hash = *new_native("hash", pi_hashCode);
+
+    Value clone = *new_native("clone", pi_clone);
+
+    Value keys = *new_native("keys", pi_keys);
+    Value values = *new_native("values", pi_values);
+
+    // Add built-in functions to the object prototype map
+    ht_put(proto->table, "tostring", &tostring);    
+    ht_put(proto->table, "valueof", &valueof);    
+    ht_put(proto->table, "hash", &hash);
+    ht_put(proto->table, "clone", &clone);
+    ht_put(proto->table, "keys", &keys);
+    ht_put(proto->table, "values", &values);
+
+    return proto;
+}
+
+static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
+{
+    if (!IS_MAP(receiver))
+        return receiver;
+
+    Value key = NEW_OBJ(new_pistring(strdup(name)));
+    PiMap *owner = map_owner(AS_MAP(receiver), key);
+    if (owner == NULL)
+        return receiver;
+
+    Value method = map_get(owner, key);
+    if (!IS_FUN(method))
+        return receiver;
+
+    if (AS_MAP(receiver)->is_instance)
+    {
+        Object *target = AS_MAP(receiver)->super_instance ? AS_MAP(receiver)->super_instance : AS_OBJ(receiver);
+        method = bind(vm, AS_FUN(method), target);
+    }
+
+    return call_func(vm, AS_FUN(method), 0, NULL, NEW_NIL());
+}
+
+static Value call_methodNoArgsAlias(vm_t *vm, Value receiver, const char *primary, const char *alias)
+{
+    Value result = call_methodNoArgs(vm, receiver, primary);
+    if (result.type != VAL_OBJ || IS_STRING(result))
+        return result;
+
+    if (alias == NULL || strcmp(primary, alias) == 0)
+        return result;
+
+    return call_methodNoArgs(vm, receiver, alias);
+}
+
+/**
+ * Attempts to coerce a given object into a primitive value.
+ *
+ * This function first attempts to call the object's "tostring" or "valueof" method,
+ * depending on the value of the is_string parameter. If the object does not
+ * contain a method with the given name, or if the method does not return a primitive
+ * value, it then attempts to call the object's other method. If the object does not
+ * contain either method, or if neither method returns a primitive value, this
+ * function returns the original object.
+ *
+ * @param vm The virtual machine instance.
+ * @param value The object to coerce into a primitive value.
+ * @param is_string Whether to prefer the "tostring" or "valueof" method when
+ *                     attempting to coerce the object.
+ * @return The coerced primitive value, or the original object if it cannot be coerced.
+ */
+static Value to_primitive(vm_t *vm, Value value, bool is_string)
+{
+    if (!IS_MAP(value))
+        return value;
+
+    const char *first = is_string ? "tostring" : "valueof";
+    const char *first_alias = is_string ? "toString" : "valueOf";
+    const char *second = is_string ? "valueof" : "tostring";
+    const char *second_alias = is_string ? "valueOf" : "toString";
+
+    // Try the preferred coercion method first, then its alternate spelling.
+    Value result = call_methodNoArgsAlias(vm, value, first, first_alias);
+    if (result.type != VAL_OBJ || IS_STRING(result))
+        return result;
+
+    // Fall back to the other coercion method and its alternate spelling.
+    result = call_methodNoArgsAlias(vm, value, second, second_alias);
+    if (result.type != VAL_OBJ || IS_STRING(result))
+        return result;
+
+    return value;
+}
+
+/**
  * Constructs a new object instance from a given prototype map.
  *
  * This function creates a new map instance, setting the original map as its
@@ -573,6 +697,11 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
  */
 static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv)
 {
+
+    // ensure that the object prototype is set if the object has no parent
+    if (map != NULL && map->proto == NULL && vm->object_proto != NULL && map != vm->object_proto)
+        map->proto = vm->object_proto;
+
     // Create a new table for the instance
     table_t *table = ht_create(sizeof(Value));
 
@@ -643,7 +772,6 @@ void run(vm_t *vm)
             push_stack(vm, constant);
 
             break;
-            
         }
 
         case OP_STORE_GLOBAL:
@@ -762,6 +890,9 @@ void run(vm_t *vm)
             Value right = pop_stack(vm);
             Value left = pop_stack(vm);
 
+            left = to_primitive(vm, left, false);
+            right = to_primitive(vm, right, false);
+
             bool result = false;
             int cmp = compare(left, right);
 
@@ -798,22 +929,28 @@ void run(vm_t *vm)
 
             Value right = pop_stack(vm);
             Value left = pop_stack(vm);
+            Value left_prim = left;
+            Value right_prim = right;
 
             switch (op)
             {
             case 0: // "+"
             {
-                if (is_numeric(left) && is_numeric(right))
+                bool prefer_string = IS_STRING(left) || IS_STRING(right);
+                left_prim = to_primitive(vm, left, prefer_string);
+                right_prim = to_primitive(vm, right, prefer_string);
+
+                if (is_numeric(left_prim) && is_numeric(right_prim))
                 {
-                    push_stack(vm, NEW_NUM(as_number(left) + as_number(right)));
+                    push_stack(vm, NEW_NUM(as_number(left_prim) + as_number(right_prim)));
                     break;
                 }
 
-                if (IS_STRING(left) || IS_STRING(right))
+                if (IS_STRING(left_prim) || IS_STRING(right_prim))
                 {
                     // Coerce both to strings
-                    char *l_str = as_string(left);
-                    char *r_str = as_string(right);
+                    char *l_str = as_string(left_prim);
+                    char *r_str = as_string(right_prim);
 
                     size_t len = strlen(l_str) + strlen(r_str) + 1;
                     char *res = (char *)malloc(len);
@@ -893,9 +1030,12 @@ void run(vm_t *vm)
             }
             case 1: // "-"
             {
-                if (is_numeric(left) && is_numeric(right))
+                left_prim = to_primitive(vm, left, false);
+                right_prim = to_primitive(vm, right, false);
+
+                if (is_numeric(left_prim) && is_numeric(right_prim))
                 {
-                    push_stack(vm, NEW_NUM(as_number(left) - as_number(right)));
+                    push_stack(vm, NEW_NUM(as_number(left_prim) - as_number(right_prim)));
                     break;
                 }
 
@@ -920,7 +1060,7 @@ void run(vm_t *vm)
                     if (IS_STRING(left))
                     {
                         char *l_str = as_string(left);
-                        char *r_str = as_string(right);
+                        char *r_str = as_string(right_prim);
 
                         size_t l_len = strlen(l_str);
                         size_t r_len = strlen(r_str);
@@ -956,9 +1096,12 @@ void run(vm_t *vm)
             break;
             case 2: // "*"
             {
-                if (is_numeric(left))
+                left_prim = to_primitive(vm, left, false);
+                right_prim = to_primitive(vm, right, false);
+
+                if (is_numeric(left_prim) && is_numeric(right_prim))
                     // Multiply two numbers
-                    push_stack(vm, NEW_NUM(as_number(left) * as_number(right)));
+                    push_stack(vm, NEW_NUM(as_number(left_prim) * as_number(right_prim)));
                 else if (left.type == VAL_OBJ)
                 {
                     if (IS_LIST(left) && IS_LIST(right))
@@ -1021,8 +1164,8 @@ void run(vm_t *vm)
                     }
                     else if (IS_LIST(left))
                     {
-                        int count = (int)as_number(right); // Assuming `right` is a number
-                        list_t *list = as_list(left);      // Assuming `as_list` returns a `list_t *`
+                        int count = (int)as_number(right_prim); // Assuming `right` is a number
+                        list_t *list = as_list(left);           // Assuming `as_list` returns a `list_t *`
 
                         list_t *result = list_create(list->i_size);
                         for (int i = 0; i < count; i++)
@@ -1036,7 +1179,7 @@ void run(vm_t *vm)
                     }
                     else if (IS_STRING(left))
                     {
-                        int count = (int)as_number(right); // Assuming `right` is a number
+                        int count = (int)as_number(right_prim); // Assuming `right` is a number
                         // the original strings
                         char *str = as_string(left);
                         // original string length
@@ -1064,7 +1207,9 @@ void run(vm_t *vm)
             }
             case 3: // "/"
             {
-                double denominator = as_number(right);
+                left_prim = to_primitive(vm, left, false);
+                right_prim = to_primitive(vm, right, false);
+                double denominator = as_number(right_prim);
 
                 if (denominator == 0.0)
                 {
@@ -1072,18 +1217,20 @@ void run(vm_t *vm)
                     break;
                 }
 
-                double numerator = as_number(left);
+                double numerator = as_number(left_prim);
                 push_stack(vm, NEW_NUM(numerator / denominator));
                 break;
             }
             case 4: // "%"
             {
-                double denominator = as_number(right);
+                left_prim = to_primitive(vm, left, false);
+                right_prim = to_primitive(vm, right, false);
+                double denominator = as_number(right_prim);
 
                 if ((int)denominator == 0) // If denominator is zero, return NaN
                     push_stack(vm, NEW_NAN());
                 else
-                    push_stack(vm, NEW_NUM((int)as_number(left) % (int)denominator));
+                    push_stack(vm, NEW_NUM((int)as_number(left_prim) % (int)denominator));
                 break;
             }
             case 5: // "&&"
@@ -1093,18 +1240,22 @@ void run(vm_t *vm)
                 push_stack(vm, NEW_BOOL(as_bool(left) || as_bool(right)));
                 break;
             case 7: // "**"
-                push_stack(vm, NEW_NUM(pow(as_number(left), as_number(right))));
+                left_prim = to_primitive(vm, left, false);
+                right_prim = to_primitive(vm, right, false);
+                push_stack(vm, NEW_NUM(pow(as_number(left_prim), as_number(right_prim))));
                 break;
             case 8: // "&"
             {
-                if (is_numeric(left))
-                    push_stack(vm, NEW_NUM((int)as_number(left) & (int)as_number(right)));
+                left_prim = to_primitive(vm, left, false);
+                right_prim = to_primitive(vm, right, false);
+                if (is_numeric(left_prim) && is_numeric(right_prim))
+                    push_stack(vm, NEW_NUM((int)as_number(left_prim) & (int)as_number(right_prim)));
                 else if (left.type == VAL_OBJ && OBJ_TYPE(left) == OBJ_LIST)
                 {
                     list_t *list = as_list(left);
                     list_t *result = list_create(sizeof(Value));
 
-                    int _right = (int)as_number(right);
+                    int _right = (int)as_number(right_prim);
 
                     for (int i = 0; i < list_size(list); i++)
                     {
@@ -1121,14 +1272,16 @@ void run(vm_t *vm)
 
             case 9: // "|"
             {
-                if (is_numeric(left))
-                    push_stack(vm, NEW_NUM((int)as_number(left) | (int)as_number(right)));
+                left_prim = to_primitive(vm, left, false);
+                right_prim = to_primitive(vm, right, false);
+                if (is_numeric(left_prim) && is_numeric(right_prim))
+                    push_stack(vm, NEW_NUM((int)as_number(left_prim) | (int)as_number(right_prim)));
                 else if (left.type == VAL_OBJ && OBJ_TYPE(left) == OBJ_LIST)
                 {
                     list_t *list = as_list(left);
                     list_t *result = list_create(sizeof(Value));
 
-                    int _right = (int)as_number(right);
+                    int _right = (int)as_number(right_prim);
 
                     for (int i = 0; i < list_size(list); i++)
                     {
@@ -1145,6 +1298,8 @@ void run(vm_t *vm)
 
             case 10: // "^"
             {
+                left_prim = to_primitive(vm, left, false);
+                right_prim = to_primitive(vm, right, false);
 
                 if (IS_LIST(left) && IS_LIST(right))
                 {
@@ -1172,15 +1327,15 @@ void run(vm_t *vm)
                     push_stack(vm, NEW_OBJ(add_obj(vm, new_list(res))));
                     break;
                 }
-                else if (is_numeric(left))
-                    push_stack(vm, NEW_NUM((int)as_number(left) ^ (int)as_number(right)));
+                else if (is_numeric(left_prim) && is_numeric(right_prim))
+                    push_stack(vm, NEW_NUM((int)as_number(left_prim) ^ (int)as_number(right_prim)));
 
                 else if (left.type == VAL_OBJ && OBJ_TYPE(left) == OBJ_LIST)
                 {
                     list_t *list = as_list(left);
                     list_t *result = list_create(sizeof(Value));
 
-                    int _right = (int)as_number(right);
+                    int _right = (int)as_number(right_prim);
 
                     for (int i = 0; i < list_size(list); i++)
                     {
@@ -1197,15 +1352,17 @@ void run(vm_t *vm)
 
             case 11: // "<<"
             {
-                if (is_numeric(left))
-                    push_stack(vm, NEW_NUM((int)as_number(left) << (int)as_number(right)));
+                left_prim = to_primitive(vm, left, false);
+                right_prim = to_primitive(vm, right, false);
+                if (is_numeric(left_prim) && is_numeric(right_prim))
+                    push_stack(vm, NEW_NUM((int)as_number(left_prim) << (int)as_number(right_prim)));
 
                 else if (left.type == VAL_OBJ && OBJ_TYPE(left) == OBJ_LIST)
                 {
                     list_t *list = as_list(left);
                     list_t *result = list_create(sizeof(Value));
 
-                    int _right = (int)as_number(right);
+                    int _right = (int)as_number(right_prim);
 
                     for (int i = 0; i < list_size(list); i++)
                     {
@@ -1222,15 +1379,17 @@ void run(vm_t *vm)
 
             case 12: // ">>"
             {
-                if (is_numeric(left))
-                    push_stack(vm, NEW_NUM((int)as_number(left) >> (int)as_number(right)));
+                left_prim = to_primitive(vm, left, false);
+                right_prim = to_primitive(vm, right, false);
+                if (is_numeric(left_prim) && is_numeric(right_prim))
+                    push_stack(vm, NEW_NUM((int)as_number(left_prim) >> (int)as_number(right_prim)));
 
                 else if (left.type == VAL_OBJ && OBJ_TYPE(left) == OBJ_LIST)
                 {
                     list_t *list = as_list(left);
                     list_t *result = list_create(sizeof(Value));
 
-                    int _right = (int)as_number(right);
+                    int _right = (int)as_number(right_prim);
 
                     for (int i = 0; i < list_size(list); i++)
                     {
@@ -1247,15 +1406,17 @@ void run(vm_t *vm)
 
             case 13: // ">>>"
             {
-                if (is_numeric(left))
-                    push_stack(vm, NEW_NUM((uint32_t)as_number(left) >> (uint32_t)as_number(right)));
+                left_prim = to_primitive(vm, left, false);
+                right_prim = to_primitive(vm, right, false);
+                if (is_numeric(left_prim) && is_numeric(right_prim))
+                    push_stack(vm, NEW_NUM((uint32_t)as_number(left_prim) >> (uint32_t)as_number(right_prim)));
 
                 else if (left.type == VAL_OBJ && OBJ_TYPE(left) == OBJ_LIST)
                 {
                     list_t *list = as_list(left);
                     list_t *result = list_create(sizeof(Value));
 
-                    uint32_t _right = (uint32_t)as_number(right);
+                    uint32_t _right = (uint32_t)as_number(right_prim);
 
                     for (int i = 0; i < list_size(list); i++)
                     {
@@ -1346,15 +1507,16 @@ void run(vm_t *vm)
 
             uint8_t op = code[pc++];       // Get the unary operation code
             Value operand = pop_stack(vm); // Get the operand from the stack
+            Value operand_prim = to_primitive(vm, operand, false);
 
             switch (op)
             {
             case 0: // Unary plus
-                push_stack(vm, NEW_NUM(as_number(operand)));
+                push_stack(vm, NEW_NUM(as_number(operand_prim)));
                 break;
 
             case 1: // Unary minus
-                push_stack(vm, NEW_NUM(-as_number(operand)));
+                push_stack(vm, NEW_NUM(-as_number(operand_prim)));
                 break;
 
             case 2: // Logical NOT
@@ -1362,7 +1524,7 @@ void run(vm_t *vm)
                 break;
 
             case 3: // Bitwise NOT
-                push_stack(vm, NEW_NUM(~(int)as_number(operand)));
+                push_stack(vm, NEW_NUM(~(int)as_number(operand_prim)));
                 break;
 
             case 4: // Collection size
@@ -1388,11 +1550,11 @@ void run(vm_t *vm)
                 break;
             }
             case 5: // "++"
-                push_stack(vm, NEW_NUM(as_number(operand) + 1));
+                push_stack(vm, NEW_NUM(as_number(operand_prim) + 1));
                 break;
 
             case 6: // "--"
-                push_stack(vm, NEW_NUM(as_number(operand) - 1));
+                push_stack(vm, NEW_NUM(as_number(operand_prim) - 1));
                 break;
 
             default:
@@ -1650,6 +1812,7 @@ void run(vm_t *vm)
             // create a new hashtable
             table_t *table = ht_create(sizeof(Value));
             PiMap *proto = NULL;
+            bool has_methods = false;
 
             // Adjust the stack pointer to the first element of the map
             int _sp = vm->sp - (numElements * 2);
@@ -1669,7 +1832,10 @@ void run(vm_t *vm)
                 }
 
                 if (IS_FUN(value))
+                {
                     AS_FUN(value)->is_method = true;
+                    has_methods = true;
+                }
 
                 ht_put(table, key, &value);
             }
@@ -1678,6 +1844,8 @@ void run(vm_t *vm)
 
             // Push the new map onto the stack
             Object *map = add_obj(vm, new_map(table, false));
+            if (proto == NULL && has_methods)
+                proto = vm->object_proto;
             ((PiMap *)map)->proto = proto;
             char **keys = ht_keys(table);
             int size = ht_length(table);

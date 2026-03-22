@@ -84,6 +84,7 @@ typedef struct
 
     table_t *modules;   // Hash table to store loaded modules by name
     char *current_path; // Current working directory for resolving relative imports
+    PiMap *object_proto; // Shared default prototype for object-style maps
 
 } vm_t;
 
