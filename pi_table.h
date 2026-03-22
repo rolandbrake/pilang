@@ -34,6 +34,7 @@ table_t *ht_create(size_t i_size);
 void *ht_get(table_t *table, const char *key);
 bool ht_set(table_t *table, const char *key, const void *value);
 bool ht_put(table_t *table, const char *key, const void *value);
+bool ht_delete(table_t *table, const char *key);
 
 bool ht_expand(table_t *table);
 int ht_length(table_t *table);

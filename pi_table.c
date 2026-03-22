@@ -147,6 +147,50 @@ bool ht_put(table_t *table, const char *key, const void *value)
     return true;
 }
 
+bool ht_delete(table_t *table, const char *key)
+{
+    if (!table || !key)
+        return false;
+
+    if (ht_get(table, key) == NULL)
+        return false;
+
+    ht_item *old_items = table->items;
+    char **old_keys = table->_keys;
+    int old_capacity = table->capacity;
+
+    table->items = calloc(table->capacity, sizeof(ht_item));
+    table->_keys = calloc(table->capacity, sizeof(char *));
+    table->size = 0;
+    table->_last = 0;
+
+    if (!table->items || !table->_keys)
+    {
+        free(table->items);
+        free(table->_keys);
+        table->items = old_items;
+        table->_keys = old_keys;
+        table->capacity = old_capacity;
+        return false;
+    }
+
+    for (int i = 0; i < old_capacity; i++)
+    {
+        if (old_items[i].key == NULL)
+            continue;
+
+        if (strcmp(old_items[i].key, key) != 0)
+            ht_put(table, old_items[i].key, old_items[i].value);
+
+        free(old_items[i].key);
+        free(old_items[i].value);
+    }
+
+    free(old_items);
+    free(old_keys);
+    return true;
+}
+
 /**
  * Expand the table to double its capacity.
  *

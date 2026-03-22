@@ -593,7 +593,22 @@ static PiMap *create_objectProto(vm_t *vm)
     Value hash = *new_native("hash", pi_hashCode);
 
     Value clone = *new_native("clone", pi_clone);
+
     Value extends_fn = *new_native("extends", pi_extends);
+    
+    Value equals_fn = *new_native("equals", pi_equals);
+    Value ident_fn = *new_native("ident", pi_ident);
+    Value compare_fn = *new_native("compare", pi_compare);
+
+    Value type_fn = *new_native("type", pi_type);
+
+    Value get_fn = *new_native("get", pi_get);
+    Value set_fn = *new_native("set", pi_set);
+    Value has_fn = *new_native("has", pi_has);
+    Value delete_fn = *new_native("delete", pi_delete);
+    
+    Value iterator_fn = *new_native("iterator", pi_iterator);
+    Value next_fn = *new_native("next", pi_next);
 
     Value keys = *new_native("keys", pi_keys);
     Value values = *new_native("values", pi_values);
@@ -604,6 +619,16 @@ static PiMap *create_objectProto(vm_t *vm)
     ht_put(proto->table, "hash", &hash);
     ht_put(proto->table, "clone", &clone);
     ht_put(proto->table, "extends", &extends_fn);
+    ht_put(proto->table, "equals", &equals_fn);
+    ht_put(proto->table, "ident", &ident_fn);
+    ht_put(proto->table, "compare", &compare_fn);
+    ht_put(proto->table, "type", &type_fn);
+    ht_put(proto->table, "get", &get_fn);
+    ht_put(proto->table, "set", &set_fn);
+    ht_put(proto->table, "has", &has_fn);
+    ht_put(proto->table, "delete", &delete_fn);
+    ht_put(proto->table, "iterator", &iterator_fn);
+    ht_put(proto->table, "next", &next_fn);
     ht_put(proto->table, "keys", &keys);
     ht_put(proto->table, "values", &values);
 
@@ -2005,12 +2030,11 @@ void run(vm_t *vm)
                 PiMap *owner = map_owner(map, index);
                 Value item = owner ? map_get(owner, index) : NEW_NIL();
 
-                bool bind_extends = owner != NULL &&
-                                    IS_FUN(item) &&
-                                    IS_STRING(index) &&
-                                    strcmp(AS_CSTRING(index), "extends") == 0;
+                bool bind_object_method = owner != NULL &&
+                                          IS_FUN(item) &&
+                                          owner == vm->object_proto;
 
-                if ((map->is_instance && owner != NULL && IS_FUN(item)) || bind_extends)
+                if ((map->is_instance && owner != NULL && IS_FUN(item)) || bind_object_method)
                 {
                     Object *target = map->super_instance ? map->super_instance : AS_OBJ(container);
                     item = bind(vm, AS_FUN(item), target);

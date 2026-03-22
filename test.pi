@@ -1,38 +1,45 @@
-let Animal = {
-  constructor() {
-    this.kind = "animal"
-  },
-  speak() {
-    return "generic " + this.kind
-  },
-  format() {
-    return this.kind
-  },
-  value() {
-    return this.kind
-  }
+Base = Object.extends(Object, {
+    tag: "base"
+})
 
+User = {
+    name: "Ada",
+    age: 26
 }
 
-let Dog =  {
-  constructor(name) {
-    this.name = name
-    this.kind = "dog"
-  },
-  speak() {
-    return this.name + " says woof"
-  }
+Object.extends(Base, User)
+
+Copy = {
+    name: "Ada",
+    age: 22
 }
 
-Dog.extends(Animal)
+Object.extends(Base, Copy)
 
-let dog = Dog("Milo")
-let animal = Animal()
+println(User.type()) 
+println(User.equals(Copy))
+println(User.ident(Copy)) 
+println(User.compare(Copy))
 
-println(animal.kind)
-println(animal.speak())
+println(User.has("name")) 
+println(User.get("name"))
 
+User.set("role", "admin")
+println(User.get("role"))
+println(User.has("role"))
 
-println(dog is Dog)
-println(dog.speak())
+println(User.delete("role"))
+println(User.has("role"))
 
+println(User.get("tag"))
+
+it = User.iterator()
+println(it.next())
+println(it.next())
+println(it.next())
+println(it.next())
+
+println(Object.type(User))
+println(Object.equals(User, Copy))
+println(Object.compare(User, Copy))
+println(Object.get(User, "age"))

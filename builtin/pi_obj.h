@@ -11,5 +11,15 @@ Value pi_toString(vm_t *vm, int argc, Value *argv);
 Value pi_valueOf(vm_t *vm, int argc, Value *argv);
 Value pi_hashCode(vm_t *vm, int argc, Value *argv);
 Value pi_extends(vm_t *vm, int argc, Value *argv);
+Value pi_equals(vm_t *vm, int argc, Value *argv);
+Value pi_ident(vm_t *vm, int argc, Value *argv);
+Value pi_compare(vm_t *vm, int argc, Value *argv);
+Value pi_type(vm_t *vm, int argc, Value *argv);
+Value pi_get(vm_t *vm, int argc, Value *argv);
+Value pi_set(vm_t *vm, int argc, Value *argv);
+Value pi_has(vm_t *vm, int argc, Value *argv);
+Value pi_delete(vm_t *vm, int argc, Value *argv);
+Value pi_iterator(vm_t *vm, int argc, Value *argv);
+Value pi_next(vm_t *vm, int argc, Value *argv);
 
 #endif // PI_OBJ_H

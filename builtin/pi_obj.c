@@ -1,7 +1,159 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "pi_obj.h"
+
+static int normalize_compare(int cmp)
+{
+    return (cmp > 0) - (cmp < 0);
+}
+
+static bool is_object_map(vm_t *vm, PiMap *map)
+{
+    while (map != NULL)
+    {
+        if (map == vm->object_proto)
+            return true;
+        map = map->proto;
+    }
+
+    return false;
+}
+
+static int compare_cstrings(const void *left, const void *right)
+{
+    const char *const *a = (const char *const *)left;
+    const char *const *b = (const char *const *)right;
+    return strcmp(*a, *b);
+}
+
+static bool map_equals(PiMap *left, PiMap *right);
+static int map_compare(PiMap *left, PiMap *right);
+
+static bool value_equals(Value left, Value right)
+{
+    if (IS_MAP(left) && IS_MAP(right))
+        return map_equals(AS_MAP(left), AS_MAP(right));
+
+    return equals(left, right);
+}
+
+
+static int value_compare(Value left, Value right)
+{
+    if (IS_MAP(left) && IS_MAP(right))
+        return map_compare(AS_MAP(left), AS_MAP(right));
+
+    int cmp = compare(left, right);
+    if (cmp != ERROR_COMPARE)
+        return normalize_compare(cmp);
+
+    char *l_type = type_name(left);
+    char *r_type = type_name(right);
+    int type_cmp = strcmp(l_type, r_type);
+    if (type_cmp != 0)
+        return normalize_compare(type_cmp);
+
+    if (IS_OBJ(left) && IS_OBJ(right))
+        return normalize_compare((AS_OBJ(left) > AS_OBJ(right)) - (AS_OBJ(left) < AS_OBJ(right)));
+
+    return 0;
+}
+
+static bool map_equals(PiMap *left, PiMap *right)
+{
+    if (left == right)
+        return true;
+
+    if (map_size(left) != map_size(right))
+        return false;
+
+    if ((left->proto == NULL) != (right->proto == NULL))
+        return false;
+
+    if (left->proto != NULL && right->proto != NULL &&
+        left->proto != right->proto &&
+        !map_equals(left->proto, right->proto))
+        return false;
+
+    int size = ht_length(left->table);
+    char **left_keys = ht_keys(left->table);
+
+    for (int i = 0; i < size; i++)
+    {
+        Value *left_value = ht_get(left->table, left_keys[i]);
+        Value *right_value = ht_get(right->table, left_keys[i]);
+
+        if (left_value == NULL || right_value == NULL)
+            return false;
+
+        if (!value_equals(*left_value, *right_value))
+            return false;
+    }
+
+    return true;
+}
+
+static int map_compare(PiMap *left, PiMap *right)
+{
+    if (left == right)
+        return 0;
+
+    int size_cmp = normalize_compare(map_size(left) - map_size(right));
+    if (size_cmp != 0)
+        return size_cmp;
+
+    int left_size = ht_length(left->table);
+    int right_size = ht_length(right->table);
+
+    char **left_keys = ht_keys(left->table);
+    char **right_keys = ht_keys(right->table);
+
+    char **left_sorted = malloc(sizeof(char *) * left_size);
+    char **right_sorted = malloc(sizeof(char *) * right_size);
+
+    for (int i = 0; i < left_size; i++)
+        left_sorted[i] = left_keys[i];
+    for (int i = 0; i < right_size; i++)
+        right_sorted[i] = right_keys[i];
+
+    qsort(left_sorted, left_size, sizeof(char *), compare_cstrings);
+    qsort(right_sorted, right_size, sizeof(char *), compare_cstrings);
+
+    for (int i = 0; i < left_size; i++)
+    {
+        int key_cmp = strcmp(left_sorted[i], right_sorted[i]);
+        if (key_cmp != 0)
+        {
+            free(left_sorted);
+            free(right_sorted);
+            return normalize_compare(key_cmp);
+        }
+
+        Value *left_value = ht_get(left->table, left_sorted[i]);
+        Value *right_value = ht_get(right->table, right_sorted[i]);
+        int value_cmp = value_compare(*left_value, *right_value);
+        if (value_cmp != 0)
+        {
+            free(left_sorted);
+            free(right_sorted);
+            return value_cmp;
+        }
+    }
+
+    free(left_sorted);
+    free(right_sorted);
+
+    if (left->proto == NULL && right->proto == NULL)
+        return 0;
+    if (left->proto == NULL)
+        return -1;
+    if (right->proto == NULL)
+        return 1;
+
+    return map_compare(left->proto, right->proto);
+}
 
 // Clones a PiMap object, preserving its prototype chain and key-value pairs.
 Value pi_clone(vm_t *vm, int argc, Value *argv)
@@ -129,4 +281,207 @@ Value pi_extends(vm_t *vm, int argc, Value *argv)
 
     child->proto = parent;
     return NEW_OBJ((Object *)child);
+}
+
+Value pi_equals(vm_t *vm, int argc, Value *argv)
+{
+    if (argc == 2)
+        return NEW_BOOL(value_equals(argv[0], argv[1]));
+
+    if (argc == 3)
+        return NEW_BOOL(value_equals(argv[1], argv[2]));
+
+    vm_error(vm, "[equals] expects either obj.equals(other) or Object.equals(left, right).");
+    return NEW_NIL();
+}
+
+Value pi_ident(vm_t *vm, int argc, Value *argv)
+{
+    Value left;
+    Value right;
+
+    if (argc == 2)
+    {
+        left = argv[0];
+        right = argv[1];
+    }
+    else if (argc == 3)
+    {
+        left = argv[1];
+        right = argv[2];
+    }
+    else
+        vm_error(vm, "[ident] expects either obj.ident(other) or Object.ident(left, right).");
+
+    if (!IS_OBJ(left) || !IS_OBJ(right))
+        return NEW_BOOL(false);
+
+    return NEW_BOOL(AS_OBJ(left) == AS_OBJ(right));
+}
+
+Value pi_compare(vm_t *vm, int argc, Value *argv)
+{
+    Value left;
+    Value right;
+
+    if (argc == 2)
+    {
+        left = argv[0];
+        right = argv[1];
+    }
+    else if (argc == 3)
+    {
+        left = argv[1];
+        right = argv[2];
+    }
+    else
+        vm_error(vm, "[compare] expects either obj.compare(other) or Object.compare(left, right).");
+
+    return NEW_NUM(value_compare(left, right));
+}
+
+Value pi_type(vm_t *vm, int argc, Value *argv)
+{
+    Value target;
+
+    if (argc == 1)
+        target = argv[0];
+    else if (argc == 2)
+        target = argv[1];
+    else
+        vm_error(vm, "[type] expects either obj.type() or Object.type(value).");
+
+    if (IS_MAP(target))
+    {
+        const char *kind = is_object_map(vm, AS_MAP(target)) ? "Object" : "map";
+        return NEW_OBJ(add_obj(vm, new_pistring(strdup(kind))));
+    }
+
+    return NEW_OBJ(add_obj(vm, new_pistring(strdup(type_name(target)))));
+}
+
+Value pi_get(vm_t *vm, int argc, Value *argv)
+{
+    PiMap *map;
+    Value key;
+
+    if (argc == 2 && IS_MAP(argv[0]))
+    {
+        map = AS_MAP(argv[0]);
+        key = argv[1];
+    }
+    else if (argc == 3 && IS_MAP(argv[1]))
+    {
+        map = AS_MAP(argv[1]);
+        key = argv[2];
+    }
+    else
+        vm_error(vm, "[get] expects either obj.get(key) or Object.get(obj, key).");
+
+    return map_get(map, key);
+}
+
+Value pi_set(vm_t *vm, int argc, Value *argv)
+{
+    PiMap *map;
+    Value key;
+    Value value;
+
+    if (argc == 3 && IS_MAP(argv[0]))
+    {
+        map = AS_MAP(argv[0]);
+        key = argv[1];
+        value = argv[2];
+    }
+    else if (argc == 4 && IS_MAP(argv[1]))
+    {
+        map = AS_MAP(argv[1]);
+        key = argv[2];
+        value = argv[3];
+    }
+    else
+        vm_error(vm, "[set] expects either obj.set(key, value) or Object.set(obj, key, value).");
+
+    map_set(map, key, value);
+    return NEW_OBJ((Object *)map);
+}
+
+Value pi_has(vm_t *vm, int argc, Value *argv)
+{
+    PiMap *map;
+    Value key;
+
+    if (argc == 2 && IS_MAP(argv[0]))
+    {
+        map = AS_MAP(argv[0]);
+        key = argv[1];
+    }
+    else if (argc == 3 && IS_MAP(argv[1]))
+    {
+        map = AS_MAP(argv[1]);
+        key = argv[2];
+    }
+    else
+        vm_error(vm, "[has] expects either obj.has(key) or Object.has(obj, key).");
+
+    return NEW_BOOL(map_has(map, key));
+}
+
+Value pi_delete(vm_t *vm, int argc, Value *argv)
+{
+    PiMap *map;
+    Value key;
+
+    if (argc == 2 && IS_MAP(argv[0]))
+    {
+        map = AS_MAP(argv[0]);
+        key = argv[1];
+    }
+    else if (argc == 3 && IS_MAP(argv[1]))
+    {
+        map = AS_MAP(argv[1]);
+        key = argv[2];
+    }
+    else
+        vm_error(vm, "[delete] expects either obj.delete(key) or Object.delete(obj, key).");
+
+    return NEW_BOOL(map_delete(map, key));
+}
+
+Value pi_iterator(vm_t *vm, int argc, Value *argv)
+{
+    Value target;
+
+    if (argc == 1)
+        target = argv[0];
+    else if (argc == 2)
+        target = argv[1];
+    else
+        vm_error(vm, "[iterator] expects either obj.iterator() or Object.iterator(value).");
+
+    if (!IS_OBJ(target) || !is_iterable(AS_OBJ(target)))
+        vm_error(vm, "[iterator] target is not iterable.");
+
+    iter_reset(AS_OBJ(target));
+    return target;
+}
+
+Value pi_next(vm_t *vm, int argc, Value *argv)
+{
+    Value target;
+
+    if (argc == 1)
+        target = argv[0];
+    else if (argc == 2)
+        target = argv[1];
+    else
+        vm_error(vm, "[next] expects either obj.next() or Object.next(value).");
+
+    if (!IS_OBJ(target) || !is_iterable(AS_OBJ(target)))
+        vm_error(vm, "[next] target is not iterable.");
+
+    if (!iter_hasNext(AS_OBJ(target)))
+        return NEW_NIL();
+
+    return iter_next(AS_OBJ(target));
 }

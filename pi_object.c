@@ -257,6 +257,19 @@ bool map_has(PiMap *map, Value key)
     return found;
 }
 
+bool map_delete(PiMap *map, Value key)
+{
+    char *key_str = as_string(key);
+    PiMap *owner = map_findOwner(map, key_str);
+    bool removed = false;
+
+    if (owner != NULL)
+        removed = ht_delete(owner->table, key_str);
+
+    free(key_str);
+    return removed;
+}
+
 /**
  * Sets the value associated with a given key in a PiMap.
  *
