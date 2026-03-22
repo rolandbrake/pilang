@@ -2,6 +2,31 @@
 #include "../list.h"
 #include "pi_builtin.h"
 
+static PiList *create_numeric_matrix(int rows, int cols)
+{
+    list_t *items = list_create(sizeof(Value));
+
+    for (int i = 0; i < rows; ++i)
+    {
+        list_t *row_items = list_create(sizeof(Value));
+        PiList *row = (PiList *)new_list(row_items);
+        row->is_numeric = true;
+        row->is_matrix = false;
+        row->rows = 1;
+        row->cols = cols;
+
+        list_add(items, &NEW_OBJ(row));
+    }
+
+    PiList *mat = (PiList *)new_list(items);
+    mat->is_numeric = true;
+    mat->is_matrix = true;
+    mat->rows = rows;
+    mat->cols = cols;
+
+    return mat;
+}
+
 /**
  * @brief Returns the size of a matrix.
  *
@@ -54,20 +79,14 @@ Value pi_zeros(vm_t *vm, int argc, Value *argv)
     int rows = AS_NUM(argv[0]);
     int cols = AS_NUM(argv[1]);
 
-    list_t *list = list_create(sizeof(Value));
+    PiList *mat = create_numeric_matrix(rows, cols);
 
     for (int i = 0; i < rows; ++i)
     {
-        list_t *row = list_create(sizeof(Value));
+        PiList *row = AS_LIST(*(Value *)list_getAt(mat->items, i));
         for (int j = 0; j < cols; ++j)
-            list_add(row, &NEW_NUM(0));
-        list_add(list, &row);
+            list_add(row->items, &NEW_NUM(0));
     }
-
-    PiList *mat = (PiList *)new_list(list);
-
-    mat->is_numeric = true;
-    mat->is_matrix = true;
 
     return NEW_OBJ(mat);
 }
@@ -86,23 +105,14 @@ Value pi_ones(vm_t *vm, int argc, Value *argv)
     int rows = AS_NUM(argv[0]);
     int cols = AS_NUM(argv[1]);
 
-    /* Create a new list to store the matrix */
-    list_t *list = list_create(sizeof(Value));
+    PiList *mat = create_numeric_matrix(rows, cols);
 
-    /* Iterate over the rows and columns to fill the matrix */
     for (int i = 0; i < rows; ++i)
     {
-        list_t *row = list_create(sizeof(Value));
+        PiList *row = AS_LIST(*(Value *)list_getAt(mat->items, i));
         for (int j = 0; j < cols; ++j)
-            list_add(row, &NEW_NUM(1));
-        list_add(list, &row);
+            list_add(row->items, &NEW_NUM(1));
     }
-
-    /* Create a new matrix to store the result */
-    PiList *mat = (PiList *)new_list(list);
-
-    mat->is_numeric = true;
-    mat->is_matrix = true;
 
     return NEW_OBJ(mat);
 }
@@ -121,28 +131,17 @@ Value pi_eye(vm_t *vm, int argc, Value *argv)
     int rows = AS_NUM(argv[0]);
     int cols = AS_NUM(argv[1]);
 
-    /* Create a new list to store the matrix */
-    list_t *list = list_create(sizeof(Value));
+    PiList *mat = create_numeric_matrix(rows, cols);
 
-    /* Iterate over the rows and columns to fill the matrix */
     for (int i = 0; i < rows; ++i)
     {
-        list_t *row = list_create(sizeof(Value));
+        PiList *row = AS_LIST(*(Value *)list_getAt(mat->items, i));
         for (int j = 0; j < cols; ++j)
         {
-            if (i == j)
-                list_add(row, &NEW_NUM(1));
-            else
-                list_add(row, &NEW_NUM(0));
+            Value cell = (i == j) ? NEW_NUM(1) : NEW_NUM(0);
+            list_add(row->items, &cell);
         }
-        list_add(list, &row);
     }
-
-    /* Create a new matrix to store the result */
-    PiList *mat = (PiList *)new_list(list);
-
-    mat->is_numeric = true;
-    mat->is_matrix = true;
 
     return NEW_OBJ(mat);
 }
@@ -179,14 +178,14 @@ Value pi_mult(vm_t *vm, int argc, Value *argv)
     int n = A->cols;
     int p = B->cols;
 
-    list_t *result = list_create(sizeof(Value));
+    PiList *mat = create_numeric_matrix(m, p);
 
     /* Iterate over the rows of matrix A */
     for (int i = 0; i < m; i++)
     {
         Value *rowA_val = (Value *)list_getAt(A->items, i);
         list_t *rowA = as_list(*rowA_val);
-        list_t *temp = list_create(sizeof(Value));
+        PiList *row_out = AS_LIST(*(Value *)list_getAt(mat->items, i));
 
         /* Iterate over the columns of matrix B */
         for (int j = 0; j < p; j++)
@@ -209,13 +208,11 @@ Value pi_mult(vm_t *vm, int argc, Value *argv)
                 sum += a * b;
             }
 
-            list_add(temp, &NEW_NUM(sum));
+            list_add(row_out->items, &NEW_NUM(sum));
         }
-
-        list_add(result, &NEW_OBJ(new_list(temp)));
     }
 
-    return NEW_OBJ(new_list(result));
+    return NEW_OBJ(mat);
 }
 
 Value pi_dot(vm_t *vm, int argc, Value *argv)
@@ -286,7 +283,9 @@ Value pi_cross(vm_t *vm, int argc, Value *argv)
 
     PiList *result = (PiList *)new_list(items);
     result->is_numeric = true;
-    result->is_matrix = true;
+    result->is_matrix = false;
+    result->rows = 1;
+    result->cols = 3;
 
     return NEW_OBJ(result);
 }
