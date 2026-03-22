@@ -77,19 +77,19 @@ Value pi_keys(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_list(list));
 }
 
-Value pi_tostring(vm_t *vm, int argc, Value *argv)
+Value pi_toString(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_MAP(argv[0]))
-        vm_error(vm, "[tostring] expects a map as the first argument.");
+        vm_error(vm, "[format] expects a map as the first argument.");
 
     char *text = as_string(argv[0]);
     return NEW_OBJ(add_obj(vm, new_pistring(text)));
 }
 
-Value pi_valueof(vm_t *vm, int argc, Value *argv)
+Value pi_valueOf(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_MAP(argv[0]))
-        vm_error(vm, "[valueof] expects a map as the first argument.");
+        vm_error(vm, "[value] expects a map as the first argument.");
 
     return argv[0];
 }
@@ -101,4 +101,32 @@ Value pi_hashCode(vm_t *vm, int argc, Value *argv)
 
     uintptr_t ptr = (uintptr_t)AS_OBJ(argv[0]);
     return NEW_NUM((double)(ptr & 0x1FFFFFFFFFFFFFull));
+}
+
+Value pi_extends(vm_t *vm, int argc, Value *argv)
+{
+    PiMap *parent = NULL;
+    PiMap *child = NULL;
+
+    if (argc == 2 && IS_MAP(argv[0]) && IS_MAP(argv[1]))
+    {
+        child = AS_MAP(argv[0]);
+        parent = AS_MAP(argv[1]);
+    }
+    else if (argc == 3 && IS_MAP(argv[1]) && IS_MAP(argv[2]))
+    {
+        parent = AS_MAP(argv[1]);
+        child = AS_MAP(argv[2]);
+    }
+    else
+        vm_error(vm, "[extends] expects either child.extends(parent) or Object.extends(parent, child).");
+
+    if (parent->is_instance)
+        vm_error(vm, "[extends] parent must be a prototype map, not an instance.");
+
+    if (child->is_instance)
+        vm_error(vm, "[extends] child must be a map literal or prototype, not an instance.");
+
+    child->proto = parent;
+    return NEW_OBJ((Object *)child);
 }

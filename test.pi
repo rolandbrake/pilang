@@ -1,18 +1,38 @@
-Point = {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-    },
-    tostring() {
-        return "(" + this.x + ", " + this.y + ")";
-    },
-    valueof() {
-        return this.x + this.y;
-    }
+let Animal = {
+  constructor() {
+    this.kind = "animal"
+  },
+  speak() {
+    return "generic " + this.kind
+  },
+  format() {
+    return this.kind
+  },
+  value() {
+    return this.kind
+  }
+
 }
 
-point = Point(1, 2)
+let Dog =  {
+  constructor(name) {
+    this.name = name
+    this.kind = "dog"
+  },
+  speak() {
+    return this.name + " says woof"
+  }
+}
 
-println(point + 3)
-println("point=" + point)
-println(+point)
+Dog.extends(Animal)
+
+let dog = Dog("Milo")
+let animal = Animal()
+
+println(animal.kind)
+println(animal.speak())
+
+
+println(dog is Dog)
+println(dog.speak())
+

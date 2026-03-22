@@ -587,21 +587,23 @@ static PiMap *create_objectProto(vm_t *vm)
     PiMap *proto = (PiMap *)obj;
 
     // Create built-in functions
-    Value tostring = *new_native("tostring", pi_tostring);    
-    Value valueof = *new_native("valueof", pi_valueof);    
+    Value format = *new_native("format", pi_toString);
+    Value value = *new_native("value", pi_valueOf);
 
     Value hash = *new_native("hash", pi_hashCode);
 
     Value clone = *new_native("clone", pi_clone);
+    Value extends_fn = *new_native("extends", pi_extends);
 
     Value keys = *new_native("keys", pi_keys);
     Value values = *new_native("values", pi_values);
 
     // Add built-in functions to the object prototype map
-    ht_put(proto->table, "tostring", &tostring);    
-    ht_put(proto->table, "valueof", &valueof);    
+    ht_put(proto->table, "format", &format);
+    ht_put(proto->table, "value", &value);
     ht_put(proto->table, "hash", &hash);
     ht_put(proto->table, "clone", &clone);
+    ht_put(proto->table, "extends", &extends_fn);
     ht_put(proto->table, "keys", &keys);
     ht_put(proto->table, "values", &values);
 
@@ -631,22 +633,10 @@ static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
     return call_func(vm, AS_FUN(method), 0, NULL, NEW_NIL());
 }
 
-static Value call_methodNoArgsAlias(vm_t *vm, Value receiver, const char *primary, const char *alias)
-{
-    Value result = call_methodNoArgs(vm, receiver, primary);
-    if (result.type != VAL_OBJ || IS_STRING(result))
-        return result;
-
-    if (alias == NULL || strcmp(primary, alias) == 0)
-        return result;
-
-    return call_methodNoArgs(vm, receiver, alias);
-}
-
 /**
  * Attempts to coerce a given object into a primitive value.
  *
- * This function first attempts to call the object's "tostring" or "valueof" method,
+ * This function first attempts to call the object's "format" or "value" method,
  * depending on the value of the is_string parameter. If the object does not
  * contain a method with the given name, or if the method does not return a primitive
  * value, it then attempts to call the object's other method. If the object does not
@@ -655,7 +645,7 @@ static Value call_methodNoArgsAlias(vm_t *vm, Value receiver, const char *primar
  *
  * @param vm The virtual machine instance.
  * @param value The object to coerce into a primitive value.
- * @param is_string Whether to prefer the "tostring" or "valueof" method when
+ * @param is_string Whether to prefer the "format" or "value" method when
  *                     attempting to coerce the object.
  * @return The coerced primitive value, or the original object if it cannot be coerced.
  */
@@ -664,18 +654,16 @@ static Value to_primitive(vm_t *vm, Value value, bool is_string)
     if (!IS_MAP(value))
         return value;
 
-    const char *first = is_string ? "tostring" : "valueof";
-    const char *first_alias = is_string ? "toString" : "valueOf";
-    const char *second = is_string ? "valueof" : "tostring";
-    const char *second_alias = is_string ? "valueOf" : "toString";
+    const char *first = is_string ? "format" : "value";
+    const char *second = is_string ? "value" : "format";
 
     // Try the preferred coercion method first, then its alternate spelling.
-    Value result = call_methodNoArgsAlias(vm, value, first, first_alias);
+    Value result = call_methodNoArgs(vm, value, first);
     if (result.type != VAL_OBJ || IS_STRING(result))
         return result;
 
     // Fall back to the other coercion method and its alternate spelling.
-    result = call_methodNoArgsAlias(vm, value, second, second_alias);
+    result = call_methodNoArgs(vm, value, second);
     if (result.type != VAL_OBJ || IS_STRING(result))
         return result;
 
@@ -1823,14 +1811,6 @@ void run(vm_t *vm)
                 Value value = vm->stack[i];
 
                 char *key = AS_CSTRING(vm->stack[i + 1]);
-                if (strcmp(key, "extends") == 0 &&
-                    IS_MAP(value) &&
-                    !AS_MAP(value)->is_instance)
-                {
-                    proto = AS_MAP(value);
-                    continue;
-                }
-
                 if (IS_FUN(value))
                 {
                     AS_FUN(value)->is_method = true;
@@ -2025,7 +2005,12 @@ void run(vm_t *vm)
                 PiMap *owner = map_owner(map, index);
                 Value item = owner ? map_get(owner, index) : NEW_NIL();
 
-                if (map->is_instance && owner != NULL && IS_FUN(item))
+                bool bind_extends = owner != NULL &&
+                                    IS_FUN(item) &&
+                                    IS_STRING(index) &&
+                                    strcmp(AS_CSTRING(index), "extends") == 0;
+
+                if ((map->is_instance && owner != NULL && IS_FUN(item)) || bind_extends)
                 {
                     Object *target = map->super_instance ? map->super_instance : AS_OBJ(container);
                     item = bind(vm, AS_FUN(item), target);
