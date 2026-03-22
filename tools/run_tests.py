@@ -29,6 +29,9 @@ def main():
         
     type_tests = sorted(TEST_DIR.glob("types/*.pi"))
     tests.extend(type_tests)
+    
+    obj_tests = sorted(TEST_DIR.glob("objs/*.pi"))
+    tests.extend(obj_tests)
     if not tests:
         print("No .pi tests found")
         return
