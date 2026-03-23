@@ -202,8 +202,7 @@ static int run_source(const char *source, ParserMode mode, const char *entry_nam
     compiler_t *comp = init_compiler();
     parser_t *parser = init_parser(comp, tokens, mode);
     parse(parser);
-    
-    dis(comp);
+        
 #ifdef DEBUG_BUILD
     dis(comp);
 #endif

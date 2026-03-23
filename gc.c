@@ -157,6 +157,9 @@ void mark_object(Object *obj)
         break;
     }
 
+    case OBJ_MATRIX:
+        break;
+
     case OBJ_MAP:
     {
         PiMap *map = (PiMap *)obj;
@@ -304,6 +307,13 @@ void free_object(Object *obj)
         // Free the memory allocated for the list items
         PiList *list = (PiList *)obj;
         list_free(list->items);
+        break;
+    }
+
+    case OBJ_MATRIX:
+    {
+        PiMatrix *matrix = (PiMatrix *)obj;
+        free(matrix->data);
         break;
     }
 

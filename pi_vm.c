@@ -740,6 +740,80 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv)
     return instance;
 }
 
+static bool matrix_broadcastShape(PiMatrix *left, PiMatrix *right, int *rows, int *cols)
+{
+    bool rows_ok = left->rows == right->rows || left->rows == 1 || right->rows == 1;
+    bool cols_ok = left->cols == right->cols || left->cols == 1 || right->cols == 1;
+
+    if (!rows_ok || !cols_ok)
+        return false;
+
+    *rows = left->rows > right->rows ? left->rows : right->rows;
+    *cols = left->cols > right->cols ? left->cols : right->cols;
+    return true;
+}
+
+static double matrix_applyBinary(int op, double left, double right)
+{
+    switch (op)
+    {
+    case 0:
+        return left + right;
+    case 1:
+        return left - right;
+    case 2:
+        return left * right;
+    case 3:
+        return right == 0.0 ? INFINITY : left / right;
+    default:
+        return NAN;
+    }
+}
+
+static Value matrix_scalarBinary(vm_t *vm, PiMatrix *matrix, double scalar, int op, bool scalar_left)
+{
+    PiMatrix *result = (PiMatrix *)add_obj(vm, new_matrix(matrix->rows, matrix->cols));
+
+    for (int row = 0; row < matrix->rows; row++)
+        for (int col = 0; col < matrix->cols; col++)
+        {
+            double cell = matrix_get(matrix, row, col);
+            double value = scalar_left ? matrix_applyBinary(op, scalar, cell)
+                                       : matrix_applyBinary(op, cell, scalar);
+            matrix_set(result, row, col, value);
+        }
+
+    return NEW_OBJ(result);
+}
+
+static Value matrix_broadcastBinary(vm_t *vm, PiMatrix *left, PiMatrix *right, int op)
+{
+    int rows;
+    int cols;
+    if (!matrix_broadcastShape(left, right, &rows, &cols))
+        vm_error(vm, "Matrix broadcast dimension mismatch.");
+
+    PiMatrix *result = (PiMatrix *)add_obj(vm, new_matrix(rows, cols));
+
+    for (int row = 0; row < rows; row++)
+        for (int col = 0; col < cols; col++)
+        {
+            int left_row = left->rows == 1 ? 0 : row;
+            int left_col = left->cols == 1 ? 0 : col;
+            int right_row = right->rows == 1 ? 0 : row;
+            int right_col = right->cols == 1 ? 0 : col;
+
+            double value = matrix_applyBinary(
+                op,
+                matrix_get(left, left_row, left_col),
+                matrix_get(right, right_row, right_col));
+
+            matrix_set(result, row, col, value);
+        }
+
+    return NEW_OBJ(result);
+}
+
 void run(vm_t *vm)
 {
     int length = vm->code->size;
@@ -949,6 +1023,24 @@ void run(vm_t *vm)
             {
             case 0: // "+"
             {
+                if (IS_MATRIX(left) && IS_MATRIX(right))
+                {
+                    push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left), AS_MATRIX(right), op));
+                    break;
+                }
+
+                if (IS_MATRIX(left) && is_numeric(right))
+                {
+                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left), as_number(right), op, false));
+                    break;
+                }
+
+                if (is_numeric(left) && IS_MATRIX(right))
+                {
+                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right), as_number(left), op, true));
+                    break;
+                }
+
                 bool prefer_string = IS_STRING(left) || IS_STRING(right);
                 left_prim = to_primitive(vm, left, prefer_string);
                 right_prim = to_primitive(vm, right, prefer_string);
@@ -1043,6 +1135,24 @@ void run(vm_t *vm)
             }
             case 1: // "-"
             {
+                if (IS_MATRIX(left) && IS_MATRIX(right))
+                {
+                    push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left), AS_MATRIX(right), op));
+                    break;
+                }
+
+                if (IS_MATRIX(left) && is_numeric(right))
+                {
+                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left), as_number(right), op, false));
+                    break;
+                }
+
+                if (is_numeric(left) && IS_MATRIX(right))
+                {
+                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right), as_number(left), op, true));
+                    break;
+                }
+
                 left_prim = to_primitive(vm, left, false);
                 right_prim = to_primitive(vm, right, false);
 
@@ -1109,6 +1219,24 @@ void run(vm_t *vm)
             break;
             case 2: // "*"
             {
+                if (IS_MATRIX(left) && IS_MATRIX(right))
+                {
+                    push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left), AS_MATRIX(right), op));
+                    break;
+                }
+
+                if (IS_MATRIX(left) && is_numeric(right))
+                {
+                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left), as_number(right), op, false));
+                    break;
+                }
+
+                if (is_numeric(left) && IS_MATRIX(right))
+                {
+                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right), as_number(left), op, true));
+                    break;
+                }
+
                 left_prim = to_primitive(vm, left, false);
                 right_prim = to_primitive(vm, right, false);
 
@@ -1220,6 +1348,24 @@ void run(vm_t *vm)
             }
             case 3: // "/"
             {
+                if (IS_MATRIX(left) && IS_MATRIX(right))
+                {
+                    push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left), AS_MATRIX(right), op));
+                    break;
+                }
+
+                if (IS_MATRIX(left) && is_numeric(right))
+                {
+                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left), as_number(right), op, false));
+                    break;
+                }
+
+                if (is_numeric(left) && IS_MATRIX(right))
+                {
+                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right), as_number(left), op, true));
+                    break;
+                }
+
                 left_prim = to_primitive(vm, left, false);
                 right_prim = to_primitive(vm, right, false);
                 double denominator = as_number(right_prim);
@@ -1540,7 +1686,7 @@ void run(vm_t *vm)
                 push_stack(vm, NEW_NUM(~(int)as_number(operand_prim)));
                 break;
 
-            case 4: // Collection size
+            case 4: // Collection size #
             {
                 if (IS_COLLECTION(operand))
                 {
@@ -1548,6 +1694,9 @@ void run(vm_t *vm)
                     {
                     case OBJ_LIST:
                         push_stack(vm, NEW_NUM(list_size(AS_LIST(operand)->items)));
+                        break;
+                    case OBJ_MATRIX:
+                        push_stack(vm, NEW_NUM(AS_MATRIX(operand)->rows));
                         break;
                     case OBJ_STRING:
                         push_stack(vm, NEW_NUM(AS_STRING(operand)->length));
@@ -1677,9 +1826,8 @@ void run(vm_t *vm)
                 {
                     // Get the next value from the iterator
                     Value value = iter_next(iter);
-                    // TODO: check me in the future
-                    // if (IS_OBJ(value))
-                    //     add_obj(vm, AS_OBJ(value));
+                    if (IS_OBJ(value))
+                        add_obj(vm, AS_OBJ(value));
                     push_stack(vm, value);
                 }
                 pc += 2;
@@ -2011,6 +2159,13 @@ void run(vm_t *vm)
 
             switch (OBJ_TYPE(container))
             {
+            case OBJ_MATRIX:
+            {
+                PiMatrix *matrix = AS_MATRIX(container);
+                int row = get_index(as_number(index), matrix->rows);
+                push_stack(vm, NEW_OBJ(add_obj(vm, matrix_rowAsList(matrix, row))));
+                break;
+            }
             case OBJ_LIST:
             {
                 list_t *list = as_list(container);
@@ -2113,6 +2268,31 @@ void run(vm_t *vm)
 
             switch (OBJ_TYPE(container))
             {
+            case OBJ_MATRIX:
+            {
+                PiMatrix *matrix = AS_MATRIX(container);
+                int row = get_index(as_number(index), matrix->rows);
+
+                if (IS_MATRIX(value))
+                {
+                    PiMatrix *src = AS_MATRIX(value);
+                    if (src->rows != 1 || src->cols != matrix->cols)
+                        vm_error(vm, "Matrix row assignment dimension mismatch.");
+                    for (int col = 0; col < matrix->cols; col++)
+                        matrix_set(matrix, row, col, matrix_get(src, 0, col));
+                }
+                else if (IS_LIST(value))
+                {
+                    PiList *src = AS_LIST(value);
+                    if (!src->is_numeric || src->items->size != matrix->cols)
+                        vm_error(vm, "Matrix row assignment requires a numeric list of matching width.");
+                    for (int col = 0; col < matrix->cols; col++)
+                        matrix_set(matrix, row, col, as_number(*(Value *)list_getAt(src->items, col)));
+                }
+                else
+                    vm_error(vm, "Matrix row assignment requires a list or 1xN matrix.");
+                break;
+            }
             case OBJ_LIST:
             {
                 list_t *list = as_list(container);

@@ -78,6 +78,22 @@ bool equals(Value left, Value right)
             return true; // All elements are equal
         }
 
+        case OBJ_MATRIX:
+        {
+            PiMatrix *a = AS_MATRIX(left);
+            PiMatrix *b = AS_MATRIX(right);
+
+            if (a->rows != b->rows || a->cols != b->cols)
+                return false;
+
+            int size = a->rows * a->cols;
+            for (int i = 0; i < size; i++)
+                if (fabs(a->data[i] - b->data[i]) >= 1e-9)
+                    return false;
+
+            return true;
+        }
+
         default:
             // For unsupported object types, fall back to pointer comparison.
             return left.data.object == right.data.object;
@@ -181,6 +197,26 @@ int compare(Value left, Value right)
 
             return (l_size > r_size) ? 1 : (l_size < r_size) ? -1
                                                              : 0;
+        }
+        else if (OBJ_TYPE(left) == OBJ_MATRIX)
+        {
+            PiMatrix *l_mat = AS_MATRIX(left);
+            PiMatrix *r_mat = AS_MATRIX(right);
+
+            if (l_mat->rows != r_mat->rows)
+                return (l_mat->rows > r_mat->rows) ? 1 : -1;
+            if (l_mat->cols != r_mat->cols)
+                return (l_mat->cols > r_mat->cols) ? 1 : -1;
+
+            int size = l_mat->rows * l_mat->cols;
+            for (int i = 0; i < size; i++)
+            {
+                if (fabs(l_mat->data[i] - r_mat->data[i]) < 1e-9)
+                    continue;
+                return (l_mat->data[i] > r_mat->data[i]) ? 1 : -1;
+            }
+
+            return 0;
         }
         else
             return ERROR_COMPARE;
@@ -380,6 +416,11 @@ bool as_bool(Value val)
         case OBJ_LIST:
             // Lists are true if they have items
             return LIST_SIZE(AS_LIST(val)->items) > 0;
+        case OBJ_MATRIX:
+        {
+            PiMatrix *matrix = AS_MATRIX(val);
+            return matrix->rows > 0 && matrix->cols > 0;
+        }
         case OBJ_MAP:
             // Maps are true if they have key-value pairs
             return ht_length(AS_MAP(val)->table) > 0;
@@ -469,6 +510,57 @@ char *as_string(Value val)
             result = realloc(result, buffer_size);
             strcat(result, "]");
 
+            return result;
+        }
+
+        case OBJ_MATRIX:
+        {
+            PiMatrix *matrix = AS_MATRIX(val);
+            size_t buffer_size = 2;
+            char *result = strdup("[");
+
+            for (int i = 0; i < matrix->rows; i++)
+            {
+                if (i > 0)
+                {
+                    buffer_size += 2;
+                    result = realloc(result, buffer_size);
+                    strcat(result, ", ");
+                }
+
+                size_t row_buffer_size = 2;
+                char *row = strdup("[");
+
+                for (int j = 0; j < matrix->cols; j++)
+                {
+                    if (j > 0)
+                    {
+                        row_buffer_size += 2;
+                        row = realloc(row, row_buffer_size);
+                        strcat(row, ", ");
+                    }
+
+                    Value cell = NEW_NUM(matrix_get(matrix, i, j));
+                    char *item = as_string(cell);
+                    row_buffer_size += strlen(item);
+                    row = realloc(row, row_buffer_size);
+                    strcat(row, item);
+                    free(item);
+                }
+
+                row_buffer_size++;
+                row = realloc(row, row_buffer_size);
+                strcat(row, "]");
+
+                buffer_size += strlen(row);
+                result = realloc(result, buffer_size);
+                strcat(result, row);
+                free(row);
+            }
+
+            buffer_size++;
+            result = realloc(result, buffer_size);
+            strcat(result, "]");
             return result;
         }
 
@@ -680,6 +772,16 @@ Value copy_value(Value val)
             break;
         }
 
+        case OBJ_MATRIX:
+        {
+            PiMatrix *original = (PiMatrix *)obj;
+            PiMatrix *matrix = (PiMatrix *)new_matrix(original->rows, original->cols);
+            memcpy(matrix->data, original->data,
+                   sizeof(double) * (size_t)original->rows * (size_t)original->cols);
+            copy.data.object = (Object *)matrix;
+            break;
+        }
+
         case OBJ_MAP:
             // PiMap copying not implemented (matches original behavior)
             break;
@@ -739,6 +841,13 @@ void print_value(Value val, bool is_root)
             printf("]");
             break;
         }
+        case OBJ_MATRIX:
+        {
+            char *text = as_string(val);
+            printf("%s", text);
+            free(text);
+            break;
+        }
         case OBJ_RANGE:
         {
             PiRange *r = AS_RANGE(val);
@@ -788,6 +897,8 @@ char *type_name(Value val)
             return "string";
         case OBJ_LIST:
             return "list";
+        case OBJ_MATRIX:
+            return "matrix";
         case OBJ_MAP:
             return "map";
         case OBJ_MODULE:

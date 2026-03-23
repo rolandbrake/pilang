@@ -1,6 +1,8 @@
-import mat.{zeros, ones, eye, mult};
+import matrix
+import math
 
-println(zeros(3, 3));
-println(ones(3, 3));
-println(eye(3, 3));
-println(mult(eye(2, 2), ones(2, 2)));
+
+let mat = matrix.rand(2, 3)
+
+println(mat)
+println(mat[0])

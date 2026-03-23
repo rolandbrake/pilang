@@ -126,6 +126,43 @@ Object *new_list(list_t *items)
     return (Object *)list;
 }
 
+Object *new_matrix(int rows, int cols)
+{
+    PiMatrix *matrix = CREATE_OBJ(PiMatrix, OBJ_MATRIX);
+    matrix->rows = rows;
+    matrix->cols = cols;
+    matrix->current = 0;
+    matrix->data = calloc((size_t)rows * (size_t)cols, sizeof(double));
+    return (Object *)matrix;
+}
+
+double matrix_get(PiMatrix *matrix, int row, int col)
+{
+    return matrix->data[row * matrix->cols + col];
+}
+
+void matrix_set(PiMatrix *matrix, int row, int col, double value)
+{
+    matrix->data[row * matrix->cols + col] = value;
+}
+
+Object *matrix_rowAsList(PiMatrix *matrix, int row)
+{
+    list_t *items = list_create(sizeof(Value));
+    for (int col = 0; col < matrix->cols; col++)
+    {
+        Value value = NEW_NUM(matrix_get(matrix, row, col));
+        list_add(items, &value);
+    }
+
+    PiList *list = (PiList *)new_list(items);
+    list->is_numeric = true;
+    list->is_matrix = false;
+    list->rows = 1;
+    list->cols = matrix->cols;
+    return (Object *)list;
+}
+
 /**
  * Creates a new PiMap object from a given table.
  *
@@ -412,6 +449,9 @@ void iter_reset(Object *col)
         // Reset the current index of the list to 0
         ((PiList *)col)->current = 0;
         break;
+    case OBJ_MATRIX:
+        ((PiMatrix *)col)->current = 0;
+        break;
     case OBJ_STRING:
         // Reset the current index of the string to 0
         ((PiString *)col)->current = 0;
@@ -451,6 +491,11 @@ bool iter_hasNext(Object *col)
         PiList *list = (PiList *)col;
         // Check if the current index is less than the length of the list
         return list->current < LIST_SIZE(list->items);
+    }
+    else if (type == OBJ_MATRIX)
+    {
+        PiMatrix *matrix = (PiMatrix *)col;
+        return matrix->current < matrix->rows;
     }
     else if (type == OBJ_STRING)
     {
@@ -494,6 +539,13 @@ Value iter_next(Object *col)
         PiList *list = (PiList *)col;
         Value value = *(Value *)list_getAt(list->items, list->current);
         list->current++;
+        return value;
+    }
+    else if (type == OBJ_MATRIX)
+    {
+        PiMatrix *matrix = (PiMatrix *)col;
+        Value value = NEW_OBJ(matrix_rowAsList(matrix, matrix->current));
+        matrix->current++;
         return value;
     }
     else if (type == OBJ_STRING)
@@ -541,6 +593,7 @@ bool is_iterable(Object *obj)
     switch (obj->type)
     {
     case OBJ_LIST:
+    case OBJ_MATRIX:
     case OBJ_STRING:
     case OBJ_RANGE:
     case OBJ_MAP:

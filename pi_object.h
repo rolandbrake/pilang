@@ -12,18 +12,20 @@
 
 #define IS_STRING(o) IS_OBJ_TYPE(o, OBJ_STRING)
 #define IS_LIST(o) IS_OBJ_TYPE(o, OBJ_LIST)
+#define IS_MATRIX(o) IS_OBJ_TYPE(o, OBJ_MATRIX)
 #define IS_NUM_LIST(o) (IS_LIST(o) && AS_LIST(o)->is_numeric)
 #define IS_MAP(o) IS_OBJ_TYPE(o, OBJ_MAP)
 #define IS_MODULE(o) IS_OBJ_TYPE(o, OBJ_MODULE)
 #define IS_FUN(o) IS_OBJ_TYPE(o, OBJ_FUN)
 #define IS_RANGE(o) IS_OBJ_TYPE(o, OBJ_RANGE)
 
-#define IS_COLLECTION(o) (IS_LIST(o) || IS_MAP(o) || IS_STRING(o))
+#define IS_COLLECTION(o) (IS_LIST(o) || IS_MATRIX(o) || IS_MAP(o) || IS_STRING(o))
 
 #define IS_SEQUENCE(o) (IS_LIST(o) || IS_STRING(o))
 
 #define AS_STRING(o) ((PiString *)AS_OBJ(o))
 #define AS_LIST(o) ((PiList *)AS_OBJ(o))
+#define AS_MATRIX(o) ((PiMatrix *)AS_OBJ(o))
 #define AS_MAP(o) ((PiMap *)AS_OBJ(o))
 #define AS_MODULE(o) ((ObjModule *)AS_OBJ(o))
 #define AS_RANGE(o) ((PiRange *)AS_OBJ(o))
@@ -48,6 +50,7 @@ typedef enum
 {
     OBJ_STRING,
     OBJ_LIST,
+    OBJ_MATRIX,
     OBJ_MAP,
     OBJ_MODULE,
     OBJ_RANGE,
@@ -115,6 +118,15 @@ typedef struct
 
 } PiList;
 
+typedef struct
+{
+    Object object;
+    double *data;
+    int rows;
+    int cols;
+    int current;
+} PiMatrix;
+
 typedef struct PiMap
 {
     Object object;
@@ -153,6 +165,10 @@ Object *new_pistring(char *str);
 PiString *copy_pistring(char *chars, int length);
 
 Object *new_list(list_t *items);
+Object *new_matrix(int rows, int cols);
+double matrix_get(PiMatrix *matrix, int row, int col);
+void matrix_set(PiMatrix *matrix, int row, int col, double value);
+Object *matrix_rowAsList(PiMatrix *matrix, int row);
 
 Object *new_map(table_t *table, bool is_instance);
 
