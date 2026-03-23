@@ -32,6 +32,10 @@ def main():
     
     obj_tests = sorted(TEST_DIR.glob("objs/*.pi"))
     tests.extend(obj_tests)
+    
+    
+    mat_tests = sorted(TEST_DIR.glob("mats/*.pi"))
+    tests.extend(mat_tests)
     if not tests:
         print("No .pi tests found")
         return

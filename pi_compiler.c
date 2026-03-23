@@ -59,6 +59,8 @@ static const char *op_names[] = {
     [0x3f] = "IMPORT_ALL",
     [0x40] = "IMPORT_DEFAULT",
     [0x41] = "LOAD_SUPER",
+    [0x42] = "GET_ITEM2",
+    [0x43] = "SET_ITEM2",
 };
 
 /**

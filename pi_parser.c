@@ -2035,7 +2035,7 @@ static void unary_expr(parser_t *parser)
  * step are optional and default to 0, the size of the list, and 1, respectively.
  * @returns nothing
  */
-static bool slice_expr(parser_t *parser)
+static bool slice_component(parser_t *parser, bool emit_slice)
 {
     int index;
     bool is_slice = false;
@@ -2059,7 +2059,7 @@ static bool slice_expr(parser_t *parser)
         token = previous(parser);
 
         // Handle the end expression
-        if (!check(parser, TK_RBRACKET) && !check(parser, TK_COLON))
+        if (!check_n(parser, 2, TK_RBRACKET, TK_COMMA) && !check(parser, TK_COLON))
             cond_expr(parser);
         else
         {
@@ -2071,7 +2071,7 @@ static bool slice_expr(parser_t *parser)
         if (match(parser, TK_COLON))
         {
             // Handle the step expression
-            if (!check(parser, TK_RBRACKET))
+            if (!check_n(parser, 2, TK_RBRACKET, TK_COMMA))
                 cond_expr(parser);
             else
             {
@@ -2087,12 +2087,19 @@ static bool slice_expr(parser_t *parser)
             emit_16u(parser->comp, OP_LOAD_CONST, "1", index);
         }
 
-        set_pos(parser, token); // Set the position to the start of the slice
-        // Emit the slice operation
-        emit(parser->comp, OP_PUSH_SLICE);
+        if (emit_slice)
+        {
+            set_pos(parser, token); // Set the position to the start of the slice
+            emit(parser->comp, OP_PUSH_SLICE);
+        }
     }
 
     return is_slice;
+}
+
+static bool slice_expr(parser_t *parser)
+{
+    return slice_component(parser, true);
 }
 
 /**
@@ -2127,16 +2134,40 @@ static void member_expr(parser_t *parser)
         else if (match(parser, TK_LBRACKET))
         {
             token_t token = previous(parser);
-            bool is_slice = slice_expr(parser); // Parse the index expression
+            bool row_is_slice = slice_component(parser, false);
+            bool has_second_axis = match(parser, TK_COMMA);
+            bool col_is_slice = false;
+
+            if (has_second_axis)
+                col_is_slice = slice_component(parser, false);
+
             consume(parser, TK_RBRACKET, "Expect ']' after list index expression");
 
-            if (is_slice && is_assign(parser))
-                p_error("Cannot assign to slice", peek(parser).line, peek(parser).column);
-
-            if (!is_slice)
+            if (has_second_axis)
             {
                 bool assign = is_assign(parser);
-                emit(parser->comp, assign ? OP_SET_ITEM : OP_GET_ITEM);
+                uint8_t mode = (row_is_slice ? 0x1 : 0x0) | (col_is_slice ? 0x2 : 0x0);
+
+                if ((row_is_slice || col_is_slice) && assign)
+                    p_error("Cannot assign to matrix slice", peek(parser).line, peek(parser).column);
+
+                emit_8u(parser->comp, assign ? OP_SET_ITEM2 : OP_GET_ITEM2, "[]", mode);
+            }
+            else
+            {
+                if (row_is_slice && is_assign(parser))
+                    p_error("Cannot assign to slice", peek(parser).line, peek(parser).column);
+
+                if (row_is_slice)
+                {
+                    set_pos(parser, token);
+                    emit(parser->comp, OP_PUSH_SLICE);
+                }
+                else
+                {
+                    bool assign = is_assign(parser);
+                    emit(parser->comp, assign ? OP_SET_ITEM : OP_GET_ITEM);
+                }
             }
         }
 

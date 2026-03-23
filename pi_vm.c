@@ -814,6 +814,125 @@ static Value matrix_broadcastBinary(vm_t *vm, PiMatrix *left, PiMatrix *right, i
     return NEW_OBJ(result);
 }
 
+typedef struct
+{
+    int start;
+    int end;
+    int step;
+    int count;
+} MatrixSliceSpec;
+
+static MatrixSliceSpec matrix_indexSpec(vm_t *vm, int length, Value index)
+{
+    MatrixSliceSpec spec;
+
+    if (!IS_NUM(index))
+        vm_error(vm, "Matrix index must be a number.");
+
+    spec.start = get_index((int)as_number(index), length);
+    spec.end = spec.start + 1;
+    spec.step = 1;
+    spec.count = 1;
+    return spec;
+}
+
+static int matrix_sliceBound(int length, double value, int sign)
+{
+    int bound = (int)value;
+
+    if (bound < 0)
+        bound += length;
+
+    if (sign > 0)
+    {
+        if (bound < 0)
+            return 0;
+        if (bound > length)
+            return length;
+        return bound;
+    }
+
+    if (bound < -1)
+        return -1;
+    if (bound >= length)
+        return length - 1;
+    return bound;
+}
+
+static MatrixSliceSpec matrix_sliceSpec(vm_t *vm, int length, Value start, Value end, Value step)
+{
+    MatrixSliceSpec spec;
+    int sign;
+    int current;
+
+    if (!IS_NUM(start) || !IS_NUM(end))
+        vm_error(vm, "Matrix slice bounds must be numbers.");
+
+    if (!IS_NUM(step))
+        vm_error(vm, "Matrix slice step must be a number.");
+
+    spec.step = (int)as_number(step);
+    if (spec.step == 0)
+        vm_error(vm, "Matrix slice step cannot be zero.");
+
+    sign = spec.step > 0 ? 1 : -1;
+    spec.start = isinf(as_number(start)) ? (sign > 0 ? length : -1) : matrix_sliceBound(length, as_number(start), sign);
+    spec.end = isinf(as_number(end)) ? (sign > 0 ? length : -1) : matrix_sliceBound(length, as_number(end), sign);
+    spec.count = 0;
+
+    for (current = spec.start; sign * (spec.end - current) > 0; current += spec.step)
+        spec.count++;
+
+    return spec;
+}
+
+static Value matrix_get2d(vm_t *vm, PiMatrix *matrix,
+                          bool row_is_slice, Value row_start, Value row_end, Value row_step, Value row_index,
+                          bool col_is_slice, Value col_start, Value col_end, Value col_step, Value col_index)
+{
+    MatrixSliceSpec row = row_is_slice
+                              ? matrix_sliceSpec(vm, matrix->rows, row_start, row_end, row_step)
+                              : matrix_indexSpec(vm, matrix->rows, row_index);
+    MatrixSliceSpec col = col_is_slice
+                              ? matrix_sliceSpec(vm, matrix->cols, col_start, col_end, col_step)
+                              : matrix_indexSpec(vm, matrix->cols, col_index);
+
+    if (!row_is_slice && !col_is_slice)
+        return NEW_NUM(matrix_get(matrix, row.start, col.start));
+
+    PiMatrix *result = (PiMatrix *)add_obj(vm, new_matrix(row.count, col.count));
+    int out_row = 0;
+
+    for (int src_row = row.start; (row.step > 0 ? src_row < row.end : src_row > row.end); src_row += row.step)
+    {
+        int out_col = 0;
+        for (int src_col = col.start; (col.step > 0 ? src_col < col.end : src_col > col.end); src_col += col.step)
+        {
+            matrix_set(result, out_row, out_col, matrix_get(matrix, src_row, src_col));
+            out_col++;
+        }
+        out_row++;
+    }
+
+    return NEW_OBJ(result);
+}
+
+static void matrix_set2d(vm_t *vm, PiMatrix *matrix, Value row_index, Value col_index, Value value)
+{
+    int row;
+    int col;
+
+    if (!IS_NUM(row_index) || !IS_NUM(col_index))
+        vm_error(vm, "Matrix assignment indices must be numbers.");
+
+    if (!is_numeric(value))
+        vm_error(vm, "Matrix cell assignment requires a numeric value.");
+
+    row = get_index((int)as_number(row_index), matrix->rows);
+    col = get_index((int)as_number(col_index), matrix->cols);
+    matrix_set(matrix, row, col, as_number(value));
+}
+
 void run(vm_t *vm)
 {
     int length = vm->code->size;
@@ -2257,6 +2376,50 @@ void run(vm_t *vm)
             break;
         }
 
+        case OP_GET_ITEM2:
+        {
+            uint8_t mode = code[pc++];
+            bool row_is_slice = (mode & 0x1) != 0;
+            bool col_is_slice = (mode & 0x2) != 0;
+            Value col_index = NEW_NIL();
+            Value col_step = NEW_NIL();
+            Value col_end = NEW_NIL();
+            Value col_start = NEW_NIL();
+            Value row_index = NEW_NIL();
+            Value row_step = NEW_NIL();
+            Value row_end = NEW_NIL();
+            Value row_start = NEW_NIL();
+            Value container;
+
+            if (col_is_slice)
+            {
+                col_step = pop_stack(vm);
+                col_end = pop_stack(vm);
+                col_start = pop_stack(vm);
+            }
+            else
+                col_index = pop_stack(vm);
+
+            if (row_is_slice)
+            {
+                row_step = pop_stack(vm);
+                row_end = pop_stack(vm);
+                row_start = pop_stack(vm);
+            }
+            else
+                row_index = pop_stack(vm);
+
+            container = pop_stack(vm);
+
+            if (!IS_MATRIX(container))
+                vm_error(vm, "Two-dimensional indexing is only supported for matrices.");
+
+            push_stack(vm, matrix_get2d(vm, AS_MATRIX(container),
+                                        row_is_slice, row_start, row_end, row_step, row_index,
+                                        col_is_slice, col_start, col_end, col_step, col_index));
+            break;
+        }
+
         case OP_SET_ITEM:
         {
             Value index = pop_stack(vm);     // The index/key
@@ -2321,6 +2484,32 @@ void run(vm_t *vm)
             default:
                 vm_error(vm, "Unsupported operand type for set item operator.\n");
             }
+            break;
+        }
+
+        case OP_SET_ITEM2:
+        {
+            uint8_t mode = code[pc++];
+            bool row_is_slice = (mode & 0x1) != 0;
+            bool col_is_slice = (mode & 0x2) != 0;
+            Value col_index = NEW_NIL();
+            Value row_index = NEW_NIL();
+            Value container;
+            Value assign_value;
+
+            if (row_is_slice || col_is_slice)
+                vm_error(vm, "Matrix slice assignment is not supported yet.");
+
+            col_index = pop_stack(vm);
+            row_index = pop_stack(vm);
+            container = pop_stack(vm);
+            assign_value = pop_stack(vm);
+
+            if (!IS_MATRIX(container))
+                vm_error(vm, "Two-dimensional assignment is only supported for matrices.");
+
+            matrix_set2d(vm, AS_MATRIX(container), row_index, col_index, assign_value);
+            push_stack(vm, assign_value);
             break;
         }
 

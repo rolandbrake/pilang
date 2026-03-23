@@ -52,7 +52,9 @@ typedef enum
     OP_GET_EXPORT = 0x3e,
     OP_IMPORT_ALL = 0x3f,
     OP_IMPORT_DEFAULT = 0x40,
-    OP_LOAD_SUPER = 0x41
+    OP_LOAD_SUPER = 0x41,
+    OP_GET_ITEM2 = 0x42,
+    OP_SET_ITEM2 = 0x43
 } OpCode;
 
 typedef struct
@@ -102,6 +104,8 @@ static inline int operand_count(uint8_t op)
     case OP_PUSH_FUNCTION:
     case OP_PUSH_UPVALUE:
     case OP_UNARY:
+    case OP_GET_ITEM2:
+    case OP_SET_ITEM2:
         return 1;
 
     default:
