@@ -1,0 +1,19 @@
+Point = {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+  },
+  format() {
+    return "(" + this.x + ", " + this.y + ")";
+  },
+
+  value() {
+    return this.x + this.y;
+  },
+}
+
+point = Point(1, 2);
+
+println(point + 3);
+println("point=" + point);
+println(+point);

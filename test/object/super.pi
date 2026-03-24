@@ -1,0 +1,37 @@
+Point = {
+    c: 10,
+    label() {
+        return "(" + this.x + ", " + this.y + ")";
+    },
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+ColorPoint = Object.extends(Point, {
+        constructor(x, y) {
+        super.constructor(x, y);
+    },
+    label() {
+        return super.label() + " ColorPoint";
+    }
+})    
+
+
+
+
+
+point = Point(1, 2);
+child = ColorPoint(3, 4);
+
+println(point.label())
+println(child.x)
+println(child.y)
+println(child.label())
+
+child.c++
+
+println(child.c)
+println(ColorPoint.c)
+println(Point.c)

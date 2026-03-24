@@ -1,0 +1,45 @@
+Base = Object.extends(Object, {
+    tag: "base"
+})
+
+User = {
+    name: "Ada",
+    age: 32
+}
+
+Object.extends(Base, User)
+
+Copy = {
+    name: "Ada",
+    age: 22
+}
+
+Object.extends(Base, Copy)
+
+println(User.type()) 
+println(User.equals(Copy))
+println(User.ident(Copy)) 
+println(User.compare(Copy))
+
+println(User.has("name")) 
+println(User.get("name"))
+
+User.set("role", "admin")
+println(User.get("role"))
+println(User.has("role"))
+
+println(User.delete("role"))
+println(User.has("role"))
+
+println(User.get("tag"))
+
+it = User.iterator()
+println(it.next())
+println(it.next())
+println(it.next())
+println(it.next())
+
+println(Object.type(User))
+println(Object.equals(User, Copy))
+println(Object.compare(User, Copy))
+println(Object.get(User, "age"))

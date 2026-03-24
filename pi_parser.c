@@ -817,6 +817,13 @@ static void emit_importBinding(parser_t *parser, token_t export_tok, token_t ali
     free(alias_name);
 }
 
+static void emit_importAlias(parser_t *parser, token_t alias_tok)
+{
+    char *alias_name = token_value(alias_tok);
+    store_variable(parser->comp, alias_name);
+    free(alias_name);
+}
+
 /**
  * import_stmt supports:
  * import math
@@ -896,12 +903,19 @@ static void import_stmt(parser_t *parser)
 
     if (match(parser, TK_COLON))
     {
-        // import path.to.mod.elem:alias
-        if (count < 2)
-            p_error("Expect 'module.element:alias' format.", peek(parser).line, peek(parser).column);
-
-        token_t export_tok = parts[count - 1];
         token_t alias_tok = consume(parser, TK_ID, "Expect alias name after ':'.");
+
+        // import module:alias
+        if (count == 1)
+        {
+            emit_importModule(parser, parts, count);
+            emit_importAlias(parser, alias_tok);
+            consume_ifExist(parser, 1, TK_SEMICOLON);
+            return;
+        }
+
+        // import path.to.mod.elem:alias
+        token_t export_tok = parts[count - 1];
 
         emit_importModule(parser, parts, count - 1);
         emit_importBinding(parser, export_tok, alias_tok);

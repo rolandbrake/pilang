@@ -1,0 +1,22 @@
+let Animal = {
+  kind: "animal",
+  speak() {
+    return "generic " + this.kind
+  }
+}
+
+let Dog = Object.extends(Animal, {
+  constructor(name) {
+    this.name = name
+    this.kind = "dog"
+  },
+  speak() {
+    return this.name + " says woof"
+  }
+})
+
+let dog = Dog("Milo")
+
+println(Animal.kind)
+println(dog.kind)
+println(dog.speak())
