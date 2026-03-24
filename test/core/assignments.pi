@@ -1,0 +1,15 @@
+let x = 10
+x += 5
+x -= 3
+x *= 2
+x /= 4
+x %= 5
+
+assert(x == 1, "compound assignments should stay consistent")
+
+let y = 3
+let z = y > 2 ? 9 : 0
+
+assert(z == 9, "ternary expressions should select true branch")
+println(x)
+println(z)

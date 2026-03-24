@@ -1,0 +1,3 @@
+import test.module.private_module_fixture;
+
+println(private_module_fixture.visible)

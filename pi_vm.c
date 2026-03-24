@@ -933,6 +933,11 @@ static void matrix_set2d(vm_t *vm, PiMatrix *matrix, Value row_index, Value col_
     matrix_set(matrix, row, col, as_number(value));
 }
 
+static bool is_private_moduleName(const char *name)
+{
+    return name != NULL && name[0] == '_' && name[1] != '\0';
+}
+
 void run(vm_t *vm)
 {
     int length = vm->code->size;
@@ -2324,6 +2329,12 @@ void run(vm_t *vm)
                 char *property = as_string(index);
                 Value item = NEW_NIL();
 
+                if (is_private_moduleName(property))
+                {
+                    free(property);
+                    vm_error(vm, "Cannot access private module member.");
+                }
+
                 if (strcmp(property, "name") == 0)
                 {
                     char *name = module->name ? module->name : "";
@@ -2528,12 +2539,17 @@ void run(vm_t *vm)
         {
             Value name = pop_stack(vm);
             Value module = pop_stack(vm);
+            char *export_name;
 
             if (!IS_OBJ(module) || (OBJ_TYPE(module) != OBJ_MAP && OBJ_TYPE(module) != OBJ_MODULE))
                 vm_error(vm, "Attempt to access export from non-module object.");
 
             if (!IS_STRING(name))
                 vm_error(vm, "Export name must be a string.");
+
+            export_name = AS_STRING(name)->chars;
+            if (OBJ_TYPE(module) == OBJ_MODULE && is_private_moduleName(export_name))
+                vm_error(vm, "Cannot import private module member.");
 
             PiMap *_module = (OBJ_TYPE(module) == OBJ_MODULE) ? AS_MODULE(module)->exports : AS_MAP(module);
             Value value = map_get(_module, name);
@@ -2559,6 +2575,8 @@ void run(vm_t *vm)
                 Value *value = (Value *)ht_get(table, key);
                 if (!value)
                     continue;
+                if (OBJ_TYPE(module) == OBJ_MODULE && is_private_moduleName(key))
+                    continue;
 
                 if (!ht_set(vm->globals, key, value))
                     ht_put(vm->globals, key, value);
@@ -2571,12 +2589,17 @@ void run(vm_t *vm)
         {
             Value name = pop_stack(vm);
             Value module = pop_stack(vm);
+            char *export_name;
 
             if (!IS_OBJ(module) || (OBJ_TYPE(module) != OBJ_MAP && OBJ_TYPE(module) != OBJ_MODULE))
                 vm_error(vm, "Attempt to import from non-module object.");
 
             if (!IS_STRING(name))
                 vm_error(vm, "Export name must be a string.");
+
+            export_name = AS_STRING(name)->chars;
+            if (OBJ_TYPE(module) == OBJ_MODULE && is_private_moduleName(export_name))
+                vm_error(vm, "Cannot import private module member.");
 
             PiMap *_module = (OBJ_TYPE(module) == OBJ_MODULE) ? AS_MODULE(module)->exports : AS_MAP(module);
             Value value = map_get(_module, name);

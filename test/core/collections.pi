@@ -1,0 +1,15 @@
+let nums = [1, 2, 3, 4]
+let word = "pilang"
+let info = {lang: "pi", version: 1}
+
+assert(nums[0] == 1, "list indexing should work")
+assert(nums[1:3] == [2, 3], "list slicing should work")
+assert(word[0:2] == "pi", "string slicing should work")
+assert(info["lang"] == "pi", "map indexing should work")
+
+info["stable"] = true
+assert(info["stable"] == true, "map set/get should work")
+
+println(nums[1:3])
+println(word[0:2])
+println(info["lang"])

@@ -1,0 +1,16 @@
+let total = 0
+
+for n in range(1, 6) {
+    total += n
+}
+
+let count = 0
+while count < 3 {
+    count++
+}
+
+assert(total == 15, "for/range loop should accumulate correctly")
+assert(count == 3, "while loop should stop at expected point")
+
+println(total)
+println(count)
