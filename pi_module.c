@@ -122,6 +122,17 @@ static char *copy_dirName(const char *path)
     return dir;
 }
 
+static char *build_modulePath(const char *base, const char *normalized)
+{
+    size_t full_len = strlen(base) + 1 + strlen(normalized) + 3 + 1;
+    char *candidate = (char *)malloc(full_len);
+    if (!candidate)
+        return NULL;
+
+    snprintf(candidate, full_len, "%s/%s.pi", base, normalized);
+    return candidate;
+}
+
 static const BuiltinModule *find_builtinModule(const char *name)
 {
     for (int i = 0; i < BUILTIN_MODULE_COUNT; i++)
@@ -296,9 +307,12 @@ char *module_resolvePath(vm_t *vm, const char *name)
             normalized[i] = '/';
     }
 
-    size_t full_len = strlen(base) + 1 + name_len + 3 + 1; // base + "/" + name + ".pi" + '\0'
-    char *candidate = (char *)malloc(full_len);
-    snprintf(candidate, full_len, "%s/%s.pi", base, normalized);
+    char *candidate = build_modulePath(base, normalized);
+    if (!candidate)
+    {
+        free(normalized);
+        return NULL;
+    }
 
     if (file_exists(candidate))
     {
@@ -311,12 +325,21 @@ char *module_resolvePath(vm_t *vm, const char *name)
     snprintf(fallback, local_len, "%s.pi", normalized);
 
     free(candidate);
-    free(normalized);
 
     if (file_exists(fallback))
         return fallback;
 
     free(fallback);
+
+    char *libs_path = build_modulePath("libs", normalized);
+    free(normalized);
+    if (!libs_path)
+        return NULL;
+
+    if (file_exists(libs_path))
+        return libs_path;
+
+    free(libs_path);
     return NULL;
 }
 
