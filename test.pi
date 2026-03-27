@@ -1,8 +1,3 @@
-import matrix.{ones, rand}
-import matrix.linalgs
+import fs
 
-A = ones(4, 4)
-
-B = rand(4, 4)
-
-println(linalgs.inv(B))
+println(fs.listdir("."))

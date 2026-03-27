@@ -84,6 +84,7 @@ BuiltinModule *builtin_modules[] = {
     &module_stats,
     &module_string,
     &module_io,
+    &module_fs,
     &module_col,
     &module_func,
     &module_time,

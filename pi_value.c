@@ -620,6 +620,14 @@ char *as_string(Value val)
             snprintf(result, 256, "<module %s>", module->name ? module->name : "<anonymous>");
             return result;
         }
+
+        case OBJ_FILE:
+        {
+            ObjFile *file = AS_FILE(val);
+            char *result = (char *)malloc(256);
+            snprintf(result, 256, "<file %s>", file->filename ? file->filename : "<anonymous>");
+            return result;
+        }
         case OBJ_RANGE:
         case OBJ_CODE:
             break;
