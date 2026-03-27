@@ -309,3 +309,5 @@ void free_func(Function *fn)
     free(fn->name);        // Free the function name
     list_free(fn->params); // Free the parameter list
 }
+
+

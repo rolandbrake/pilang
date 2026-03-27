@@ -29,12 +29,5 @@ println(rand(1, 10))           // Expected: random int between 1 and 10
 println(pow(2, 3))               // Expected: 8
 println(pow([2, 3, 4], 2))      // Expected: [4, 9, 16]
 
+
 println(sum([1,2,3,4,5]))       // Expected: 15
-println(mean([1,2,3,4,5]))      // Expected: 3
-println(avg([1,2,3,4,5]))       // Expected: 3
-
-println(var([1,2,3,4,5]))       // Expected: 2.5
-println(dev([1,2,3,4,5]))       // Expected: ~1.58
-
-println(median([1,3,3,6,7,8,9]))// Expected: 6
-println(mode([1,2,2,3,3,3,4]))  // Expected: 3

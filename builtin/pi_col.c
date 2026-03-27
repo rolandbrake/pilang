@@ -145,50 +145,6 @@ Value pi_push(vm_t *vm, int argc, Value *argv)
 }
 
 /**
- * @brief Retrieves the last element from a list or character from a string without removing it.
- *
- * This function takes a list or string as input and returns the last element/character
- * without modifying the input. If the input is a list, the last element is returned.
- * If the input is a string, the last character is returned as a one-character string.
- * If the input is neither, or is empty, an error is raised.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments passed to the function.
- * @param argv The arguments provided to the function.
- * @return The last element or character.
- */
-Value pi_peek(vm_t *vm, int argc, Value *argv)
-{
-    if (argc == 0)
-        vm_error(vm, "[peek] expects at least one argument.");
-
-    Value arg = argv[0];
-
-    if (IS_LIST(arg))
-    {
-        list_t *list = AS_CLIST(arg);
-        if (list->size == 0)
-            vm_error(vm, "[peek] Cannot peek from an empty list.");
-        return *(Value *)list_getAt(list, list->size - 1);
-    }
-    else if (IS_STRING(arg))
-    {
-        PiString *str = (PiString *)AS_OBJ(arg);
-        int len = str->length;
-        if (len == 0)
-            vm_error(vm, "[peek] Cannot peek from an empty string.");
-
-        // Return the last character as a one-character string
-        char ch[2] = {str->chars[len - 1], '\0'};
-        return NEW_OBJ(new_pistring(strdup(ch)));
-    }
-    else
-        vm_error(vm, "[peek] Argument must be a list or a string.");
-
-    return NEW_NIL();
-}
-
-/**
  * @brief Checks if a list, string, or map is empty.
  *
  * This function takes one argument and returns true if the list, string, or map is empty,
@@ -223,52 +179,6 @@ Value pi_empty(vm_t *vm, int argc, Value *argv)
     }
     else
         vm_error(vm, "[empty] Argument must be a list, string, or map.");
-
-    return NEW_NIL();
-}
-
-/**
- * @brief Sorts a list in-place in ascending order.
- *
- * This function takes one argument: a list. It sorts the list in-place using the default
- * comparison for supported types (numbers and strings). All elements must be of the same
- * type and either all numbers or all strings. Mixed types or unsupported types will raise an error.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments passed to the function.
- * @param argv The arguments provided to the function.
- * @return nil
- */
-Value pi_sort(vm_t *vm, int argc, Value *argv)
-{
-    if (argc == 0)
-        vm_error(vm, "[sort] expects one argument.");
-
-    Value arg = argv[0];
-
-    if (!IS_LIST(arg))
-        vm_error(vm, "[sort] Argument must be a list.");
-
-    list_t *list = AS_CLIST(arg);
-
-    if (list->size <= 1)
-        return NEW_NIL(); // Nothing to sort
-
-    Value first = (*(Value *)list_getAt(list, 0));
-
-    if (!IS_STRING(first) && !IS_NUM(first))
-        vm_error(vm, "[sort] List elements must all be numbers or strings.");
-
-    for (int i = 1; i < list->size; i++)
-    {
-        Value item = (*(Value *)list_getAt(list, i));
-        if (item.type != first.type)
-            vm_error(vm, "[sort] List elements must all be of the same type.");
-    }
-
-    // Comparator for qsort
-
-    qsort(list->data, list->size, sizeof(Value), _compare);
 
     return NEW_NIL();
 }
@@ -394,384 +304,6 @@ Value pi_remove(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Prepends one or more values to the beginning of a collection.
- *
- * Supports both lists and strings. For lists, any type of value is allowed.
- * For strings, all values must be strings or characters.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments.
- * @param argv Arguments: collection followed by values to prepend.
- * @return The new size of the collection.
- */
-Value pi_unshift(vm_t *vm, int argc, Value *argv)
-{
-    if (argc < 2)
-        vm_error(vm, "[unshift] expects at least two arguments: collection and values.");
-
-    Value target = argv[0];
-
-    if (IS_LIST(target))
-    {
-        list_t *list = AS_CLIST(target);
-
-        // Shift items right and insert in reverse order to maintain input order
-        for (int i = 1; i < argc; i++)
-            list_addFirst(list, &argv[i]); // Prepend each item at index 0
-
-        return NEW_NUM(list->size);
-    }
-    else if (IS_STRING(target))
-    {
-        PiString *str = AS_STRING(target);
-
-        // Calculate total new length
-        int total_len = str->length;
-        for (int i = argc - 1; i >= 1; i--)
-        {
-            if (!IS_STRING(argv[i]))
-                vm_error(vm, "[unshift] All values must be strings when prepending to a string.");
-            total_len += AS_STRING(argv[i])->length;
-        }
-
-        // Allocate new string
-        char *new_chars = malloc(total_len + 1);
-        int offset = 0;
-
-        // Copy new items first
-        for (int i = argc - 1; i >= 1; i--)
-        {
-            PiString *s = AS_STRING(argv[i]);
-            memcpy(new_chars + offset, s->chars, s->length);
-            offset += s->length;
-        }
-
-        // Copy old string content
-        memcpy(new_chars + offset, str->chars, str->length);
-        new_chars[total_len] = '\0';
-
-        // Replace original string content
-        free(str->chars);
-        str->chars = new_chars;
-        str->length = total_len;
-
-        return NEW_NUM(str->length);
-    }
-    else
-        vm_error(vm, "[unshift] First argument must be a list or a string.");
-
-    return NEW_NIL(); // Unreachable
-}
-
-/**
- * @brief Appends one or more values to the end of a collection.
- *
- * Supports both lists and strings. For lists, any type of value is allowed.
- * For strings, all values must be strings or characters.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments.
- * @param argv Arguments: collection followed by values to append.
- * @return The new size of the collection.
- */
-Value pi_append(vm_t *vm, int argc, Value *argv)
-{
-    if (argc < 2)
-        vm_error(vm, "[append] expects at least two arguments: collection and values.");
-
-    Value target = argv[0];
-
-    if (IS_LIST(target))
-    {
-        list_t *list = AS_CLIST(target);
-
-        for (int i = 1; i < argc; i++)
-            list_add(list, &argv[i]); // Append each value to the end
-
-        return NEW_NUM(list->size);
-    }
-    else if (IS_STRING(target))
-    {
-        PiString *str = AS_STRING(target);
-
-        // Calculate new total length
-        int total_len = str->length;
-        for (int i = 1; i < argc; i++)
-        {
-            if (!IS_STRING(argv[i]))
-                vm_error(vm, "[append] All values must be strings when appending to a string.");
-            total_len += AS_STRING(argv[i])->length;
-        }
-
-        // Allocate new buffer
-        char *new_chars = malloc(total_len + 1);
-        memcpy(new_chars, str->chars, str->length);
-
-        int offset = str->length;
-        for (int i = 1; i < argc; i++)
-        {
-            PiString *s = AS_STRING(argv[i]);
-            memcpy(new_chars + offset, s->chars, s->length);
-            offset += s->length;
-        }
-
-        new_chars[total_len] = '\0';
-
-        // Replace old string
-        free(str->chars);
-        str->chars = new_chars;
-        str->length = total_len;
-
-        return NEW_NUM(str->length);
-    }
-    else
-        vm_error(vm, "[append] First argument must be a list or a string.");
-
-    return NEW_NIL(); // Unreachable
-}
-
-/**
- * @brief Checks whether a collection contains a given value or key.
- *
- * For lists, checks if the value is present.
- * For strings, checks if the value is a substring.
- * For maps, checks if the value is a key.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments.
- * @param argv Arguments: [collection, value]
- * @return A boolean indicating whether the collection contains the value.
- */
-Value pi_contains(vm_t *vm, int argc, Value *argv)
-{
-    if (argc < 2)
-        vm_error(vm, "[contains] expects two arguments at least: a collection and a value.");
-
-    Value collection = argv[0];
-    Value target = argv[1];
-
-    if (IS_LIST(collection))
-    {
-        PiList *list = AS_LIST(collection);
-        for (int i = 0; i < list->items->size; i++)
-        {
-            Value item = *(Value *)list_getAt(list->items, i);
-            if (equals(item, target))
-                return NEW_BOOL(true);
-        }
-    }
-    else if (IS_STRING(collection))
-    {
-        if (!IS_STRING(target))
-            vm_error(vm, "[contains] When searching a string, the value must also be a string.");
-
-        PiString *str = AS_STRING(collection);
-        PiString *substr = AS_STRING(target);
-
-        if (substr->length == 0 || substr->length > str->length)
-            return NEW_BOOL(false);
-
-        for (int i = 0; i <= str->length - substr->length; i++)
-        {
-            if (strncmp(&str->chars[i], substr->chars, substr->length) == 0)
-                return NEW_BOOL(true);
-        }
-    }
-    else if (IS_MAP(collection))
-    {
-        PiMap *map = AS_MAP(collection);
-        return NEW_BOOL(map_has(map, target));
-    }
-    else
-        vm_error(vm, "[contains] First argument must be a list, string, or map.");
-
-    return NEW_BOOL(false);
-}
-
-/**
- * @brief Returns the index of the first occurrence of a value in a collection.
- *
- * Works for both lists and strings. Returns -1 if the value is not found.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments.
- * @param argv Arguments: [collection, value]
- * @return The index of the value in the collection, or -1 if not found.
- */
-Value pi_indexOf(vm_t *vm, int argc, Value *argv)
-{
-    if (argc < 2)
-        vm_error(vm, "[index_of] expects at least two arguments: a collection and a value.");
-
-    Value collection = argv[0];
-    Value target = argv[1];
-
-    if (IS_LIST(collection))
-    {
-        PiList *list = AS_LIST(collection);
-        for (int i = 0; i < list->items->size; i++)
-        {
-            Value item = *(Value *)list_getAt(list->items, i);
-            if (equals(item, target))
-                return NEW_NUM(i);
-        }
-    }
-    else if (IS_STRING(collection))
-    {
-        if (!IS_STRING(target))
-            vm_error(vm, "[index_of] When searching a string, the target must also be a string.");
-
-        PiString *str = AS_STRING(collection);
-        PiString *substr = AS_STRING(target);
-
-        if (substr->length == 0 || substr->length > str->length)
-            return NEW_NUM(-1);
-
-        for (int i = 0; i <= str->length - substr->length; i++)
-            if (strncmp(&str->chars[i], substr->chars, substr->length) == 0)
-                return NEW_NUM(i);
-    }
-    else
-        vm_error(vm, "[index_of] First argument must be a list or a string.");
-
-    return NEW_NUM(-1); // Not found
-}
-
-/**
- * @brief Reverses a collection in-place (for lists) or returns a reversed string.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments (should be 1).
- * @param argv Arguments: [collection]
- * @return The reversed collection.
- */
-Value pi_reverse(vm_t *vm, int argc, Value *argv)
-{
-    if (argc < 1)
-        vm_error(vm, "[reverse] expects one argument at least: a list or a string.");
-
-    Value input = argv[0];
-
-    if (IS_LIST(input))
-    {
-        list_t *list = AS_CLIST(input);
-        int size = list->size;
-
-        list_t *copy = list_copy(list);
-        for (int i = 0; i < size / 2; i++)
-        {
-            Value *a = (Value *)list_getAt(copy, i);
-            Value *b = (Value *)list_getAt(copy, size - i - 1);
-            Value tmp = *a;
-            *a = *b;
-            *b = tmp;
-        }
-
-        return NEW_OBJ(new_list(copy)); // reversed in-place
-    }
-    else if (IS_STRING(input))
-    {
-        PiString *str = AS_STRING(input);
-        int len = str->length;
-        char *reversed = malloc(len + 1);
-
-        for (int i = 0; i < len; i++)
-            reversed[i] = str->chars[len - i - 1];
-
-        reversed[len] = '\0';
-        return NEW_OBJ(new_pistring(reversed));
-    }
-    else
-    {
-        vm_error(vm, "[reverse] argument must be a list or a string.");
-    }
-
-    return NEW_NIL();
-}
-
-/**
- * @brief Shuffles a list in-place using Fisher–Yates algorithm.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments (should be 1).
- * @param argv Arguments: [list]
- * @return The shuffled list.
- */
-Value pi_shuffle(vm_t *vm, int argc, Value *argv)
-{
-    if (argc < 1)
-        vm_error(vm, "[shuffle] expects one argument at least: a list.");
-
-    if (!IS_LIST(argv[0]))
-        vm_error(vm, "[shuffle] argument must be a list.");
-
-    PiList *list = AS_LIST(argv[0]);
-    int size = list->items->size;
-
-    // Seed RNG once
-    static bool seeded = false;
-    if (!seeded)
-    {
-        srand((unsigned int)time(NULL));
-        seeded = true;
-    }
-
-    for (int i = size - 1; i > 0; i--)
-    {
-        int j = rand() % (i + 1);
-        Value *a = (Value *)list_getAt(list->items, i);
-        Value *b = (Value *)list_getAt(list->items, j);
-        Value tmp = *a;
-        *a = *b;
-        *b = tmp;
-    }
-
-    return argv[0]; // shuffled in-place
-}
-
-/**
- * @brief Returns a deep copy of a list or a string.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments (should be 1).
- * @param argv Arguments: [collection]
- * @return A new copy of the collection.
- */
-Value pi_copy(vm_t *vm, int argc, Value *argv)
-{
-    if (argc < 1)
-        vm_error(vm, "[copy] expects one argument at least!.");
-
-    Value input = argv[0];
-
-    if (IS_STRING(input))
-    {
-        PiString *str = AS_STRING(input);
-        return NEW_OBJ(new_pistring(strdup(str->chars)));
-    }
-    else if (IS_LIST(input))
-    {
-        PiList *orig = AS_LIST(input);
-        list_t *copied_items = list_create(sizeof(Value));
-
-        for (int i = 0; i < orig->items->size; i++)
-        {
-            Value *item = (Value *)list_getAt(orig->items, i);
-            list_add(copied_items, item); // shallow copy of elements
-        }
-
-        PiList *result = (PiList *)new_list(copied_items);
-        result->is_numeric = orig->is_numeric;
-        result->is_matrix = orig->is_matrix;
-
-        return NEW_OBJ(result);
-    }
-
-    vm_error(vm, "[copy] only works with lists or strings.");
-    return NEW_NIL();
-}
-
 Value pi_slice(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 3)
@@ -888,16 +420,484 @@ Value pi_range(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(range_obj);
 }
 
+/**
+ * @brief Retrieves the last element from a list or character from a string without removing it.
+ *
+ * This function takes a list or string as input and returns the last element/character
+ * without modifying the input. If the input is a list, the last element is returned.
+ * If the input is a string, the last character is returned as a one-character string.
+ * If the input is neither, or is empty, an error is raised.
+ *
+ * @param vm The virtual machine instance.
+ * @param argc The number of arguments passed to the function.
+ * @param argv The arguments provided to the function.
+ * @return The last element or character.
+ */
+Value cl_peek(vm_t *vm, int argc, Value *argv)
+{
+    if (argc == 0)
+        vm_error(vm, "[peek] expects at least one argument.");
+
+    Value arg = argv[0];
+
+    if (IS_LIST(arg))
+    {
+        list_t *list = AS_CLIST(arg);
+        if (list->size == 0)
+            vm_error(vm, "[peek] Cannot peek from an empty list.");
+        return *(Value *)list_getAt(list, list->size - 1);
+    }
+    else if (IS_STRING(arg))
+    {
+        PiString *str = (PiString *)AS_OBJ(arg);
+        int len = str->length;
+        if (len == 0)
+            vm_error(vm, "[peek] Cannot peek from an empty string.");
+
+        // Return the last character as a one-character string
+        char ch[2] = {str->chars[len - 1], '\0'};
+        return NEW_OBJ(new_pistring(strdup(ch)));
+    }
+    else
+        vm_error(vm, "[peek] Argument must be a list or a string.");
+
+    return NEW_NIL();
+}
+
+/**
+ * @brief Sorts a list in-place in ascending order.
+ *
+ * This function takes one argument: a list. It sorts the list in-place using the default
+ * comparison for supported types (numbers and strings). All elements must be of the same
+ * type and either all numbers or all strings. Mixed types or unsupported types will raise an error.
+ *
+ * @param vm The virtual machine instance.
+ * @param argc The number of arguments passed to the function.
+ * @param argv The arguments provided to the function.
+ * @return nil
+ */
+Value cl_sort(vm_t *vm, int argc, Value *argv)
+{
+    if (argc == 0)
+        vm_error(vm, "[sort] expects one argument.");
+
+    Value arg = argv[0];
+
+    if (!IS_LIST(arg))
+        vm_error(vm, "[sort] Argument must be a list.");
+
+    list_t *list = AS_CLIST(arg);
+
+    if (list->size <= 1)
+        return NEW_NIL(); // Nothing to sort
+
+    Value first = (*(Value *)list_getAt(list, 0));
+
+    if (!IS_STRING(first) && !IS_NUM(first))
+        vm_error(vm, "[sort] List elements must all be numbers or strings.");
+
+    for (int i = 1; i < list->size; i++)
+    {
+        Value item = (*(Value *)list_getAt(list, i));
+        if (item.type != first.type)
+            vm_error(vm, "[sort] List elements must all be of the same type.");
+    }
+
+    // Comparator for qsort
+
+    qsort(list->data, list->size, sizeof(Value), _compare);
+
+    return NEW_NIL();
+}
+
+/**
+ * @brief Prepends one or more values to the beginning of a collection.
+ *
+ * Supports both lists and strings. For lists, any type of value is allowed.
+ * For strings, all values must be strings or characters.
+ *
+ * @param vm The virtual machine instance.
+ * @param argc Number of arguments.
+ * @param argv Arguments: collection followed by values to prepend.
+ * @return The new size of the collection.
+ */
+Value cl_unshift(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 2)
+        vm_error(vm, "[unshift] expects at least two arguments: collection and values.");
+
+    Value target = argv[0];
+
+    if (IS_LIST(target))
+    {
+        list_t *list = AS_CLIST(target);
+
+        // Shift items right and insert in reverse order to maintain input order
+        for (int i = 1; i < argc; i++)
+            list_addFirst(list, &argv[i]); // Prepend each item at index 0
+
+        return NEW_NUM(list->size);
+    }
+    else if (IS_STRING(target))
+    {
+        PiString *str = AS_STRING(target);
+
+        // Calculate total new length
+        int total_len = str->length;
+        for (int i = argc - 1; i >= 1; i--)
+        {
+            if (!IS_STRING(argv[i]))
+                vm_error(vm, "[unshift] All values must be strings when prepending to a string.");
+            total_len += AS_STRING(argv[i])->length;
+        }
+
+        // Allocate new string
+        char *new_chars = malloc(total_len + 1);
+        int offset = 0;
+
+        // Copy new items first
+        for (int i = argc - 1; i >= 1; i--)
+        {
+            PiString *s = AS_STRING(argv[i]);
+            memcpy(new_chars + offset, s->chars, s->length);
+            offset += s->length;
+        }
+
+        // Copy old string content
+        memcpy(new_chars + offset, str->chars, str->length);
+        new_chars[total_len] = '\0';
+
+        // Replace original string content
+        free(str->chars);
+        str->chars = new_chars;
+        str->length = total_len;
+
+        return NEW_NUM(str->length);
+    }
+    else
+        vm_error(vm, "[unshift] First argument must be a list or a string.");
+
+    return NEW_NIL(); // Unreachable
+}
+
+/**
+ * @brief Appends one or more values to the end of a collection.
+ *
+ * Supports both lists and strings. For lists, any type of value is allowed.
+ * For strings, all values must be strings or characters.
+ *
+ * @param vm The virtual machine instance.
+ * @param argc Number of arguments.
+ * @param argv Arguments: collection followed by values to append.
+ * @return The new size of the collection.
+ */
+Value cl_append(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 2)
+        vm_error(vm, "[append] expects at least two arguments: collection and values.");
+
+    Value target = argv[0];
+
+    if (IS_LIST(target))
+    {
+        list_t *list = AS_CLIST(target);
+
+        for (int i = 1; i < argc; i++)
+            list_add(list, &argv[i]); // Append each value to the end
+
+        return NEW_NUM(list->size);
+    }
+    else if (IS_STRING(target))
+    {
+        PiString *str = AS_STRING(target);
+
+        // Calculate new total length
+        int total_len = str->length;
+        for (int i = 1; i < argc; i++)
+        {
+            if (!IS_STRING(argv[i]))
+                vm_error(vm, "[append] All values must be strings when appending to a string.");
+            total_len += AS_STRING(argv[i])->length;
+        }
+
+        // Allocate new buffer
+        char *new_chars = malloc(total_len + 1);
+        memcpy(new_chars, str->chars, str->length);
+
+        int offset = str->length;
+        for (int i = 1; i < argc; i++)
+        {
+            PiString *s = AS_STRING(argv[i]);
+            memcpy(new_chars + offset, s->chars, s->length);
+            offset += s->length;
+        }
+
+        new_chars[total_len] = '\0';
+
+        // Replace old string
+        free(str->chars);
+        str->chars = new_chars;
+        str->length = total_len;
+
+        return NEW_NUM(str->length);
+    }
+    else
+        vm_error(vm, "[append] First argument must be a list or a string.");
+
+    return NEW_NIL(); // Unreachable
+}
+
+/**
+ * @brief Checks whether a collection contains a given value or key.
+ *
+ * For lists, checks if the value is present.
+ * For strings, checks if the value is a substring.
+ * For maps, checks if the value is a key.
+ *
+ * @param vm The virtual machine instance.
+ * @param argc Number of arguments.
+ * @param argv Arguments: [collection, value]
+ * @return A boolean indicating whether the collection contains the value.
+ */
+Value cl_contains(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 2)
+        vm_error(vm, "[contains] expects two arguments at least: a collection and a value.");
+
+    Value collection = argv[0];
+    Value target = argv[1];
+
+    if (IS_LIST(collection))
+    {
+        PiList *list = AS_LIST(collection);
+        for (int i = 0; i < list->items->size; i++)
+        {
+            Value item = *(Value *)list_getAt(list->items, i);
+            if (equals(item, target))
+                return NEW_BOOL(true);
+        }
+    }
+    else if (IS_STRING(collection))
+    {
+        if (!IS_STRING(target))
+            vm_error(vm, "[contains] When searching a string, the value must also be a string.");
+
+        PiString *str = AS_STRING(collection);
+        PiString *substr = AS_STRING(target);
+
+        if (substr->length == 0 || substr->length > str->length)
+            return NEW_BOOL(false);
+
+        for (int i = 0; i <= str->length - substr->length; i++)
+        {
+            if (strncmp(&str->chars[i], substr->chars, substr->length) == 0)
+                return NEW_BOOL(true);
+        }
+    }
+    else if (IS_MAP(collection))
+    {
+        PiMap *map = AS_MAP(collection);
+        return NEW_BOOL(map_has(map, target));
+    }
+    else
+        vm_error(vm, "[contains] First argument must be a list, string, or map.");
+
+    return NEW_BOOL(false);
+}
+
+/**
+ * @brief Returns the index of the first occurrence of a value in a collection.
+ *
+ * Works for both lists and strings. Returns -1 if the value is not found.
+ *
+ * @param vm The virtual machine instance.
+ * @param argc Number of arguments.
+ * @param argv Arguments: [collection, value]
+ * @return The index of the value in the collection, or -1 if not found.
+ */
+Value cl_indexOf(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 2)
+        vm_error(vm, "[index_of] expects at least two arguments: a collection and a value.");
+
+    Value collection = argv[0];
+    Value target = argv[1];
+
+    if (IS_LIST(collection))
+    {
+        PiList *list = AS_LIST(collection);
+        for (int i = 0; i < list->items->size; i++)
+        {
+            Value item = *(Value *)list_getAt(list->items, i);
+            if (equals(item, target))
+                return NEW_NUM(i);
+        }
+    }
+    else if (IS_STRING(collection))
+    {
+        if (!IS_STRING(target))
+            vm_error(vm, "[index_of] When searching a string, the target must also be a string.");
+
+        PiString *str = AS_STRING(collection);
+        PiString *substr = AS_STRING(target);
+
+        if (substr->length == 0 || substr->length > str->length)
+            return NEW_NUM(-1);
+
+        for (int i = 0; i <= str->length - substr->length; i++)
+            if (strncmp(&str->chars[i], substr->chars, substr->length) == 0)
+                return NEW_NUM(i);
+    }
+    else
+        vm_error(vm, "[index_of] First argument must be a list or a string.");
+
+    return NEW_NUM(-1); // Not found
+}
+
+/**
+ * @brief Reverses a collection in-place (for lists) or returns a reversed string.
+ *
+ * @param vm The virtual machine instance.
+ * @param argc Number of arguments (should be 1).
+ * @param argv Arguments: [collection]
+ * @return The reversed collection.
+ */
+Value cl_reverse(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1)
+        vm_error(vm, "[reverse] expects one argument at least: a list or a string.");
+
+    Value input = argv[0];
+
+    if (IS_LIST(input))
+    {
+        list_t *list = AS_CLIST(input);
+        int size = list->size;
+
+        list_t *copy = list_copy(list);
+        for (int i = 0; i < size / 2; i++)
+        {
+            Value *a = (Value *)list_getAt(copy, i);
+            Value *b = (Value *)list_getAt(copy, size - i - 1);
+            Value tmp = *a;
+            *a = *b;
+            *b = tmp;
+        }
+
+        return NEW_OBJ(new_list(copy)); // reversed in-place
+    }
+    else if (IS_STRING(input))
+    {
+        PiString *str = AS_STRING(input);
+        int len = str->length;
+        char *reversed = malloc(len + 1);
+
+        for (int i = 0; i < len; i++)
+            reversed[i] = str->chars[len - i - 1];
+
+        reversed[len] = '\0';
+        return NEW_OBJ(new_pistring(reversed));
+    }
+    else
+    {
+        vm_error(vm, "[reverse] argument must be a list or a string.");
+    }
+
+    return NEW_NIL();
+}
+
+/**
+ * @brief Shuffles a list in-place using Fisher–Yates algorithm.
+ *
+ * @param vm The virtual machine instance.
+ * @param argc Number of arguments (should be 1).
+ * @param argv Arguments: [list]
+ * @return The shuffled list.
+ */
+Value cl_shuffle(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1)
+        vm_error(vm, "[shuffle] expects one argument at least: a list.");
+
+    if (!IS_LIST(argv[0]))
+        vm_error(vm, "[shuffle] argument must be a list.");
+
+    PiList *list = AS_LIST(argv[0]);
+    int size = list->items->size;
+
+    // Seed RNG once
+    static bool seeded = false;
+    if (!seeded)
+    {
+        srand((unsigned int)time(NULL));
+        seeded = true;
+    }
+
+    for (int i = size - 1; i > 0; i--)
+    {
+        int j = rand() % (i + 1);
+        Value *a = (Value *)list_getAt(list->items, i);
+        Value *b = (Value *)list_getAt(list->items, j);
+        Value tmp = *a;
+        *a = *b;
+        *b = tmp;
+    }
+
+    return argv[0]; // shuffled in-place
+}
+
+/**
+ * @brief Returns a deep copy of a list or a string.
+ *
+ * @param vm The virtual machine instance.
+ * @param argc Number of arguments (should be 1).
+ * @param argv Arguments: [collection]
+ * @return A new copy of the collection.
+ */
+Value cl_copy(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1)
+        vm_error(vm, "[copy] expects one argument at least!.");
+
+    Value input = argv[0];
+
+    if (IS_STRING(input))
+    {
+        PiString *str = AS_STRING(input);
+        return NEW_OBJ(new_pistring(strdup(str->chars)));
+    }
+    else if (IS_LIST(input))
+    {
+        PiList *orig = AS_LIST(input);
+        list_t *copied_items = list_create(sizeof(Value));
+
+        for (int i = 0; i < orig->items->size; i++)
+        {
+            Value *item = (Value *)list_getAt(orig->items, i);
+            list_add(copied_items, item); // shallow copy of elements
+        }
+
+        PiList *result = (PiList *)new_list(copied_items);
+        result->is_numeric = orig->is_numeric;
+        result->is_matrix = orig->is_matrix;
+
+        return NEW_OBJ(result);
+    }
+
+    vm_error(vm, "[copy] only works with lists or strings.");
+    return NEW_NIL();
+}
+
 // Module definition
 static BuiltinFunc col_functions[] = {
-    {"peek", pi_peek},
-    {"sort", pi_sort},
-    {"unshift", pi_unshift},
-    {"append", pi_append},
-    {"contains", pi_contains},
-    {"indexOf", pi_indexOf},
-    {"reverse", pi_reverse},
-    {"shuffle", pi_shuffle},
-    {"copy", pi_copy}};
+    {"peek", cl_peek},
+    {"sort", cl_sort},
+    {"unshift", cl_unshift},
+    {"append", cl_append},
+    {"contains", cl_contains},
+    {"indexOf", cl_indexOf},
+    {"reverse", cl_reverse},
+    {"shuffle", cl_shuffle},
+    {"copy", cl_copy}};
 
-DEFINE_BUILTIN_MODULE(col_module, "col", col_functions, NULL);
+DEFINE_BUILTIN_MODULE(module_col, "col", col_functions, NULL);

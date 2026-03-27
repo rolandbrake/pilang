@@ -104,8 +104,8 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     ht_put(vm->globals, "module", &main_moduleVal);
 
     vm->object_proto = create_objectProto(vm);
-    Value object_proto_val = NEW_OBJ((Object *)vm->object_proto);
-    ht_put(vm->globals, "Object", &object_proto_val);
+    Value object_protoVal = NEW_OBJ((Object *)vm->object_proto);
+    ht_put(vm->globals, "Object", &object_protoVal);
 
     return vm;
 }
@@ -279,22 +279,65 @@ void vm_error(vm_t *vm, const char *message)
  * @param fmt The format string for the error message.
  * @param ... The variable arguments to be formatted into the message.
  */
+#include <stdarg.h>
+
 void vm_errorf(vm_t *vm, const char *fmt, ...)
 {
-    char buffer[1024]; // Buffer to hold the formatted error message
+    instr_t *instr = NULL;
+    char *name = "<global>";
+
+    if (vm->frame_sp > 0)
+    {
+        Frame *top = &vm->frames[vm->frame_sp - 1];
+        name = top->function->name;
+    }
+
+    list_t *instrs = ht_get(vm->instrs, name);
+    int size = instrs ? list_size(instrs) : 0;
+
+    for (int i = 0; i < size; i++)
+    {
+        instr_t *cur = (instr_t *)list_getAt(instrs, i);
+
+        if (cur->offset > vm->pc)
+            break;
+        instr = cur;
+    }
+
+    // Format the message first
+    char message[1024];
+
     va_list args;
-
-    // Initialize the variable argument list
     va_start(args, fmt);
-
-    // Format the error message into the buffer
-    vsnprintf(buffer, sizeof(buffer), fmt, args);
-
-    // Clean up the variable argument list
+    vsnprintf(message, sizeof(message), fmt, args);
     va_end(args);
 
-    // Report the formatted error message
-    vm_error(vm, buffer);
+    if (global_errorHandler)
+    {
+        char buffer[1024];
+
+        if (instr && instr->fun_name)
+            snprintf(buffer, sizeof(buffer), "%s (in function '%s')", message, instr->fun_name);
+        else
+            snprintf(buffer, sizeof(buffer), "%s", message);
+
+        global_errorHandler(buffer, instr ? instr->line : -1, 0);
+        return;
+    }
+
+    if (instr)
+    {
+        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR] at line %d", instr->line);
+        if (instr->fun_name)
+            fprintf(stderr, " in function '%s'", instr->fun_name);
+        fprintf(stderr, ":\033[0m %s\n\n", message);
+    }
+    else
+    {
+        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR] at unknown location:\033[0m %s\n\n", message);
+    }
+
+    exit(EXIT_FAILURE);
 }
 
 /**
@@ -595,7 +638,7 @@ static PiMap *create_objectProto(vm_t *vm)
     Value clone = *new_native("clone", pi_clone);
 
     Value extends_fn = *new_native("extends", pi_extends);
-    
+
     Value equals_fn = *new_native("equals", pi_equals);
     Value ident_fn = *new_native("ident", pi_ident);
     Value compare_fn = *new_native("compare", pi_compare);
@@ -606,7 +649,7 @@ static PiMap *create_objectProto(vm_t *vm)
     Value set_fn = *new_native("set", pi_set);
     Value has_fn = *new_native("has", pi_has);
     Value delete_fn = *new_native("delete", pi_delete);
-    
+
     Value iterator_fn = *new_native("iterator", pi_iterator);
     Value next_fn = *new_native("next", pi_next);
 

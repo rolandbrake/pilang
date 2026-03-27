@@ -1,6 +1,7 @@
-#include "pi_fun.h"
+#include "pi_func.h"
 #include "../pi_func.h"
 #include "../list.h"
+#include "pi_builtin.h"
 
 /**
  * @brief Maps a function to every item in a list.
@@ -165,3 +166,11 @@ Value pi_find(vm_t *vm, int argc, Value *argv)
 
     return NEW_NUM(-1); // Not found
 }
+
+
+
+// Module Registration
+static BuiltinFunc func_funcs[] = {  
+};
+
+DEFINE_BUILTIN_MODULE(module_func, "func", func_funcs, NULL);

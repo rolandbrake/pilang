@@ -564,45 +564,6 @@ char *as_string(Value val)
             return result;
         }
 
-            // case OBJ_MAP:
-            // {
-            //     PiMap *map = AS_MAP(val);
-            //     list_t *keys = map->table->_keys;
-            //     int size = list_size(keys);
-            //     if (size == 0)
-            //         return strdup("{}");
-
-            //     size_t buffer_size = 2; // Start with "{}"
-            //     char *result = strdup("{");
-
-            //     for (int i = 0; i < size; i++)
-            //     {
-            //         if (i > 0)
-            //         {
-            //             buffer_size += 2;
-            //             result = realloc(result, buffer_size);
-            //             strcat(result, ", ");
-            //         }
-
-            //         char *key = string_get(keys, i);
-            //         char *value = as_string(*(Value *)ht_get(map->table, key));
-
-            //         buffer_size += strlen(key) + strlen(": ") + strlen(value);
-            //         result = realloc(result, buffer_size);
-            //         strcat(result, key);
-            //         strcat(result, ": ");
-            //         strcat(result, value);
-
-            //         free(value);
-            //     }
-
-            //     buffer_size++;
-            //     result = realloc(result, buffer_size);
-            //     strcat(result, "}");
-
-            //     return result;
-            // }
-
         case OBJ_MAP:
         {
             PiMap *map = AS_MAP(val);
@@ -649,7 +610,7 @@ char *as_string(Value val)
             Function *fun = AS_FUN(val);
 
             char *result = (char *)malloc(128);
-            sprintf(result, "<%s: %p>", fun->name, (void *)fun);
+            sprintf(result, "<FUN: %s>", fun->name);
             return result;
         }
         case OBJ_MODULE:

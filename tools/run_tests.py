@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-TEST_DIR = BASE_DIR / "test"
+TEST_DIR = BASE_DIR / "tests"
 
 if sys.platform.startswith("win"):
     PI_COMMAND = BASE_DIR / "pi.exe"

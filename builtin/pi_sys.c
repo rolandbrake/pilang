@@ -176,4 +176,4 @@ static BuiltinFunc sys_funcs[] = {
     {"path", pi_path},
 };
 
-DEFINE_BUILTIN_MODULE(sys_module, "sys", sys_funcs, sys_consts);
+DEFINE_BUILTIN_MODULE(module_sys, "sys", sys_funcs, sys_consts);

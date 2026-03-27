@@ -1,4 +1,5 @@
 #include "pi_type.h"
+#include "pi_builtin.h"
 
 /**
  * @brief Returns the type of the given value as a string.
@@ -102,3 +103,19 @@ Value pi_asBool(vm_t *vm, int argc, Value *argv)
 
     return NEW_NIL();
 }
+
+// Module Registration
+
+static BuiltinFunc type_funcs[] = {
+    {"type", _pi_type},
+    {"is_list", pi_isList},
+    {"is_map", pi_isMap},
+    {"is_num", pi_isNum},
+    {"is_str", pi_isStr},
+    {"is_bool", pi_isBool},
+    {"as_num", pi_asNum},
+    {"as_str", pi_asStr},
+    {"as_bool", pi_asBool},
+};
+
+DEFINE_BUILTIN_MODULE(module_type, "type", type_funcs, NULL);

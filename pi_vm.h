@@ -19,6 +19,8 @@
 // Initial GC threshold (number of newly allocated VM objects).
 #define NEXT_GC 4096
 
+
+// Macros for handling opcodes [for future use]
 #define VM_LABEL(name) L_##name
 #define VM_TARGET(name) &&L_##name
 #define VM_DISPATCH() goto *dispatch[code[pc++]]

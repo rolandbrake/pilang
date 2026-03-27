@@ -143,32 +143,136 @@ static const BuiltinModule *find_builtinModule(const char *name)
     return NULL;
 }
 
+/**
+ * Checks if a built-in module has children (i.e. if it has a dot in its name).
+ *
+ * @param name The name of the built-in module to check.
+ * @return True if the built-in module has children, false otherwise.
+ */
+static bool builtin_hasChildren(const char *name)
+{
+    size_t prefix_len = strlen(name);
+
+    // Iterate over all built-in modules
+    for (int i = 0; i < BUILTIN_MODULE_COUNT; i++)
+    {
+        const char *builtin_name = builtin_modules[i]->name;
+        // Check if the built-in module has the given name as prefix
+        // and if it has a dot after the prefix
+        if (strncmp(builtin_name, name, prefix_len) == 0 &&
+            builtin_name[prefix_len] == '.')
+            return true;
+    }
+
+    return false;
+}
+
+static Value load_builtinNamed(vm_t *vm, const char *name);
+
+/**
+ * Attaches the children of a built-in module to its exports map.
+ *
+ * A child of a built-in module is a built-in module that has a name that is a prefix of the given name.
+ * For example, if the given name is "matrix", the children of the built-in module could be "matrix.sort", "matrix.reduce", etc.
+ *
+ * @param vm The VM to use.
+ * @param module The module to attach the children to.
+ * @param name The name of the module to use as prefix to find children.
+ */
+static void attach_builtinChildren(vm_t *vm, ObjModule *module, const char *name)
+{
+    size_t prefix_len = strlen(name);
+    table_t *seen = ht_create(sizeof(bool));
+    bool yes = true;
+
+    for (int i = 0; i < BUILTIN_MODULE_COUNT; i++)
+    {
+        const char *builtin_name = builtin_modules[i]->name;
+        if (strncmp(builtin_name, name, prefix_len) != 0 ||
+            builtin_name[prefix_len] != '.')
+            continue;
+
+        const char *child_start = builtin_name + prefix_len + 1;
+        const char *child_end = strchr(child_start, '.');
+        size_t child_len = child_end ? (size_t)(child_end - child_start) : strlen(child_start);
+
+        char *child_name = (char *)malloc(child_len + 1);
+        if (!child_name)
+            vm_error(vm, "Out of memory while loading builtin package.");
+
+        memcpy(child_name, child_start, child_len);
+        child_name[child_len] = '\0';
+
+        if (ht_get(seen, child_name))
+        {
+            free(child_name);
+            continue;
+        }
+        ht_put(seen, child_name, &yes);
+
+        size_t full_len = prefix_len + 1 + child_len + 1;
+        char *full_name = (char *)malloc(full_len);
+        if (!full_name)
+        {
+            free(child_name);
+            ht_free(seen);
+            vm_error(vm, "Out of memory while loading builtin package.");
+        }
+
+        snprintf(full_name, full_len, "%s.%s", name, child_name);
+        Value child_module = load_builtinNamed(vm, full_name);
+
+        Value key_val = NEW_OBJ(add_obj(vm, new_pistring(strdup(child_name))));
+        map_set(module->exports, key_val, child_module);
+
+        free(full_name);
+        free(child_name);
+    }
+
+    ht_free(seen);
+}
+
+/**
+ * Loads a built-in module from the given built-in module definition.
+ *
+ * Checks if the module is already cached in the VM. If so, returns the cached value.
+ * Otherwise, creates a new module object, caches it, and populates its exports map with the given built-in module's functions and constants.
+ *
+ * @param vm The VM to use.
+ * @param builtin The built-in module definition to load.
+ * @return The loaded module as a value.
+ */
 static Value load_builtinModule(vm_t *vm, const BuiltinModule *builtin)
 {
+    // Create a cache key for the module
     char cache_key[256];
     snprintf(cache_key, sizeof(cache_key), "@builtin:%s", builtin->name);
 
+    // Check if the module is already cached in the VM
     Value *cached = ht_get(vm->modules, cache_key);
     if (cached)
         return *cached;
 
+    // Create a new module object and cache it
     Object *module_obj = new_module(vm, builtin->name, "<builtin>", true, false);
     Value module_val = NEW_OBJ(module_obj);
     ht_put(vm->modules, cache_key, &module_val);
 
+    // Populate the module's exports map with the given built-in module's functions and constants
     ObjModule *module = AS_MODULE(module_val);
     PiMap *exports = module->exports;
 
     for (int i = 0; i < builtin->const_count; i++)
     {
+        // Add the built-in module's constants to the module's exports map
         BuiltinConst *c = &builtin->consts[i];
-
         Value key_val = NEW_OBJ(add_obj(vm, new_pistring(strdup(c->name))));
         map_set(exports, key_val, c->value);
     }
 
     for (int i = 0; i < builtin->func_count; i++)
     {
+        // Add the built-in module's functions to the module's exports map
         BuiltinFunc *f = &builtin->functions[i];
         Value *fn_val = new_native(f->name, f->func);
         Value key_val = NEW_OBJ(add_obj(vm, new_pistring(strdup(f->name))));
@@ -176,8 +280,46 @@ static Value load_builtinModule(vm_t *vm, const BuiltinModule *builtin)
         free(fn_val);
     }
 
+    // If the built-in module has children, attach them to the module
+    if (builtin_hasChildren(builtin->name))
+        attach_builtinChildren(vm, module, builtin->name);
+
+    // Mark the module as loaded
+    module->state = MODULE_LOADED;
+
+    return module_val;
+}
+
+static Value load_builtinPackage(vm_t *vm, const char *name)
+{
+    char cache_key[256];
+    snprintf(cache_key, sizeof(cache_key), "@builtin:%s", name);
+
+    Value *cached = ht_get(vm->modules, cache_key);
+    if (cached)
+        return *cached;
+
+    Object *module_obj = new_module(vm, name, "<builtin-package>", true, false);
+    Value module_val = NEW_OBJ(module_obj);
+    ht_put(vm->modules, cache_key, &module_val);
+
+    ObjModule *module = AS_MODULE(module_val);
+    attach_builtinChildren(vm, module, name);
     module->state = MODULE_LOADED;
     return module_val;
+}
+
+static Value load_builtinNamed(vm_t *vm, const char *name)
+{
+    const BuiltinModule *builtin = find_builtinModule(name);
+    if (builtin)
+        return load_builtinModule(vm, builtin);
+
+    if (builtin_hasChildren(name))
+        return load_builtinPackage(vm, name);
+
+    vm_errorf(vm, "Cannot resolve module '%s'.", name);
+    return NEW_NIL();
 }
 
 /**
@@ -359,12 +501,7 @@ Value load_module(vm_t *vm, const char *name)
 {
     char *resolved = module_resolvePath(vm, name);
     if (!resolved)
-    {
-        const BuiltinModule *builtin = find_builtinModule(name);
-        if (builtin)
-            return load_builtinModule(vm, builtin);
-        vm_errorf(vm, "Cannot resolve module '%s'.", name);
-    }
+        return load_builtinNamed(vm, name);
 
     Value *cached = ht_get(vm->modules, resolved);
     if (cached)

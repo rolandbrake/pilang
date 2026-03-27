@@ -291,7 +291,7 @@ Value pi_input(vm_t *vm, int argc, Value *argv)
  * @param argv Arguments: [file path], [file mode]
  * @return A file handler object.
  */
-Value pi_open(vm_t *vm, int argc, Value *argv)
+Value io_open(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[open] expects a single string argument as a file path.");
@@ -339,7 +339,7 @@ Value pi_open(vm_t *vm, int argc, Value *argv)
  * @return true if successful, otherwise raises an error.
  */
 
-Value pi_read(vm_t *vm, int argc, Value *argv)
+Value io_read(vm_t *vm, int argc, Value *argv)
 {
     if (argc != 1 || OBJ_TYPE(argv[0]) != OBJ_FILE)
         vm_error(vm, "[read] expects a single file handler as argument.");
@@ -395,7 +395,7 @@ Value pi_read(vm_t *vm, int argc, Value *argv)
  * @param argv Arguments: [file handler, string to write]
  * @return true if successful, otherwise raises an error.
  */
-Value pi_write(vm_t *vm, int argc, Value *argv)
+Value io_write(vm_t *vm, int argc, Value *argv)
 {
 
     if (argc != 2 || OBJ_TYPE(argv[0]) != OBJ_FILE)
@@ -427,7 +427,7 @@ Value pi_write(vm_t *vm, int argc, Value *argv)
  * @param argv Arguments: [file handler, byte position as number]
  * @return true if successful, otherwise raises an error.
  */
-Value pi_seek(vm_t *vm, int argc, Value *argv)
+Value io_seek(vm_t *vm, int argc, Value *argv)
 {
 
     if (argc != 2 || OBJ_TYPE(argv[0]) != OBJ_FILE)
@@ -456,7 +456,7 @@ Value pi_seek(vm_t *vm, int argc, Value *argv)
  * @param argv Argument: [file handler]
  * @return true if successful, otherwise raises an error.
  */
-Value pi_close(vm_t *vm, int argc, Value *argv)
+Value io_close(vm_t *vm, int argc, Value *argv)
 {
 
     if (argc != 1 || OBJ_TYPE(argv[0]) != OBJ_FILE)
@@ -479,10 +479,10 @@ static BuiltinConst io_consts[] = {
 };
 
 static BuiltinFunc io_functions[] = {
-    {"open", pi_open},
-    {"read", pi_read},
-    {"write", pi_write},
-    {"seek", pi_seek},
-    {"close", pi_close}};
+    {"open", io_open},
+    {"read", io_read},
+    {"write", io_write},
+    {"seek", io_seek},
+    {"close", io_close}};
 
-DEFINE_BUILTIN_MODULE(io_module, "io", io_functions, io_consts);
+DEFINE_BUILTIN_MODULE(module_io, "io", io_functions, io_consts);

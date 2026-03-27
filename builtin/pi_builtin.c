@@ -78,13 +78,23 @@ BuiltinFunc builtin_functions[] = {
 
 int BUILTIN_FUNC_COUNT = sizeof(builtin_functions) / sizeof(BuiltinFunc);
 
-
 BuiltinModule *builtin_modules[] = {
-    &sys_module,
-    &math_module,
-    &string_module,
-    &io_module,
-    &col_module,    
-    &mat_module};
+    &module_sys,
+    &module_math,
+    &module_stats,
+    &module_string,
+    &module_io,
+    &module_col,
+    &module_func,
+    &module_time,
+    &module_type,
+    // matrix built-in package
+    &module_matrix,
+    &module_matReduce,    // matrix.reduce
+    &module_matlinalgs,   // matrix.linalgs
+    &module_matStats,     // matrix.stats
+    &module_matTransform, // matrix.transform
+
+};
 
 int BUILTIN_MODULE_COUNT = sizeof(builtin_modules) / sizeof(BuiltinModule *);

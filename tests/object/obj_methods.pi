@@ -43,3 +43,5 @@ println(Object.type(User))
 println(Object.equals(User, Copy))
 println(Object.compare(User, Copy))
 println(Object.get(User, "age"))
+
+

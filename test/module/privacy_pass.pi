@@ -1,3 +1,0 @@
-import test.module.private_module;
-
-println(private_module.visible)

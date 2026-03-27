@@ -1,5 +1,6 @@
 #include <sys/time.h> // Include at top
 #include "pi_time.h"
+#include "pi_builtin.h"
 
 Value pi_sleep(vm_t *vm, int argc, Value *argv)
 {
@@ -25,3 +26,12 @@ Value _pi_time(vm_t *vm, int argc, Value *argv)
     double millis = (double)tv.tv_sec * 1000.0 + (double)tv.tv_usec / 1000.0;
     return NEW_NUM(millis);
 }
+
+// Module Registration
+
+static BuiltinFunc time_funcs[] = {
+    {"sleep", pi_sleep},
+    {"time", _pi_time},
+};
+
+DEFINE_BUILTIN_MODULE(module_time, "time", time_funcs, NULL);

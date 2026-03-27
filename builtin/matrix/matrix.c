@@ -1,20 +1,10 @@
-#include "pi_mat.h"
-#include "../list.h"
-#include "pi_builtin.h"
+#include "matrix.h"
+#include "../../list.h"
+#include "../pi_builtin.h"
 
-typedef struct
-{
-    bool dense;
-    int rows;
-    int cols;
-    union
-    {
-        PiMatrix *matrix;
-        PiList *list;
-    } as;
-} MatrixView;
 
-static bool matrix_view(Value value, MatrixView *view)
+
+bool matrix_view(Value value, MatrixView *view)
 {
     if (IS_MATRIX(value))
     {
@@ -42,7 +32,7 @@ static bool matrix_view(Value value, MatrixView *view)
     return false;
 }
 
-static double matrix_view_get(MatrixView *view, int row, int col)
+double get_matrixView(MatrixView *view, int row, int col)
 {
     if (view->dense)
         return matrix_get(view->as.matrix, row, col);
@@ -53,23 +43,23 @@ static double matrix_view_get(MatrixView *view, int row, int col)
     return as_number(*cell);
 }
 
-static PiMatrix *create_dense_matrix(int rows, int cols)
+PiMatrix *create_denseMatrix(int rows, int cols)
 {
     return (PiMatrix *)new_matrix(rows, cols);
 }
 
-static double matrix_view_sum(MatrixView *view)
+double matrix_viewSum(MatrixView *view)
 {
     double total = 0.0;
 
     for (int row = 0; row < view->rows; row++)
         for (int col = 0; col < view->cols; col++)
-            total += matrix_view_get(view, row, col);
+            total += get_matrixView(view, row, col);
 
     return total;
 }
 
-static Value matrix_size_value(int rows, int cols)
+Value matrix_sizeValue(int rows, int cols)
 {
     list_t *items = list_create(sizeof(Value));
     Value row_val = NEW_NUM(rows);
@@ -85,33 +75,33 @@ static Value matrix_size_value(int rows, int cols)
     return NEW_OBJ(result);
 }
 
-Value pi_size(vm_t *vm, int argc, Value *argv)
+Value mat_size(vm_t *vm, int argc, Value *argv)
 {
     MatrixView view;
     if (argc != 1 || !matrix_view(argv[0], &view))
         vm_error(vm, "Expected a matrix.");
 
-    return matrix_size_value(view.rows, view.cols);
+    return matrix_sizeValue(view.rows, view.cols);
 }
 
-Value pi_zeros(vm_t *vm, int argc, Value *argv)
+Value mat_zeros(vm_t *vm, int argc, Value *argv)
 {
     if (argc != 2 || !IS_NUM(argv[0]) || !IS_NUM(argv[1]))
         vm_error(vm, "Expected two numbers (rows, cols)");
 
     int rows = AS_NUM(argv[0]);
     int cols = AS_NUM(argv[1]);
-    return NEW_OBJ(create_dense_matrix(rows, cols));
+    return NEW_OBJ(create_denseMatrix(rows, cols));
 }
 
-Value pi_ones(vm_t *vm, int argc, Value *argv)
+Value mat_ones(vm_t *vm, int argc, Value *argv)
 {
     if (argc != 2 || !IS_NUM(argv[0]) || !IS_NUM(argv[1]))
         vm_error(vm, "Expected two numbers (rows, cols)");
 
     int rows = AS_NUM(argv[0]);
     int cols = AS_NUM(argv[1]);
-    PiMatrix *matrix = create_dense_matrix(rows, cols);
+    PiMatrix *matrix = create_denseMatrix(rows, cols);
 
     int size = rows * cols;
     for (int i = 0; i < size; i++)
@@ -120,14 +110,14 @@ Value pi_ones(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(matrix);
 }
 
-Value pi_eye(vm_t *vm, int argc, Value *argv)
+Value mat_eye(vm_t *vm, int argc, Value *argv)
 {
     if (argc != 2 || !IS_NUM(argv[0]) || !IS_NUM(argv[1]))
         vm_error(vm, "Expected two numbers (rows, cols)");
 
     int rows = AS_NUM(argv[0]);
     int cols = AS_NUM(argv[1]);
-    PiMatrix *matrix = create_dense_matrix(rows, cols);
+    PiMatrix *matrix = create_denseMatrix(rows, cols);
 
     int diagonal = rows < cols ? rows : cols;
     for (int i = 0; i < diagonal; i++)
@@ -136,14 +126,14 @@ Value pi_eye(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(matrix);
 }
 
-Value pi_matRand(vm_t *vm, int argc, Value *argv)
+Value mat_rand(vm_t *vm, int argc, Value *argv)
 {
     if (argc != 2 || !IS_NUM(argv[0]) || !IS_NUM(argv[1]))
         vm_error(vm, "Expected two numbers (rows, cols)");
 
     int rows = AS_NUM(argv[0]);
     int cols = AS_NUM(argv[1]);
-    PiMatrix *matrix = create_dense_matrix(rows, cols);
+    PiMatrix *matrix = create_denseMatrix(rows, cols);
 
     int size = rows * cols;
     for (int i = 0; i < size; i++)
@@ -152,7 +142,7 @@ Value pi_matRand(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(matrix);
 }
 
-Value pi_mult(vm_t *vm, int argc, Value *argv)
+Value mat_mult(vm_t *vm, int argc, Value *argv)
 {
     MatrixView A;
     MatrixView B;
@@ -163,60 +153,37 @@ Value pi_mult(vm_t *vm, int argc, Value *argv)
     if (A.cols != B.rows)
         vm_error(vm, "Matrix multiplication dimension mismatch.");
 
-    PiMatrix *result = create_dense_matrix(A.rows, B.cols);
+    PiMatrix *result = create_denseMatrix(A.rows, B.cols);
 
     for (int i = 0; i < A.rows; i++)
         for (int j = 0; j < B.cols; j++)
         {
             double sum = 0.0;
             for (int k = 0; k < A.cols; k++)
-                sum += matrix_view_get(&A, i, k) * matrix_view_get(&B, k, j);
+                sum += get_matrixView(&A, i, k) * get_matrixView(&B, k, j);
             matrix_set(result, i, j, sum);
         }
 
     return NEW_OBJ(result);
 }
 
-Value pi_transpose(vm_t *vm, int argc, Value *argv)
+Value mat_transpose(vm_t *vm, int argc, Value *argv)
 {
     MatrixView view;
     if (argc != 1 || !matrix_view(argv[0], &view))
         vm_error(vm, "transpose: Expected a matrix.");
 
-    PiMatrix *result = create_dense_matrix(view.cols, view.rows);
+    PiMatrix *result = create_denseMatrix(view.cols, view.rows);
 
     for (int row = 0; row < view.rows; row++)
         for (int col = 0; col < view.cols; col++)
-            matrix_set(result, col, row, matrix_view_get(&view, row, col));
+            matrix_set(result, col, row, get_matrixView(&view, row, col));
 
     return NEW_OBJ(result);
 }
 
-Value pi_matSum(vm_t *vm, int argc, Value *argv)
-{
-    MatrixView view;
-    if (argc != 1 || !matrix_view(argv[0], &view))
-        vm_error(vm, "sum: Expected a matrix.");
 
-    return NEW_NUM(matrix_view_sum(&view));
-}
-
-Value pi_matMean(vm_t *vm, int argc, Value *argv)
-{
-    MatrixView view;
-    int count;
-
-    if (argc != 1 || !matrix_view(argv[0], &view))
-        vm_error(vm, "mean: Expected a matrix.");
-
-    count = view.rows * view.cols;
-    if (count == 0)
-        return NEW_NUM(NAN);
-
-    return NEW_NUM(matrix_view_sum(&view) / count);
-}
-
-Value pi_dot(vm_t *vm, int argc, Value *argv)
+Value mat_dot(vm_t *vm, int argc, Value *argv)
 {
     if (argc != 2 || !IS_LIST(argv[0]) || !IS_LIST(argv[1]))
         vm_error(vm, "dot: Expected two numeric vectors (lists)");
@@ -241,7 +208,7 @@ Value pi_dot(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(sum);
 }
 
-Value pi_cross(vm_t *vm, int argc, Value *argv)
+Value mat_cross(vm_t *vm, int argc, Value *argv)
 {
     if (argc != 2 || !IS_LIST(argv[0]) || !IS_LIST(argv[1]))
         vm_error(vm, "cross: Expected two 3D numeric vectors");
@@ -282,7 +249,7 @@ Value pi_cross(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value pi_isMat(vm_t *vm, int argc, Value *argv)
+Value mat_isMat(vm_t *vm, int argc, Value *argv)
 {
     MatrixView view;
     if (argc != 1)
@@ -292,18 +259,16 @@ Value pi_isMat(vm_t *vm, int argc, Value *argv)
 }
 
 static BuiltinFunc mat_funcs[] = {
-    {"size", pi_size},
-    {"zeros", pi_zeros},
-    {"ones", pi_ones},
-    {"eye", pi_eye},
-    {"rand", pi_matRand},
-    {"mult", pi_mult},
-    {"transpose", pi_transpose},
-    {"sum", pi_matSum},
-    {"mean", pi_matMean},
-    {"dot", pi_dot},
-    {"cross", pi_cross},
-    {"is_mat", pi_isMat},
+    {"size", mat_size},
+    {"zeros", mat_zeros},
+    {"ones", mat_ones},
+    {"eye", mat_eye},
+    {"rand", mat_rand},
+    {"mult", mat_mult},
+    {"transpose", mat_transpose},
+    {"dot", mat_dot},
+    {"cross", mat_cross},
+    {"is_mat", mat_isMat},
 };
 
-DEFINE_BUILTIN_MODULE(mat_module, "matrix", mat_funcs, NULL);
+DEFINE_BUILTIN_MODULE(module_matrix, "matrix", mat_funcs, NULL);

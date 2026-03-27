@@ -393,4 +393,4 @@ BuiltinFunc string_funcs[] = {
     {"split", pi_split},
 };
 
-DEFINE_BUILTIN_MODULE(string_module, "string", string_funcs, NULL);
+DEFINE_BUILTIN_MODULE(module_string, "string", string_funcs, NULL);
