@@ -21,6 +21,7 @@ static void var_decl(parser_t *parser);
 static void func_decl(parser_t *parser);
 static void statement(parser_t *parser);
 static void expr_state(parser_t *parser);
+static void destructure_assign_stmt(parser_t *parser);
 static void block(parser_t *parser);
 static void if_stmt(parser_t *parser);
 static void while_stmt(parser_t *parser);
@@ -176,6 +177,38 @@ static bool match(parser_t *parser, tk_type type)
         return true;
     }
     return false;
+}
+
+static bool is_destructure_assign(parser_t *parser)
+{
+    if (!check(parser, TK_LBRACKET))
+        return false;
+
+    int current = parser->current;
+    next(parser);
+
+    if (check(parser, TK_RBRACKET))
+    {
+        parser->current = current;
+        return false;
+    }
+
+    while (true)
+    {
+        if (!check(parser, TK_ID))
+        {
+            parser->current = current;
+            return false;
+        }
+        next(parser);
+
+        if (!match(parser, TK_COMMA))
+            break;
+    }
+
+    bool is_assign = match(parser, TK_RBRACKET) && check(parser, TK_ASSIGN);
+    parser->current = current;
+    return is_assign;
 }
 
 /**
@@ -941,7 +974,9 @@ static void import_stmt(parser_t *parser)
  */
 static void statement(parser_t *parser)
 {
-    if (match(parser, TK_LBRACE))
+    if (is_destructure_assign(parser))
+        destructure_assign_stmt(parser);
+    else if (match(parser, TK_LBRACE))
     {
         // Look ahead to check if it's an object literal (key: value format)
         int current = parser->current; // Save current position
@@ -977,6 +1012,41 @@ static void statement(parser_t *parser)
         import_stmt(parser);
     else
         expr_state(parser);
+}
+
+static void destructure_assign_stmt(parser_t *parser)
+{
+    list_t *targets = list_create(sizeof(char *));
+
+    consume(parser, TK_LBRACKET, "Expect '[' to start destructuring assignment.");
+    do
+    {
+        token_t name_tok = consume(parser, TK_ID, "Expect identifier in destructuring assignment.");
+        char *name = token_value(name_tok);
+        list_add(targets, &name);
+    } while (match(parser, TK_COMMA));
+
+    consume(parser, TK_RBRACKET, "Expect ']' after destructuring targets.");
+    consume(parser, TK_ASSIGN, "Expect '=' after destructuring targets.");
+
+    expr(parser);
+
+    int size = list_size(targets);
+    for (int i = 0; i < size; i++)
+    {
+        char *name = *(char **)list_getAt(targets, i);
+        int index = store_const(parser->comp, NEW_NUM(i));
+
+        emit(parser->comp, OP_DUP_TOP);
+        emit_16u(parser->comp, OP_LOAD_CONST, name, index);
+        emit(parser->comp, OP_GET_ITEM);
+        store_variable(parser->comp, name);
+    }
+
+    emit(parser->comp, OP_POP);
+
+    if (need_delimiter(parser))
+        p_error("Expected delemiter between statements.", peek(parser).line, peek(parser).column);
 }
 
 /**
@@ -1296,6 +1366,7 @@ static void expr_state(parser_t *parser)
 {
 
     token_t token = peek(parser);
+    int start_line = token.line;
     bool prev_lookUp, is_assign = false;
     int current = parser->current;
 
@@ -1315,7 +1386,7 @@ static void expr_state(parser_t *parser)
     // Check if the expression is an assignment expression
     cond_expr(parser);
     token = peek(parser);
-    if (token.type >= TK_ASSIGN && token.type <= TK_MOD_ASSIGN)
+    if (token.line == start_line && token.type >= TK_ASSIGN && token.type <= TK_MOD_ASSIGN)
         is_assign = true;
     look_up(parser->comp, prev_lookUp);
 
@@ -2129,6 +2200,9 @@ static void member_expr(parser_t *parser)
     while (true)
     {
         token_t token = previous(parser);
+
+        if (token.line < peek(parser).line)
+            break;
 
         set_pos(parser, token);
         if (match(parser, TK_DOT))

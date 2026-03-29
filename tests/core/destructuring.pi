@@ -1,0 +1,14 @@
+fun pair(a, b) {
+    return [a, b]
+}
+
+[a, b] = [3, 2]
+assert(a == 3, "destructuring should assign the first element from a list literal")
+assert(b == 2, "destructuring should assign the second element from a list literal")
+
+[a, b] = pair(8, 5)
+assert(a == 8, "destructuring should assign the first element from a function result")
+assert(b == 5, "destructuring should assign the second element from a function result")
+
+println(a)
+println(b)

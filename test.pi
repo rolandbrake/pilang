@@ -1,25 +1,9 @@
-import io:mod;
+fun f(a, b) {
+    return [a, b]
+}
 
-print("io.print", "joins", "values");
-println();
+[a, b] = f(2, 3)
 
-println("io.println", "adds a newline");
-printf("io.printf -> user={0}, score={1}, escaped={{ok}}\n", "matebook", 99);
+c = a + b
 
-let formatted = mod.format("io.format -> matrix={0}, ready={1}", [1, 2, 3], true);
-println(formatted);
-
-log("io.log info");
-log("io.log warning", "w");
-log("io.log error", "e");
-
-println("Interactive io methods are shown below. Uncomment them to test stdin flows.");
-// let name = mod.input("io.input -> Enter your name: ");
-// mod.println("Hello,", name);
-//
-// mod.println("io.readline -> Type one line and press enter:");
-// let line = mod.readline();
-// mod.println("You typed:", line);
-//
-// let city = mod.prompt("io.prompt -> Enter your city: ");
-// mod.println("City:", city);
+println(c)
