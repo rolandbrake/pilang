@@ -644,6 +644,8 @@ static PiMap *create_objectProto(vm_t *vm)
     Value compare_fn = *new_native("compare", pi_compare);
 
     Value type_fn = *new_native("type", pi_type);
+    Value name_fn = *new_native("name", pi_name);
+    Value set_name_fn = *new_native("setName", pi_setName);
 
     Value get_fn = *new_native("get", pi_get);
     Value set_fn = *new_native("set", pi_set);
@@ -666,6 +668,8 @@ static PiMap *create_objectProto(vm_t *vm)
     ht_put(proto->table, "ident", &ident_fn);
     ht_put(proto->table, "compare", &compare_fn);
     ht_put(proto->table, "type", &type_fn);
+    ht_put(proto->table, "name", &name_fn);
+    ht_put(proto->table, "setName", &set_name_fn);
     ht_put(proto->table, "get", &get_fn);
     ht_put(proto->table, "set", &set_fn);
     ht_put(proto->table, "has", &has_fn);

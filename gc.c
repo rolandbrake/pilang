@@ -323,6 +323,8 @@ void free_object(Object *obj)
         PiMap *map = (PiMap *)obj;
         // Values stored in the table are plain Value cells. Any nested
         // objects are owned by the VM object list and must not be freed here.
+        if (map->intrinsic_name)
+            free(map->intrinsic_name);
         ht_free(map->table);
         break;
     }

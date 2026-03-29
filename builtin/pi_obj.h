@@ -15,6 +15,8 @@ Value pi_equals(vm_t *vm, int argc, Value *argv);
 Value pi_ident(vm_t *vm, int argc, Value *argv);
 Value pi_compare(vm_t *vm, int argc, Value *argv);
 Value pi_type(vm_t *vm, int argc, Value *argv);
+Value pi_name(vm_t *vm, int argc, Value *argv);
+Value pi_setName(vm_t *vm, int argc, Value *argv);
 Value pi_get(vm_t *vm, int argc, Value *argv);
 Value pi_set(vm_t *vm, int argc, Value *argv);
 Value pi_has(vm_t *vm, int argc, Value *argv);

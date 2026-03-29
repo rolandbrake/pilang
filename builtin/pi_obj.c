@@ -169,6 +169,8 @@ Value pi_clone(vm_t *vm, int argc, Value *argv)
 
     map->proto = original->proto;
     map->super_instance = original->super_instance;
+    if (original->intrinsic_name)
+        map->intrinsic_name = strdup(original->intrinsic_name);
 
     char **keys = ht_keys(original->table);
     int size = ht_length(original->table);
@@ -358,6 +360,58 @@ Value pi_type(vm_t *vm, int argc, Value *argv)
     }
 
     return NEW_OBJ(add_obj(vm, new_pistring(strdup(type_name(target)))));
+}
+
+Value pi_name(vm_t *vm, int argc, Value *argv)
+{
+    PiMap *map;
+
+    if (argc == 1 && IS_MAP(argv[0]))
+    {
+        map = AS_MAP(argv[0]);
+        const char *name = map->intrinsic_name ? map->intrinsic_name : "";
+        return NEW_OBJ(add_obj(vm, new_pistring(strdup(name))));
+    }
+    else if (argc == 2 && IS_MAP(argv[1]))
+    {
+        map = AS_MAP(argv[1]);
+        const char *name = map->intrinsic_name ? map->intrinsic_name : "";
+        return NEW_OBJ(add_obj(vm, new_pistring(strdup(name))));
+    }
+
+    vm_error(vm, "[name] expects obj.name() or Object.name(obj).");
+    return NEW_NIL();
+}
+
+Value pi_setName(vm_t *vm, int argc, Value *argv)
+{
+    PiMap *map;
+    const char *name;
+
+    if (argc == 2 && IS_MAP(argv[0]) && IS_STRING(argv[1]))
+    {
+        map = AS_MAP(argv[0]);
+        name = AS_CSTRING(argv[1]);
+    }
+    else if (argc == 3 && IS_MAP(argv[1]) && IS_STRING(argv[2]))
+    {
+        map = AS_MAP(argv[1]);
+        name = AS_CSTRING(argv[2]);
+    }
+    else
+    {
+        vm_error(vm, "[setName] expects obj.setName(value) or Object.setName(obj, value).");
+        return NEW_NIL();
+    }
+
+    if (map->intrinsic_name)
+        free(map->intrinsic_name);
+    map->intrinsic_name = strdup(name);
+
+    if (argc == 2)
+        return argv[0];
+
+    return argv[1];
 }
 
 Value pi_get(vm_t *vm, int argc, Value *argv)

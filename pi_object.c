@@ -176,6 +176,7 @@ Object *new_map(table_t *table, bool is_instance)
 
     // Store the given table in the object
     map->table = table;
+    map->intrinsic_name = NULL;
 
     // Initialize the iterator for the object
     map->it = ht_iterator(table);

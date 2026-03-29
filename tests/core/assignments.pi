@@ -13,3 +13,16 @@ let z = y > 2 ? 9 : 0
 assert(z == 9, "ternary expressions should select true branch")
 println(x)
 println(z)
+
+// Assignment expressions
+fun f(a, b) {
+    return [a, b]
+}
+
+[a, b] = f(2, 3)
+
+c = a + b
+
+
+assert(c == 5, "assignment expressions should work")
+
