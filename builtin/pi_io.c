@@ -61,6 +61,75 @@ static void append_char(char *buffer, int *offset, char c)
     buffer[*offset] = '\0';
 }
 
+static void format_text(vm_t *vm, int argc, Value *argv, char *out)
+{
+    if (argc < 1 || !IS_STRING(argv[0]))
+        vm_error(vm, "[format] expects at least a format string.");
+
+    const char *fmt = AS_CSTRING(argv[0]);
+    int offset = 0;
+    out[0] = '\0';
+
+    for (int i = 0; fmt[i] != '\0'; i++)
+    {
+        if (fmt[i] == '{')
+        {
+            if (fmt[i + 1] == '{')
+            {
+                append_char(out, &offset, '{');
+                i++;
+                continue;
+            }
+
+            int j = i + 1;
+            int index = 0;
+            bool has_digit = false;
+
+            while (isdigit((unsigned char)fmt[j]))
+            {
+                has_digit = true;
+                index = (index * 10) + (fmt[j] - '0');
+                j++;
+            }
+
+            if (fmt[j] == ':')
+            {
+                j++;
+                while (isdigit((unsigned char)fmt[j]))
+                    j++;
+            }
+
+            if (!has_digit || fmt[j] != '}')
+            {
+                append_char(out, &offset, fmt[i]);
+                continue;
+            }
+
+            if ((index + 1) >= argc)
+                vm_errorf(vm, "[format] placeholder {%d} is out of range.", index);
+
+            char *arg_text = as_string(argv[index + 1]);
+            if (!arg_text)
+                arg_text = strdup("<unknown>");
+
+            append(out, &offset, arg_text);
+            free(arg_text);
+
+            i = j;
+            continue;
+        }
+
+        if (fmt[i] == '}' && fmt[i + 1] == '}')
+        {
+            append_char(out, &offset, '}');
+            i++;
+            continue;
+        }
+
+        append_char(out, &offset, fmt[i]);
+    }
+}
+
 /**
  * @brief Prints a string on the screen.
  *
@@ -138,75 +207,11 @@ Value pi_println(vm_t *vm, int argc, Value *argv)
  */
 Value pi_printf(vm_t *vm, int argc, Value *argv)
 {
+    char out[BUFFER_SIZE];
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[printf] expects at least a format string.");
 
-    const char *fmt = AS_CSTRING(argv[0]);
-    char out[BUFFER_SIZE];
-    int offset = 0;
-    out[0] = '\0';
-
-    for (int i = 0; fmt[i] != '\0'; i++)
-    {
-        if (fmt[i] == '{')
-        {
-            // Escaped "{{" -> "{"
-            if (fmt[i + 1] == '{')
-            {
-                append_char(out, &offset, '{');
-                i++;
-                continue;
-            }
-
-            int j = i + 1;
-            int index = 0;
-            bool has_digit = false;
-
-            while (isdigit((unsigned char)fmt[j]))
-            {
-                has_digit = true;
-                index = (index * 10) + (fmt[j] - '0');
-                j++;
-            }
-
-            // Optional ":color" part is accepted but ignored in stdout mode.
-            if (fmt[j] == ':')
-            {
-                j++;
-                while (isdigit((unsigned char)fmt[j]))
-                    j++;
-            }
-
-            if (!has_digit || fmt[j] != '}')
-            {
-                // Invalid placeholder syntax, keep it literal.
-                append_char(out, &offset, fmt[i]);
-                continue;
-            }
-
-            if ((index + 1) >= argc)
-                vm_errorf(vm, "[printf] placeholder {%d} is out of range.", index);
-
-            char *arg_text = as_string(argv[index + 1]);
-            if (!arg_text)
-                arg_text = strdup("<unknown>");
-            append(out, &offset, arg_text);
-            free(arg_text);
-
-            i = j;
-            continue;
-        }
-
-        // Escaped "}}" -> "}"
-        if (fmt[i] == '}' && fmt[i + 1] == '}')
-        {
-            append_char(out, &offset, '}');
-            i++;
-            continue;
-        }
-
-        append_char(out, &offset, fmt[i]);
-    }
+    format_text(vm, argc, argv, out);
 
     fputs(out, stdout);
     fflush(stdout);
@@ -283,17 +288,53 @@ Value pi_input(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_pistring(strdup(buffer)));
 }
 
+Value io_format(vm_t *vm, int argc, Value *argv)
+{
+    char out[BUFFER_SIZE];
+    format_text(vm, argc, argv, out);
+    return NEW_OBJ(new_pistring(strdup(out)));
+}
 
+Value io_readline(vm_t *vm, int argc, Value *argv)
+{
+    if (argc != 0)
+        vm_error(vm, "[readline] expects no arguments.");
+
+    char buffer[BUFFER_SIZE];
+    if (!fgets(buffer, BUFFER_SIZE, stdin))
+        vm_error(vm, "[readline] Failed to read input.");
+
+    size_t len = strlen(buffer);
+    if (len > 0 && buffer[len - 1] == '\n')
+        buffer[len - 1] = '\0';
+
+    return NEW_OBJ(new_pistring(strdup(buffer)));
+}
+
+Value io_prompt(vm_t *vm, int argc, Value *argv)
+{
+    if (argc > 0)
+        pi_print(vm, argc, argv);
+
+    char buffer[BUFFER_SIZE];
+    if (!fgets(buffer, BUFFER_SIZE, stdin))
+        vm_error(vm, "[prompt] Failed to read input.");
+
+    size_t len = strlen(buffer);
+    if (len > 0 && buffer[len - 1] == '\n')
+        buffer[len - 1] = '\0';
+
+    return NEW_OBJ(new_pistring(strdup(buffer)));
+}
 
 static BuiltinConst io_consts[] = {
-    {"BUFFER_SIZE", NEW_NUM(BUFFER_SIZE)},
-    {"SEEK_SET", NEW_NUM(SEEK_SET)},
-    {"SEEK_CUR", NEW_NUM(SEEK_CUR)},
-    {"SEEK_END", NEW_NUM(SEEK_END)},
+
 };
 
 static BuiltinFunc io_functions[] = {
-
+    {"format", io_format},
+    {"readline", io_readline},
+    {"prompt", io_prompt},
 };
 
 DEFINE_BUILTIN_MODULE(module_io, "io", io_functions, io_consts);

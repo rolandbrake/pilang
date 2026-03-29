@@ -19,8 +19,11 @@ Value pi_log(vm_t *vm, int argc, Value *argv);
 
 Value pi_input(vm_t *vm, int argc, Value *argv);
 
+// display a formatted string similar to python string format
 Value io_format(vm_t *vm, int argc, Value *argv);
+// read a line from stdin
 Value io_readline(vm_t *vm, int argc, Value *argv);
+// display a message and wait for user input
 Value io_prompt(vm_t *vm, int argc, Value *argv);
 
 #endif // PI_IO_H
