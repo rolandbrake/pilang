@@ -1,0 +1,7 @@
+import type:tp;
+
+println(tp.exports);
+
+assert(tp.exports["type"] != nil, "type module should expose the legacy type() helper")
+assert(tp.exports["is_num"] != nil, "type module should expose is_num")
+assert(tp.exports["as_str"] != nil, "type module should expose as_str")

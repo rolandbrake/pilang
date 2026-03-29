@@ -19,4 +19,8 @@ Value pi_log(vm_t *vm, int argc, Value *argv);
 
 Value pi_input(vm_t *vm, int argc, Value *argv);
 
+Value io_format(vm_t *vm, int argc, Value *argv);
+Value io_readline(vm_t *vm, int argc, Value *argv);
+Value io_prompt(vm_t *vm, int argc, Value *argv);
+
 #endif // PI_IO_H
