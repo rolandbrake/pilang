@@ -32,6 +32,8 @@ typedef enum
     OP_PUSH_RANGE = 0x18,
     OP_BINARY = 0x19,
     OP_PUSH_LIST = 0x1a,
+    OP_LIST_APPEND = 0x1f,
+    OP_LIST_EXTEND = 0x20,
     OP_STORE_UPVALUE = 0x1b,
     OP_LOAD_UPVALUE = 0x1c,
     OP_NO = 0x1d,
@@ -53,8 +55,13 @@ typedef enum
     OP_IMPORT_ALL = 0x3f,
     OP_IMPORT_DEFAULT = 0x40,
     OP_LOAD_SUPER = 0x41,
-    OP_GET_ITEM2 = 0x42,
-    OP_SET_ITEM2 = 0x43
+    OP_MAT_GET = 0x42,
+    OP_MAT_SET = 0x43,
+    OP_LIST_FINALIZE = 0x44,
+    OP_CALL_SPREAD = 0x45,
+    OP_MAP_SET = 0x46,
+    OP_MAP_EXTEND = 0x47,
+    OP_MAP_FINALIZE = 0x48
 } OpCode;
 
 typedef struct
@@ -104,8 +111,9 @@ static inline int operand_count(uint8_t op)
     case OP_PUSH_FUNCTION:
     case OP_PUSH_UPVALUE:
     case OP_UNARY:
-    case OP_GET_ITEM2:
-    case OP_SET_ITEM2:
+    case OP_MAT_GET:
+    case OP_MAT_SET:
+    case OP_CALL_SPREAD:
         return 1;
 
     default:

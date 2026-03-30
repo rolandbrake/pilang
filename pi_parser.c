@@ -51,6 +51,179 @@ static void exp_expr(parser_t *parser);
 static void member_expr(parser_t *parser);
 static void unary_expr(parser_t *parser);
 static void primary(parser_t *parser);
+static void emit_spread_list_literal(parser_t *parser);
+static void emit_spread_map_literal(parser_t *parser);
+static bool call_has_spread_args(parser_t *parser);
+static bool list_has_spread_items(parser_t *parser);
+static bool map_has_spread_items(parser_t *parser);
+static bool check(parser_t *parser, tk_type type);
+static bool match(parser_t *parser, tk_type type);
+static token_t consume(parser_t *parser, tk_type type, const char *message);
+
+static void emit_spread_list_literal(parser_t *parser)
+{
+    emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
+
+    if (match(parser, TK_RBRACKET))
+    {
+        emit(parser->comp, OP_LIST_FINALIZE);
+        return;
+    }
+
+    do
+    {
+        if (check(parser, TK_RBRACKET))
+            break;
+
+        bool is_spread = match(parser, TK_ELLIPSIS);
+        cond_expr(parser);
+        emit(parser->comp, is_spread ? OP_LIST_EXTEND : OP_LIST_APPEND);
+    } while (match(parser, TK_COMMA));
+
+    consume(parser, TK_RBRACKET, "Expect ']' at the end of list literal.");
+    emit(parser->comp, OP_LIST_FINALIZE);
+}
+
+static bool call_has_spread_args(parser_t *parser)
+{
+    int index = parser->current;
+    int paren_depth = 1;
+    int bracket_depth = 0;
+    int brace_depth = 0;
+
+    while (parser->tokens[index].type != TK_EOF)
+    {
+        token_t token = parser->tokens[index++];
+
+        switch (token.type)
+        {
+        case TK_LPAREN:
+            paren_depth++;
+            break;
+        case TK_RPAREN:
+            paren_depth--;
+            if (paren_depth == 0)
+                return false;
+            break;
+        case TK_LBRACKET:
+            bracket_depth++;
+            break;
+        case TK_RBRACKET:
+            if (bracket_depth > 0)
+                bracket_depth--;
+            break;
+        case TK_LBRACE:
+            brace_depth++;
+            break;
+        case TK_RBRACE:
+            if (brace_depth > 0)
+                brace_depth--;
+            break;
+        case TK_ELLIPSIS:
+            if (paren_depth == 1 && bracket_depth == 0 && brace_depth == 0)
+                return true;
+            break;
+        default:
+            break;
+        }
+    }
+
+    return false;
+}
+
+static bool list_has_spread_items(parser_t *parser)
+{
+    int index = parser->current;
+    int paren_depth = 0;
+    int bracket_depth = 1;
+    int brace_depth = 0;
+
+    while (parser->tokens[index].type != TK_EOF)
+    {
+        token_t token = parser->tokens[index++];
+
+        switch (token.type)
+        {
+        case TK_LPAREN:
+            paren_depth++;
+            break;
+        case TK_RPAREN:
+            if (paren_depth > 0)
+                paren_depth--;
+            break;
+        case TK_LBRACKET:
+            bracket_depth++;
+            break;
+        case TK_RBRACKET:
+            bracket_depth--;
+            if (bracket_depth == 0)
+                return false;
+            break;
+        case TK_LBRACE:
+            brace_depth++;
+            break;
+        case TK_RBRACE:
+            if (brace_depth > 0)
+                brace_depth--;
+            break;
+        case TK_ELLIPSIS:
+            if (paren_depth == 0 && bracket_depth == 1 && brace_depth == 0)
+                return true;
+            break;
+        default:
+            break;
+        }
+    }
+
+    return false;
+}
+
+static bool map_has_spread_items(parser_t *parser)
+{
+    int index = parser->current;
+    int paren_depth = 0;
+    int bracket_depth = 0;
+    int brace_depth = 1;
+
+    while (parser->tokens[index].type != TK_EOF)
+    {
+        token_t token = parser->tokens[index++];
+
+        switch (token.type)
+        {
+        case TK_LPAREN:
+            paren_depth++;
+            break;
+        case TK_RPAREN:
+            if (paren_depth > 0)
+                paren_depth--;
+            break;
+        case TK_LBRACKET:
+            bracket_depth++;
+            break;
+        case TK_RBRACKET:
+            if (bracket_depth > 0)
+                bracket_depth--;
+            break;
+        case TK_LBRACE:
+            brace_depth++;
+            break;
+        case TK_RBRACE:
+            brace_depth--;
+            if (brace_depth == 0)
+                return false;
+            break;
+        case TK_ELLIPSIS:
+            if (paren_depth == 0 && bracket_depth == 0 && brace_depth == 1)
+                return true;
+            break;
+        default:
+            break;
+        }
+    }
+
+    return false;
+}
 
 /**
  * Peeks at the current token from the tokens array.
@@ -693,6 +866,101 @@ static list_t *param_list(parser_t *parser)
     }
 
     return params;
+}
+
+static void emit_spread_map_literal(parser_t *parser)
+{
+    emit_16u(parser->comp, OP_PUSH_MAP, "", 0);
+
+    if (match(parser, TK_RBRACE))
+    {
+        emit(parser->comp, OP_MAP_FINALIZE);
+        return;
+    }
+
+    do
+    {
+        if (check(parser, TK_RBRACE))
+            break;
+
+        if (match(parser, TK_ELLIPSIS))
+        {
+            cond_expr(parser);
+            emit(parser->comp, OP_MAP_EXTEND);
+            continue;
+        }
+
+        char *key;
+        int index = 0;
+
+        if (match_n(parser, 5, TK_STR, TK_ID, TK_NUM, TK_FALSE, TK_TRUE))
+        {
+            key = tk_string(previous(parser));
+            index = store_const(parser->comp, NEW_OBJ(new_pistring(key)));
+        }
+        else
+            p_error("Unexpected key expression.", peek(parser).line, peek(parser).column);
+
+        if (match(parser, TK_LPAREN))
+        {
+            list_t *params = param_list(parser);
+            int size = list_size(params);
+            consume(parser, TK_RPAREN, "Expect ')' before function body.");
+            consume(parser, TK_LBRACE, "Expect '{' before function body.");
+
+            push_function(parser->comp, key);
+            parser->comp->current->param_names = params;
+
+            if (is_object(parser->comp))
+                add_local(parser->comp, "this");
+
+            for (int i = 0; i < size; i++)
+                add_local(parser->comp, string_get(params, i));
+            add_local(parser->comp, "args");
+            add_local(parser->comp, "kw_args");
+
+            if (match(parser, TK_RBRACE))
+            {
+                if (is_constructor(parser->comp))
+                    emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
+                else
+                    emit(parser->comp, OP_PUSH_NIL);
+                emit(parser->comp, OP_RETURN);
+            }
+            else
+            {
+                while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
+                    declaration(parser);
+
+                if (!parser->is_return)
+                {
+                    if (is_constructor(parser->comp))
+                        emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
+                    else
+                        emit(parser->comp, OP_PUSH_NIL);
+                    emit(parser->comp, OP_RETURN);
+
+                    parser->is_return = false;
+                }
+            }
+
+            pop_function(parser->comp, size + (is_object(parser->comp) ? 1 : 0));
+            consume(parser, TK_RBRACE, "Expect '}' after function body.");
+        }
+        else
+        {
+            if (strcmp(key, "constructor") == 0)
+                p_error("Constructor is a reserved keyword.", peek(parser).line, peek(parser).column);
+            consume(parser, TK_COLON, "Expect ':' after object key expression.");
+            cond_expr(parser);
+        }
+
+        emit_16u(parser->comp, OP_LOAD_CONST, key, index);
+        emit(parser->comp, OP_MAP_SET);
+    } while (match(parser, TK_COMMA) && !check(parser, TK_RBRACE));
+
+    consume(parser, TK_RBRACE, "Expect '}' at the end of map literal.");
+    emit(parser->comp, OP_MAP_FINALIZE);
 }
 /**
  * func_decl -> "fun" IDENT "(" param_list ")" block
@@ -2239,7 +2507,7 @@ static void member_expr(parser_t *parser)
                 if ((row_is_slice || col_is_slice) && assign)
                     p_error("Cannot assign to matrix slice", peek(parser).line, peek(parser).column);
 
-                emit_8u(parser->comp, assign ? OP_SET_ITEM2 : OP_GET_ITEM2, "[]", mode);
+                emit_8u(parser->comp, assign ? OP_MAT_SET : OP_MAT_GET, "[]", mode);
             }
             else
             {
@@ -2265,12 +2533,28 @@ static void member_expr(parser_t *parser)
             int args = 0;
             int named = 0;
             bool saw_named = false;
+            bool saw_spread = call_has_spread_args(parser);
 
             if (!check(parser, TK_RPAREN))
             {
+                if (saw_spread)
+                    emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
+
                 do
                 {
-                    if (check(parser, TK_ID) && peek_next(parser).type == TK_ASSIGN)
+                    if (match(parser, TK_ELLIPSIS))
+                    {
+                        if (saw_named)
+                        {
+                            token_t err = previous(parser);
+                            p_errorf(err.line, err.column,
+                                     "Positional arguments must come before named arguments.");
+                        }
+
+                        expr(parser);
+                        emit(parser->comp, OP_LIST_EXTEND);
+                    }
+                    else if (check(parser, TK_ID) && peek_next(parser).type == TK_ASSIGN)
                     {
                         token_t key_tok = consume(parser, TK_ID, "Expect identifier for named argument.");
                         token_t eq_tok = consume(parser, TK_ASSIGN, "Expect '=' after named argument.");
@@ -2299,19 +2583,31 @@ static void member_expr(parser_t *parser)
                                      "Positional arguments must come before named arguments.");
                         }
                         expr(parser);
-                        args++;
+                        if (saw_spread)
+                            emit(parser->comp, OP_LIST_APPEND);
+                        else
+                            args++;
                     }
                 } while (match(parser, TK_COMMA));
             }
             token_t _token = consume(parser, TK_RPAREN, "Expect ')' after function call");
             set_pos(parser, _token);
             char *name = strcmp(token_value(token), ")") == 0 ? "<FUN>" : token_value(token);
+            if (saw_spread)
+                emit(parser->comp, OP_LIST_FINALIZE);
             if (named > 0)
                 emit_16u(parser->comp, OP_PUSH_MAP, "", named);
-            uint8_t operand = (uint8_t)args;
-            if (named > 0)
-                operand |= 0x80;
-            emit_8u(parser->comp, OP_CALL_FUNCTION, name, operand);
+            if (saw_spread)
+            {
+                emit_8u(parser->comp, OP_CALL_SPREAD, name, named > 0 ? 1 : 0);
+            }
+            else
+            {
+                uint8_t operand = (uint8_t)args;
+                if (named > 0)
+                    operand |= 0x80;
+                emit_8u(parser->comp, OP_CALL_FUNCTION, name, operand);
+            }
         }
         else
             break; // Exit the loop if no member expression is found
@@ -2586,6 +2882,8 @@ static void primary(parser_t *parser)
         set_pos(parser, previous(parser));
         if (match(parser, TK_RBRACKET))
             emit_16u(parser->comp, OP_PUSH_LIST, "", 0); // Emit empty list
+        else if (list_has_spread_items(parser))
+            emit_spread_list_literal(parser);
         else
         {
             do
@@ -2638,6 +2936,11 @@ static void primary(parser_t *parser)
         {
             pop_object(parser->comp);
             emit_16u(parser->comp, OP_PUSH_MAP, "", 0); // Emit empty map
+        }
+        else if (map_has_spread_items(parser))
+        {
+            emit_spread_map_literal(parser);
+            pop_object(parser->comp);
         }
         else
         {

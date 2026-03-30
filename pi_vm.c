@@ -20,6 +20,7 @@
 #define GC_MAX_THRESHOLD (1024 * 1024 * 8)
 
 static PiMap *create_objectProto(vm_t *vm);
+static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv);
 
 /**
  * Initializes the virtual machine by allocating memory and
@@ -401,6 +402,163 @@ static inline Value peek_stack(vm_t *vm)
 static bool stack_isEmpty(vm_t *vm)
 {
     return vm->sp == vm->bp;
+}
+
+static void refresh_list_meta(PiList *plist)
+{
+    int size = LIST_SIZE(plist->items);
+
+    if (size == 0)
+    {
+        plist->is_numeric = true;
+        plist->is_matrix = false;
+        plist->rows = 0;
+        plist->cols = 0;
+        return;
+    }
+
+    bool is_numeric = true;
+    for (int i = 0; i < size; i++)
+    {
+        Value value = *(Value *)list_getAt(plist->items, i);
+        if (!IS_NUM(value))
+        {
+            is_numeric = false;
+            break;
+        }
+    }
+
+    if (is_numeric)
+    {
+        plist->is_numeric = true;
+        plist->is_matrix = false;
+        plist->rows = 1;
+        plist->cols = size;
+        return;
+    }
+
+    bool is_matrix = true;
+    int cols = -1;
+    for (int i = 0; i < size; i++)
+    {
+        Value value = *(Value *)list_getAt(plist->items, i);
+        if (!IS_LIST(value))
+        {
+            is_matrix = false;
+            break;
+        }
+
+        PiList *row = AS_LIST(value);
+        if (!row->is_numeric)
+        {
+            is_matrix = false;
+            break;
+        }
+
+        if (cols == -1)
+            cols = row->items->size;
+        else if (row->items->size != cols)
+        {
+            is_matrix = false;
+            break;
+        }
+    }
+
+    plist->is_numeric = false;
+    plist->is_matrix = is_matrix;
+    plist->rows = is_matrix ? size : -1;
+    plist->cols = is_matrix ? cols : -1;
+}
+
+static void list_extend_from_iterable(vm_t *vm, PiList *plist, Value iterable)
+{
+    if (!IS_OBJ(iterable) || !is_iterable(AS_OBJ(iterable)))
+        vm_error(vm, "Spread expects an iterable value.");
+
+    Object *iter = AS_OBJ(iterable);
+    iter_reset(iter);
+
+    while (iter_hasNext(iter))
+    {
+        Value value = iter_next(iter);
+        if (IS_OBJ(value))
+            add_obj(vm, AS_OBJ(value));
+        list_add(plist->items, &value);
+    }
+}
+
+static void finalize_map_literal(vm_t *vm, PiMap *map)
+{
+    bool has_methods = false;
+    char **keys = ht_keys(map->table);
+    int size = ht_length(map->table);
+
+    for (int i = 0; i < size; i++)
+    {
+        Value *item = ht_get(map->table, keys[i]);
+        if (item && IS_FUN(*item))
+        {
+            AS_FUN(*item)->is_method = true;
+            AS_FUN(*item)->owner = (Object *)map;
+            has_methods = true;
+        }
+    }
+
+    if (map->proto == NULL && has_methods)
+        map->proto = vm->object_proto;
+}
+
+static void map_extend_from_map(vm_t *vm, PiMap *target, Value source)
+{
+    if (!IS_MAP(source))
+        vm_error(vm, "Map spread expects a map value.");
+
+    PiMap *map = AS_MAP(source);
+    char **keys = ht_keys(map->table);
+    int size = ht_length(map->table);
+
+    for (int i = 0; i < size; i++)
+    {
+        Value *item = ht_get(map->table, keys[i]);
+        if (item == NULL)
+            continue;
+
+        if (IS_OBJ(*item))
+            add_obj(vm, AS_OBJ(*item));
+
+        ht_put(target->table, keys[i], item);
+    }
+}
+
+static Value call_with_arg_list(vm_t *vm, Value callee, PiList *arg_list, Value kw_args, bool has_named)
+{
+    int num_args = arg_list->items->size;
+    Value args[num_args];
+
+    for (int i = 0; i < num_args; i++)
+        args[i] = *(Value *)list_getAt(arg_list->items, i);
+
+    if (IS_FUN(callee))
+    {
+        vm->function = AS_OBJ(callee);
+        Value result = call_func(vm, AS_FUN(callee), num_args, args, kw_args);
+        if (IS_OBJ(result))
+            add_obj(vm, AS_OBJ(result));
+        return result;
+    }
+
+    if (IS_MAP(callee))
+    {
+        PiMap *map = AS_MAP(callee);
+        if (map->is_instance)
+            vm_error(vm, "Attempt to call an Object instance.");
+        if (has_named)
+            vm_error(vm, "Named arguments are not supported for map constructors.");
+        return NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args)));
+    }
+
+    vm_error(vm, "Attempt to call a non-function object.");
+    return NEW_NIL();
 }
 
 /**
@@ -1952,6 +2110,28 @@ void run(vm_t *vm)
             break;
         }
 
+        case OP_CALL_SPREAD:
+        {
+            bool has_named = code[pc++] != 0;
+            Value kw_args = NEW_NIL();
+
+            if (has_named)
+            {
+                kw_args = pop_stack(vm);
+                if (!IS_OBJ(kw_args) || OBJ_TYPE(kw_args) != OBJ_MAP)
+                    vm_error(vm, "Named arguments must be a map.");
+            }
+
+            Value arg_list_value = pop_stack(vm);
+            if (!IS_LIST(arg_list_value))
+                vm_error(vm, "Spread call arguments must be collected in a list.");
+
+            Value callee = pop_stack(vm);
+            vm->pc = pc;
+            push_stack(vm, call_with_arg_list(vm, callee, AS_LIST(arg_list_value), kw_args, has_named));
+            break;
+        }
+
         case OP_PUSH_ITER:
         {
             // Pop the iterable object from the stack
@@ -2135,6 +2315,37 @@ void run(vm_t *vm)
             break;
         }
 
+        case OP_LIST_APPEND:
+        {
+            Value value = pop_stack(vm);
+            if (!IS_LIST(peek_stack(vm)))
+                vm_error(vm, "List append expects a list target.");
+
+            PiList *plist = AS_LIST(peek_stack(vm));
+            list_add(plist->items, &value);
+            break;
+        }
+
+        case OP_LIST_EXTEND:
+        {
+            Value iterable = pop_stack(vm);
+            if (!IS_LIST(peek_stack(vm)))
+                vm_error(vm, "List extend expects a list target.");
+
+            PiList *plist = AS_LIST(peek_stack(vm));
+            list_extend_from_iterable(vm, plist, iterable);
+            break;
+        }
+
+        case OP_LIST_FINALIZE:
+        {
+            if (!IS_LIST(peek_stack(vm)))
+                vm_error(vm, "List finalize expects a list target.");
+
+            refresh_list_meta(AS_LIST(peek_stack(vm)));
+            break;
+        }
+
         case OP_PUSH_MAP:
         {
 
@@ -2171,16 +2382,42 @@ void run(vm_t *vm)
             if (proto == NULL && has_methods)
                 proto = vm->object_proto;
             ((PiMap *)map)->proto = proto;
-            char **keys = ht_keys(table);
-            int size = ht_length(table);
-            for (int i = 0; i < size; i++)
-            {
-                Value *item = ht_get(table, keys[i]);
-                if (item && IS_FUN(*item))
-                    AS_FUN(*item)->owner = map;
-            }
+            finalize_map_literal(vm, (PiMap *)map);
             push_stack(vm, NEW_OBJ(map));
 
+            break;
+        }
+
+        case OP_MAP_SET:
+        {
+            Value key = pop_stack(vm);
+            Value value = pop_stack(vm);
+            if (!IS_MAP(peek_stack(vm)))
+                vm_error(vm, "Map set expects a map target.");
+            if (!IS_STRING(key))
+                vm_error(vm, "Map literal keys must be strings.");
+
+            PiMap *map = AS_MAP(peek_stack(vm));
+            ht_put(map->table, AS_CSTRING(key), &value);
+            break;
+        }
+
+        case OP_MAP_EXTEND:
+        {
+            Value source = pop_stack(vm);
+            if (!IS_MAP(peek_stack(vm)))
+                vm_error(vm, "Map extend expects a map target.");
+
+            map_extend_from_map(vm, AS_MAP(peek_stack(vm)), source);
+            break;
+        }
+
+        case OP_MAP_FINALIZE:
+        {
+            if (!IS_MAP(peek_stack(vm)))
+                vm_error(vm, "Map finalize expects a map target.");
+
+            finalize_map_literal(vm, AS_MAP(peek_stack(vm)));
             break;
         }
 
@@ -2434,7 +2671,7 @@ void run(vm_t *vm)
             break;
         }
 
-        case OP_GET_ITEM2:
+        case OP_MAT_GET:
         {
             uint8_t mode = code[pc++];
             bool row_is_slice = (mode & 0x1) != 0;
@@ -2545,7 +2782,7 @@ void run(vm_t *vm)
             break;
         }
 
-        case OP_SET_ITEM2:
+        case OP_MAT_SET:
         {
             uint8_t mode = code[pc++];
             bool row_is_slice = (mode & 0x1) != 0;
