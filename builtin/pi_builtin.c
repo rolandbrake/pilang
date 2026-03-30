@@ -80,6 +80,7 @@ int BUILTIN_FUNC_COUNT = sizeof(builtin_functions) / sizeof(BuiltinFunc);
 
 BuiltinModule *builtin_modules[] = {
     &module_sys,
+    &module_os,
     &module_math,
     &module_stats,
     &module_string,

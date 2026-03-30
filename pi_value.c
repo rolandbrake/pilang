@@ -869,7 +869,10 @@ char *type_name(Value val)
         case OBJ_MATRIX:
             return "matrix";
         case OBJ_MAP:
+        {
+            Object *o = AS_OBJ(val);
             return "map";
+        }
         case OBJ_MODULE:
             return "module";
         case OBJ_RANGE:

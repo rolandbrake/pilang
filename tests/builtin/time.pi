@@ -22,7 +22,6 @@ fun interval_cb() {
 }
 
 timer = t.timer(1, once_cb)
-
 interval = t.interval(1, interval_cb)
 
 assert(formatted == "2025/01/15 09:30:45", "time.format should format constructed times")

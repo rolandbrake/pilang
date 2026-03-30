@@ -1,0 +1,16 @@
+import os:o;
+
+run_res = o.run("echo hello")
+spawned = o.spawn("echo spawned")
+cmd_path = o.which("cmd")
+
+assert(run_res["code"] == 0, "os.run should return a zero exit code for a successful command")
+assert(len(run_res["stdout"]) > 0, "os.run should capture stdout")
+assert(spawned > 0, "os.spawn should return a process id")
+assert(cmd_path != nil, "os.which should resolve executables on PATH")
+assert(len(o.hostname()) > 0, "os.hostname should return a non-empty string")
+assert(o.cpus() >= 1, "os.cpus should report at least one CPU")
+assert(o.ram() > 0, "os.ram should report a positive amount of memory")
+assert(len(o.user()) > 0, "os.user should return a non-empty username")
+
+println("os tests ok")
