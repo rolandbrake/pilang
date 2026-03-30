@@ -404,7 +404,14 @@ static bool stack_isEmpty(vm_t *vm)
     return vm->sp == vm->bp;
 }
 
-static void refresh_list_meta(PiList *plist)
+/**
+ * Refreshes the metadata of a list.
+ *
+ * This function iterates over the elements of a list and determines if it is a numeric list, a matrix list, or neither. It then updates the metadata of the list accordingly.
+ *
+ * @param plist The list to refresh the metadata of.
+ */
+static void refresh_listMeta(PiList *plist)
 {
     int size = LIST_SIZE(plist->items);
 
@@ -470,14 +477,29 @@ static void refresh_list_meta(PiList *plist)
     plist->cols = is_matrix ? cols : -1;
 }
 
-static void list_extend_from_iterable(vm_t *vm, PiList *plist, Value iterable)
+/**
+ * Extends a list with elements from an iterable object.
+ *
+ * This function takes a list and an iterable object as arguments. It iterates over
+ * the elements of the iterable object and adds them to the end of the list.
+ *
+ * @param vm The virtual machine instance.
+ * @param plist The list to extend with elements from the iterable object.
+ * @param iterable The iterable object to extend the list with.
+ */
+static void list_extendFromIterable(vm_t *vm, PiList *plist, Value iterable)
 {
+    // Check if the value is an iterable object
     if (!IS_OBJ(iterable) || !is_iterable(AS_OBJ(iterable)))
         vm_error(vm, "Spread expects an iterable value.");
 
+    // Get the iterable object
     Object *iter = AS_OBJ(iterable);
+
+    // Reset the iterator
     iter_reset(iter);
 
+    // Iterate over the elements of the iterable object and add them to the list
     while (iter_hasNext(iter))
     {
         Value value = iter_next(iter);
@@ -487,15 +509,29 @@ static void list_extend_from_iterable(vm_t *vm, PiList *plist, Value iterable)
     }
 }
 
-static void finalize_map_literal(vm_t *vm, PiMap *map)
+/**
+ * Finalizes a map literal by adding methods to its prototype chain.
+ *
+ * This function takes a map literal and adds methods to its prototype chain. It
+ * iterates over the key-value pairs of the map literal and checks if the value is
+ * a function. If the value is a function, it sets the `is_method` property of the
+ * function to true and sets the `owner` property of the function to the map literal.
+ *
+ * @param vm The virtual machine instance.
+ * @param map The map literal to finalize.
+ */
+static void finalize_mapLiteral(vm_t *vm, PiMap *map)
 {
     bool has_methods = false;
     char **keys = ht_keys(map->table);
     int size = ht_length(map->table);
 
+    // Iterate over the key-value pairs of the map literal
     for (int i = 0; i < size; i++)
     {
         Value *item = ht_get(map->table, keys[i]);
+
+        // If the value is a function, set its `is_method` property to true and its `owner` property to the map literal
         if (item && IS_FUN(*item))
         {
             AS_FUN(*item)->is_method = true;
@@ -504,11 +540,24 @@ static void finalize_map_literal(vm_t *vm, PiMap *map)
         }
     }
 
+    // If the map literal has methods, add it to the prototype chain
     if (map->proto == NULL && has_methods)
         map->proto = vm->object_proto;
 }
 
-static void map_extend_from_map(vm_t *vm, PiMap *target, Value source)
+/**
+ * Extends a map from another map.
+ *
+ * This function extends a map by copying key-value pairs from another map.
+ * The source map is iterated over and each key-value pair is added to the target map.
+ * If the source map contains any objects, they are added to the virtual machine's object
+ * graph.
+ *
+ * @param vm The virtual machine instance.
+ * @param target The map to extend.
+ * @param source The map to copy key-value pairs from.
+ */
+static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
 {
     if (!IS_MAP(source))
         vm_error(vm, "Map spread expects a map value.");
@@ -530,7 +579,21 @@ static void map_extend_from_map(vm_t *vm, PiMap *target, Value source)
     }
 }
 
-static Value call_with_arg_list(vm_t *vm, Value callee, PiList *arg_list, Value kw_args, bool has_named)
+/**
+ * Calls a function with a list of arguments.
+ *
+ * This function calls a function with a list of arguments. If the function is a user-defined
+ * function, it is called with the given arguments. If the function is a native function, it
+ * is called with the given arguments.
+ *
+ * @param vm The virtual machine instance.
+ * @param callee The function to call.
+ * @param arg_list The list of arguments to pass to the function.
+ * @param kw_args The named arguments to pass to the function.
+ * @param has_named Whether the argument list contains named arguments.
+ * @return The return value of the function.
+ */
+static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw_args, bool has_named)
 {
     int num_args = arg_list->items->size;
     Value args[num_args];
@@ -538,6 +601,7 @@ static Value call_with_arg_list(vm_t *vm, Value callee, PiList *arg_list, Value 
     for (int i = 0; i < num_args; i++)
         args[i] = *(Value *)list_getAt(arg_list->items, i);
 
+    // If the function is a user-defined function, call it
     if (IS_FUN(callee))
     {
         vm->function = AS_OBJ(callee);
@@ -547,6 +611,7 @@ static Value call_with_arg_list(vm_t *vm, Value callee, PiList *arg_list, Value 
         return result;
     }
 
+    // If the function is a map constructor, construct an instance
     if (IS_MAP(callee))
     {
         PiMap *map = AS_MAP(callee);
@@ -670,29 +735,45 @@ static bool fun_scanSlot(ObjCode *body, uint8_t args_slot)
     return false;
 }
 
+/**
+ * Captures an upvalue from the given index in the stack.
+ *
+ * This function iterates through the linked list of open upvalues and finds
+ * the upvalue with the given index. If the upvalue does not exist, it
+ * creates a new upvalue and appends it to the linked list.
+ *
+ * @param vm The virtual machine instance.
+ * @param index The index of the upvalue to capture.
+ * @return A pointer to the captured upvalue.
+ */
 static UpValue *capture_upvalue(vm_t *vm, int index)
 {
+    // Iterate through the linked list of open upvalues until the upvalue with the
+    // given index is found.
     UpValue *prev = NULL;
     UpValue *upvalue = vm->openUpvalues;
-
     while (upvalue != NULL && upvalue->index != index)
     {
         prev = upvalue;
         upvalue = upvalue->next;
     }
 
+    // If the upvalue with the given index is found, return it.
     if (upvalue != NULL && upvalue->index == index)
         return upvalue;
 
+    // Create a new upvalue if it does not exist.
     UpValue *_upvalue = (UpValue *)malloc(sizeof(UpValue));
     _upvalue->value = vm->stack[index]; // Reference stack value
     _upvalue->index = index;
 
+    // Append the new upvalue to the linked list of open upvalues.
     _upvalue->next = upvalue;
     if (prev == NULL)
         vm->openUpvalues = _upvalue;
     else
         prev->next = _upvalue;
+
     return _upvalue;
 }
 
@@ -840,6 +921,20 @@ static PiMap *create_objectProto(vm_t *vm)
     return proto;
 }
 
+/**
+ * Calls a method on an object without any arguments.
+ *
+ * This function attempts to find the named method on the given object, and if
+ * it exists, calls it with no arguments. If the object does not contain the
+ * named method, or if the method does not return a primitive value, this
+ * function returns the original object.
+ *
+ * @param vm The virtual machine instance.
+ * @param receiver The object to call the method on.
+ * @param name The name of the method to call.
+ * @return The result of calling the method, or the original object if it cannot
+ *         be called.
+ */
 static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
 {
     if (!IS_MAP(receiver))
@@ -945,19 +1040,50 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv)
     return instance;
 }
 
+/**
+ * Checks if two matrices can be broadcasted together.
+ *
+ * The broadcasting rules are as follows: each dimension must be either the same
+ * or one of the matrices must have size 1 in that dimension.
+ *
+ * @param left The first matrix to check.
+ * @param right The second matrix to check.
+ * @param rows Where to store the final number of rows.
+ * @param cols Where to store the final number of columns.
+ * @return true if the matrices can be broadcasted, false otherwise.
+ */
 static bool matrix_broadcastShape(PiMatrix *left, PiMatrix *right, int *rows, int *cols)
 {
+    // Check if the rows and columns can be broadcasted together
     bool rows_ok = left->rows == right->rows || left->rows == 1 || right->rows == 1;
     bool cols_ok = left->cols == right->cols || left->cols == 1 || right->cols == 1;
 
     if (!rows_ok || !cols_ok)
         return false;
 
+    // Calculate the final number of rows and columns
     *rows = left->rows > right->rows ? left->rows : right->rows;
     *cols = left->cols > right->cols ? left->cols : right->cols;
+
     return true;
 }
 
+/**
+ * Applies a binary operation to two doubles.
+ *
+ * This function applies a binary operation to two doubles and returns the result.
+ * The operation is specified by the `op` parameter, which can take on the following values:
+ *   - 0: add the two doubles together
+ *   - 1: subtract the second double from the first double
+ *   - 2: multiply the two doubles together
+ *   - 3: divide the first double by the second double
+ * Any other value of `op` will result in `NAN` being returned.
+ *
+ * @param op The operation to apply.
+ * @param left The first double to operate on.
+ * @param right The second double to operate on.
+ * @return The result of applying the binary operation to the two doubles.
+ */
 static double matrix_applyBinary(int op, double left, double right)
 {
     switch (op)
@@ -975,10 +1101,29 @@ static double matrix_applyBinary(int op, double left, double right)
     }
 }
 
+/**
+ * Applies a binary operation to a scalar and a matrix.
+ *
+ * This function applies a binary operation to a scalar and a matrix and returns the result.
+ * The operation is specified by the `op` parameter, which can take on the following values:
+ *   - 0: add the scalar to each element of the matrix
+ *   - 1: subtract the scalar from each element of the matrix
+ *   - 2: multiply each element of the matrix by the scalar
+ *   - 3: divide each element of the matrix by the scalar
+ * Any other value of `op` will result in `NAN` being returned.
+ *
+ * @param vm The virtual machine to allocate memory on.
+ * @param matrix The matrix to operate on.
+ * @param scalar The scalar to operate on.
+ * @param op The operation to apply.
+ * @param scalar_left Whether the scalar is on the left side of the operation.
+ * @return The result of applying the binary operation to the scalar and the matrix.
+ */
 static Value matrix_scalarBinary(vm_t *vm, PiMatrix *matrix, double scalar, int op, bool scalar_left)
 {
     PiMatrix *result = (PiMatrix *)add_obj(vm, new_matrix(matrix->rows, matrix->cols));
 
+    // Apply the binary operation to each element of the matrix
     for (int row = 0; row < matrix->rows; row++)
         for (int col = 0; col < matrix->cols; col++)
         {
@@ -991,15 +1136,35 @@ static Value matrix_scalarBinary(vm_t *vm, PiMatrix *matrix, double scalar, int 
     return NEW_OBJ(result);
 }
 
+/**
+ * Broadcasts two matrices together and applies a binary operation to each pair of elements.
+ *
+ * This function broadcasts two matrices together and applies a binary operation to each pair of elements.
+ * The operation is specified by the `op` parameter, which can take on the following values:
+ *   - 0: add the two elements together
+ *   - 1: subtract the second element from the first element
+ *   - 2: multiply the two elements together
+ *   - 3: divide the second element by the first element
+ * Any other value of `op` will result in `NAN` being returned.
+ *
+ * @param vm The virtual machine to allocate memory on.
+ * @param left The left matrix to broadcast.
+ * @param right The right matrix to broadcast.
+ * @param op The binary operation to apply to each pair of elements.
+ * @return The result of broadcasting the two matrices together and applying the binary operation to each pair of elements.
+ */
 static Value matrix_broadcastBinary(vm_t *vm, PiMatrix *left, PiMatrix *right, int op)
 {
+    // Check if the two matrices can be broadcast together
     int rows;
     int cols;
     if (!matrix_broadcastShape(left, right, &rows, &cols))
         vm_error(vm, "Matrix broadcast dimension mismatch.");
 
+    // Allocate memory for the result matrix
     PiMatrix *result = (PiMatrix *)add_obj(vm, new_matrix(rows, cols));
 
+    // Apply the binary operation to each pair of elements
     for (int row = 0; row < rows; row++)
         for (int col = 0; col < cols; col++)
         {
@@ -1019,6 +1184,7 @@ static Value matrix_broadcastBinary(vm_t *vm, PiMatrix *left, PiMatrix *right, i
     return NEW_OBJ(result);
 }
 
+// Matrix slice specification
 typedef struct
 {
     int start;
@@ -1027,6 +1193,17 @@ typedef struct
     int count;
 } MatrixSliceSpec;
 
+/**
+ * Returns a matrix slice specification from a given index and length.
+ *
+ * This function takes a length and an index and returns a matrix slice specification
+ * that can be used to slice a matrix. The index must be a number.
+ *
+ * @param vm The virtual machine to allocate memory on.
+ * @param length The length of the matrix.
+ * @param index The index of the matrix to slice at.
+ * @return A matrix slice specification that can be used to slice a matrix.
+ */
 static MatrixSliceSpec matrix_indexSpec(vm_t *vm, int length, Value index)
 {
     MatrixSliceSpec spec;
@@ -1041,6 +1218,19 @@ static MatrixSliceSpec matrix_indexSpec(vm_t *vm, int length, Value index)
     return spec;
 }
 
+/**
+ * Returns a bound index for a matrix slice operation.
+ *
+ * This function takes a length, a value, and a sign and returns a bound index
+ * that can be used to slice a matrix. The sign is used to determine whether the
+ * bound should be ceilinged or floored.
+ *
+ * @param length The length of the matrix.
+ * @param value The value to bound.
+ * @param sign The sign of the value. If the sign is positive, the bound is
+ *        ceilinged. If the sign is negative, the bound is floored.
+ * @return The bound index for the matrix slice operation.
+ */
 static int matrix_sliceBound(int length, double value, int sign)
 {
     int bound = (int)value;
@@ -1064,6 +1254,27 @@ static int matrix_sliceBound(int length, double value, int sign)
     return bound;
 }
 
+/**
+ * Returns a matrix slice specification from a given start, end, and step.
+ *
+ * This function takes a length, a start value, an end value, and a step value and
+ * returns a matrix slice specification that can be used to slice a matrix.
+ *
+ * The start and end values must be numbers, and the step value must be a non-zero
+ * number. The sign of the step value determines whether the slice is taken from
+ * the start to the end (positive step) or from the end to the start (negative step).
+ *
+ * If the start or end values are positive infinity, the slice is taken from the
+ * start of the matrix. If the start or end values are negative infinity, the
+ * slice is taken from the end of the matrix.
+ *
+ * @param vm The virtual machine to allocate memory on.
+ * @param length The length of the matrix.
+ * @param start The starting index of the slice.
+ * @param end The ending index of the slice.
+ * @param step The step value of the slice.
+ * @return A matrix slice specification that can be used to slice a matrix.
+ */
 static MatrixSliceSpec matrix_sliceSpec(vm_t *vm, int length, Value start, Value end, Value step)
 {
     MatrixSliceSpec spec;
@@ -1091,6 +1302,27 @@ static MatrixSliceSpec matrix_sliceSpec(vm_t *vm, int length, Value start, Value
     return spec;
 }
 
+/**
+ * Retrieves a value from a matrix at a given row and column index.
+ *
+ * If the row or column index is a slice, the function will return a new matrix
+ * containing the values from the slice of the original matrix.
+ *
+ * @param vm The virtual machine to allocate memory on.
+ * @param matrix The matrix to retrieve the value from.
+ * @param row_is_slice Whether the row index is a slice.
+ * @param row_start The starting index of the row slice.
+ * @param row_end The ending index of the row slice.
+ * @param row_step The step value of the row slice.
+ * @param row_index The row index of the value to retrieve.
+ * @param col_is_slice Whether the column index is a slice.
+ * @param col_start The starting index of the column slice.
+ * @param col_end The ending index of the column slice.
+ * @param col_step The step value of the column slice.
+ * @param col_index The column index of the value to retrieve.
+ * @return A value from the matrix at the given row and column index, or a new
+ *         matrix containing the values from the slice of the original matrix.
+ */
 static Value matrix_get2d(vm_t *vm, PiMatrix *matrix,
                           bool row_is_slice, Value row_start, Value row_end, Value row_step, Value row_index,
                           bool col_is_slice, Value col_start, Value col_end, Value col_step, Value col_index)
@@ -1122,7 +1354,17 @@ static Value matrix_get2d(vm_t *vm, PiMatrix *matrix,
     return NEW_OBJ(result);
 }
 
-static void matrix_set2d(vm_t *vm, PiMatrix *matrix, Value row_index, Value col_index, Value value)
+/**
+ * Sets a value in a matrix using row and column indices.
+ *
+ * @param vm The virtual machine to allocate memory on.
+ * @param matrix The matrix to set a value in.
+ * @param row_index The row index of the value to set.
+ * @param col_index The column index of the value to set.
+ * @param value The value to set in the matrix.
+ */
+static void matrix_set2d(vm_t *vm, PiMatrix *matrix, Value row_index,
+                         Value col_index, Value value)
 {
     int row;
     int col;
@@ -1138,11 +1380,26 @@ static void matrix_set2d(vm_t *vm, PiMatrix *matrix, Value row_index, Value col_
     matrix_set(matrix, row, col, as_number(value));
 }
 
+/**
+ * Checks if a given module name is private.
+ *
+ * Private module names are any module name that starts with an underscore
+ * character and is not empty. This is used to prevent modules from being
+ * imported by other modules.
+ *
+ * @param name The module name to check.
+ * @return True if the module name is private, false otherwise.
+ */
 static bool is_private_moduleName(const char *name)
 {
     return name != NULL && name[0] == '_' && name[1] != '\0';
 }
 
+/**
+ * @brief Runs the virtual machine.
+ *
+ * @param vm The virtual machine to run.
+ */
 void run(vm_t *vm)
 {
     int length = vm->code->size;
@@ -2128,7 +2385,7 @@ void run(vm_t *vm)
 
             Value callee = pop_stack(vm);
             vm->pc = pc;
-            push_stack(vm, call_with_arg_list(vm, callee, AS_LIST(arg_list_value), kw_args, has_named));
+            push_stack(vm, call_withArgList(vm, callee, AS_LIST(arg_list_value), kw_args, has_named));
             break;
         }
 
@@ -2326,6 +2583,18 @@ void run(vm_t *vm)
             break;
         }
 
+        case OP_COMP_APPEND:
+        {
+            int slot = vm->bp + code[pc++];
+            Value value = pop_stack(vm);
+            Value target = vm->stack[slot];
+            if (!IS_LIST(target))
+                vm_error(vm, "List append local expects a list target.");
+
+            list_add(AS_LIST(target)->items, &value);
+            break;
+        }
+
         case OP_LIST_EXTEND:
         {
             Value iterable = pop_stack(vm);
@@ -2333,7 +2602,7 @@ void run(vm_t *vm)
                 vm_error(vm, "List extend expects a list target.");
 
             PiList *plist = AS_LIST(peek_stack(vm));
-            list_extend_from_iterable(vm, plist, iterable);
+            list_extendFromIterable(vm, plist, iterable);
             break;
         }
 
@@ -2342,7 +2611,7 @@ void run(vm_t *vm)
             if (!IS_LIST(peek_stack(vm)))
                 vm_error(vm, "List finalize expects a list target.");
 
-            refresh_list_meta(AS_LIST(peek_stack(vm)));
+            refresh_listMeta(AS_LIST(peek_stack(vm)));
             break;
         }
 
@@ -2382,7 +2651,7 @@ void run(vm_t *vm)
             if (proto == NULL && has_methods)
                 proto = vm->object_proto;
             ((PiMap *)map)->proto = proto;
-            finalize_map_literal(vm, (PiMap *)map);
+            finalize_mapLiteral(vm, (PiMap *)map);
             push_stack(vm, NEW_OBJ(map));
 
             break;
@@ -2408,7 +2677,7 @@ void run(vm_t *vm)
             if (!IS_MAP(peek_stack(vm)))
                 vm_error(vm, "Map extend expects a map target.");
 
-            map_extend_from_map(vm, AS_MAP(peek_stack(vm)), source);
+            map_extendFromMap(vm, AS_MAP(peek_stack(vm)), source);
             break;
         }
 
@@ -2417,7 +2686,7 @@ void run(vm_t *vm)
             if (!IS_MAP(peek_stack(vm)))
                 vm_error(vm, "Map finalize expects a map target.");
 
-            finalize_map_literal(vm, AS_MAP(peek_stack(vm)));
+            finalize_mapLiteral(vm, AS_MAP(peek_stack(vm)));
             break;
         }
 

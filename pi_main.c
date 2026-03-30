@@ -71,7 +71,7 @@ void pause_execution(void)
 {
     vm->running = false;
 
-    paused = true;    
+    paused = true;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -102,9 +102,9 @@ int main(int argc, char *argv[])
 
     init_scanner(source);
     token_t *tokens = scan();
-    compiler_t *comp = init_compiler();    
+    compiler_t *comp = init_compiler();
     parser_t *parser = init_parser(comp, tokens, MODE_FILE);
-    parse(parser);    
+    parse(parser);
 
     vm = init_vm(comp, "", true);
 
@@ -201,8 +201,7 @@ static int run_source(const char *source, ParserMode mode, const char *entry_nam
 
     compiler_t *comp = init_compiler();
     parser_t *parser = init_parser(comp, tokens, mode);
-    parse(parser);
-        
+    parse(parser);    
 #ifdef DEBUG_BUILD
     dis(comp);
 #endif

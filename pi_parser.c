@@ -51,16 +51,46 @@ static void exp_expr(parser_t *parser);
 static void member_expr(parser_t *parser);
 static void unary_expr(parser_t *parser);
 static void primary(parser_t *parser);
-static void emit_spread_list_literal(parser_t *parser);
-static void emit_spread_map_literal(parser_t *parser);
-static bool call_has_spread_args(parser_t *parser);
-static bool list_has_spread_items(parser_t *parser);
-static bool map_has_spread_items(parser_t *parser);
+
+static void emit_spreadListLiteral(parser_t *parser);
+static void emit_spreadMapLiteral(parser_t *parser);
+static void emit_listComprehension(parser_t *parser);
+
+static bool call_hasSpreadArgs(parser_t *parser);
+
+static bool list_hasSpreadItems(parser_t *parser);
+static bool list_isComprehension(parser_t *parser);
+
+static bool map_hasSpreadItems(parser_t *parser);
+
+static token_t peek(parser_t *parser);
 static bool check(parser_t *parser, tk_type type);
 static bool match(parser_t *parser, tk_type type);
 static token_t consume(parser_t *parser, tk_type type, const char *message);
+void set_pos(parser_t *parser, token_t token);
 
-static void emit_spread_list_literal(parser_t *parser)
+typedef struct
+{
+    int start;
+    int end;
+} segment_t;
+
+typedef struct
+{
+    token_t name;
+    segment_t iterable;
+} comp_iter_t;
+
+typedef struct
+{
+    segment_t result;
+    segment_t iterators;
+    segment_t conditions;
+    int end_index;
+    bool has_conditions;
+} list_comp_t;
+
+static void emit_spreadListLiteral(parser_t *parser)
 {
     emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
 
@@ -84,7 +114,7 @@ static void emit_spread_list_literal(parser_t *parser)
     emit(parser->comp, OP_LIST_FINALIZE);
 }
 
-static bool call_has_spread_args(parser_t *parser)
+static bool call_hasSpreadArgs(parser_t *parser)
 {
     int index = parser->current;
     int paren_depth = 1;
@@ -131,7 +161,7 @@ static bool call_has_spread_args(parser_t *parser)
     return false;
 }
 
-static bool list_has_spread_items(parser_t *parser)
+static bool list_hasSpreadItems(parser_t *parser)
 {
     int index = parser->current;
     int paren_depth = 0;
@@ -178,7 +208,7 @@ static bool list_has_spread_items(parser_t *parser)
     return false;
 }
 
-static bool map_has_spread_items(parser_t *parser)
+static bool map_hasSpreadItems(parser_t *parser)
 {
     int index = parser->current;
     int paren_depth = 0;
@@ -223,6 +253,336 @@ static bool map_has_spread_items(parser_t *parser)
     }
 
     return false;
+}
+
+static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
+{
+    int index = parser->current;
+    int paren_depth = 0;
+    int bracket_depth = 1;
+    int brace_depth = 0;
+    int ternary_depth = 0;
+    int first_colon = -1;
+    int second_colon = -1;
+
+    while (parser->tokens[index].type != TK_EOF)
+    {
+        token_t token = parser->tokens[index];
+
+        switch (token.type)
+        {
+        case TK_LPAREN:
+            paren_depth++;
+            break;
+        case TK_RPAREN:
+            if (paren_depth > 0)
+                paren_depth--;
+            break;
+        case TK_LBRACKET:
+            bracket_depth++;
+            break;
+        case TK_RBRACKET:
+            bracket_depth--;
+            if (bracket_depth == 0)
+            {
+                if (first_colon == -1)
+                    return false;
+
+                comp->result.start = parser->current;
+                comp->result.end = first_colon;
+                comp->iterators.start = first_colon + 1;
+                comp->iterators.end = (second_colon == -1) ? index : second_colon;
+                comp->conditions.start = (second_colon == -1) ? index : second_colon + 1;
+                comp->conditions.end = index;
+                comp->has_conditions = second_colon != -1;
+                comp->end_index = index;
+                return true;
+            }
+            break;
+        case TK_LBRACE:
+            brace_depth++;
+            break;
+        case TK_RBRACE:
+            if (brace_depth > 0)
+                brace_depth--;
+            break;
+        case TK_QUESTION:
+            if (paren_depth == 0 && bracket_depth == 1 && brace_depth == 0)
+                ternary_depth++;
+            break;
+        case TK_COLON:
+            if (paren_depth == 0 && bracket_depth == 1 && brace_depth == 0)
+            {
+                if (ternary_depth > 0)
+                    ternary_depth--;
+                else if (first_colon == -1)
+                    first_colon = index;
+                else if (second_colon == -1)
+                    second_colon = index;
+                else
+                    p_errorf(token.line, token.column,
+                             "List comprehensions support at most one iterator clause and one condition clause separator.");
+            }
+            break;
+        default:
+            break;
+        }
+
+        index++;
+    }
+
+    return false;
+}
+
+static bool list_isComprehension(parser_t *parser)
+{
+    list_comp_t comp;
+    return scan_listComprehension(parser, &comp);
+}
+
+static void compile_segment_expr(parser_t *parser, segment_t segment, const char *message)
+{
+    if (segment.start >= segment.end)
+    {
+        token_t token = parser->tokens[segment.start];
+        p_error(message, token.line, token.column);
+    }
+
+    int saved = parser->current;
+    token_t saved_end = parser->tokens[segment.end];
+    parser->current = segment.start;
+    parser->tokens[segment.end].type = TK_EOF;
+    cond_expr(parser);
+    parser->tokens[segment.end] = saved_end;
+    if (parser->current != segment.end)
+    {
+        token_t token = parser->tokens[parser->current];
+        p_error(message, token.line, token.column);
+    }
+    parser->current = saved;
+}
+
+static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t *iters, int max_iters)
+{
+    int index = segment.start;
+    int count = 0;
+
+    while (index < segment.end)
+    {
+        if (count >= max_iters)
+        {
+            token_t token = parser->tokens[index];
+            p_errorf(token.line, token.column, "Too many iterators in list comprehension.");
+        }
+
+        token_t name = parser->tokens[index++];
+        if (name.type != TK_ID)
+            p_errorf(name.line, name.column, "Expect iterator variable name in list comprehension.");
+
+        if (index >= segment.end || parser->tokens[index].type != TK_IN)
+        {
+            token_t token = parser->tokens[index < segment.end ? index : segment.end - 1];
+            p_errorf(token.line, token.column, "Expect 'in' after iterator variable in list comprehension.");
+        }
+        index++;
+
+        int expr_start = index;
+        int paren_depth = 0;
+        int bracket_depth = 0;
+        int brace_depth = 0;
+
+        while (index < segment.end)
+        {
+            token_t token = parser->tokens[index];
+            if (token.type == TK_COMMA && paren_depth == 0 && bracket_depth == 0 && brace_depth == 0)
+                break;
+
+            switch (token.type)
+            {
+            case TK_LPAREN:
+                paren_depth++;
+                break;
+            case TK_RPAREN:
+                if (paren_depth > 0)
+                    paren_depth--;
+                break;
+            case TK_LBRACKET:
+                bracket_depth++;
+                break;
+            case TK_RBRACKET:
+                if (bracket_depth > 0)
+                    bracket_depth--;
+                break;
+            case TK_LBRACE:
+                brace_depth++;
+                break;
+            case TK_RBRACE:
+                if (brace_depth > 0)
+                    brace_depth--;
+                break;
+            default:
+                break;
+            }
+
+            index++;
+        }
+
+        if (expr_start == index)
+            p_errorf(name.line, name.column, "Expect iterable expression after 'in' in list comprehension.");
+
+        iters[count].name = name;
+        iters[count].iterable.start = expr_start;
+        iters[count].iterable.end = index;
+        count++;
+
+        if (index < segment.end && parser->tokens[index].type == TK_COMMA)
+            index++;
+    }
+
+    return count;
+}
+
+static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *conds, int max_conds)
+{
+    if (segment.start >= segment.end)
+        return 0;
+
+    int index = segment.start;
+    int count = 0;
+
+    while (index < segment.end)
+    {
+        if (count >= max_conds)
+        {
+            token_t token = parser->tokens[index];
+            p_errorf(token.line, token.column, "Too many conditions in list comprehension.");
+        }
+
+        int expr_start = index;
+        int paren_depth = 0;
+        int bracket_depth = 0;
+        int brace_depth = 0;
+
+        while (index < segment.end)
+        {
+            token_t token = parser->tokens[index];
+            if (token.type == TK_COMMA && paren_depth == 0 && bracket_depth == 0 && brace_depth == 0)
+                break;
+
+            switch (token.type)
+            {
+            case TK_LPAREN:
+                paren_depth++;
+                break;
+            case TK_RPAREN:
+                if (paren_depth > 0)
+                    paren_depth--;
+                break;
+            case TK_LBRACKET:
+                bracket_depth++;
+                break;
+            case TK_RBRACKET:
+                if (bracket_depth > 0)
+                    bracket_depth--;
+                break;
+            case TK_LBRACE:
+                brace_depth++;
+                break;
+            case TK_RBRACE:
+                if (brace_depth > 0)
+                    brace_depth--;
+                break;
+            default:
+                break;
+            }
+
+            index++;
+        }
+
+        conds[count].start = expr_start;
+        conds[count].end = index;
+        count++;
+
+        if (index < segment.end && parser->tokens[index].type == TK_COMMA)
+            index++;
+    }
+
+    return count;
+}
+
+static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
+                               comp_iter_t *iters, int iter_count,
+                               segment_t *conds, int cond_count,
+                               int iter_index, int acc_slot)
+{
+    if (iter_index == iter_count)
+    {
+        int jumps[32];
+        int jump_count = 0;
+
+        for (int i = 0; i < cond_count; i++)
+        {
+            compile_segment_expr(parser, conds[i], "Invalid list comprehension condition.");
+            jumps[jump_count++] = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
+        }
+
+        compile_segment_expr(parser, comp->result, "Invalid list comprehension expression.");
+        emit_8u(parser->comp, OP_COMP_APPEND, "<comp>", acc_slot);
+
+        for (int i = 0; i < jump_count; i++)
+            patch_jump(parser->comp, jumps[i]);
+        return;
+    }
+
+    token_t iter_token = iters[iter_index].name;
+    set_pos(parser, parser->tokens[iters[iter_index].iterable.start]);
+    compile_segment_expr(parser, iters[iter_index].iterable, "Invalid list comprehension iterator expression.");
+    emit(parser->comp, OP_PUSH_ITER);
+
+    set_pos(parser, iter_token);
+    int address = emit_16u(parser->comp, OP_LOOP, "", 0);
+
+    push_scope(parser->comp);
+    add_variable(parser->comp, token_value(iter_token));
+    push_loop(parser->comp, address - 2, true);
+
+    emit_listCompLoops(parser, comp, iters, iter_count, conds, cond_count, iter_index + 1, acc_slot);
+
+    pop_scope(parser->comp);
+    pop_loop(parser->comp, address - 2);
+    patch_jump(parser->comp, address);
+}
+
+static void emit_listComprehension(parser_t *parser)
+{
+    list_comp_t comp;
+    if (!scan_listComprehension(parser, &comp))
+        return;
+
+    comp_iter_t iters[16];
+    segment_t conds[32];
+    int iter_count = parse_compIterators(parser, comp.iterators, iters, 16);
+    int cond_count = comp.has_conditions ? parse_compConditions(parser, comp.conditions, conds, 32) : 0;
+
+    if (iter_count == 0)
+    {
+        token_t token = parser->tokens[comp.iterators.start];
+        p_errorf(token.line, token.column, "List comprehension requires at least one iterator.");
+    }
+
+    char hidden_name[32];
+    snprintf(hidden_name, sizeof(hidden_name), "<comp_%d>", comp.result.start);
+
+    emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
+    add_local(parser->comp, hidden_name);
+    int acc_slot = get_local(parser->comp, hidden_name);
+
+    emit_listCompLoops(parser, &comp, iters, iter_count, conds, cond_count, 0, acc_slot);
+
+    emit(parser->comp, OP_LIST_FINALIZE);
+    remove_locals(parser->comp, 1);
+    parser->current = comp.end_index;
+    consume(parser, TK_RBRACKET, "Expect ']' after list comprehension.");
 }
 
 /**
@@ -750,7 +1110,6 @@ static void declarations(parser_t *parser)
         else
             // statement(parser); // Parse remaining statements
             declaration(parser); // Parse remaining declarations/statements in order
-
     }
 }
 
@@ -868,7 +1227,7 @@ static list_t *param_list(parser_t *parser)
     return params;
 }
 
-static void emit_spread_map_literal(parser_t *parser)
+static void emit_spreadMapLiteral(parser_t *parser)
 {
     emit_16u(parser->comp, OP_PUSH_MAP, "", 0);
 
@@ -2533,7 +2892,7 @@ static void member_expr(parser_t *parser)
             int args = 0;
             int named = 0;
             bool saw_named = false;
-            bool saw_spread = call_has_spread_args(parser);
+            bool saw_spread = call_hasSpreadArgs(parser);
 
             if (!check(parser, TK_RPAREN))
             {
@@ -2882,8 +3241,10 @@ static void primary(parser_t *parser)
         set_pos(parser, previous(parser));
         if (match(parser, TK_RBRACKET))
             emit_16u(parser->comp, OP_PUSH_LIST, "", 0); // Emit empty list
-        else if (list_has_spread_items(parser))
-            emit_spread_list_literal(parser);
+        else if (list_isComprehension(parser))
+            emit_listComprehension(parser);
+        else if (list_hasSpreadItems(parser))
+            emit_spreadListLiteral(parser);
         else
         {
             do
@@ -2937,9 +3298,9 @@ static void primary(parser_t *parser)
             pop_object(parser->comp);
             emit_16u(parser->comp, OP_PUSH_MAP, "", 0); // Emit empty map
         }
-        else if (map_has_spread_items(parser))
+        else if (map_hasSpreadItems(parser))
         {
-            emit_spread_map_literal(parser);
+            emit_spreadMapLiteral(parser);
             pop_object(parser->comp);
         }
         else
@@ -3105,6 +3466,6 @@ static void primary(parser_t *parser)
  */
 void free_parser(parser_t *parser)
 {
-    free(parser->tokens); // Free the memory allocated for tokens    
-    free(parser); // Free the parser structure itself
+    free(parser->tokens); // Free the memory allocated for tokens
+    free(parser);         // Free the parser structure itself
 }

@@ -38,6 +38,8 @@ static const char *op_names[] = {
     [0x18] = "PUSH_RANGE",
     [0x19] = "BINARY_OP",
     [0x1a] = "PUSH_LIST",
+    [0x1f] = "LIST_APPEND",
+    [0x20] = "LIST_EXTEND",
     [0x1b] = "STORE_UPVALUE",
     [0x1c] = "LOAD_UPVALUE",
     [0x1d] = "NO_OP",
@@ -59,8 +61,14 @@ static const char *op_names[] = {
     [0x3f] = "IMPORT_ALL",
     [0x40] = "IMPORT_DEFAULT",
     [0x41] = "LOAD_SUPER",
-    [0x42] = "GET_ITEM2",
-    [0x43] = "SET_ITEM2",
+    [0x42] = "MAT_GET",
+    [0x43] = "MAT_SET",
+    [0x44] = "LIST_FINALIZE",
+    [0x45] = "CALL_SPREAD",
+    [0x46] = "MAP_SET",
+    [0x47] = "MAP_EXTEND",
+    [0x48] = "MAP_FINALIZE",
+    [0x49] = "COMP_APPEND",
 };
 
 /**
@@ -1347,7 +1355,11 @@ void dis(compiler_t *comp)
             case OP_UNARY:
             case OP_POP_N:
             case OP_CALL_FUNCTION:
+            case OP_CALL_SPREAD:
             case OP_PUSH_FUNCTION:
+            case OP_MAT_GET:
+            case OP_MAT_SET:
+            case OP_COMP_APPEND:
                 snprintf(line_buf, sizeof(line_buf),
                          "\033[38;2;107;107;107m%-4d\033[0m: "
                          "\033[38;2;139;0;0m%-15s\033[0m "
@@ -1388,6 +1400,18 @@ void dis(compiler_t *comp)
                          line++, op_names[opcode], (int16_t)((operands[0] << 8) | operands[1]));
                 line += 2;
                 pc += 2;
+                break;
+
+            case OP_LIST_APPEND:
+            case OP_LIST_EXTEND:
+            case OP_LIST_FINALIZE:
+            case OP_MAP_SET:
+            case OP_MAP_EXTEND:
+            case OP_MAP_FINALIZE:
+                snprintf(line_buf, sizeof(line_buf),
+                         "\033[38;2;107;107;107m%-4d\033[0m: "
+                         "\033[38;2;139;0;0m%-15s\033[0m",
+                         line++, op_names[opcode]);
                 break;
 
             case OP_PUSH_CLOSURE:

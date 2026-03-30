@@ -61,7 +61,8 @@ typedef enum
     OP_CALL_SPREAD = 0x45,
     OP_MAP_SET = 0x46,
     OP_MAP_EXTEND = 0x47,
-    OP_MAP_FINALIZE = 0x48
+    OP_MAP_FINALIZE = 0x48,
+    OP_COMP_APPEND = 0x49
 } OpCode;
 
 typedef struct
@@ -114,6 +115,7 @@ static inline int operand_count(uint8_t op)
     case OP_MAT_GET:
     case OP_MAT_SET:
     case OP_CALL_SPREAD:
+    case OP_COMP_APPEND:
         return 1;
 
     default:
