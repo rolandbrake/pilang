@@ -4,11 +4,13 @@
 #include <stdlib.h>
 
 #include "pi_sys.h"
+#include "pi_builtin.h"
+
 #include "../pi_value.h"
 #include "../pi_object.h"
 #include "../list.h"
 #include "../common.h"
-#include "pi_builtin.h"
+#include "../gc.h"
 
 /**
  * Prints an error message to the standard error stream and returns a null value.
@@ -97,7 +99,7 @@ Value pi_zen(vm_t *vm, int argc, Value *argv)
 
 // read command-line arguments from stdin and return them as a list of strings argv[0]
 // is the program name, argv[1] is the first argument, and so on.
-Value pi_argv(vm_t *vm, int argc, Value *argv)
+Value sy_argv(vm_t *vm, int argc, Value *argv)
 {
     list_t *args = list_create(sizeof(Value));
 
@@ -112,7 +114,7 @@ Value pi_argv(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(list_obj);
 }
 
-Value pi_exit(vm_t *vm, int argc, Value *argv)
+Value sy_exit(vm_t *vm, int argc, Value *argv)
 {
     int code = 0;
     if (argc > 0)
@@ -121,7 +123,7 @@ Value pi_exit(vm_t *vm, int argc, Value *argv)
 }
 
 // A string that identifies the underlying operating system (e.g., 'win32', 'linux', 'darwin').
-Value pi_platform(vm_t *vm, int argc, Value *argv)
+Value sy_platform(vm_t *vm, int argc, Value *argv)
 {
 #ifdef _WIN32
     return NEW_OBJ(new_pistring(strdup("Windows")));
@@ -146,19 +148,55 @@ Value pi_platform(vm_t *vm, int argc, Value *argv)
 }
 
 // A string that represents the current version of Pi-Lang.
-Value pi_version(vm_t *vm, int argc, Value *argv)
+Value sy_version(vm_t *vm, int argc, Value *argv)
 {
     return NEW_OBJ(new_pistring(strdup(PI_VERSION)));
 }
 
 // A string that represents the current working directory.
-Value pi_path(vm_t *vm, int argc, Value *argv)
+Value sy_path(vm_t *vm, int argc, Value *argv)
 {
     char cwd[1024];
     if (getcwd(cwd, sizeof(cwd)) != NULL)
         return NEW_OBJ(new_pistring(strdup(cwd)));
     else
         return NEW_OBJ(new_pistring(strdup("unknown")));
+}
+
+Value sy_env(vm_t *vm, int argc, Value *argv)
+{
+    if (argc != 1)
+        vm_error(vm, "[env] expects one argument.");
+    char *key = as_string(argv[0]);
+    char *value = getenv(key);
+    if (value == NULL)
+        return NEW_BOOL(false);
+    else
+        return NEW_OBJ(new_pistring(strdup(value)));
+}
+Value sy_gc(vm_t *vm, int argc, Value *argv)
+{
+    run_gc(vm);
+    return NEW_BOOL(true);
+}
+
+#ifdef __linux__
+#include <sys/resource.h>
+#endif
+
+Value sy_mem(vm_t *vm, int argc, Value *argv)
+{
+#ifdef __linux__
+    struct rusage usage;
+    if (getrusage(RUSAGE_SELF, &usage) == 0)
+        return NEW_NUM((double)usage.ru_maxrss * 1024); // KB → bytes
+#endif
+    return NEW_NUM(0);
+}
+
+Value sy_pid(vm_t *vm, int argc, Value *argv)
+{
+    return NEW_NUM((double)getpid());
 }
 
 // Module Defenition
@@ -169,11 +207,15 @@ static BuiltinConst sys_consts[] = {
 };
 
 static BuiltinFunc sys_funcs[] = {
-    {"argv", pi_argv},
-    {"exit", pi_exit},
-    {"platform", pi_platform},
-    {"version", pi_version},
-    {"path", pi_path},
+    {"argv", sy_argv},
+    {"exit", sy_exit},
+    {"platform", sy_platform},
+    {"version", sy_version},
+    {"path", sy_path},
+    {"env", sy_env},
+    {"gc", sy_gc},
+    {"mem", sy_mem},
+    {"pid", sy_pid},
 };
 
 DEFINE_BUILTIN_MODULE(module_sys, "sys", sys_funcs, sys_consts);

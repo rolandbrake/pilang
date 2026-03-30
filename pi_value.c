@@ -870,7 +870,16 @@ char *type_name(Value val)
             return "matrix";
         case OBJ_MAP:
         {
-            Object *o = AS_OBJ(val);
+            PiMap *map = AS_MAP(val);
+            if (map->proto != NULL)
+            {
+                if (map->intrinsic_name != NULL)
+                {
+                    return map->intrinsic_name;
+                }
+                else
+                    return "object";
+            }
             return "map";
         }
         case OBJ_MODULE:

@@ -1,37 +1,81 @@
-import time:t;
+import sys
+import sys.{EXIT_SUCCESS}
 
-built = t.of(2025, 1, 15, 9, 30, 45)
-parsed = t.parse("2025-01-15 09:30:45", "%Y-%m-%d %H:%M:%S")
-formatted = t.format(built, "%Y/%m/%d %H:%M:%S")
-iso_local = t.iso(built)
-iso_utc = t.iso(t.utc())
-now_local = t.now()
-before = t.clock()
-sleep(5)
-after = t.clock()
 
-fired = 0
-fun once_cb() {
-    fired++
+println("=== SYS MODULE TEST ===")
+
+// --- argv ---
+println("\n[argv]")
+args = sys.argv()
+println("Argument count:", len(args))
+
+for i in range(len(args)) 
+    println("argv[", i, "] =", args[i])
+
+
+// --- platform & version ---
+println("\n[platform/version]")
+println("Platform:", sys.platform())
+println("Version:", sys.version())
+
+// --- path ---
+// println("\n[path]")
+// println("Current working directory:", sys.path())
+
+// --- pid ---
+println("\n[pid]")
+println("Process ID:", sys.pid())
+
+// --- env ---
+println("\n[env]")
+home = sys.env("HOME")
+if home == nil {
+    println("HOME is not set")
+} else {
+    println("HOME =", home)
 }
 
-ticks = 0
-fun interval_cb() {
-    ticks++
-    return ticks < 3
-}
+// Try a variable that probably doesn't exist
+fake = sys.env("SOME_RANDOM_NON_EXISTENT_VAR")
+println("Non-existent env:", fake)  // should println nil
 
-timer = t.timer(1, once_cb)
+// --- memory ---
+println("\n[mem]")
+mem_before = sys.mem()
+println("Memory before allocation:", mem_before)
 
-interval = t.interval(1, interval_cb)
+// allocate some data
+big = []
+for i in range(1000) 
+    big[i] = "data_" + i
 
-assert(formatted == "2025/01/15 09:30:45", "time.format should format constructed times")
-assert(t.iso(parsed) == iso_local, "time.parse should rebuild the same timestamp for matching local fields")
-assert(len(iso_utc) == 20, "time.iso should emit a compact ISO string for UTC times")
-assert(now_local["year"] >= 2025, "time.now should return a populated Time map")
-assert(t.millis() >= t.unix() * 1000, "time.millis should align with time.unix")
-assert(after >= before, "time.clock should be monotonic")
-assert(fired == 1 && timer["ticks"] == 1, "time.timer should invoke the callback once")
-assert(ticks == 3 && interval["ticks"] == 3, "time.interval should repeat until the callback returns false")
 
-println("time tests ok")
+mem_after = sys.mem()
+println("Memory after allocation:", mem_after)
+
+// --- gc ---
+println("\n[gc]")
+big = nil  // release reference
+sys.gc()
+
+mem_after_gc = sys.mem()
+println("Memory after GC:", mem_after_gc)
+
+// --- assert ---
+println("\n[assert]")
+assert(1 == 1, "This should NOT fail")
+
+// Uncomment to test failure:
+// sys.assert(1 == 2, "This SHOULD fail")
+
+// --- error ---
+println("\n[error]")
+error("This is a test error message")
+
+// --- exit ---
+println("\n[exit]")
+println("Exiting with code 0...")
+sys.exit(EXIT_SUCCESS)
+
+// This should never run
+println("If you see this, exit failed!")

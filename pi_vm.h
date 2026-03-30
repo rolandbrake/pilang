@@ -83,6 +83,7 @@ typedef struct
     list_t *gc_stack;
 
     int obj_count;
+    
 
     table_t *modules;   // Hash table to store loaded modules by name
     char *current_path; // Current working directory for resolving relative imports

@@ -51,7 +51,7 @@ static Value map_getValue(PiMap *map, const char *key, Value fallback)
 
 static bool is_timeMap(Value value)
 {
-    return IS_MAP(value) && ht_get(AS_MAP(value)->table, "__type") != NULL;
+    return IS_MAP(value) && ht_get(AS_MAP(value)->table, "_type") != NULL;
 }
 
 static PiMap *require_timeMap(vm_t *vm, Value value, const char *name)
@@ -61,12 +61,14 @@ static PiMap *require_timeMap(vm_t *vm, Value value, const char *name)
     return AS_MAP(value);
 }
 
-static Value new_timeMap(vm_t *vm, const struct tm *tm_ptr, int millis, bool utc)
+static Value new_timeObject(vm_t *vm, const struct tm *tm_ptr, int millis, bool utc)
 {
     struct tm copy = *tm_ptr;
     PiMap *map = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
 
-    map_putValue(map, "__type", time_string(vm, "Time"));
+    map->proto = vm->object_proto;
+    map->intrinsic_name = strdup("Time");
+    map_putValue(map, "_type", time_string(vm, "Time"));
     map_putValue(map, "year", NEW_NUM(copy.tm_year + 1900));
     map_putValue(map, "month", NEW_NUM(copy.tm_mon + 1));
     map_putValue(map, "day", NEW_NUM(copy.tm_mday));
@@ -261,7 +263,7 @@ Value tm_now(vm_t *vm, int argc, Value *argv)
     gettimeofday(&tv, NULL);
     time_t now = tv.tv_sec;
     struct tm *local = localtime(&now);
-    return new_timeMap(vm, local, (int)(tv.tv_usec / 1000), false);
+    return new_timeObject(vm, local, (int)(tv.tv_usec / 1000), false);
 }
 
 Value tm_utc(vm_t *vm, int argc, Value *argv)
@@ -274,7 +276,7 @@ Value tm_utc(vm_t *vm, int argc, Value *argv)
     gettimeofday(&tv, NULL);
     time_t now = tv.tv_sec;
     struct tm *utc = gmtime(&now);
-    return new_timeMap(vm, utc, (int)(tv.tv_usec / 1000), true);
+    return new_timeObject(vm, utc, (int)(tv.tv_usec / 1000), true);
 }
 
 Value tm_unix(vm_t *vm, int argc, Value *argv)
@@ -326,7 +328,7 @@ Value tm_parse(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[time.parse] failed to parse the given time string.");
 
     mktime(&tm_value);
-    return new_timeMap(vm, &tm_value, millis, false);
+    return new_timeObject(vm, &tm_value, millis, false);
 }
 
 Value tm_of(vm_t *vm, int argc, Value *argv)
@@ -345,7 +347,7 @@ Value tm_of(vm_t *vm, int argc, Value *argv)
     tm_value.tm_isdst = -1;
 
     mktime(&tm_value);
-    return new_timeMap(vm, &tm_value, 0, false);
+    return new_timeObject(vm, &tm_value, 0, false);
 }
 
 Value tm_format(vm_t *vm, int argc, Value *argv)
@@ -383,10 +385,12 @@ Value tm_iso(vm_t *vm, int argc, Value *argv)
     return time_string(vm, buffer);
 }
 
-static Value new_timerMap(vm_t *vm, double ms, bool repeating, int ticks)
+static Value new_timerObject(vm_t *vm, double ms, bool repeating, int ticks)
 {
     PiMap *map = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    map_putValue(map, "__type", time_string(vm, "Timer"));
+    map->proto = vm->object_proto;
+    map->intrinsic_name = strdup("Timer");
+    map_putValue(map, "_type", time_string(vm, "Timer"));
     map_putValue(map, "ms", NEW_NUM(ms));
     map_putValue(map, "repeating", NEW_BOOL(repeating));
     map_putValue(map, "active", NEW_BOOL(false));
@@ -402,7 +406,7 @@ Value tm_timer(vm_t *vm, int argc, Value *argv)
     Value sleep_args[1] = {argv[0]};
     pi_sleep(vm, 1, sleep_args);
     call_func(vm, AS_FUN(argv[1]), 0, NULL, NEW_NIL());
-    return new_timerMap(vm, as_number(argv[0]), false, 1);
+    return new_timerObject(vm, as_number(argv[0]), false, 1);
 }
 
 Value tm_interval(vm_t *vm, int argc, Value *argv)
@@ -424,7 +428,7 @@ Value tm_interval(vm_t *vm, int argc, Value *argv)
             break;
     }
 
-    return new_timerMap(vm, ms, true, ticks);
+    return new_timerObject(vm, ms, true, ticks);
 }
 
 static BuiltinFunc time_funcs[] = {
