@@ -403,6 +403,69 @@ Object *new_code(list_t *code)
 
     return (Object *)c;
 }
+
+Object *new_context()
+{
+    PiContext *ctx = (PiContext *)malloc(sizeof(PiContext));
+
+    ctx->object.type = OBJ_CONTEXT;
+    ctx->object.is_marked = false;
+    ctx->object.in_gcList = false;
+    ctx->object.gc_color = GC_WHITE;
+
+    ctx->object.next = NULL;
+
+    ctx->window = NULL;
+    ctx->renderer = NULL;
+
+    ctx->width = 0;
+    ctx->height = 0;
+
+    ctx->tx = 0;
+    ctx->ty = 0;
+    ctx->sx = 1;
+    ctx->sy = 1;
+    ctx->angle = 0;
+
+    ctx->alpha = 1.0f;
+
+    ctx->running = true;
+
+    ctx->userdata = NULL;
+
+    ctx->frame_callback = NEW_NIL();
+
+    ctx->transform_stack = NULL;
+
+    ctx->font = NULL;
+    ctx->clip_rect = (SDL_Rect){0, 0, 0, 0};
+    ctx->clip_enabled = false;
+
+    return (Object *)ctx;
+}
+
+Object *new_chart(PiContext *ctx)
+{
+    PiChart *chart = CREATE_OBJ(PiChart, OBJ_CHART);
+
+    chart->object.next = NULL; /* create_obj does not zero the allocation */
+    chart->ctx = ctx;
+    chart->series = list_create(VALUE_SIZE);
+    chart->colors = list_create(VALUE_SIZE);
+    chart->xmin = 0.0;
+    chart->xmax = 1.0;
+    chart->ymin = 0.0;
+    chart->ymax = 1.0;
+    chart->has_bounds = false;
+    chart->show_grid = true;
+    chart->show_axes = true;
+    chart->title = NULL;
+    chart->xlabel = NULL;
+    chart->ylabel = NULL;
+
+    return (Object *)chart;
+}
+
 /**
  * Creates a new ObjRange object with the given start, end, and step values.
  *

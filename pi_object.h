@@ -2,6 +2,9 @@
 #define PI_OBJECT_H
 
 #include <stdint.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
+
 #include "pi_value.h"
 #include "list.h"
 #include "pi_table.h"
@@ -19,6 +22,9 @@
 #define IS_FUN(o) IS_OBJ_TYPE(o, OBJ_FUN)
 #define IS_RANGE(o) IS_OBJ_TYPE(o, OBJ_RANGE)
 
+#define IS_CONTEXT(o) IS_OBJ_TYPE(o, OBJ_CONTEXT)
+#define IS_CHART(o) IS_OBJ_TYPE(o, OBJ_CHART)
+
 #define IS_COLLECTION(o) (IS_LIST(o) || IS_MATRIX(o) || IS_MAP(o) || IS_STRING(o))
 
 #define IS_SEQUENCE(o) (IS_LIST(o) || IS_STRING(o))
@@ -32,6 +38,9 @@
 #define AS_FUN(o) ((Function *)AS_OBJ(o))
 #define AS_CODE(o) ((ObjCode *)AS_OBJ(o))
 #define AS_FILE(o) ((ObjFile *)AS_OBJ(o))
+
+#define AS_CONTEXT(o) ((PiContext *)AS_OBJ(o))
+#define AS_CHART(o) ((PiChart *)AS_OBJ(o))
 
 #define AS_CSTRING(o) AS_STRING(o)->chars
 
@@ -60,7 +69,11 @@ typedef enum
     OBJ_IMAGE,
     OBJ_SPRITE,
     OBJ_MODEL3D,
-    OBJ_SOUND
+    OBJ_SOUND,
+
+    OBJ_CONTEXT, // drawing context
+    OBJ_CHART    // chart context
+
 } o_type;
 
 typedef struct ObjModule ObjModule;
@@ -159,9 +172,60 @@ typedef struct
     char *filename;
 } ObjFile;
 
+typedef struct
+{
+    Object object;
 
+    void *window;   // SDL_Window*
+    void *renderer; // SDL_Renderer*
 
-uint32_t string_hash(char *chars, size_t length);
+    int width;
+    int height;
+
+    // transform state (simple version)
+    float tx, ty;
+    float sx, sy;
+    float angle;
+
+    float alpha;
+
+    bool running;
+
+    void *userdata; /* PiDraw extra state (transform stack, font, fps); owned by builtin/pi_draw.c */
+
+    Value frame_callback;
+
+    void *transform_stack; // stack of TransformState
+    TTF_Font *font;        // default font
+    SDL_Rect clip_rect;    // clipping rectangle
+    bool clip_enabled;
+
+} PiContext;
+
+typedef struct
+{
+    Object object;
+
+    PiContext *ctx; // where to draw
+
+    list_t *series; // list of plotted data
+    list_t *colors; // optional styling
+
+    double xmin, xmax;
+    double ymin, ymax;
+
+    bool has_bounds;
+
+    bool show_grid;
+    bool show_axes;
+
+    char *title;
+    char *xlabel;
+    char *ylabel;
+} PiChart;
+
+uint32_t
+string_hash(char *chars, size_t length);
 Object *new_pistring(char *str);
 PiString *copy_pistring(char *chars, int length);
 
@@ -187,6 +251,9 @@ Object *new_range(double start, double end, double step);
 
 uint32_t code_hash(uint8_t *code);
 Object *new_code(list_t *code);
+
+Object *new_context();
+Object *new_chart(PiContext *ctx);
 
 void iter_reset(Object *col);
 bool iter_hasNext(Object *col);

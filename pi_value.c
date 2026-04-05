@@ -896,8 +896,10 @@ char *type_name(Value val)
             return "model3d";
         case OBJ_IMAGE:
             return "image";
-        case OBJ_SPRITE:
-            return "sprite";
+        case OBJ_CONTEXT:
+            return "context";
+        case OBJ_CHART:
+            return "chart";
         default:
             return "undefined";
         }

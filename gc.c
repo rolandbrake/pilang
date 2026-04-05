@@ -218,6 +218,20 @@ void mark_object(Object *obj)
         break;
     }
 
+    case OBJ_CONTEXT:
+        /* No GC-managed references (SDL handles are opaque). */
+        break;
+
+    case OBJ_CHART:
+    {
+        PiChart *chart = (PiChart *)obj;
+        if (chart->ctx)
+            mark_object((Object *)chart->ctx);
+        mark_list(chart->series);
+        mark_list(chart->colors);
+        break;
+    }
+
     default:
         break;
     }
@@ -359,6 +373,25 @@ void free_object(Object *obj)
         break;
     }
 
+    case OBJ_CONTEXT:
+        /* PiContext: SDL resources should be released before GC frees the object. */
+        break;
+
+    case OBJ_CHART:
+    {
+        PiChart *chart = (PiChart *)obj;
+        if (chart->series)
+            list_free(chart->series);
+        if (chart->colors)
+            list_free(chart->colors);
+        if (chart->title)
+            free(chart->title);
+        if (chart->xlabel)
+            free(chart->xlabel);
+        if (chart->ylabel)
+            free(chart->ylabel);
+        break;
+    }
 
     default:
         // Handle other object types if needed

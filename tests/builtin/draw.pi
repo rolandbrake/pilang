@@ -1,0 +1,25 @@
+// Interactive demo: builtin draw primitives (clear, rect, line, circle, pixel, triangle, polygon).
+// Run:  pi.exe examples/draw_primitives_demo.pi
+// Close the SDL window to exit.
+
+import draw
+
+let ctx = draw.canvas(720, 480, "PiLang — draw primitives")
+
+draw.clear(ctx, 0x1a1a2e)
+draw.rect(ctx, 40, 40, 640, 400, 0x16213e)
+
+draw.line(ctx, 60, 420, 660, 420, 0x888888)
+draw.line(ctx, 60, 60, 60, 420, 0x888888)
+
+draw.circle(ctx, 360, 240, 90, 0xe94560)
+draw.circle(ctx, 360, 240, 4, 0xffffff)
+
+draw.pixel(ctx, 200, 120, 0x4cc9f0)
+draw.pixel(ctx, 520, 120, 0x4cc9f0)
+
+draw.triangle(ctx, 360, 100, 400, 160, 320, 160, 0xf4a261)
+
+
+// println("Window open — close it to quit.")
+// draw.run(ctx)

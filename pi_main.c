@@ -115,6 +115,7 @@ int main(int argc, char *argv[])
 #else // Native version below
 
 // Native (non-Emscripten) includes and main
+// Native (non-Emscripten) includes and main
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -127,6 +128,11 @@ int main(int argc, char *argv[])
 #include "pi_vm.h"
 #include "common.h"
 #include "pi_min.h"
+
+// Add SDL includes
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
+#include <SDL2/SDL_ttf.h>
 
 #ifndef TARGET_FPS
 #define TARGET_FPS 60
@@ -201,7 +207,7 @@ static int run_source(const char *source, ParserMode mode, const char *entry_nam
 
     compiler_t *comp = init_compiler();
     parser_t *parser = init_parser(comp, tokens, mode);
-    parse(parser);    
+    parse(parser);
 #ifdef DEBUG_BUILD
     dis(comp);
 #endif
@@ -216,6 +222,7 @@ static int run_source(const char *source, ParserMode mode, const char *entry_nam
     double time_taken = ((double)(end - start)) * 1000.0 / CLOCKS_PER_SEC;
     printf("Execution Time: %.4f ms\n", time_taken);
 
+    // Cleanup
     free_parser(parser);
     free_vm(vm);
     free_compiler(comp);
@@ -238,6 +245,13 @@ int main(int argc, char *argv[])
 {
     pi_cli_argc = 0;
     pi_cli_argv = NULL;
+
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0)
+        error("SDL_Init failed: %s", SDL_GetError());
+    
+
+    if (TTF_Init() != 0)
+        error("TTF_Init failed: %s", TTF_GetError());
 
     if (argc < 2)
     {

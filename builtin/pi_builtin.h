@@ -60,8 +60,8 @@ extern BuiltinModule module_col;    // col: Color functions (e.g., rgb, hsl)
 extern BuiltinModule module_string; // string: String functions (e.g., split, join)
 extern BuiltinModule module_time;   // time: Time functions (e.g., now, sleep)
 extern BuiltinModule module_type;   // type: Type functions (e.g., type, typeof)
+extern BuiltinModule module_draw;   // draw: Draw functions (e.g., canvas, run, clear, pixel, line, triangle, rect, polygon, circle, text, image, push, pop, translate, scale, rotate, alpha, on, off, poll, wait, mouse, key, open, close, title, resize, fullscreen, size, fps)
 extern BuiltinModule module_plot;   // plot: Plot functions (e.g., plot, show, scatter, bar)
-extern BuiltinModule module_screen; // screen: Screen functions (e.g., clear, cls)
 
 // Builtin matrix module
 extern BuiltinModule module_matrix;       // matrix: Matrix functions (e.g., size, zeros, ones)
