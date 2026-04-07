@@ -1,0 +1,111 @@
+import lang
+
+let value = 10
+
+let box = {
+    "label": "Box",
+
+    compute: fun(op, other = nil) {
+        if (op == lang.OP_ADD) {
+            if (!is_num(other)) {
+                error("box + other expects a number")
+            }
+            return value + other
+        }
+
+        if (op == lang.OP_SUB) {
+            if (!is_num(other)) {
+                error("box - other expects a number")
+            }
+            return value - other
+        }
+
+        if (op == lang.OP_MUL) {
+            if (!is_num(other)) {
+                error("box * other expects a number")
+            }
+            return value * other
+        }
+
+        if (op == lang.OP_DIV) {
+            if (!is_num(other)) {
+                error("box / other expects a number")
+            }
+            return value / other
+        }
+
+        if (op == lang.OP_MOD) {
+            if (!is_num(other)) {
+                error("box % other expects a number")
+            }
+            return value % other
+        }
+
+        if (op == lang.OP_BXOR) {
+            if (!is_num(other)) {
+                error("box ^ other expects a number")
+            }
+            return value ^ other
+        }
+
+        if (op == lang.OP_POS) {
+            return +value
+        }
+
+        if (op == lang.OP_NEG) {
+            return -value
+        }
+
+        if (op == lang.OP_BNOT) {
+            return ~value
+        }
+
+        error("unsupported operator: " + op)
+    },
+
+    format: fun() {
+        return "Box(" + value + ")"
+    },
+
+    equals: fun(candidate) {
+        return is_num(candidate) && candidate == value
+    },
+
+    compare: fun(rhs) {
+        return value - rhs
+    }
+}
+
+assert(box + 5 == 15, "operator + should dispatch to compute(OP_ADD, other)")
+assert(box - 3 == 7, "operator - should dispatch to compute(OP_SUB, other)")
+assert(box * 4 == 40, "operator * should dispatch to compute(OP_MUL, other)")
+assert(box / 2 == 5, "operator / should dispatch to compute(OP_DIV, other)")
+assert(box % 3 == 1, "operator % should dispatch to compute(OP_MOD, other)")
+assert(box ^ 3 == (10 ^ 3), "operator ^ should dispatch to compute(OP_BXOR, other)")
+assert(+box == 10, "unary + should dispatch to compute(OP_POS)")
+assert(-box == -10, "unary - should dispatch to compute(OP_NEG)")
+assert(~box == ~10, "unary ~ should dispatch to compute(OP_BNOT)")
+assert(box == 10, "== should dispatch to equals(other)")
+assert(box != 11, "!= should dispatch to equals(other)")
+assert(box > 8, "> should dispatch to compare(other)")
+assert(box < 12, "< should dispatch to compare(other)")
+assert(box >= 10, ">= should dispatch to compare(other)")
+assert(box <= 10, "<= should dispatch to compare(other)")
+assert(10 == box, "right-side equals(other) fallback should work")
+assert(8 < box, "right-side compare(other) fallback should work")
+assert(12 > box, "right-side compare(other) fallback should work")
+
+println("operator overloading use case")
+println(box)
+println(box + 2)
+println(box - 8)
+println(box * 3)
+println(box / 5)
+println(box % 4)
+println(box ^ 3)
+println(+box)
+println(-box)
+println(~box)
+println(box == 10)
+println(box > 8)
+println(box <= 10)

@@ -90,6 +90,7 @@ BuiltinModule *builtin_modules[] = {
     &module_func,
     &module_time,
     &module_type,
+    &module_lang,
     &module_draw,
     &module_plot,
     // matrix built-in package

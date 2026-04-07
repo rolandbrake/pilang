@@ -958,6 +958,110 @@ static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
     return call_func(vm, AS_FUN(method), 0, NULL, NEW_NIL());
 }
 
+static bool try_callMethodOneArg(vm_t *vm, Value receiver, const char *name, Value arg, Value *result)
+{
+    if (!IS_MAP(receiver))
+        return false;
+
+    Value key = NEW_OBJ(new_pistring(strdup(name)));
+    PiMap *owner = map_owner(AS_MAP(receiver), key);
+    if (owner == NULL)
+        return false;
+
+    Value method = map_get(owner, key);
+    if (!IS_FUN(method))
+        return false;
+
+    if (AS_MAP(receiver)->is_instance)
+    {
+        Object *target = AS_MAP(receiver)->super_instance ? AS_MAP(receiver)->super_instance : AS_OBJ(receiver);
+        method = bind(vm, AS_FUN(method), target);
+    }
+
+    Value args[1];
+    args[0] = arg;
+
+    *result = call_func(vm, AS_FUN(method), 1, args, NEW_NIL());
+    if (IS_OBJ(*result))
+        add_obj(vm, AS_OBJ(*result));
+
+    return true;
+}
+
+static bool try_callCompute(vm_t *vm, Value receiver, int op, bool has_other, Value other, Value *result)
+{
+    if (!IS_MAP(receiver))
+        return false;
+
+    Value key = NEW_OBJ(new_pistring(strdup("compute")));
+    PiMap *owner = map_owner(AS_MAP(receiver), key);
+    if (owner == NULL)
+        return false;
+
+    Value method = map_get(owner, key);
+    if (!IS_FUN(method))
+        return false;
+
+    if (AS_MAP(receiver)->is_instance)
+    {
+        Object *target = AS_MAP(receiver)->super_instance ? AS_MAP(receiver)->super_instance : AS_OBJ(receiver);
+        method = bind(vm, AS_FUN(method), target);
+    }
+
+    Value args[2];
+    args[0] = NEW_NUM(op);
+    if (has_other)
+        args[1] = other;
+
+    *result = call_func(vm, AS_FUN(method), has_other ? 2 : 1, args, NEW_NIL());
+    if (IS_OBJ(*result))
+        add_obj(vm, AS_OBJ(*result));
+
+    return true;
+}
+
+static bool try_overloadedEquals(vm_t *vm, Value left, Value right, bool *result)
+{
+    Value method_result = NEW_NIL();
+    if (try_callMethodOneArg(vm, left, "equals", right, &method_result))
+    {
+        *result = !is_false(vm, method_result);
+        return true;
+    }
+
+    if (try_callMethodOneArg(vm, right, "equals", left, &method_result))
+    {
+        *result = !is_false(vm, method_result);
+        return true;
+    }
+
+    return false;
+}
+
+static bool try_overloadedCompare(vm_t *vm, Value left, Value right, int *cmp)
+{
+    Value method_result = NEW_NIL();
+    if (try_callMethodOneArg(vm, left, "compare", right, &method_result))
+    {
+        if (!is_numeric(method_result))
+            vm_error(vm, "Object compare(other) must return a number.");
+        double value = as_number(method_result);
+        *cmp = (value > 0) - (value < 0);
+        return true;
+    }
+
+    if (try_callMethodOneArg(vm, right, "compare", left, &method_result))
+    {
+        if (!is_numeric(method_result))
+            vm_error(vm, "Object compare(other) must return a number.");
+        double value = as_number(method_result);
+        *cmp = -((value > 0) - (value < 0));
+        return true;
+    }
+
+    return false;
+}
+
 /**
  * Attempts to coerce a given object into a primitive value.
  *
@@ -1562,21 +1666,35 @@ void run(vm_t *vm)
 
             Value right = pop_stack(vm);
             Value left = pop_stack(vm);
-
-            left = to_primitive(vm, left, false);
-            right = to_primitive(vm, right, false);
-
             bool result = false;
-            int cmp = compare(left, right);
+            int cmp = 0;
+
+            if (op <= 1)
+            {
+                if (!try_overloadedEquals(vm, left, right, &result))
+                {
+                    Value left_prim = to_primitive(vm, left, false);
+                    Value right_prim = to_primitive(vm, right, false);
+                    cmp = compare(left_prim, right_prim);
+                    result = (cmp == 0);
+                }
+
+                if (op == 1)
+                    result = !result;
+
+                push_stack(vm, NEW_BOOL(result));
+                break;
+            }
+
+            if (!try_overloadedCompare(vm, left, right, &cmp))
+            {
+                Value left_prim = to_primitive(vm, left, false);
+                Value right_prim = to_primitive(vm, right, false);
+                cmp = compare(left_prim, right_prim);
+            }
 
             switch (op)
             {
-            case 0: // "=="
-                result = (cmp == 0);
-                break;
-            case 1: // "!="
-                result = (cmp != 0);
-                break;
             case 2: // ">"
                 result = (cmp > 0);
                 break;
@@ -1604,6 +1722,14 @@ void run(vm_t *vm)
             Value left = pop_stack(vm);
             Value left_prim = left;
             Value right_prim = right;
+            Value computed = NEW_NIL();
+
+            if (op != 5 && op != 6 && op != 15 &&
+                try_callCompute(vm, left, op, true, right, &computed))
+            {
+                push_stack(vm, computed);
+                break;
+            }
 
             switch (op)
             {
@@ -2252,6 +2378,15 @@ void run(vm_t *vm)
 
             uint8_t op = code[pc++];       // Get the unary operation code
             Value operand = pop_stack(vm); // Get the operand from the stack
+            Value computed = NEW_NIL();
+
+            if ((op == 0 || op == 1 || op == 3) &&
+                try_callCompute(vm, operand, 100 + op, false, NEW_NIL(), &computed))
+            {
+                push_stack(vm, computed);
+                break;
+            }
+
             Value operand_prim = to_primitive(vm, operand, false);
 
             switch (op)
