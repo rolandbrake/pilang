@@ -24,6 +24,7 @@
 
 #define IS_CONTEXT(o) IS_OBJ_TYPE(o, OBJ_CONTEXT)
 #define IS_CHART(o) IS_OBJ_TYPE(o, OBJ_CHART)
+#define IS_EVENT(o) IS_OBJ_TYPE(o, OBJ_EVENT)
 
 #define IS_COLLECTION(o) (IS_LIST(o) || IS_MATRIX(o) || IS_MAP(o) || IS_STRING(o))
 
@@ -41,6 +42,7 @@
 
 #define AS_CONTEXT(o) ((PiContext *)AS_OBJ(o))
 #define AS_CHART(o) ((PiChart *)AS_OBJ(o))
+#define AS_EVENT(o) ((PiEvent *)AS_OBJ(o))
 
 #define AS_CSTRING(o) AS_STRING(o)->chars
 
@@ -72,7 +74,8 @@ typedef enum
     OBJ_SOUND,
 
     OBJ_CONTEXT, // drawing context
-    OBJ_CHART    // chart context
+    OBJ_CHART,   // chart context
+    OBJ_EVENT,
 
 } o_type;
 
@@ -95,6 +98,37 @@ struct Object
 
     struct Object *next;
 };
+
+typedef struct
+{
+    char name[32];            // event name, e.g. "click"
+    Value *fns[MAX_HANDLERS]; // registered pilang callables
+    int count;                // number of registered handlers
+} HandlerList;
+
+typedef struct
+{
+    Object object;
+    char *type;           // Event type string
+    EventType event_type; // Enum for fast switching
+
+    // Common fields
+    int x, y;          // Position for mouse events
+    int dx, dy;        // Delta for motion/scroll
+    char *key;         // Key name for keyboard events
+    int button;        // Button number for mouse events
+    bool pressed;      // Pressed state for key/mouse
+    int width, height; // New size for resize events
+} PiEvent;
+
+typedef struct
+{
+    PiEvent **events;
+    int head;
+    int tail;
+    int count;
+    int capacity;
+} EventQueue;
 
 typedef struct
 {
@@ -172,34 +206,42 @@ typedef struct
     char *filename;
 } ObjFile;
 
-typedef struct
+// Update PiContext structure
+typedef struct PiContext
 {
+
     Object object;
 
-    void *window;   // SDL_Window*
-    void *renderer; // SDL_Renderer*
-
-    int width;
-    int height;
-
-    // transform state (simple version)
-    float tx, ty;
-    float sx, sy;
-    float angle;
-
-    float alpha;
-
+    // Existing fields
+    void *window;
+    void *renderer;
+    int width, height;
     bool running;
+    float tx, ty, sx, sy, angle, alpha;
+    void *font;            // default font
+    void *transform_stack; // stack of TransformState
 
     void *userdata; /* PiDraw extra state (transform stack, font, fps); owned by builtin/pi_draw.c */
 
     Value frame_callback;
 
-    void *transform_stack; // stack of TransformState
-    TTF_Font *font;        // default font
-    SDL_Rect clip_rect;    // clipping rectangle
+    SDL_Rect clip_rect; // clipping rectangle
     bool clip_enabled;
 
+    // Event handling
+    HandlerList handlers[EVENT_COUNT];
+
+    // Event queue (using simple array or list)
+    EventQueue *eventQueue;
+
+    // FPS tracking
+    uint32_t last_fps_time;
+    int frame_count;
+    double current_fps;
+
+    // Mouse state
+    int mouse_x, mouse_y;
+    uint32_t mouse_buttons;
 } PiContext;
 
 typedef struct
@@ -254,6 +296,7 @@ Object *new_code(list_t *code);
 
 Object *new_context();
 Object *new_chart(PiContext *ctx);
+Object *new_event(const char *type, EventType event_type);
 
 void iter_reset(Object *col);
 bool iter_hasNext(Object *col);

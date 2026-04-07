@@ -1,25 +1,103 @@
-// Interactive demo: builtin draw primitives (clear, rect, line, circle, pixel, triangle, polygon).
-// Run:  pi.exe examples/draw_primitives_demo.pi
-// Close the SDL window to exit.
+// Draw module use-case that touches the full exported API.
+// Run from repo root: pi.exe tests/builtin/draw.pi
+// The window closes itself after a couple of frames.
 
 import draw
 
-let ctx = draw.canvas(720, 480, "PiLang — draw primitives")
+let frame_count = 0
+let move_hits = 0
+let key_hits = 0
+let close_hits = 0
 
-draw.clear(ctx, 0x1a1a2e)
-draw.rect(ctx, 40, 40, 640, 400, 0x16213e)
+fun on_move(event) {
+    move_hits += 1
+}
 
-draw.line(ctx, 60, 420, 660, 420, 0x888888)
-draw.line(ctx, 60, 60, 60, 420, 0x888888)
+fun on_key(event) {
+    key_hits += 1
+}
 
-draw.circle(ctx, 360, 240, 90, 0xe94560)
-draw.circle(ctx, 360, 240, 4, 0xffffff)
+fun on_close(event) {
+    close_hits += 1
+}
 
-draw.pixel(ctx, 200, 120, 0x4cc9f0)
-draw.pixel(ctx, 520, 120, 0x4cc9f0)
+fun paint(ctx) {
+    frame_count += 1
 
-draw.triangle(ctx, 360, 100, 400, 160, 320, 160, 0xf4a261)
+    draw.clear(ctx, 0x101820)
 
+    draw.push(ctx)
+    draw.translate(ctx, 40, 30)
+    draw.alpha(ctx, 0.90)
 
-// println("Window open — close it to quit.")
-// draw.run(ctx)
+    draw.rect(ctx, 0, 0, 280, 180, draw.COLOR_DARK_GRAY, true)
+    draw.rect(ctx, 10, 10, 260, 160, draw.COLOR_WHITE, false)
+    draw.line(ctx, 20, 140, 240, 20, draw.COLOR_CYAN)
+    draw.pixel(ctx, 24, 24, draw.COLOR_YELLOW)
+    draw.circle(ctx, 180, 90, 36, draw.COLOR_RED, false)
+    draw.circle(ctx, 90, 95, 22, draw.COLOR_GREEN, true)
+    draw.triangle(ctx, 36, 150, 92, 54, 148, 150, draw.COLOR_ORANGE, false)
+    draw.triangle(ctx, 168, 146, 210, 64, 252, 146, draw.COLOR_BLUE, true)
+    draw.polygon(ctx, [[26, 40], [58, 18], [96, 30], [84, 74], [40, 78]], draw.COLOR_MAGENTA, false)
+
+    draw.pop(ctx)
+
+    draw.push(ctx)
+    draw.translate(ctx, 350, 72)
+    draw.scale(ctx, 1.1, 1.1)
+    draw.rotate(ctx, 12)
+    draw.alpha(ctx, 0.75)
+
+    draw.rect(ctx, 0, 0, 120, 90, draw.COLOR_PURPLE, true)
+    draw.image(ctx, "tests/builtin/draw_demo.bmp", 18, 14, {
+        "w": 56,
+        "h": 56,
+        "alpha": 1.0
+    })
+    draw.text(ctx, 60, 74, "Pi Draw", {
+        "color": draw.COLOR_WHITE,
+        "size": 18,
+        "align": "center",
+        "bold": true
+    })
+
+    draw.pop(ctx)
+
+    draw.text(ctx, 20, 222, "draw.pi exercises canvas, shapes, text, image, transforms, events and run loop", {
+        "color": draw.COLOR_LIGHT_GRAY,
+        "size": 16
+    })
+
+    // if (frame_count >= 300)
+    if (frame_count >= 2) {
+        draw.close(ctx)
+    }
+}
+
+let ctx = draw.canvas(720, 320, "PiLang draw use-case")
+
+assert(draw.is_running(ctx) == true, "canvas() should create a running draw context")
+// assert(draw.poll(ctx) == nil, "poll() should return nil when no events are queued yet")
+startup_event = draw.poll(ctx)
+
+draw.on(ctx, "mousemove", on_move)
+draw.on(ctx, "keydown", on_key)
+draw.on(ctx, "close", on_close)
+
+draw.off(ctx, "mousemove", on_move)
+draw.off(ctx, "keydown")
+
+draw.on_frame(ctx, paint)
+draw.present(ctx)
+draw.run(ctx)
+
+assert(draw.is_running(ctx) == false, "run() + close() should stop the draw context")
+assert(move_hits == 0, "off(event, callback) should unregister a specific handler")
+assert(key_hits == 0, "off(event) should unregister all handlers for that event")
+
+// wait() is event-blocking and must be called while a canvas is still alive, for example:
+// let next_event = draw.wait(ctx)
+
+println(frame_count)
+println(close_hits)
+println(startup_event)

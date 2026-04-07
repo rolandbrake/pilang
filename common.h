@@ -4,12 +4,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include "pi_value.h"
 
 #define PI_VERSION "Pi-Lang 0.1.0"
 
 #define PI 3.1415926535897932384626433832795
 #define E 2.7182818284590452353602874713527
-#define TAU 6.283185307179586476925286766559   
+#define TAU 6.283185307179586476925286766559
 #define PHI 1.6180339887498948482045868343656
 
 #define DEG_TO_RAD 0.017453292519943295769236907684886
@@ -37,10 +38,6 @@ typedef uint8_t byte;
 #define True 1
 
 #define EPSILON 1e-5f
-
-
-
-
 
 // A simple 3D vector structure
 typedef struct
@@ -79,5 +76,22 @@ void set_errorHandler(error_handlerFn handler);
 extern int pi_cli_argc;
 extern char **pi_cli_argv;
 
+#define MAX_HANDLERS 32
+#define MAX_EVENT_TYPES 16
+
+// Event type enumeration
+typedef enum
+{
+    EVENT_KEYDOWN,
+    EVENT_KEYUP,
+    EVENT_MOUSEDOWN,
+    EVENT_MOUSEUP,
+    EVENT_MOUSEMOVE,
+    EVENT_CLICK,
+    EVENT_SCROLL,
+    EVENT_RESIZE,
+    EVENT_CLOSE,
+    EVENT_COUNT
+} EventType;
 
 #endif

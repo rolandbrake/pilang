@@ -392,6 +392,8 @@ void free_object(Object *obj)
             free(chart->ylabel);
         break;
     }
+    case OBJ_EVENT:        
+        break;
 
     default:
         // Handle other object types if needed

@@ -466,6 +466,33 @@ Object *new_chart(PiContext *ctx)
     return (Object *)chart;
 }
 
+// Create a new PiEvent (allocates memory)
+Object *new_event(const char *type, EventType event_type)
+{
+    PiEvent *e = (PiEvent *)malloc(sizeof(PiEvent));
+
+    e->object.type = OBJ_EVENT;
+    e->object.is_marked = false;
+    e->object.in_gcList = false;
+    e->object.gc_color = GC_WHITE;
+
+    e->type = strdup(type);
+    e->event_type = event_type;
+
+    // Initialize fields to defaults
+    e->x = 0;
+    e->y = 0;
+    e->dx = 0;
+    e->dy = 0;
+    e->key = NULL;
+    e->button = 0;
+    e->pressed = false;
+    e->width = 0;
+    e->height = 0;
+
+    return (Object *)e;
+}
+
 /**
  * Creates a new ObjRange object with the given start, end, and step values.
  *

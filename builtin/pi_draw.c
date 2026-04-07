@@ -24,6 +24,17 @@ typedef struct TransformState
     struct TransformState *next;
 } TransformState;
 
+static char *draw_strdup(const char *text)
+{
+    size_t length = strlen(text) + 1;
+    char *copy = (char *)malloc(length);
+    if (copy == NULL)
+        return NULL;
+
+    memcpy(copy, text, length);
+    return copy;
+}
+
 static PiContext *get_ctx(Value v)
 {
     if (!IS_CONTEXT(v))
@@ -114,6 +125,315 @@ static void parse_drawOptions(Value opts, int *color, char **font_path, int *fon
         *img_h = (int)AS_NUM(_h);
 }
 
+static EventType get_eventType(const char *name)
+{
+    if (strcmp(name, "keydown") == 0)
+        return EVENT_KEYDOWN;
+    if (strcmp(name, "keyup") == 0)
+        return EVENT_KEYUP;
+    if (strcmp(name, "mousedown") == 0)
+        return EVENT_MOUSEDOWN;
+    if (strcmp(name, "mouseup") == 0)
+        return EVENT_MOUSEUP;
+    if (strcmp(name, "mousemove") == 0)
+        return EVENT_MOUSEMOVE;
+    if (strcmp(name, "click") == 0)
+        return EVENT_CLICK;
+    if (strcmp(name, "scroll") == 0)
+        return EVENT_SCROLL;
+    if (strcmp(name, "resize") == 0)
+        return EVENT_RESIZE;
+    if (strcmp(name, "close") == 0)
+        return EVENT_CLOSE;
+    return -1;
+}
+
+static const char *get_eventName(EventType type)
+{
+    static const char *names[] = {
+        "keydown", "keyup", "mousedown", "mouseup",
+        "mousemove", "click", "scroll", "resize", "close"};
+    if (type >= 0 && type < EVENT_COUNT)
+        return names[type];
+    return "unknown";
+}
+
+static void init_handlerList(HandlerList *list, const char *name)
+{
+    int i = 0;
+    while (i < 31 && name[i] != '\0')
+    {
+        list->name[i] = name[i];
+        i++;
+    }
+    list->name[i] = '\0';
+    list->count = 0;
+    for (int i = 0; i < MAX_HANDLERS; i++)
+    {
+        list->fns[i] = NULL;
+    }
+}
+
+static void init_eventQueue(PiContext *ctx)
+{
+    ctx->eventQueue = (EventQueue *)malloc(sizeof(EventQueue));
+    ctx->eventQueue->capacity = INIT_CAP;
+    ctx->eventQueue->events = (PiEvent **)calloc(ctx->eventQueue->capacity, sizeof(PiEvent *));
+    ctx->eventQueue->head = 0;
+    ctx->eventQueue->tail = 0;
+    ctx->eventQueue->count = 0;
+}
+
+static void init_eventSystem(PiContext *ctx)
+{
+    for (int i = 0; i < EVENT_COUNT; i++)
+        init_handlerList(&ctx->handlers[i], get_eventName((EventType)i));
+
+    init_eventQueue(ctx);
+}
+
+static PiEvent *clone_event(const PiEvent *src)
+{
+    PiEvent *copy = (PiEvent *)new_event(src->type, src->event_type);
+
+    copy->x = src->x;
+    copy->y = src->y;
+    copy->dx = src->dx;
+    copy->dy = src->dy;
+    copy->button = src->button;
+    copy->pressed = src->pressed;
+    copy->width = src->width;
+    copy->height = src->height;
+
+    if (src->key != NULL)
+    {
+        free(copy->key);
+        copy->key = draw_strdup(src->key);
+    }
+
+    return copy;
+}
+
+static void free_event(PiEvent *e)
+{
+    if (e == NULL)
+        return;
+
+    free(e->type);
+    free(e->key);
+    free(e);
+}
+
+// Add event to queue
+static void push_event(PiContext *ctx, PiEvent *e)
+{
+    if (ctx->eventQueue == NULL || ctx->eventQueue->events == NULL)
+    {
+        init_eventQueue(ctx);
+    }
+
+    // Resize if needed
+    if (ctx->eventQueue->count >= ctx->eventQueue->capacity)
+    {
+        int new_capacity = ctx->eventQueue->capacity * 2;
+        PiEvent **new_events = (PiEvent **)realloc(ctx->eventQueue->events, new_capacity * sizeof(PiEvent *));
+        if (!new_events)
+            return;
+
+        // Reorganize if wrapped around
+        if (ctx->eventQueue->head > ctx->eventQueue->tail)
+        {
+            // Move wrapped elements to the end
+            int old_capacity = ctx->eventQueue->capacity;
+            for (int i = ctx->eventQueue->tail - 1; i >= 0; i--)
+                new_events[i + old_capacity] = new_events[i];
+            ctx->eventQueue->tail += old_capacity;
+        }
+
+        ctx->eventQueue->events = new_events;
+        ctx->eventQueue->capacity = new_capacity;
+    }
+
+    // Copy event
+    PiEvent *copy = clone_event(e);
+
+    ctx->eventQueue->events[ctx->eventQueue->tail] = copy;
+    ctx->eventQueue->tail = (ctx->eventQueue->tail + 1) % ctx->eventQueue->capacity;
+    ctx->eventQueue->count++;
+}
+
+// Pop event from queue
+static PiEvent *pop_event(PiContext *ctx)
+{
+    if (ctx->eventQueue == NULL || !ctx->eventQueue->events || ctx->eventQueue->count == 0)
+        return NULL;
+
+    PiEvent *e = ctx->eventQueue->events[ctx->eventQueue->head];
+    ctx->eventQueue->events[ctx->eventQueue->head] = NULL;
+    ctx->eventQueue->head = (ctx->eventQueue->head + 1) % ctx->eventQueue->capacity;
+    ctx->eventQueue->count--;
+
+    return e;
+}
+
+// Clear event queue
+static void clear_eventQueue(PiContext *ctx)
+{
+    if (ctx->eventQueue == NULL || !ctx->eventQueue->events)
+        return;
+
+    while (ctx->eventQueue->count > 0)
+    {
+        PiEvent *e = pop_event(ctx);
+        free_event(e);
+    }
+}
+
+// Cleanup event system
+static void cleanup_events(PiContext *ctx)
+{
+    // Clear all handlers
+    for (int i = 0; i < EVENT_COUNT; i++)
+    {
+        ctx->handlers[i].count = 0;
+        for (int j = 0; j < MAX_HANDLERS; j++)
+        {
+            ctx->handlers[i].fns[j] = NULL;
+        }
+    }
+
+    // Clear event queue
+    clear_eventQueue(ctx);
+    if (ctx->eventQueue != NULL && ctx->eventQueue->events)
+    {
+        free(ctx->eventQueue->events);
+        ctx->eventQueue->events = NULL;
+    }
+    if (ctx->eventQueue != NULL)
+    {
+        free(ctx->eventQueue);
+        ctx->eventQueue = NULL;
+    }
+}
+
+static Value event_toValue(vm_t *vm, PiEvent *event)
+{
+    return NEW_OBJ(add_obj(vm, (Object *)event));
+}
+
+static void dispatch_event(vm_t *vm, PiContext *ctx, PiEvent *event)
+{
+    HandlerList *handlers = &ctx->handlers[event->event_type];
+    if (handlers->count == 0)
+        return;
+
+    PiEvent *event_copy = clone_event(event);
+    Value event_obj = event_toValue(vm, event_copy);
+
+    for (int i = 0; i < handlers->count; i++)
+    {
+        if (handlers->fns[i] == NULL || IS_NIL(*(handlers->fns[i])))
+            continue;
+
+        Value handler = *(handlers->fns[i]);
+        if (!IS_FUN(handler))
+            continue;
+
+        Value args[1] = {event_obj};
+        call_func(vm, AS_FUN(handler), 1, args, NEW_NIL());
+    }
+}
+
+static PiEvent *translate_sdlEvent(const SDL_Event *event)
+{
+    PiEvent *pi_event = NULL;
+
+    switch (event->type)
+    {
+    case SDL_QUIT:
+        pi_event = (PiEvent *)new_event("close", EVENT_CLOSE);
+        break;
+
+    case SDL_KEYDOWN:
+    case SDL_KEYUP:
+        pi_event = (PiEvent *)new_event(
+            event->type == SDL_KEYDOWN ? "keydown" : "keyup",
+            event->type == SDL_KEYDOWN ? EVENT_KEYDOWN : EVENT_KEYUP);
+        pi_event->pressed = (event->type == SDL_KEYDOWN);
+        pi_event->key = draw_strdup(SDL_GetKeyName(event->key.keysym.sym));
+        break;
+
+    case SDL_MOUSEBUTTONDOWN:
+    case SDL_MOUSEBUTTONUP:
+        pi_event = (PiEvent *)new_event(
+            event->type == SDL_MOUSEBUTTONDOWN ? "mousedown" : "mouseup",
+            event->type == SDL_MOUSEBUTTONDOWN ? EVENT_MOUSEDOWN : EVENT_MOUSEUP);
+        pi_event->x = event->button.x;
+        pi_event->y = event->button.y;
+        pi_event->button = event->button.button;
+        pi_event->pressed = (event->type == SDL_MOUSEBUTTONDOWN);
+        break;
+
+    case SDL_MOUSEMOTION:
+        pi_event = (PiEvent *)new_event("mousemove", EVENT_MOUSEMOVE);
+        pi_event->x = event->motion.x;
+        pi_event->y = event->motion.y;
+        pi_event->dx = event->motion.xrel;
+        pi_event->dy = event->motion.yrel;
+        break;
+
+    case SDL_MOUSEWHEEL:
+        pi_event = (PiEvent *)new_event("scroll", EVENT_SCROLL);
+        pi_event->dx = event->wheel.x;
+        pi_event->dy = event->wheel.y;
+        break;
+
+    case SDL_WINDOWEVENT:
+        if (event->window.event == SDL_WINDOWEVENT_CLOSE)
+        {
+            pi_event = (PiEvent *)new_event("close", EVENT_CLOSE);
+        }
+        else if (event->window.event == SDL_WINDOWEVENT_RESIZED ||
+                 event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+        {
+            pi_event = (PiEvent *)new_event("resize", EVENT_RESIZE);
+            pi_event->width = event->window.data1;
+            pi_event->height = event->window.data2;
+        }
+        break;
+    }
+
+    return pi_event;
+}
+
+static void pump_events(vm_t *vm, PiContext *ctx)
+{
+    SDL_Event sdl_event;
+
+    while (SDL_PollEvent(&sdl_event))
+    {
+        if (sdl_event.type == SDL_QUIT ||
+            (sdl_event.type == SDL_WINDOWEVENT && sdl_event.window.event == SDL_WINDOWEVENT_CLOSE))
+            ctx->running = false;
+
+        if (sdl_event.type == SDL_WINDOWEVENT &&
+            (sdl_event.window.event == SDL_WINDOWEVENT_RESIZED ||
+             sdl_event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED))
+        {
+            ctx->width = sdl_event.window.data1;
+            ctx->height = sdl_event.window.data2;
+        }
+
+        PiEvent *event = translate_sdlEvent(&sdl_event);
+        if (event == NULL)
+            continue;
+
+        push_event(ctx, event);
+        dispatch_event(vm, ctx, event);
+        free_event(event);
+    }
+}
+
 Value dw_canvas(vm_t *vm, int argc, Value *argv)
 {
     if (!IS_NUM(argv[0]) || !IS_NUM(argv[1]))
@@ -160,6 +480,7 @@ Value dw_canvas(vm_t *vm, int argc, Value *argv)
     ctx->ty = 0.0f;
     ctx->sx = 1.0f;
     ctx->sy = 1.0f;
+    init_eventSystem(ctx);
 
     return NEW_OBJ(ctx);
 }
@@ -174,14 +495,7 @@ Value dw_run(vm_t *vm, int argc, Value *argv)
     SDL_Event e;
     while (ctx->running)
     {
-        // Process events
-        while (SDL_PollEvent(&e))
-        {
-            if (e.type == SDL_QUIT)
-                ctx->running = false;
-            if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_CLOSE)
-                ctx->running = false;
-        }
+        pump_events(vm, ctx);
 
         // Call the frame callback if it exists
         if (!IS_NIL(ctx->frame_callback))
@@ -200,6 +514,7 @@ Value dw_run(vm_t *vm, int argc, Value *argv)
 
     SDL_DestroyRenderer(ctx->renderer);
     SDL_DestroyWindow(ctx->window);
+    cleanup_events(ctx);
     free(ctx);
 
     return NEW_NIL();
@@ -972,6 +1287,139 @@ Value dw_close(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
+// Register event handler
+Value dw_on(vm_t *vm, int argc, Value *argv)
+{
+    // Usage: on(canvas, event_type, callback)
+    PiContext *ctx = get_ctx(argv[0]);
+    if (!ctx)
+        vm_error(vm, "on() takes a canvas as first argument");
+
+    if (argc < 3)
+        vm_error(vm, "on() needs event type and callback");
+
+    if (!IS_STRING(argv[1]))
+        vm_error(vm, "event type must be a string");
+    const char *event_name = AS_CSTRING(argv[1]);
+
+    EventType type = get_eventType(event_name);
+    if (type == -1)
+        vm_errorf(vm, "Unknown event type: %s", event_name);
+
+    if (!IS_FUN(argv[2]))
+        vm_error(vm, "callback must be a function");
+
+    HandlerList *handlers = &ctx->handlers[type];
+
+    // Check if already at max handlers
+    if (handlers->count >= MAX_HANDLERS)
+    {
+        vm_errorf(vm, "Maximum handlers (%d) reached for event '%s'", MAX_HANDLERS, event_name);
+        return NEW_NIL();
+    }
+
+    // Add handler
+    handlers->fns[handlers->count] = (Value *)malloc(sizeof(Value));
+    *(handlers->fns[handlers->count]) = argv[2];
+    handlers->count++;
+
+    return NEW_NIL();
+}
+
+// Remove event handler
+Value dw_off(vm_t *vm, int argc, Value *argv)
+{
+    // Usage: off(canvas, event_type, [callback])
+    PiContext *ctx = get_ctx(argv[0]);
+    if (!ctx)
+        vm_error(vm, "off() takes a canvas as first argument");
+
+    if (argc < 2)
+        vm_error(vm, "off() needs event type");
+
+    if (!IS_STRING(argv[1]))
+        vm_error(vm, "event type must be a string");
+    const char *event_name = AS_CSTRING(argv[1]);
+
+    EventType type = get_eventType(event_name);
+    if (type == -1)
+        vm_errorf(vm, "Unknown event type: %s", event_name);
+
+    HandlerList *handlers = &ctx->handlers[type];
+
+    if (argc > 2 && !IS_NIL(argv[2]))
+    {
+        // Remove specific handler
+        Value to_remove = argv[2];
+        for (int i = 0; i < handlers->count; i++)
+        {
+            if (equals(*(handlers->fns[i]), to_remove))
+            {
+                // Free the handler
+                free(handlers->fns[i]);
+                // Shift remaining handlers
+                for (int j = i; j < handlers->count - 1; j++)
+                {
+                    handlers->fns[j] = handlers->fns[j + 1];
+                }
+                handlers->count--;
+                break;
+            }
+        }
+    }
+    else
+    {
+        // Remove all handlers for this event
+        for (int i = 0; i < handlers->count; i++)
+        {
+            free(handlers->fns[i]);
+            handlers->fns[i] = NULL;
+        }
+        handlers->count = 0;
+    }
+
+    return NEW_NIL();
+}
+
+// Poll for event (non-blocking)
+Value dw_poll(vm_t *vm, int argc, Value *argv)
+{
+    // Usage: poll(canvas) -> event or nil
+    PiContext *ctx = get_ctx(argv[0]);
+    if (!ctx)
+        return NEW_NIL();
+
+    pump_events(vm, ctx);
+
+    PiEvent *e = pop_event(ctx);
+    if (!e)
+        return NEW_NIL();
+
+    return event_toValue(vm, e);
+}
+
+// Wait for event (blocking)
+Value dw_wait(vm_t *vm, int argc, Value *argv)
+{
+    // Usage: wait(canvas) -> event
+    PiContext *ctx = get_ctx(argv[0]);
+    if (!ctx)
+        vm_error(vm, "wait() takes a canvas as first argument");
+
+    while (ctx->running)
+    {
+        pump_events(vm, ctx);
+
+        PiEvent *e = pop_event(ctx);
+        if (e)
+            return event_toValue(vm, e);
+
+        SDL_Delay(10);
+    }
+
+    return NEW_NIL();
+}
+
 // Module Registration
 static BuiltinConst draw_const[] = {
     {"COLOR_BLACK", NEW_NUM(0x000000)},
@@ -1012,9 +1460,12 @@ static BuiltinFunc draw_funcs[] = {
     {"circle", dw_circle},
     {"present", dw_present},
     {"on_frame", dw_onFrame},
+    {"on", dw_on},
+    {"off", dw_off},
+    {"poll", dw_poll},
+    {"wait", dw_wait},
     {"text", dw_text},
     {"image", dw_image},
-    // {"poll", dw_poll},
     {"is_running", dw_isRunning},
     {"close", dw_close},
     {"push", dw_push},

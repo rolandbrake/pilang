@@ -5,6 +5,7 @@
 #include "../pi_value.h"
 #include "../pi_object.h"
 
+
 // create new canvas object
 Value dw_canvas(vm_t *vm, int argc, Value *argv);
 

@@ -6,6 +6,704 @@
 #include "pi_func.h"
 #include "pi_module.h"
 
+static int normalize_compare(int cmp)
+{
+    return (cmp > 0) - (cmp < 0);
+}
+
+static int compare_cstrings(const void *left, const void *right)
+{
+    const char *const *a = (const char *const *)left;
+    const char *const *b = (const char *const *)right;
+    return strcmp(*a, *b);
+}
+
+static int compare_numbers(double left, double right)
+{
+    if (fabs(left - right) < 1e-9)
+        return 0;
+    return (left > right) ? 1 : -1;
+}
+
+static char *dup_cstring(const char *text)
+{
+    size_t length = strlen(text) + 1;
+    char *copy = malloc(length);
+    if (copy == NULL)
+        return NULL;
+
+    memcpy(copy, text, length);
+    return copy;
+}
+
+static int compare_ptrs(const void *left, const void *right)
+{
+    uintptr_t a = (uintptr_t)left;
+    uintptr_t b = (uintptr_t)right;
+    return (a > b) - (a < b);
+}
+
+static bool string_equals(const char *left, const char *right)
+{
+    if (left == right)
+        return true;
+    if (left == NULL || right == NULL)
+        return false;
+    return strcmp(left, right) == 0;
+}
+
+static int compare_strings(const char *left, const char *right)
+{
+    if (left == right)
+        return 0;
+    if (left == NULL)
+        return -1;
+    if (right == NULL)
+        return 1;
+    return normalize_compare(strcmp(left, right));
+}
+
+static bool native_funcEquals(native_func left, native_func right)
+{
+    return memcmp(&left, &right, sizeof(native_func)) == 0;
+}
+
+static int compare_nativeFuncs(native_func left, native_func right)
+{
+    return normalize_compare(memcmp(&left, &right, sizeof(native_func)));
+}
+
+static bool value_listEquals(list_t *left, list_t *right)
+{
+    if (left == right)
+        return true;
+    if (left == NULL || right == NULL)
+        return false;
+    if (LIST_SIZE(left) != LIST_SIZE(right))
+        return false;
+
+    for (size_t i = 0; i < LIST_SIZE(left); i++)
+    {
+        Value left_value = *(Value *)list_getAt(left, i);
+        Value right_value = *(Value *)list_getAt(right, i);
+
+        if (!equals(left_value, right_value))
+            return false;
+    }
+
+    return true;
+}
+
+static int value_list_compare(list_t *left, list_t *right)
+{
+    if (left == right)
+        return 0;
+    if (left == NULL)
+        return -1;
+    if (right == NULL)
+        return 1;
+
+    size_t left_size = LIST_SIZE(left);
+    size_t right_size = LIST_SIZE(right);
+    size_t min_size = (left_size < right_size) ? left_size : right_size;
+
+    for (size_t i = 0; i < min_size; i++)
+    {
+        Value left_value = *(Value *)list_getAt(left, i);
+        Value right_value = *(Value *)list_getAt(right, i);
+        int cmp = compare(left_value, right_value);
+        if (cmp != 0)
+            return cmp;
+    }
+
+    if (left_size == right_size)
+        return 0;
+
+    return (left_size > right_size) ? 1 : -1;
+}
+
+static bool list_equals(PiList *left, PiList *right)
+{
+    if (left == right)
+        return true;
+    if (left == NULL || right == NULL)
+        return false;
+
+    if (LIST_SIZE(left->items) != LIST_SIZE(right->items))
+        return false;
+
+    for (size_t i = 0; i < LIST_SIZE(left->items); i++)
+    {
+        Value item_left = *(Value *)list_getAt(left->items, i);
+        Value item_right = *(Value *)list_getAt(right->items, i);
+
+        if (!equals(item_left, item_right))
+            return false;
+    }
+
+    return true;
+}
+
+static int list_compare(PiList *left, PiList *right)
+{
+    if (left == right)
+        return 0;
+    if (left == NULL)
+        return -1;
+    if (right == NULL)
+        return 1;
+
+    size_t left_size = LIST_SIZE(left->items);
+    size_t right_size = LIST_SIZE(right->items);
+    size_t min_size = (left_size < right_size) ? left_size : right_size;
+
+    for (size_t i = 0; i < min_size; i++)
+    {
+        Value *left_item = list_getAt(left->items, i);
+        Value *right_item = list_getAt(right->items, i);
+        int cmp = compare(*left_item, *right_item);
+        if (cmp != 0)
+            return cmp;
+    }
+
+    if (left_size != right_size)
+        return (left_size > right_size) ? 1 : -1;
+
+    return 0;
+}
+
+static bool matrix_equals(PiMatrix *left, PiMatrix *right)
+{
+    if (left->rows != right->rows || left->cols != right->cols)
+        return false;
+
+    int size = left->rows * left->cols;
+    for (int i = 0; i < size; i++)
+    {
+        if (fabs(left->data[i] - right->data[i]) >= 1e-9)
+            return false;
+    }
+
+    return true;
+}
+
+static int matrix_compare(PiMatrix *left, PiMatrix *right)
+{
+    if (left->rows != right->rows)
+        return (left->rows > right->rows) ? 1 : -1;
+    if (left->cols != right->cols)
+        return (left->cols > right->cols) ? 1 : -1;
+
+    int size = left->rows * left->cols;
+    for (int i = 0; i < size; i++)
+    {
+        int cmp = compare_numbers(left->data[i], right->data[i]);
+        if (cmp != 0)
+            return cmp;
+    }
+
+    return 0;
+}
+
+static bool map_equals(PiMap *left, PiMap *right)
+{
+    if (left == right)
+        return true;
+
+    if (map_size(left) != map_size(right))
+        return false;
+
+    if (left->is_instance != right->is_instance ||
+        !string_equals(left->intrinsic_name, right->intrinsic_name))
+        return false;
+
+    if ((left->proto == NULL) != (right->proto == NULL))
+        return false;
+
+    if (left->proto != NULL && right->proto != NULL &&
+        left->proto != right->proto &&
+        !map_equals(left->proto, right->proto))
+        return false;
+
+    if (left->super_instance != right->super_instance)
+        return false;
+
+    int size = ht_length(left->table);
+    char **left_keys = ht_keys(left->table);
+
+    for (int i = 0; i < size; i++)
+    {
+        Value *left_value = ht_get(left->table, left_keys[i]);
+        Value *right_value = ht_get(right->table, left_keys[i]);
+
+        if (left_value == NULL || right_value == NULL)
+            return false;
+
+        if (!equals(*left_value, *right_value))
+            return false;
+    }
+
+    return true;
+}
+
+static int map_compare(PiMap *left, PiMap *right)
+{
+    if (left == right)
+        return 0;
+
+    int size_cmp = normalize_compare(map_size(left) - map_size(right));
+    if (size_cmp != 0)
+        return size_cmp;
+
+    int instance_cmp = normalize_compare((int)left->is_instance - (int)right->is_instance);
+    if (instance_cmp != 0)
+        return instance_cmp;
+
+    int name_cmp = compare_strings(left->intrinsic_name, right->intrinsic_name);
+    if (name_cmp != 0)
+        return name_cmp;
+
+    int left_size = ht_length(left->table);
+    int right_size = ht_length(right->table);
+
+    char **left_sorted = malloc(sizeof(char *) * left_size);
+    char **right_sorted = malloc(sizeof(char *) * right_size);
+
+    char **left_keys = ht_keys(left->table);
+    char **right_keys = ht_keys(right->table);
+
+    for (int i = 0; i < left_size; i++)
+        left_sorted[i] = left_keys[i];
+    for (int i = 0; i < right_size; i++)
+        right_sorted[i] = right_keys[i];
+
+    qsort(left_sorted, left_size, sizeof(char *), compare_cstrings);
+    qsort(right_sorted, right_size, sizeof(char *), compare_cstrings);
+
+    for (int i = 0; i < left_size; i++)
+    {
+        int key_cmp = strcmp(left_sorted[i], right_sorted[i]);
+        if (key_cmp != 0)
+        {
+            free(left_sorted);
+            free(right_sorted);
+            return normalize_compare(key_cmp);
+        }
+
+        Value *left_value = ht_get(left->table, left_sorted[i]);
+        Value *right_value = ht_get(right->table, right_sorted[i]);
+        int value_cmp = compare(*left_value, *right_value);
+        if (value_cmp != 0)
+        {
+            free(left_sorted);
+            free(right_sorted);
+            return value_cmp;
+        }
+    }
+
+    free(left_sorted);
+    free(right_sorted);
+
+    if (left->super_instance != right->super_instance)
+        return (left->super_instance > right->super_instance) ? 1 : -1;
+
+    if (left->proto == NULL && right->proto == NULL)
+        return 0;
+    if (left->proto == NULL)
+        return -1;
+    if (right->proto == NULL)
+        return 1;
+
+    return map_compare(left->proto, right->proto);
+}
+
+static bool range_equals(PiRange *left, PiRange *right)
+{
+    return compare_numbers(left->start, right->start) == 0 &&
+           compare_numbers(left->end, right->end) == 0 &&
+           compare_numbers(left->step, right->step) == 0;
+}
+
+static int range_compare(PiRange *left, PiRange *right)
+{
+    int cmp = compare_numbers(left->start, right->start);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = compare_numbers(left->end, right->end);
+    if (cmp != 0)
+        return cmp;
+
+    return compare_numbers(left->step, right->step);
+}
+
+static bool code_equals(ObjCode *left, ObjCode *right)
+{
+    if (left == right)
+        return true;
+
+    if (left->hash != right->hash)
+        return false;
+
+    if ((left->data == NULL) != (right->data == NULL) ||
+        (left->param_names == NULL) != (right->param_names == NULL))
+        return false;
+
+    if (left->data != NULL && !value_listEquals(left->data, right->data))
+        return false;
+
+    if (!value_listEquals(left->param_names, right->param_names))
+        return false;
+
+    return true;
+}
+
+static int code_compare(ObjCode *left, ObjCode *right)
+{
+    if (left->hash != right->hash)
+        return (left->hash > right->hash) ? 1 : -1;
+
+    if ((left->data == NULL) != (right->data == NULL))
+        return left->data ? 1 : -1;
+
+    if (left->data != NULL)
+    {
+        int cmp = value_list_compare(left->data, right->data);
+        if (cmp != 0)
+            return cmp;
+    }
+
+    if ((left->param_names == NULL) != (right->param_names == NULL))
+        return left->param_names ? 1 : -1;
+
+    if (left->param_names != NULL)
+    {
+        int cmp = value_list_compare(left->param_names, right->param_names);
+        if (cmp != 0)
+            return cmp;
+    }
+
+    return 0;
+}
+
+static bool function_equals(Function *left, Function *right)
+{
+    if (left == right)
+        return true;
+
+    if (!string_equals(left->name, right->name) ||
+        left->is_native != right->is_native ||
+        left->is_method != right->is_method ||
+        left->need_args != right->need_args ||
+        left->need_kwargs != right->need_kwargs ||
+        left->upvalue_count != right->upvalue_count ||
+        left->instance != right->instance ||
+        left->owner != right->owner)
+        return false;
+
+    if (!native_funcEquals(left->native, right->native))
+        return false;
+
+    if (left->body != right->body)
+    {
+        if (left->body == NULL || right->body == NULL)
+            return false;
+        if (!code_equals(left->body, right->body))
+            return false;
+    }
+
+    if (left->params != right->params)
+    {
+        if (!value_listEquals(left->params, right->params))
+            return false;
+    }
+
+    if (left->param_names != right->param_names)
+    {
+        if (!value_listEquals(left->param_names, right->param_names))
+            return false;
+    }
+
+    for (int i = 0; i < left->upvalue_count; i++)
+    {
+        UpValue *left_up = left->upvalues ? left->upvalues[i] : NULL;
+        UpValue *right_up = right->upvalues ? right->upvalues[i] : NULL;
+
+        if (left_up == right_up)
+            continue;
+        if (left_up == NULL || right_up == NULL)
+            return false;
+        if (left_up->index != right_up->index ||
+            !equals(left_up->value, right_up->value))
+            return false;
+    }
+
+    return true;
+}
+
+static int function_compare(Function *left, Function *right)
+{
+    int cmp = compare_strings(left->name, right->name);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = normalize_compare((int)left->is_native - (int)right->is_native);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = normalize_compare((int)left->is_method - (int)right->is_method);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = normalize_compare((int)left->need_args - (int)right->need_args);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = normalize_compare((int)left->need_kwargs - (int)right->need_kwargs);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = normalize_compare(left->upvalue_count - right->upvalue_count);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = compare_nativeFuncs(left->native, right->native);
+    if (cmp != 0)
+        return cmp;
+
+    if ((left->body == NULL) != (right->body == NULL))
+        return left->body ? 1 : -1;
+    if (left->body != NULL)
+    {
+        cmp = code_compare(left->body, right->body);
+        if (cmp != 0)
+            return cmp;
+    }
+
+    if ((left->params == NULL) != (right->params == NULL))
+        return left->params ? 1 : -1;
+    if (left->params != NULL)
+    {
+        cmp = value_list_compare(left->params, right->params);
+        if (cmp != 0)
+            return cmp;
+    }
+
+    if ((left->param_names == NULL) != (right->param_names == NULL))
+        return left->param_names ? 1 : -1;
+    if (left->param_names != NULL)
+    {
+        cmp = value_list_compare(left->param_names, right->param_names);
+        if (cmp != 0)
+            return cmp;
+    }
+
+    for (int i = 0; i < left->upvalue_count; i++)
+    {
+        UpValue *left_up = left->upvalues ? left->upvalues[i] : NULL;
+        UpValue *right_up = right->upvalues ? right->upvalues[i] : NULL;
+
+        if (left_up == right_up)
+            continue;
+        if (left_up == NULL)
+            return -1;
+        if (right_up == NULL)
+            return 1;
+
+        cmp = normalize_compare(left_up->index - right_up->index);
+        if (cmp != 0)
+            return cmp;
+
+        cmp = compare(left_up->value, right_up->value);
+        if (cmp != 0)
+            return cmp;
+    }
+
+    cmp = compare_ptrs(left->instance, right->instance);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = compare_ptrs(left->owner, right->owner);
+    if (cmp != 0)
+        return cmp;
+
+    return 0;
+}
+
+static bool module_equals(ObjModule *left, ObjModule *right)
+{
+    if (left == right)
+        return true;
+
+    if (!string_equals(left->name, right->name) ||
+        !string_equals(left->path, right->path) ||
+        left->builtin != right->builtin ||
+        left->is_main != right->is_main ||
+        left->state != right->state)
+        return false;
+
+    if ((left->exports == NULL) != (right->exports == NULL))
+        return false;
+    if (left->exports != NULL && !map_equals(left->exports, right->exports))
+        return false;
+
+    if ((left->constants == NULL) != (right->constants == NULL) ||
+        (left->names == NULL) != (right->names == NULL))
+        return false;
+
+    if (left->constants != NULL)
+    {
+        if (!value_listEquals(left->constants, right->constants))
+            return false;
+    }
+
+    if (left->names != NULL)
+    {
+        if (!value_listEquals(left->names, right->names))
+            return false;
+    }
+
+    return true;
+}
+
+static int module_compare(ObjModule *left, ObjModule *right)
+{
+    int cmp = compare_strings(left->name, right->name);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = compare_strings(left->path, right->path);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = normalize_compare((int)left->builtin - (int)right->builtin);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = normalize_compare((int)left->is_main - (int)right->is_main);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = normalize_compare((int)left->state - (int)right->state);
+    if (cmp != 0)
+        return cmp;
+
+    if ((left->exports == NULL) != (right->exports == NULL))
+        return left->exports ? 1 : -1;
+    if (left->exports != NULL)
+    {
+        cmp = map_compare(left->exports, right->exports);
+        if (cmp != 0)
+            return cmp;
+    }
+
+    if ((left->constants == NULL) != (right->constants == NULL))
+        return left->constants ? 1 : -1;
+    if (left->constants != NULL)
+    {
+        cmp = value_list_compare(left->constants, right->constants);
+        if (cmp != 0)
+            return cmp;
+    }
+
+    if ((left->names == NULL) != (right->names == NULL))
+        return left->names ? 1 : -1;
+    if (left->names != NULL)
+    {
+        cmp = value_list_compare(left->names, right->names);
+        if (cmp != 0)
+            return cmp;
+    }
+
+    return 0;
+}
+
+static bool file_equals(ObjFile *left, ObjFile *right)
+{
+    return left == right ||
+           (left->fp == right->fp &&
+            left->closed == right->closed &&
+            string_equals(left->mode, right->mode) &&
+            string_equals(left->filename, right->filename));
+}
+
+static int file_compare(ObjFile *left, ObjFile *right)
+{
+    int cmp = compare_strings(left->filename, right->filename);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = compare_strings(left->mode, right->mode);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = normalize_compare((int)left->closed - (int)right->closed);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = compare_ptrs(left->fp, right->fp);
+    if (cmp != 0)
+        return cmp;
+
+    return 0;
+}
+
+static bool event_equals(PiEvent *left, PiEvent *right)
+{
+    return left == right ||
+           (string_equals(left->type, right->type) &&
+            left->event_type == right->event_type &&
+            left->x == right->x &&
+            left->y == right->y &&
+            left->dx == right->dx &&
+            left->dy == right->dy &&
+            string_equals(left->key, right->key) &&
+            left->button == right->button &&
+            left->pressed == right->pressed &&
+            left->width == right->width &&
+            left->height == right->height);
+}
+
+static int event_compare(PiEvent *left, PiEvent *right)
+{
+    int cmp = compare_strings(left->type, right->type);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = normalize_compare((int)left->event_type - (int)right->event_type);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = normalize_compare(left->x - right->x);
+    if (cmp != 0)
+        return cmp;
+    cmp = normalize_compare(left->y - right->y);
+    if (cmp != 0)
+        return cmp;
+    cmp = normalize_compare(left->dx - right->dx);
+    if (cmp != 0)
+        return cmp;
+    cmp = normalize_compare(left->dy - right->dy);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = compare_strings(left->key, right->key);
+    if (cmp != 0)
+        return cmp;
+
+    cmp = normalize_compare(left->button - right->button);
+    if (cmp != 0)
+        return cmp;
+    cmp = normalize_compare((int)left->pressed - (int)right->pressed);
+    if (cmp != 0)
+        return cmp;
+    cmp = normalize_compare(left->width - right->width);
+    if (cmp != 0)
+        return cmp;
+
+    return normalize_compare(left->height - right->height);
+}
+
 /**
  * Checks if two values are equal.
  *
@@ -60,39 +758,31 @@ bool equals(Value left, Value right)
         }
 
         case OBJ_LIST:
-        {
-            PiList *a = AS_LIST(left);
-            PiList *b = AS_LIST(right);
-
-            if (LIST_SIZE(a->items) != LIST_SIZE(b->items))
-                return false; // Different sizes mean the lists cannot be equal
-
-            for (size_t i = 0; i < LIST_SIZE(a->items); i++)
-            {
-                Value item_a = *(Value *)list_getAt(a->items, i);
-                Value item_b = *(Value *)list_getAt(b->items, i);
-
-                if (!equals(item_a, item_b))
-                    return false; // Found a mismatch
-            }
-            return true; // All elements are equal
-        }
+            return list_equals(AS_LIST(left), AS_LIST(right));
 
         case OBJ_MATRIX:
-        {
-            PiMatrix *a = AS_MATRIX(left);
-            PiMatrix *b = AS_MATRIX(right);
+            return matrix_equals(AS_MATRIX(left), AS_MATRIX(right));
 
-            if (a->rows != b->rows || a->cols != b->cols)
-                return false;
+        case OBJ_MAP:
+            return map_equals(AS_MAP(left), AS_MAP(right));
 
-            int size = a->rows * a->cols;
-            for (int i = 0; i < size; i++)
-                if (fabs(a->data[i] - b->data[i]) >= 1e-9)
-                    return false;
+        case OBJ_MODULE:
+            return module_equals(AS_MODULE(left), AS_MODULE(right));
 
-            return true;
-        }
+        case OBJ_RANGE:
+            return range_equals(AS_RANGE(left), AS_RANGE(right));
+
+        case OBJ_FUN:
+            return function_equals(AS_FUN(left), AS_FUN(right));
+
+        case OBJ_CODE:
+            return code_equals(AS_CODE(left), AS_CODE(right));
+
+        case OBJ_FILE:
+            return file_equals(AS_FILE(left), AS_FILE(right));
+
+        case OBJ_EVENT:
+            return event_equals(AS_EVENT(left), AS_EVENT(right));
 
         default:
             // For unsupported object types, fall back to pointer comparison.
@@ -120,39 +810,9 @@ int compare(Value left, Value right)
 {
     if (left.type != right.type)
     {
-        // Coerce right to match left's type
-        switch (left.type)
-        {
-        case VAL_NUM:
-        {
-            double l_num = AS_NUM(left);
-            double r_num = AS_NUM(right);
-            if (l_num < r_num)
-                return -1;
-            else if (l_num > r_num)
-                return 1;
-            else
-                return 0;
-        }
+        if (is_numeric(left) && is_numeric(right))
+            return compare_numbers(as_number(left), as_number(right));
 
-        case VAL_BOOL:
-            return as_bool(left) - as_bool(right);
-
-        case VAL_OBJ:
-            if (OBJ_TYPE(left) == OBJ_STRING)
-            {
-                char *l_str = as_string(left);
-                char *r_str = as_string(right);
-                int result = strcmp(l_str, r_str);
-                free(l_str);
-                free(r_str);
-                return result;
-            }
-            break;
-
-        default:
-            return ERROR_COMPARE;
-        }
         return ERROR_COMPARE;
     }
 
@@ -160,9 +820,7 @@ int compare(Value left, Value right)
     switch (left.type)
     {
     case VAL_NUM:
-        if (fabs(left.data.number - right.data.number) < 1e-9)
-            return 0;
-        return (left.data.number > right.data.number) ? 1 : -1;
+        return compare_numbers(left.data.number, right.data.number);
 
     case VAL_BOOL:
         return (int)left.data.boolean - (int)right.data.boolean;
@@ -178,46 +836,23 @@ int compare(Value left, Value right)
             return strcmp(l_str->chars, r_str->chars);
         }
         else if (OBJ_TYPE(left) == OBJ_LIST)
-        {
-            PiList *l_list = AS_LIST(left);
-            PiList *r_list = AS_LIST(right);
-
-            size_t l_size = LIST_SIZE(l_list->items);
-            size_t r_size = LIST_SIZE(r_list->items);
-            size_t min_size = (l_size < r_size) ? l_size : r_size;
-
-            for (size_t i = 0; i < min_size; i++)
-            {
-                Value *l_item = list_getAt(l_list->items, i);
-                Value *r_item = list_getAt(r_list->items, i);
-                int cmp = compare(*l_item, *r_item);
-                if (cmp != 0)
-                    return cmp;
-            }
-
-            return (l_size > r_size) ? 1 : (l_size < r_size) ? -1
-                                                             : 0;
-        }
+            return list_compare(AS_LIST(left), AS_LIST(right));
         else if (OBJ_TYPE(left) == OBJ_MATRIX)
-        {
-            PiMatrix *l_mat = AS_MATRIX(left);
-            PiMatrix *r_mat = AS_MATRIX(right);
-
-            if (l_mat->rows != r_mat->rows)
-                return (l_mat->rows > r_mat->rows) ? 1 : -1;
-            if (l_mat->cols != r_mat->cols)
-                return (l_mat->cols > r_mat->cols) ? 1 : -1;
-
-            int size = l_mat->rows * l_mat->cols;
-            for (int i = 0; i < size; i++)
-            {
-                if (fabs(l_mat->data[i] - r_mat->data[i]) < 1e-9)
-                    continue;
-                return (l_mat->data[i] > r_mat->data[i]) ? 1 : -1;
-            }
-
-            return 0;
-        }
+            return matrix_compare(AS_MATRIX(left), AS_MATRIX(right));
+        else if (OBJ_TYPE(left) == OBJ_MAP)
+            return map_compare(AS_MAP(left), AS_MAP(right));
+        else if (OBJ_TYPE(left) == OBJ_RANGE)
+            return range_compare(AS_RANGE(left), AS_RANGE(right));
+        else if (OBJ_TYPE(left) == OBJ_FUN)
+            return function_compare(AS_FUN(left), AS_FUN(right));
+        else if (OBJ_TYPE(left) == OBJ_CODE)
+            return code_compare(AS_CODE(left), AS_CODE(right));
+        else if (OBJ_TYPE(left) == OBJ_MODULE)
+            return module_compare(AS_MODULE(left), AS_MODULE(right));
+        else if (OBJ_TYPE(left) == OBJ_FILE)
+            return file_compare(AS_FILE(left), AS_FILE(right));
+        else if (OBJ_TYPE(left) == OBJ_EVENT)
+            return event_compare(AS_EVENT(left), AS_EVENT(right));
         else
             return ERROR_COMPARE;
 
@@ -310,7 +945,7 @@ Value new_value(token_t token)
         // Convert string token to a string object
         const char *raw = tk_string(token);
         char *unescaped = unescape_string(raw); // Function to unescape special characters
-        val = NEW_OBJ(new_pistring(strdup(unescaped)));
+        val = NEW_OBJ(new_pistring(dup_cstring(unescaped)));
         free(unescaped); // Free the temporary unescaped string
         break;
     }
@@ -471,9 +1106,9 @@ char *as_string(Value val)
         return num;
     }
     case VAL_BOOL:
-        return val.data.boolean ? strdup("true") : strdup("false");
+        return val.data.boolean ? dup_cstring("true") : dup_cstring("false");
     case VAL_NIL:
-        return strdup("nil");
+        return dup_cstring("nil");
     case VAL_OBJ:
     {
         switch (AS_OBJ(val)->type)
@@ -481,13 +1116,13 @@ char *as_string(Value val)
         case OBJ_STRING:
         {
             char *str = AS_STRING(val)->chars;
-            return strdup(str); // Create a copy
+            return dup_cstring(str); // Create a copy
         }
         case OBJ_LIST:
         {
             list_t *list = as_list(val);
             size_t buffer_size = 2; // Start with "[]"
-            char *result = strdup("[");
+            char *result = dup_cstring("[");
 
             int size = list->size;
             for (size_t i = 0; i < size; i++)
@@ -517,7 +1152,7 @@ char *as_string(Value val)
         {
             PiMatrix *matrix = AS_MATRIX(val);
             size_t buffer_size = 2;
-            char *result = strdup("[");
+            char *result = dup_cstring("[");
 
             for (int i = 0; i < matrix->rows; i++)
             {
@@ -529,7 +1164,7 @@ char *as_string(Value val)
                 }
 
                 size_t row_buffer_size = 2;
-                char *row = strdup("[");
+                char *row = dup_cstring("[");
 
                 for (int j = 0; j < matrix->cols; j++)
                 {
@@ -571,10 +1206,10 @@ char *as_string(Value val)
             int size = ht_length(map->table);
 
             if (size == 0)
-                return strdup("{}");
+                return dup_cstring("{}");
 
             size_t buffer_size = 2; // Start with "{}"
-            char *result = strdup("{");
+            char *result = dup_cstring("{");
 
             for (int i = 0; i < size; i++)
             {
@@ -620,7 +1255,6 @@ char *as_string(Value val)
             snprintf(result, 256, "<module %s>", module->name ? module->name : "<anonymous>");
             return result;
         }
-
         case OBJ_FILE:
         {
             ObjFile *file = AS_FILE(val);
@@ -900,6 +1534,8 @@ char *type_name(Value val)
             return "context";
         case OBJ_CHART:
             return "chart";
+        case OBJ_EVENT:
+            return "event";
         default:
             return "undefined";
         }
