@@ -1138,7 +1138,8 @@ static void declaration(parser_t *parser)
     else if (match(parser, TK_FUN))
         func_decl(parser);
     // If not a variable or function declaration, parse as a statement
-    else {
+    else
+    {
         statement(parser); // Parse as a statement
         parser->is_return = false;
     }
@@ -1947,7 +1948,7 @@ static void continue_stmt(parser_t *parser)
         p_errorf(tok.line, tok.column, "'continue' used outside of a loop");
 
     int address = get_continue(parser->comp);
-    emit_pop(parser->comp, loop_depth(parser->comp));    
+    emit_pop(parser->comp, loop_depth(parser->comp));
     emit_jump(parser->comp, address - code_size(parser->comp));
 
     parser->is_return = true;
@@ -2661,10 +2662,35 @@ static void unary_expr(parser_t *parser)
         }
 
         // Pre-increment / Pre-decrement or other unary ops
+        // Save the variable name for pre-increment/decrement
+        char *var_name = NULL;
+        if (op == TK_INCR || op == TK_DECR)
+        {
+            // Check if the next token is an identifier
+            if (peek(parser).type == TK_ID)
+            {
+                token_t var_token = peek(parser);
+                var_name = token_value(var_token);
+            }
+        }
+
         current = parser->current;
         member_expr(parser);
         set_pos(parser, op_token);
 
+        // Check if it's a simple variable
+        if (op == TK_INCR || op == TK_DECR)
+        {
+            if (parser->current != current + 1 || parser->tokens[current].type != TK_ID)
+            {
+                p_error("Increment/Decrement operations can only be applied to variables.", op_token.line, op_token.column);
+            }
+            // Override var_name with the actual token
+            if (var_name) free(var_name);
+            var_name = token_value(parser->tokens[current]);
+        }
+
+        // Handle pre-increment / pre-decrement
         if (op == TK_INCR || op == TK_DECR)
         {
             token_t target = previous(parser);
@@ -2676,12 +2702,19 @@ static void unary_expr(parser_t *parser)
                         target.line, target.column);
 
             int type = (op == TK_INCR) ? 5 : 6;
+
+            // Apply increment/decrement directly to the value on the stack
             emit_8u(parser->comp, OP_UNARY, unary_ops[type], type);
+
+            // Preserve the incremented value for the expression result,
+            // then store it back to the variable.
             emit(parser->comp, OP_DUP_TOP);
 
-            parser->current = current;
-            parser->is_store = true;
-            member_expr(parser);
+            if (var_name)
+            {
+                store_variable(parser->comp, var_name);
+                free(var_name);
+            }
         }
         else
         {
@@ -2725,21 +2758,47 @@ static void unary_expr(parser_t *parser)
             op = previous(parser).type;
             token_t op_token = previous(parser);
 
-            if (operand.type == TK_NUM || operand.type == TK_STR || operand.type == TK_TRUE ||
-                operand.type == TK_FALSE || operand.type == TK_NIL)
-                p_error("Increment/Decrement operations cannot be applied to literals.",
-                        operand.line, operand.column);
+            if (op_token.line != operand.line)
+            {
+                // Not on the same line, so not post-increment, put back the token
+                parser->current--;
+            }
+            else
+            {
+                if (parser->current != current + 1 || parser->tokens[current].type != TK_ID)
+                {
+                    p_error("Increment/Decrement operations can only be applied to variables.", op_token.line, op_token.column);
+                }
 
-            emit(parser->comp, OP_DUP_TOP);
-            set_pos(parser, op_token);
+                if (operand.type == TK_NUM || operand.type == TK_STR || operand.type == TK_TRUE ||
+                    operand.type == TK_FALSE || operand.type == TK_NIL)
+                    p_error("Increment/Decrement operations cannot be applied to literals.",
+                            operand.line, operand.column);
 
-            int type = (op == TK_INCR) ? 5 : 6;
-            emit_8u(parser->comp, OP_UNARY, unary_ops[type], type);
+                // Save the variable name for post-increment/decrement
+                char *var_name = NULL;
+                if (operand.type == TK_ID)
+                    var_name = token_value(operand);
 
-            parser->current = current;
-            parser->is_store = true;
-            member_expr(parser);
-            advance(parser); // Skip over the ++ or --
+                // Duplicate the value for post-operation
+                emit(parser->comp, OP_DUP_TOP);
+
+                // Apply increment/decrement to the duplicate
+                set_pos(parser, op_token);
+                int type = (op == TK_INCR) ? 5 : 6;
+                emit_8u(parser->comp, OP_UNARY, unary_ops[type], type);
+
+                // Store the result back to the variable
+                if (var_name)
+                {
+                    // Use store_variable which handles both local and global scopes
+                    store_variable(parser->comp, var_name);
+                    free(var_name);
+                }
+
+                // The original value remains on top of the stack for use in expressions
+                // (the incremented value is stored but not used)
+            }
         }
     }
 }
