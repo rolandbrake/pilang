@@ -188,6 +188,8 @@ Object *new_map(table_t *table, bool is_instance)
     // Set the prototype to NULL
     map->proto = NULL;
 
+
+
     return (Object *)map;
 }
 

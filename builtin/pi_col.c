@@ -888,6 +888,69 @@ Value cl_copy(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
+Value cl_zip(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 2)
+        vm_error(vm, "[zip] expects at least two arguments: iterables.");
+
+    Value *iterables = argv;
+    int numIterables = argc;
+
+    // Check if all iterables are of the same length
+    int minLength = INT_MAX;
+    for (int i = 0; i < numIterables; i++)
+    {
+        if (!IS_LIST(iterables[i]) && !IS_STRING(iterables[i]))
+            vm_error(vm, "[zip] all iterables must be lists, strings, or maps.");
+
+        int length = 0;
+        if (IS_LIST(iterables[i]))
+            length = PILIST_SIZE(iterables[i]);
+
+        else if (IS_STRING(iterables[i]))
+            length = PISTR_SIZE(iterables[i]);
+
+        if (minLength > length)
+            minLength = length;
+    }
+
+    // Create a new list to hold the zipped values
+    list_t *zippedItems = list_create(sizeof(Value));
+    for (int i = 0; i < minLength; i++)
+    {
+        list_t *zippedItemsIndex = list_create(sizeof(Value));
+
+        for (int j = 0; j < numIterables; j++)
+        {
+            Value value = NEW_NIL();
+
+            if (IS_LIST(iterables[j]))
+            {
+                Value *item = (Value *)list_getAt(AS_CLIST(iterables[j]), i);
+                value = *item;
+            }
+            else if (IS_STRING(iterables[j]))
+            {
+                PiString *str = AS_STRING(iterables[j]);
+                char ch[2] = {str->chars[i], '\0'};
+                value = NEW_OBJ(new_pistring(strdup(ch)));
+            }
+
+            list_add(zippedItemsIndex, &value);
+        }
+
+        Value listVal = NEW_OBJ(new_list(zippedItemsIndex));
+        list_add(zippedItems, &listVal);
+    }
+
+    return NEW_OBJ(new_list(zippedItems));
+}
+
+Value cl_isIterable(vm_t *vm, int argc, Value *argv)
+{
+    return is_iterable(AS_OBJ(argv[0])) ? NEW_BOOL(true) : NEW_BOOL(false);
+}
+
 // Module definition
 static BuiltinFunc col_functions[] = {
     {"peek", cl_peek},
@@ -898,6 +961,9 @@ static BuiltinFunc col_functions[] = {
     {"indexOf", cl_indexOf},
     {"reverse", cl_reverse},
     {"shuffle", cl_shuffle},
-    {"copy", cl_copy}};
+    {"copy", cl_copy},
+    {"zip", cl_zip},
+    {"is_iterable", cl_isIterable},
+};
 
 DEFINE_BUILTIN_MODULE(module_col, "col", col_functions, NULL);

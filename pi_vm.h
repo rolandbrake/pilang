@@ -38,6 +38,13 @@
 #define BEGIN_VM_LOOP() VM_DISPATCH()
 #define END_INSTR() VM_DISPATCH()
 
+
+#define TO_PRIM(vm, v, is_str) (IS_MAP(v) ? to_primitive(vm, v, is_str) : (v))
+
+// For non-MAP values this is zero cost — just returns the value itself
+#define TO_PRIM_NUM(v)    (IS_MAP(v) ? to_primitive(vm, v, false) : (v))
+#define TO_PRIM_STR(v)    (IS_MAP(v) ? to_primitive(vm, v, true)  : (v))
+
 typedef struct
 {
     int pc; // Program Counter: Points to the current instruction being executed.

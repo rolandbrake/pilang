@@ -526,21 +526,21 @@ static void finalize_mapLiteral(vm_t *vm, PiMap *map)
     char **keys = ht_keys(map->table);
     int size = ht_length(map->table);
 
-    // Iterate over the key-value pairs of the map literal
     for (int i = 0; i < size; i++)
     {
         Value *item = ht_get(map->table, keys[i]);
 
-        // If the value is a function, set its `is_method` property to true and its `owner` property to the map literal
-        if (item && IS_FUN(*item))
-        {
-            AS_FUN(*item)->is_method = true;
-            AS_FUN(*item)->owner = (Object *)map;
-            has_methods = true;
-        }
+        if (!item || !IS_FUN(*item))
+            continue;
+
+        Function *fn = AS_FUN(*item);
+
+        fn->is_method = true;
+        fn->owner = (Object *)map;
+
+        has_methods = true;
     }
 
-    // If the map literal has methods, add it to the prototype chain
     if (map->proto == NULL && has_methods)
         map->proto = vm->object_proto;
 }
@@ -593,37 +593,52 @@ static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
  * @param has_named Whether the argument list contains named arguments.
  * @return The return value of the function.
  */
+
 static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw_args, bool has_named)
 {
     int num_args = arg_list->items->size;
-    Value args[num_args];
+
+    // Heap-allocate instead of VLA to avoid silent stack overflow on large arg lists
+    Value *args = num_args > 0 ? (Value *)malloc(num_args * sizeof(Value)) : NULL;
+    if (num_args > 0 && !args)
+        vm_error(vm, "Memory allocation failed for argument list.");
 
     for (int i = 0; i < num_args; i++)
         args[i] = *(Value *)list_getAt(arg_list->items, i);
 
-    // If the function is a user-defined function, call it
+    Value result;
+
     if (IS_FUN(callee))
     {
         vm->function = AS_OBJ(callee);
-        Value result = call_func(vm, AS_FUN(callee), num_args, args, kw_args);
+        result = call_func(vm, AS_FUN(callee), num_args, args, kw_args);
         if (IS_OBJ(result))
             add_obj(vm, AS_OBJ(result));
-        return result;
     }
-
-    // If the function is a map constructor, construct an instance
-    if (IS_MAP(callee))
+    else if (IS_MAP(callee))
     {
         PiMap *map = AS_MAP(callee);
         if (map->is_instance)
+        {
+            free(args);
             vm_error(vm, "Attempt to call an Object instance.");
+        }
         if (has_named)
+        {
+            free(args);
             vm_error(vm, "Named arguments are not supported for map constructors.");
-        return NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args)));
+        }
+        result = NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args)));
+    }
+    else
+    {
+        free(args);
+        vm_error(vm, "Attempt to call a non-function object.");
+        result = NEW_NIL(); // unreachable, but keeps compiler happy
     }
 
-    vm_error(vm, "Attempt to call a non-function object.");
-    return NEW_NIL();
+    free(args);
+    return result;
 }
 
 /**
@@ -958,6 +973,21 @@ static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
     return call_func(vm, AS_FUN(method), 0, NULL, NEW_NIL());
 }
 
+/**
+ * Attempts to call a method on an object with one argument.
+ *
+ * This function attempts to find the named method on the given object, and if
+ * it exists, calls it with the given argument. If the object does not contain the
+ * named method, or if the method does not return a primitive value, this
+ * function returns false.
+ *
+ * @param vm The virtual machine instance.
+ * @param receiver The object to call the method on.
+ * @param name The name of the method to call.
+ * @param arg The argument to pass to the method.
+ * @param result If the method call is successful, the result of the method call.
+ * @return true if the method call is successful, false otherwise.
+ */
 static bool try_callMethodOneArg(vm_t *vm, Value receiver, const char *name, Value arg, Value *result)
 {
     if (!IS_MAP(receiver))
@@ -988,11 +1018,28 @@ static bool try_callMethodOneArg(vm_t *vm, Value receiver, const char *name, Val
     return true;
 }
 
+/**
+ * Attempts to call the compute method on the given object.
+ *
+ * This function attempts to call the compute method on the given object. The compute
+ * method takes two arguments: the first is an integer representing the operation to
+ * perform, and the second is the other object to use in the operation. If the method
+ * call is successful, the result of the method call is stored in result.
+ *
+ * @param vm The virtual machine instance.
+ * @param receiver The object to call the method on.
+ * @param op The operation to perform.
+ * @param has_other true if the other object should be passed to the method, false otherwise.
+ * @param other The other object to use in the operation.
+ * @param result If the method call is successful, the result of the method call.
+ * @return true if the method call is successful, false otherwise.
+ */
 static bool try_callCompute(vm_t *vm, Value receiver, int op, bool has_other, Value other, Value *result)
 {
     if (!IS_MAP(receiver))
         return false;
 
+    // Compute method is used to perform operations on the object
     Value key = NEW_OBJ(new_pistring(strdup("compute")));
     PiMap *owner = map_owner(AS_MAP(receiver), key);
     if (owner == NULL)
@@ -1020,6 +1067,21 @@ static bool try_callCompute(vm_t *vm, Value receiver, int op, bool has_other, Va
     return true;
 }
 
+/**
+ * Attempts to call the equals method on the given objects.
+ *
+ * This function attempts to call the equals method on the given objects. The equals
+ * method takes one argument: the other object to compare to. If the method call
+ * is successful, the result of the method call is used to determine if the
+ * objects are equal.
+ *
+ * @param vm The virtual machine instance.
+ * @param left The first object to compare.
+ * @param right The second object to compare.
+ * @param result If the method call is successful, this is set to true if the objects
+ *         are equal, and false otherwise.
+ * @return true if the method call is successful, false otherwise.
+ */
 static bool try_overloadedEquals(vm_t *vm, Value left, Value right, bool *result)
 {
     Value method_result = NEW_NIL();
@@ -1038,11 +1100,34 @@ static bool try_overloadedEquals(vm_t *vm, Value left, Value right, bool *result
     return false;
 }
 
+/**
+ * Attempts to call the compare method on the given objects.
+ *
+ * This function first attempts to call the object's "compare" method with the
+ * given other object as an argument. If the method call is successful, the result
+ * of the method call is used to determine the comparison result.
+ *
+ * If the first method call is not successful, this function then attempts to call
+ * the other object's "compare" method with the given object as an argument. If the
+ * second method call is successful, the result of the method call is used to
+ * determine the comparison result, but with the sign flipped.
+ *
+ * If neither method call is successful, this function returns false.
+ *
+ * @param vm The virtual machine instance.
+ * @param left The first object to compare.
+ * @param right The second object to compare.
+ * @param cmp If the method call is successful, this is set to a negative value if the
+ *         first object is less than the second, zero if they are equal, and a positive
+ *         value if the first object is greater than the second.
+ * @return true if the method call is successful, false otherwise.
+ */
 static bool try_overloadedCompare(vm_t *vm, Value left, Value right, int *cmp)
 {
     Value method_result = NEW_NIL();
     if (try_callMethodOneArg(vm, left, "compare", right, &method_result))
     {
+        // The compare method must return a number.
         if (!is_numeric(method_result))
             vm_error(vm, "Object compare(other) must return a number.");
         double value = as_number(method_result);
@@ -1052,6 +1137,7 @@ static bool try_overloadedCompare(vm_t *vm, Value left, Value right, int *cmp)
 
     if (try_callMethodOneArg(vm, right, "compare", left, &method_result))
     {
+        // The compare method must return a number.
         if (!is_numeric(method_result))
             vm_error(vm, "Object compare(other) must return a number.");
         double value = as_number(method_result);
@@ -1591,8 +1677,10 @@ void run(vm_t *vm)
 
             Object *super_obj = add_obj(vm, new_map(ht_create(sizeof(Value)), true));
             PiMap *super = (PiMap *)super_obj;
+
             super->proto = function->owner ? ((PiMap *)function->owner)->proto : NULL;
             super->super_instance = function->instance;
+
             push_stack(vm, NEW_OBJ(super_obj));
             break;
         }
@@ -1663,136 +1751,362 @@ void run(vm_t *vm)
         case OP_COMPARE:
         {
             uint8_t op = code[pc++];
-
             Value right = pop_stack(vm);
             Value left = pop_stack(vm);
-            bool result = false;
-            int cmp = 0;
 
-            if (op <= 1)
+            // Fast path: both plain numbers (most common case)
+            // Zero hash lookups, zero overload checks, zero to_primitive calls
+            if (is_numeric(left) && is_numeric(right))
             {
-                if (!try_overloadedEquals(vm, left, right, &result))
+                double l = as_number(left);
+                double r = as_number(right);
+                bool result;
+                switch (op)
                 {
-                    Value left_prim = to_primitive(vm, left, false);
-                    Value right_prim = to_primitive(vm, right, false);
-                    cmp = compare(left_prim, right_prim);
+                case 0: // "=="
+                    result = (l == r);
+                    break;
+                case 1: // "!="
+                    result = (l != r);
+                    break;
+                case 2: // ">"
+                    result = (l > r);
+                    break;
+                case 3: // "<"
+                    result = (l < r);
+                    break;
+                case 4: // ">="
+                    result = (l >= r);
+                    break;
+                case 5: // "<="
+                    result = (l <= r);
+                    break;
+                default:
+                    goto LABEL_COMPARE; // op 6 = 'in', needs objects
+                }
+                push_stack(vm, NEW_BOOL(result));
+                break;
+            }
+
+            // Fast path: both bools
+            if (IS_BOOL(left) && IS_BOOL(right) && (op == 0 || op == 1))
+            {
+                bool result = (AS_BOOL(left) == AS_BOOL(right));
+                push_stack(vm, NEW_BOOL(op == 0 ? result : !result));
+                break;
+            }
+
+            // Fast path: both nil
+            if (IS_NIL(left) && IS_NIL(right) && (op == 0 || op == 1))
+            {
+                push_stack(vm, NEW_BOOL(op == 0)); // nil == nil is always true
+                break;
+            }
+
+            // Fast path: different primitive types are never equal
+            if (!IS_OBJ(left) && !IS_OBJ(right) && (op == 0 || op == 1))
+            {
+                push_stack(vm, NEW_BOOL(op == 1)); // op==0 -> false, op==1 -> true
+                break;
+            }
+
+            //  Fast path: both strings
+            if (IS_STRING(left) && IS_STRING(right))
+            {
+                int cmp = strcmp(AS_STRING(left)->chars, AS_STRING(right)->chars);
+                bool result;
+                switch (op)
+                {
+                case 0:
                     result = (cmp == 0);
+                    break;
+                case 1:
+                    result = (cmp != 0);
+                    break;
+                case 2:
+                    result = (cmp > 0);
+                    break;
+                case 3:
+                    result = (cmp < 0);
+                    break;
+                case 4:
+                    result = (cmp >= 0);
+                    break;
+                case 5:
+                    result = (cmp <= 0);
+                    break;
+                default:
+                    goto LABEL_COMPARE;
+                }
+                push_stack(vm, NEW_BOOL(result));
+                break;
+            }
+
+        LABEL_COMPARE:
+
+            //  op 6: 'in' operator
+            if (op == 6)
+            {
+                if (!IS_OBJ(right) || !is_iterable(AS_OBJ(right)))
+                    vm_error(vm, "Right operand of 'in' must be iterable.");
+
+                bool result = false;
+
+                switch (OBJ_TYPE(right))
+                {
+                case OBJ_LIST:
+                {
+                    // Direct pointer scan — avoids list_getAt call overhead per item
+                    PiList *list = AS_LIST(right);
+                    Value *items = (Value *)list->items->data;
+                    int size = list_size(list->items);
+                    for (int i = 0; i < size; i++)
+                    {
+                        if (equals(left, items[i]))
+                        {
+                            result = true;
+                            break;
+                        }
+                    }
+                    break;
                 }
 
-                if (op == 1)
-                    result = !result;
+                case OBJ_STRING:
+                {
+                    if (!IS_STRING(left))
+                        break; // result stays false
+                    // Direct char pointer — no alloc needed for substring check
+                    result = (strstr(AS_STRING(right)->chars,
+                                     AS_STRING(left)->chars) != NULL);
+                    break;
+                }
+
+                case OBJ_MAP:
+                {
+                    // Key existence check — no iteration needed
+                    result = (map_owner(AS_MAP(right), left) != NULL);
+                    break;
+                }
+
+                case OBJ_RANGE:
+                {
+                    if (!IS_NUM(left))
+                        break; // result stays false
+                    PiRange *range = AS_RANGE(right);
+                    double num = AS_NUM(left);
+                    double start = range->start;
+                    double end = range->end;
+                    double step = range->step;
+
+                    if (step > 0)
+                        result = (num >= start && num <= end &&
+                                  fmod(num - start, step) < 1e-10);
+                    else if (step < 0)
+                        result = (num <= start && num >= end &&
+                                  fmod(start - num, -step) < 1e-10);
+                    else
+                        result = (num == start);
+                    break;
+                }
+
+                default:
+                {
+                    // Generic iterator fallback for any other iterable
+                    Object *iterable = AS_OBJ(right);
+                    iter_reset(iterable);
+                    while (iter_hasNext(iterable))
+                    {
+                        if (equals(left, iter_next(iterable)))
+                        {
+                            result = true;
+                            break;
+                        }
+                    }
+                    break;
+                }
+                }
 
                 push_stack(vm, NEW_BOOL(result));
                 break;
             }
 
-            if (!try_overloadedCompare(vm, left, right, &cmp))
+            //  ops 0-1: equality
+            if (op <= 1)
             {
-                Value left_prim = to_primitive(vm, left, false);
-                Value right_prim = to_primitive(vm, right, false);
-                cmp = compare(left_prim, right_prim);
+                bool result = false;
+
+                // Overload check — only pays cost when has_equals flag is set
+                if (IS_MAP(left) || IS_MAP(right))
+                {
+                    if (try_overloadedEquals(vm, left, right, &result))
+                    {
+                        push_stack(vm, NEW_BOOL(op == 0 ? result : !result));
+                        break;
+                    }
+                }
+
+                // Same object pointer -> always equal
+                if (IS_OBJ(left) && IS_OBJ(right) && AS_OBJ(left) == AS_OBJ(right))
+                {
+                    push_stack(vm, NEW_BOOL(op == 0));
+                    break;
+                }
+
+                // Coerced comparison as last resort
+                Value l = TO_PRIM_NUM(left);
+                Value r = TO_PRIM_NUM(right);
+                result = (compare(l, r) == 0);
+                push_stack(vm, NEW_BOOL(op == 0 ? result : !result));
+                break;
             }
 
-            switch (op)
+            //  ops 2-5: ordered comparison
             {
-            case 2: // ">"
-                result = (cmp > 0);
-                break;
-            case 3: // "<"
-                result = (cmp < 0);
-                break;
-            case 4: // ">="
-                result = (cmp >= 0);
-                break;
-            case 5: // "<="
-                result = (cmp <= 0);
-                break;
-            default:
-                vm_errorf(vm, "Unknown opcode: [%d]", op);
-            }
-            push_stack(vm, NEW_BOOL(result));
+                int cmp = 0;
 
-            break;
+                // Overload check — only pays cost when has_compare flag is set
+                if (IS_MAP(left) || IS_MAP(right))
+                {
+                    if (!try_overloadedCompare(vm, left, right, &cmp))
+                    {
+                        Value l = TO_PRIM_NUM(left);
+                        Value r = TO_PRIM_NUM(right);
+                        cmp = compare(l, r);
+                    }
+                }
+                else
+                {
+                    Value l = TO_PRIM_NUM(left);
+                    Value r = TO_PRIM_NUM(right);
+                    cmp = compare(l, r);
+                }
+
+                bool result;
+                switch (op)
+                {
+                case 2:
+                    result = (cmp > 0);
+                    break;
+                case 3:
+                    result = (cmp < 0);
+                    break;
+                case 4:
+                    result = (cmp >= 0);
+                    break;
+                case 5:
+                    result = (cmp <= 0);
+                    break;
+                default:
+                    vm_errorf(vm, "Unknown compare opcode: [%d]", op);
+                    result = false;
+                }
+                push_stack(vm, NEW_BOOL(result));
+                break; // exits OP_COMPARE
+            }
         }
         case OP_BINARY:
         {
             uint8_t op = code[pc++];
-
             Value right = pop_stack(vm);
             Value left = pop_stack(vm);
-            Value left_prim = left;
-            Value right_prim = right;
-            Value computed = NEW_NIL();
 
-            if (op != 5 && op != 6 && op != 15 &&
-                try_callCompute(vm, left, op, true, right, &computed))
+            // Global numeric fast path
+            // Covers the vast majority of arithmetic — zero hash lookups, zero
+            // to_primitive calls, no overload check. Falls through to slow path
+            // only for objects, strings, matrices, and special ops.
+            if (is_numeric(left) && is_numeric(right))
             {
-                push_stack(vm, computed);
-                break;
+                double l = as_number(left);
+                double r = as_number(right);
+                switch (op)
+                {
+                case 0:
+                    push_stack(vm, NEW_NUM(l + r));
+                    break;
+                case 1:
+                    push_stack(vm, NEW_NUM(l - r));
+                    break;
+                case 2:
+                    push_stack(vm, NEW_NUM(l * r));
+                    break;
+                case 3:
+                    push_stack(vm, NEW_NUM(r == 0.0 ? INFINITY : l / r));
+                    break;
+                case 4:
+                {
+                    int ir = (int)r;
+                    push_stack(vm, ir == 0 ? NEW_NAN() : NEW_NUM((int)l % ir));
+                    break;
+                }
+                case 5:
+                    push_stack(vm, NEW_BOOL(l && r));
+                    break;
+                case 6:
+                    push_stack(vm, NEW_BOOL(l || r));
+                    break;
+                case 7:
+                    push_stack(vm, NEW_NUM(pow(l, r)));
+                    break;
+                case 8:
+                    push_stack(vm, NEW_NUM((int)l & (int)r));
+                    break;
+                case 9:
+                    push_stack(vm, NEW_NUM((int)l | (int)r));
+                    break;
+                case 10:
+                    push_stack(vm, NEW_NUM((int)l ^ (int)r));
+                    break;
+                case 11:
+                    push_stack(vm, NEW_NUM((int)l << (int)r));
+                    break;
+                case 12:
+                    push_stack(vm, NEW_NUM((int)l >> (int)r));
+                    break;
+                case 13:
+                    push_stack(vm, NEW_NUM((uint32_t)l >> (uint32_t)r));
+                    break;
+                // ops 14 (dot), 15 (is) require objects - fall to LABEL_BINARY
+                default:
+                    goto LABEL_BINARY;
+                }
+                break; // done - exits OP_BINARY
+            }
+
+        LABEL_BINARY:
+
+            // Overload check - only for maps, only when flag is set
+            // Moved before the switch but guarded by has_compute so non-map types
+            // pay zero cost. ops 5,6 (&&,||) and 15 (is) are never overloadable.
+            if (op != 5 && op != 6 && op != 15 &&
+                IS_MAP(left))
+            {
+                Value computed = NEW_NIL();
+                if (try_callCompute(vm, left, op, true, right, &computed))
+                {
+                    push_stack(vm, computed);
+                    break;
+                }
             }
 
             switch (op)
             {
-            case 0: // "+"
+            case 0: // +
             {
-                if (IS_MATRIX(left) && IS_MATRIX(right))
+                // NaN short-circuit — before any object inspection
+                if (IS_NAN(left) || IS_NAN(right))
                 {
-                    push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left), AS_MATRIX(right), op));
+                    push_stack(vm, NEW_NUM(NAN));
                     break;
                 }
 
-                if (IS_MATRIX(left) && is_numeric(right))
-                {
-                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left), as_number(right), op, false));
-                    break;
-                }
-
-                if (is_numeric(left) && IS_MATRIX(right))
-                {
-                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right), as_number(left), op, true));
-                    break;
-                }
-
-                bool prefer_string = IS_STRING(left) || IS_STRING(right);
-                left_prim = to_primitive(vm, left, prefer_string);
-                right_prim = to_primitive(vm, right, prefer_string);
-
-                if (is_numeric(left_prim) && is_numeric(right_prim))
-                {
-                    push_stack(vm, NEW_NUM(as_number(left_prim) + as_number(right_prim)));
-                    break;
-                }
-
-                if (IS_STRING(left_prim) || IS_STRING(right_prim))
-                {
-                    // Coerce both to strings
-                    char *l_str = as_string(left_prim);
-                    char *r_str = as_string(right_prim);
-
-                    size_t len = strlen(l_str) + strlen(r_str) + 1;
-                    char *res = (char *)malloc(len);
-                    if (!res)
-                        vm_error(vm, "Memory allocation failed.");
-
-                    strcpy(res, l_str);
-                    strcat(res, r_str);
-
-                    push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(res))));
-
-                    free(l_str);
-                    free(r_str);
-                    break;
-                }
-
+                // List append
                 if (IS_LIST(left))
                 {
                     PiList *list = AS_LIST(left);
                     list_add(list->items, &right);
 
-                    // --- Matrix integrity check ---
                     if (list->rows == 1 && list->cols >= 0)
                     {
-                        // Originally a 1xN matrix, now N+1
                         if (!IS_NUM(right))
                         {
                             list->rows = -1;
@@ -1800,11 +2114,10 @@ void run(vm_t *vm)
                             list->is_numeric = false;
                         }
                         else
-                            list->cols++; // still a row vector
+                            list->cols++;
                     }
                     else if (list->rows > 1 && list->cols > 0)
                     {
-                        // Originally NxM matrix
                         if (!IS_LIST(right))
                         {
                             list->rows = -1;
@@ -1813,21 +2126,22 @@ void run(vm_t *vm)
                         }
                         else
                         {
-                            PiList *_list = (PiList *)AS_OBJ(right);
-                            if (!_list->is_numeric || _list->items->size != list->cols)
+                            PiList *r_list = AS_LIST(right);
+                            if (!r_list->is_numeric || r_list->items->size != (size_t)list->cols)
                             {
                                 list->rows = -1;
                                 list->cols = -1;
                                 list->is_numeric = false;
                             }
                             else
-                                list->rows++; // still an NxM matrix
+                                list->rows++;
                         }
                     }
                     else
                     {
-                        // Not originally a matrix, check if it can now become one
-                        if (list->items->size == 1 && IS_NUM(right) && IS_NUM(((Value *)list->items->data)[0]))
+                        // Check if list can become a numeric row vector
+                        if (list->items->size == 2 && IS_NUM(right) &&
+                            IS_NUM(*(Value *)list_getAt(list->items, 0)))
                         {
                             list->is_numeric = true;
                             list->rows = 1;
@@ -1838,270 +2152,315 @@ void run(vm_t *vm)
                     push_stack(vm, left);
                     break;
                 }
-                if (IS_NAN(left) || IS_NAN(right))
-                {
-                    push_stack(vm, NEW_NUM(NAN));
-                    break;
-                }
-                vm_error(vm, "Unsupported operand types for binary operator [+].");
-            }
-            case 1: // "-"
-            {
-                if (IS_MATRIX(left) && IS_MATRIX(right))
-                {
-                    push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left), AS_MATRIX(right), op));
-                    break;
-                }
 
-                if (IS_MATRIX(left) && is_numeric(right))
+                // String concat — fast path when both are already strings
+                if (IS_STRING(left) && IS_STRING(right))
                 {
-                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left), as_number(right), op, false));
+                    const char *l_str = AS_STRING(left)->chars;
+                    const char *r_str = AS_STRING(right)->chars;
+                    size_t l_len = AS_STRING(left)->length;
+                    size_t r_len = AS_STRING(right)->length;
+
+                    char *res = (char *)malloc(l_len + r_len + 1);
+                    if (!res)
+                        vm_error(vm, "Memory allocation failed.");
+                    memcpy(res, l_str, l_len);
+                    memcpy(res + l_len, r_str, r_len + 1);
+                    push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(res))));
                     break;
                 }
 
-                if (is_numeric(left) && IS_MATRIX(right))
+                // Matrix paths
+                if (IS_MATRIX(left))
                 {
-                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right), as_number(left), op, true));
+                    if (IS_MATRIX(right))
+                        push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left), AS_MATRIX(right), 0));
+                    else if (is_numeric(right))
+                        push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left), as_number(right), 0, false));
+                    else
+                        vm_error(vm, "Unsupported right operand for matrix [+].");
+                    break;
+                }
+                if (IS_MATRIX(right) && is_numeric(left))
+                {
+                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right), as_number(left), 0, true));
                     break;
                 }
 
-                left_prim = to_primitive(vm, left, false);
-                right_prim = to_primitive(vm, right, false);
+                // Mixed/coerced path — only reaches here for num+obj or obj+str etc.
+                bool pref_string = IS_STRING(left) || IS_STRING(right);
+                Value _left = TO_PRIM(vm, left, pref_string);
+                Value _right = TO_PRIM(vm, right, pref_string);
 
-                if (is_numeric(left_prim) && is_numeric(right_prim))
+                if (is_numeric(_left) && is_numeric(_right))
                 {
-                    push_stack(vm, NEW_NUM(as_number(left_prim) - as_number(right_prim)));
+                    push_stack(vm, NEW_NUM(as_number(_left) + as_number(_right)));
                     break;
                 }
 
-                if (IS_OBJ(left))
+                if (IS_STRING(_left) || IS_STRING(_right))
                 {
-                    if (IS_LIST(left))
+                    char *l_str = as_string(_left);
+                    char *r_str = as_string(_right);
+                    size_t l_len = strlen(l_str);
+                    size_t r_len = strlen(r_str);
+                    char *res = (char *)malloc(l_len + r_len + 1);
+                    if (!res)
                     {
-                        PiList *list = AS_LIST(left);
-                        for (int i = 0; i < list_size(list->items); i++)
-                        {
-                            Value item = *(Value *)list_getAt(list->items, i);
-                            if (equals(item, right))
-                            {
-                                list_remove(list->items, i);
-                                break;
-                            }
-                        }
-                        push_stack(vm, left);
-                        break;
-                    }
-
-                    if (IS_STRING(left))
-                    {
-                        char *l_str = as_string(left);
-                        char *r_str = as_string(right_prim);
-
-                        size_t l_len = strlen(l_str);
-                        size_t r_len = strlen(r_str);
-
-                        char *res = (char *)malloc(l_len + 1); // Worst case
-
-                        char *w_ptr = res;
-                        char *r_ptr = l_str;
-                        char *match;
-
-                        while ((match = strstr(r_ptr, r_str)) != NULL)
-                        {
-                            size_t chunk_len = match - r_ptr;
-                            memcpy(w_ptr, r_ptr, chunk_len);
-                            w_ptr += chunk_len;
-                            r_ptr = match + r_len;
-                        }
-
-                        strcpy(w_ptr, r_ptr); // copy the tail
-
-                        push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(res))));
-
                         free(l_str);
                         free(r_str);
-                        break;
+                        vm_error(vm, "Memory allocation failed.");
+                    }
+                    memcpy(res, l_str, l_len);
+                    memcpy(res + l_len, r_str, r_len + 1);
+                    push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(res))));
+                    free(l_str);
+                    free(r_str);
+                    break;
+                }
+
+                vm_error(vm, "Unsupported operand types for binary operator [+].");
+                break;
+            }
+
+            case 1: // "-"
+            {
+                // List remove first occurrence
+                if (IS_LIST(left))
+                {
+                    PiList *list = AS_LIST(left);
+                    int size = list_size(list->items);
+                    for (int i = 0; i < size; i++)
+                    {
+                        Value item = *(Value *)list_getAt(list->items, i);
+                        if (equals(item, right))
+                        {
+                            list_remove(list->items, i);
+                            break;
+                        }
+                    }
+                    push_stack(vm, left);
+                    break;
+                }
+
+                // String remove all occurrences of substring
+                if (IS_STRING(left))
+                {
+                    Value _right = TO_PRIM(vm, right, false);
+
+                    char *l_str = as_string(left);
+                    char *r_str = as_string(_right);
+
+                    size_t l_len = strlen(l_str);
+                    size_t r_len = strlen(r_str);
+
+                    char *res = (char *)malloc(l_len + 1);
+
+                    char *w_ptr = res;
+                    char *r_ptr = l_str;
+
+                    char *match;
+                    while ((match = strstr(r_ptr, r_str)) != NULL)
+                    {
+                        size_t chunk = match - r_ptr;
+                        memcpy(w_ptr, r_ptr, chunk);
+                        w_ptr += chunk;
+                        r_ptr = match + r_len;
                     }
 
-                    vm_error(vm, "Unsupported operand types for binary operator [-].");
+                    strcpy(w_ptr, r_ptr);
+                    push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(res))));
+
+                    free(l_str);
+                    free(r_str);
+                    break;
+                }
+
+                // Matrix paths
+                if (IS_MATRIX(left))
+                {
+                    if (IS_MATRIX(right))
+                        push_stack(vm, matrix_broadcastBinary(vm,
+                                                              AS_MATRIX(left), AS_MATRIX(right), 1));
+                    else if (is_numeric(right))
+                        push_stack(vm, matrix_scalarBinary(vm,
+                                                           AS_MATRIX(left), as_number(right), 1, false));
+                    else
+                        vm_error(vm, "Unsupported right operand for matrix [-].");
+                    break;
+                }
+
+                if (IS_MATRIX(right) && is_numeric(left))
+                {
+                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right),
+                                                       as_number(left), 1, true));
+                    break;
+                }
+
+                // Coerced numeric subtraction (obj with value/format method)
+                Value _left = TO_PRIM(vm, left, false);
+                Value _right = TO_PRIM(vm, right, false);
+
+                if (is_numeric(_left) && is_numeric(_right))
+                {
+                    push_stack(vm, NEW_NUM(as_number(_left) - as_number(_right)));
+                    break;
                 }
 
                 vm_error(vm, "Unsupported operand types for binary operator [-].");
-            }
-            break;
-            case 2: // "*"
-            {
-                if (IS_MATRIX(left) && IS_MATRIX(right))
-                {
-                    push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left), AS_MATRIX(right), op));
-                    break;
-                }
-
-                if (IS_MATRIX(left) && is_numeric(right))
-                {
-                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left), as_number(right), op, false));
-                    break;
-                }
-
-                if (is_numeric(left) && IS_MATRIX(right))
-                {
-                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right), as_number(left), op, true));
-                    break;
-                }
-
-                left_prim = to_primitive(vm, left, false);
-                right_prim = to_primitive(vm, right, false);
-
-                if (is_numeric(left_prim) && is_numeric(right_prim))
-                    // Multiply two numbers
-                    push_stack(vm, NEW_NUM(as_number(left_prim) * as_number(right_prim)));
-                else if (left.type == VAL_OBJ)
-                {
-                    if (IS_LIST(left) && IS_LIST(right))
-                    {
-                        PiList *A = AS_LIST(left);
-                        PiList *B = AS_LIST(right);
-
-                        if (!A->is_numeric || !B->is_numeric)
-                            vm_error(vm, "Matrix multiplication requires numeric lists.");
-
-                        if (A->cols == -1 || B->cols == -1)
-                            vm_error(vm, "Matrix dimensions are not set properly.");
-
-                        if (A->cols != B->rows)
-                            vm_error(vm, "Matrix multiplication dimension mismatch.");
-
-                        int m = A->rows;
-                        int n = A->cols;
-                        int p = B->cols;
-
-                        list_t *result = list_create(sizeof(Value));
-
-                        for (int i = 0; i < m; i++)
-                        {
-                            Value *rowA_val = (Value *)list_getAt(A->items, i);
-                            list_t *rowA = as_list(*rowA_val);
-                            list_t *temp = list_create(sizeof(Value));
-
-                            for (int j = 0; j < p; j++)
-                            {
-                                double sum = 0.0;
-
-                                for (int k = 0; k < n; k++)
-                                {
-                                    // Get A[i][k]
-                                    Value *a_val = (Value *)list_getAt(rowA, k);
-                                    double a = as_number(*a_val);
-
-                                    // Get B[k][j]
-                                    Value *rowB_val = (Value *)list_getAt(B->items, k);
-                                    list_t *rowB = as_list(*rowB_val);
-                                    Value *b_val = (Value *)list_getAt(rowB, j);
-                                    double b = as_number(*b_val);
-
-                                    sum += a * b;
-                                }
-
-                                list_add(temp, &NEW_NUM(sum));
-                            }
-
-                            list_add(result, &NEW_OBJ(new_list(temp)));
-                        }
-
-                        Object *res_obj = add_obj(vm, new_list(result));
-                        ((PiList *)res_obj)->is_numeric = true;
-                        ((PiList *)res_obj)->rows = m;
-                        ((PiList *)res_obj)->cols = p;
-                        push_stack(vm, NEW_OBJ(res_obj));
-                        break;
-                    }
-                    else if (IS_LIST(left))
-                    {
-                        int count = (int)as_number(right_prim); // Assuming `right` is a number
-                        list_t *list = as_list(left);           // Assuming `as_list` returns a `list_t *`
-
-                        list_t *result = list_create(list->i_size);
-                        for (int i = 0; i < count; i++)
-                            list_addAll(result, list);
-
-                        Object *_result = new_list(result);
-                        if (AS_LIST(left)->is_numeric)
-                            ((PiList *)_result)->is_numeric = true;
-
-                        push_stack(vm, NEW_OBJ(add_obj(vm, _result))); // Assuming `new_list` creates a `Value` with type `OBJ_LIST`
-                    }
-                    else if (IS_STRING(left))
-                    {
-                        int count = (int)as_number(right_prim); // Assuming `right` is a number
-                        // the original strings
-                        char *str = as_string(left);
-                        // original string length
-                        size_t o_len = strlen(str);
-                        // result string length
-                        size_t r_len = o_len * count;
-
-                        // allocate memory for the result string
-                        char *result = (char *)malloc(r_len + 1); // Allocate space for the repeated string
-                        result[0] = '\0';
-
-                        for (int i = 0; i < count; i++)
-                            strcat(result, str);
-
-                        push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(result))));
-                        free(str);
-                    }
-                    else
-                        vm_error(vm, "Unsupported operand types for binary operator [*].");
-                }
-                else
-                    vm_error(vm, "Unsupported operand types for binary operator [*].");
-
                 break;
             }
-            case 3: // "/"
+            case 2: // "*"
             {
-                if (IS_MATRIX(left) && IS_MATRIX(right))
+                // Matrix multiplication (list * list)
+                if (IS_LIST(left) && IS_LIST(right))
                 {
-                    push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left), AS_MATRIX(right), op));
+                    PiList *A = AS_LIST(left);
+                    PiList *B = AS_LIST(right);
+
+                    if (!A->is_numeric || !B->is_numeric)
+                        vm_error(vm, "Matrix multiplication requires numeric lists.");
+                    if (A->cols == -1 || B->cols == -1)
+                        vm_error(vm, "Matrix dimensions are not set properly.");
+                    if (A->cols != B->rows)
+                        vm_error(vm, "Matrix multiplication dimension mismatch.");
+
+                    int m = A->rows, n = A->cols, p = B->cols;
+                    list_t *result = list_create(sizeof(Value));
+
+                    for (int i = 0; i < m; i++)
+                    {
+                        list_t *rowA = as_list(*(Value *)list_getAt(A->items, i));
+                        list_t *temp = list_create(sizeof(Value));
+
+                        for (int j = 0; j < p; j++)
+                        {
+                            double sum = 0.0;
+                            for (int k = 0; k < n; k++)
+                            {
+                                double a = as_number(*(Value *)list_getAt(rowA, k));
+                                list_t *rowB = as_list(*(Value *)list_getAt(B->items, k));
+                                double b = as_number(*(Value *)list_getAt(rowB, j));
+                                sum += a * b;
+                            }
+                            Value num = NEW_NUM(sum);
+                            list_add(temp, &num);
+                        }
+                        Value row = NEW_OBJ(new_list(temp));
+                        list_add(result, &row);
+                    }
+
+                    Object *res_obj = add_obj(vm, new_list(result));
+                    ((PiList *)res_obj)->is_numeric = true;
+                    ((PiList *)res_obj)->rows = m;
+                    ((PiList *)res_obj)->cols = p;
+                    push_stack(vm, NEW_OBJ(res_obj));
                     break;
                 }
 
-                if (IS_MATRIX(left) && is_numeric(right))
+                // List repeat: list * n
+                if (IS_LIST(left))
                 {
-                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left), as_number(right), op, false));
+                    Value right_prim = TO_PRIM(vm, right, false);
+                    int count = (int)as_number(right_prim);
+                    list_t *list = as_list(left);
+                    list_t *result = list_create(list->i_size);
+                    for (int i = 0; i < count; i++)
+                        list_addAll(result, list);
+                    Object *res_obj = new_list(result);
+                    if (AS_LIST(left)->is_numeric)
+                        ((PiList *)res_obj)->is_numeric = true;
+                    push_stack(vm, NEW_OBJ(add_obj(vm, res_obj)));
                     break;
                 }
 
-                if (is_numeric(left) && IS_MATRIX(right))
+                // String repeat: str * n
+                if (IS_STRING(left))
                 {
-                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right), as_number(left), op, true));
+                    Value right_prim = TO_PRIM(vm, right, false);
+                    int count = (int)as_number(right_prim);
+                    const char *str = AS_STRING(left)->chars;
+                    size_t o_len = AS_STRING(left)->length;
+                    size_t r_len = o_len * (size_t)count;
+                    char *result = (char *)malloc(r_len + 1);
+                    if (!result)
+                        vm_error(vm, "Memory allocation failed.");
+                    for (int i = 0; i < count; i++)
+                        memcpy(result + i * o_len, str, o_len);
+                    result[r_len] = '\0';
+                    push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(result))));
                     break;
                 }
 
-                left_prim = to_primitive(vm, left, false);
-                right_prim = to_primitive(vm, right, false);
-                double denominator = as_number(right_prim);
-
-                if (denominator == 0.0)
+                // Matrix paths
+                if (IS_MATRIX(left))
                 {
-                    push_stack(vm, NEW_NUM(INFINITY)); // Push infinity to indicate undefined result
+                    if (IS_MATRIX(right))
+                        push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left),
+                                                              AS_MATRIX(right), 2));
+                    else if (is_numeric(right))
+                        push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left),
+                                                           as_number(right), 2, false));
+                    else
+                        vm_error(vm, "Unsupported right operand for matrix [*].");
                     break;
                 }
 
-                double numerator = as_number(left_prim);
-                push_stack(vm, NEW_NUM(numerator / denominator));
+                if (IS_MATRIX(right) && is_numeric(left))
+                {
+                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right),
+                                                       as_number(left), 2, true));
+                    break;
+                }
+
+                // Coerced numeric multiply
+                Value _left = TO_PRIM(vm, left, false);
+                Value _right = TO_PRIM(vm, right, false);
+                if (is_numeric(_left) && is_numeric(_right))
+                {
+                    push_stack(vm, NEW_NUM(as_number(_left) *
+                                           as_number(_right)));
+                    break;
+                }
+
+                vm_error(vm, "Unsupported operand types for binary operator [*].");
+                break;
+            }
+            case 3: // /
+            {
+                if (IS_MATRIX(left))
+                {
+                    if (IS_MATRIX(right))
+                        push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left),
+                                                              AS_MATRIX(right), 3));
+                    else if (is_numeric(right))
+                        push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left),
+                                                           as_number(right), 3, false));
+                    else
+                        vm_error(vm, "Unsupported right operand for matrix [/].");
+                    break;
+                }
+                if (IS_MATRIX(right) && is_numeric(left))
+                {
+                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right),
+                                                       as_number(left), 3, true));
+                    break;
+                }
+
+                Value _left = TO_PRIM(vm, left, false);
+                Value _right = TO_PRIM(vm, right, false);
+
+                double denom = as_number(_right);
+                push_stack(vm, NEW_NUM(denom == 0.0 ? INFINITY : as_number(_left) / denom));
                 break;
             }
             case 4: // "%"
             {
-                left_prim = to_primitive(vm, left, false);
-                right_prim = to_primitive(vm, right, false);
-                double denominator = as_number(right_prim);
+                Value _left = TO_PRIM(vm, left, false);
+                Value _right = TO_PRIM(vm, right, false);
 
-                if ((int)denominator == 0) // If denominator is zero, return NaN
-                    push_stack(vm, NEW_NAN());
-                else
-                    push_stack(vm, NEW_NUM((int)as_number(left_prim) % (int)denominator));
+                int denom = (int)as_number(_right);
+                push_stack(vm, denom == 0 ? NEW_NAN() : NEW_NUM((int)as_number(_left) % denom));
                 break;
             }
             case 5: // "&&"
@@ -2111,68 +2470,24 @@ void run(vm_t *vm)
                 push_stack(vm, NEW_BOOL(as_bool(left) || as_bool(right)));
                 break;
             case 7: // "**"
-                left_prim = to_primitive(vm, left, false);
-                right_prim = to_primitive(vm, right, false);
-                push_stack(vm, NEW_NUM(pow(as_number(left_prim), as_number(right_prim))));
-                break;
-            case 8: // "&"
             {
-                left_prim = to_primitive(vm, left, false);
-                right_prim = to_primitive(vm, right, false);
-                if (is_numeric(left_prim) && is_numeric(right_prim))
-                    push_stack(vm, NEW_NUM((int)as_number(left_prim) & (int)as_number(right_prim)));
-                else if (left.type == VAL_OBJ && OBJ_TYPE(left) == OBJ_LIST)
-                {
-                    list_t *list = as_list(left);
-                    list_t *result = list_create(sizeof(Value));
-
-                    int _right = (int)as_number(right_prim);
-
-                    for (int i = 0; i < list_size(list); i++)
-                    {
-                        Value item = *(Value *)list_getAt(list, i);
-                        list_add(result, &NEW_NUM((int)as_number(item) & _right));
-                    }
-                    push_stack(vm, NEW_OBJ(add_obj(vm, new_list(result))));
-                }
-                else
-                    vm_error(vm, "Unsupported operand types for binary operator [&].");
-
+                Value _left = TO_PRIM(vm, left, false);
+                Value _right = TO_PRIM(vm, right, false);
+                push_stack(vm, NEW_NUM(pow(as_number(_left), as_number(_right))));
                 break;
             }
 
-            case 9: // "|"
+            //  ops 8-13: bitwise & list-vectorized
+            // Shared pattern: num op num, or list op num (vectorized)
+            case 8:  // "&"
+            case 9:  // "|"
+            case 10: // "^" (also handles cross product for list*list)
+            case 11: // "<<"
+            case 12: // ">>"
+            case 13: // ">>>"
             {
-                left_prim = to_primitive(vm, left, false);
-                right_prim = to_primitive(vm, right, false);
-                if (is_numeric(left_prim) && is_numeric(right_prim))
-                    push_stack(vm, NEW_NUM((int)as_number(left_prim) | (int)as_number(right_prim)));
-                else if (left.type == VAL_OBJ && OBJ_TYPE(left) == OBJ_LIST)
-                {
-                    list_t *list = as_list(left);
-                    list_t *result = list_create(sizeof(Value));
-
-                    int _right = (int)as_number(right_prim);
-
-                    for (int i = 0; i < list_size(list); i++)
-                    {
-                        Value item = *(Value *)list_getAt(list, i);
-                        list_add(result, &NEW_NUM((int)as_number(item) | _right));
-                    }
-                    push_stack(vm, NEW_OBJ(add_obj(vm, new_list(result))));
-                }
-                else
-                    vm_error(vm, "Unsupported operand types for binary operator [|].");
-
-                break;
-            }
-
-            case 10: // "^"
-            {
-                left_prim = to_primitive(vm, left, false);
-                right_prim = to_primitive(vm, right, false);
-
-                if (IS_LIST(left) && IS_LIST(right))
+                // Cross product: special case for op 10 with two lists
+                if (op == 10 && IS_LIST(left) && IS_LIST(right))
                 {
                     PiList *l_list = AS_LIST(left);
                     PiList *r_list = AS_LIST(right);
@@ -2183,287 +2498,313 @@ void run(vm_t *vm)
                     if (list_size(l_list->items) != 3 || list_size(r_list->items) != 3)
                         vm_error(vm, "Cross product is defined for 3-dimensional vectors only.");
 
-                    Value *a = l_list->items->data;
-                    Value *b = r_list->items->data;
-
+                    Value *a = (Value *)l_list->items->data;
+                    Value *b = (Value *)r_list->items->data;
                     double x = as_number(a[1]) * as_number(b[2]) - as_number(a[2]) * as_number(b[1]);
                     double y = as_number(a[2]) * as_number(b[0]) - as_number(a[0]) * as_number(b[2]);
                     double z = as_number(a[0]) * as_number(b[1]) - as_number(a[1]) * as_number(b[0]);
 
                     list_t *res = list_create(sizeof(Value));
-                    list_add(res, &NEW_NUM(x));
-                    list_add(res, &NEW_NUM(y));
-                    list_add(res, &NEW_NUM(z));
-
+                    Value vx = NEW_NUM(x), vy = NEW_NUM(y), vz = NEW_NUM(z);
+                    list_add(res, &vx);
+                    list_add(res, &vy);
+                    list_add(res, &vz);
                     push_stack(vm, NEW_OBJ(add_obj(vm, new_list(res))));
                     break;
                 }
-                else if (is_numeric(left_prim) && is_numeric(right_prim))
-                    push_stack(vm, NEW_NUM((int)as_number(left_prim) ^ (int)as_number(right_prim)));
 
-                else if (left.type == VAL_OBJ && OBJ_TYPE(left) == OBJ_LIST)
+                Value _left = TO_PRIM(vm, left, false);
+                Value _right = TO_PRIM(vm, right, false);
+
+                // Scalar path
+                if (is_numeric(_left) && is_numeric(_right))
                 {
-                    list_t *list = as_list(left);
-                    list_t *result = list_create(sizeof(Value));
-
-                    int _right = (int)as_number(right_prim);
-
-                    for (int i = 0; i < list_size(list); i++)
+                    double l = as_number(_left), r = as_number(_right);
+                    double result;
+                    switch (op)
                     {
-                        Value item = *(Value *)list_getAt(list, i);
-                        list_add(result, &NEW_NUM((int)as_number(item) ^ _right));
-                    }
-                    push_stack(vm, NEW_OBJ(add_obj(vm, new_list(result))));
-                }
-                else
-                    vm_error(vm, "Unsupported operand types for binary operator [^].");
-
-                break;
-            }
-
-            case 11: // "<<"
-            {
-                left_prim = to_primitive(vm, left, false);
-                right_prim = to_primitive(vm, right, false);
-                if (is_numeric(left_prim) && is_numeric(right_prim))
-                    push_stack(vm, NEW_NUM((int)as_number(left_prim) << (int)as_number(right_prim)));
-
-                else if (left.type == VAL_OBJ && OBJ_TYPE(left) == OBJ_LIST)
-                {
-                    list_t *list = as_list(left);
-                    list_t *result = list_create(sizeof(Value));
-
-                    int _right = (int)as_number(right_prim);
-
-                    for (int i = 0; i < list_size(list); i++)
-                    {
-                        Value item = *(Value *)list_getAt(list, i);
-                        list_add(result, &NEW_NUM((int)as_number(item) << _right));
-                    }
-                    push_stack(vm, NEW_OBJ(add_obj(vm, new_list(result))));
-                }
-                else
-                    vm_error(vm, "Unsupported operand types for binary operator [<<].");
-
-                break;
-            }
-
-            case 12: // ">>"
-            {
-                left_prim = to_primitive(vm, left, false);
-                right_prim = to_primitive(vm, right, false);
-                if (is_numeric(left_prim) && is_numeric(right_prim))
-                    push_stack(vm, NEW_NUM((int)as_number(left_prim) >> (int)as_number(right_prim)));
-
-                else if (left.type == VAL_OBJ && OBJ_TYPE(left) == OBJ_LIST)
-                {
-                    list_t *list = as_list(left);
-                    list_t *result = list_create(sizeof(Value));
-
-                    int _right = (int)as_number(right_prim);
-
-                    for (int i = 0; i < list_size(list); i++)
-                    {
-                        Value item = *(Value *)list_getAt(list, i);
-                        list_add(result, &NEW_NUM((int)as_number(item) >> _right));
-                    }
-                    push_stack(vm, NEW_OBJ(add_obj(vm, new_list(result))));
-                }
-                else
-                    vm_error(vm, "Unsupported operand types for binary operator [>>].");
-
-                break;
-            }
-
-            case 13: // ">>>"
-            {
-                left_prim = to_primitive(vm, left, false);
-                right_prim = to_primitive(vm, right, false);
-                if (is_numeric(left_prim) && is_numeric(right_prim))
-                    push_stack(vm, NEW_NUM((uint32_t)as_number(left_prim) >> (uint32_t)as_number(right_prim)));
-
-                else if (left.type == VAL_OBJ && OBJ_TYPE(left) == OBJ_LIST)
-                {
-                    list_t *list = as_list(left);
-                    list_t *result = list_create(sizeof(Value));
-
-                    uint32_t _right = (uint32_t)as_number(right_prim);
-
-                    for (int i = 0; i < list_size(list); i++)
-                    {
-                        Value item = *(Value *)list_getAt(list, i);
-                        list_add(result, &NEW_NUM((uint32_t)as_number(item) >> _right));
-                    }
-                    push_stack(vm, NEW_OBJ(add_obj(vm, new_list(result))));
-                }
-                else
-                    vm_error(vm, "Unsupported operand types for binary operator [>>>].");
-
-                break;
-            }
-
-            case 14: // "." (dot product)
-            {
-                if (IS_LIST(left) && IS_LIST(right))
-                {
-                    PiList *l_list = AS_LIST(left);
-                    PiList *r_list = AS_LIST(right);
-
-                    if (!l_list->is_numeric || !r_list->is_numeric)
-                        vm_error(vm, "Dot product requires numeric lists.");
-
-                    int l_size = list_size(l_list->items);
-                    int r_size = list_size(r_list->items);
-
-                    if (l_size != r_size)
-                        vm_error(vm, "Dot product requires lists of the same length.");
-
-                    double result = 0;
-                    for (int i = 0; i < l_size; i++)
-                    {
-                        Value a = *(Value *)list_getAt(l_list->items, i);
-                        Value b = *(Value *)list_getAt(r_list->items, i);
-                        result += as_number(a) * as_number(b);
+                    case 8:
+                        result = (int)l & (int)r;
+                        break;
+                    case 9:
+                        result = (int)l | (int)r;
+                        break;
+                    case 10:
+                        result = (int)l ^ (int)r;
+                        break;
+                    case 11:
+                        result = (int)l << (int)r;
+                        break;
+                    case 12:
+                        result = (int)l >> (int)r;
+                        break;
+                    case 13:
+                        result = (uint32_t)l >> (uint32_t)r;
+                        break;
+                    default:
+                        result = 0;
                     }
                     push_stack(vm, NEW_NUM(result));
                     break;
                 }
-                vm_error(vm, "Unsupported operand types for binary operator [.]");
+
+                // Vectorized list op num
+                if (IS_LIST(left))
+                {
+                    list_t *list = as_list(left);
+                    list_t *result = list_create(sizeof(Value));
+                    int size = list_size(list);
+
+                    if (op == 13)
+                    {
+                        uint32_t r = (uint32_t)as_number(_right);
+                        for (int i = 0; i < size; i++)
+                        {
+                            Value item = *(Value *)list_getAt(list, i);
+                            Value v = NEW_NUM((uint32_t)as_number(item) >> r);
+                            list_add(result, &v);
+                        }
+                    }
+                    else
+                    {
+                        int r = (int)as_number(_right);
+                        for (int i = 0; i < size; i++)
+                        {
+                            Value item = *(Value *)list_getAt(list, i);
+                            int lv = (int)as_number(item);
+                            int rv;
+                            switch (op)
+                            {
+                            case 8:
+                                rv = lv & r;
+                                break;
+                            case 9:
+                                rv = lv | r;
+                                break;
+                            case 10:
+                                rv = lv ^ r;
+                                break;
+                            case 11:
+                                rv = lv << r;
+                                break;
+                            case 12:
+                                rv = lv >> r;
+                                break;
+                            default:
+                                rv = 0;
+                            }
+                            Value v = NEW_NUM(rv);
+                            list_add(result, &v);
+                        }
+                    }
+                    push_stack(vm, NEW_OBJ(add_obj(vm, new_list(result))));
+                    break;
+                }
+
+                // Friendly error with op name
+                const char *op_names[] = {"&", "|", "^", "<<", ">>", ">>>"};
+                vm_errorf(vm, "Unsupported operand types for binary operator [%s].",
+                          op_names[op - 8]);
+                break;
             }
 
-            case 15: // instance of operator [is]
+            case 14: // "." dot product
             {
+                if (!IS_LIST(left) || !IS_LIST(right))
+                    vm_error(vm, "Dot product requires two numeric lists.");
 
+                PiList *l_list = AS_LIST(left);
+                PiList *r_list = AS_LIST(right);
+
+                if (!l_list->is_numeric || !r_list->is_numeric)
+                    vm_error(vm, "Dot product requires numeric lists.");
+
+                int l_size = list_size(l_list->items);
+                if (l_size != list_size(r_list->items))
+                    vm_error(vm, "Dot product requires lists of the same length.");
+
+                // Direct pointer access — avoids list_getAt overhead in tight loop
+                Value *a = (Value *)l_list->items->data;
+                Value *b = (Value *)r_list->items->data;
+                double result = 0.0;
+                for (int i = 0; i < l_size; i++)
+                    result += as_number(a[i]) * as_number(b[i]);
+
+                push_stack(vm, NEW_NUM(result));
+                break;
+            }
+            case 15: // "is" (instanceof)
+            {
                 if (!IS_MAP(left) || !IS_MAP(right))
                 {
                     push_stack(vm, NEW_BOOL(false));
                     break;
                 }
 
-                Object *inst_obj = AS_OBJ(left);
-                Object *proto_obj = AS_OBJ(right);
+                PiMap *map = AS_MAP(left);
+                PiMap *proto = AS_MAP(right);
 
-                if (inst_obj->type != OBJ_MAP || proto_obj->type != OBJ_MAP)
-                {
-                    push_stack(vm, NEW_BOOL(false));
-                    break;
-                }
-
-                PiMap *map = (PiMap *)inst_obj;
-                PiMap *proto = (PiMap *)proto_obj;
-
-                // Traverse the prototype chain
                 while (map != NULL)
                 {
                     if (map == proto)
                     {
                         push_stack(vm, NEW_BOOL(true));
-                        break;
+                        goto is_done;
                     }
                     map = map->proto;
                 }
-
-                if (!map)
-                    push_stack(vm, NEW_BOOL(false));
-
+                push_stack(vm, NEW_BOOL(false));
+            is_done:;
                 break;
             }
 
-            break;
+            default:
+                vm_errorf(vm, "Unknown binary opcode: [%d]", op);
+                break;
             }
-            break;
+            break; // exits OP_BINARY
         }
         case OP_UNARY:
         {
+            uint8_t op = code[pc++];
+            Value operand = pop_stack(vm);
 
-            uint8_t op = code[pc++];       // Get the unary operation code
-            Value operand = pop_stack(vm); // Get the operand from the stack
-            Value computed = NEW_NIL();
-
-            if ((op == 0 || op == 1 || op == 3) &&
-                try_callCompute(vm, operand, 100 + op, false, NEW_NIL(), &computed))
+            // Fast path: plain number (most common case)
+            // ops 0,1,3,5,6 are purely numeric - zero overload check, zero coercion
+            if (is_numeric(operand))
             {
-                push_stack(vm, computed);
+                double n = as_number(operand);
+                switch (op)
+                {
+                case 0:
+                    push_stack(vm, NEW_NUM(n));
+                    break; // unary +
+                case 1:
+                    push_stack(vm, NEW_NUM(-n));
+                    break; // unary -
+                case 2:
+                    push_stack(vm, NEW_BOOL(n == 0.0));
+                    break; // logical NOT (0 is falsy)
+                case 3:
+                    push_stack(vm, NEW_NUM(~(int)n));
+                    break; // bitwise NOT
+                case 5:
+                    push_stack(vm, NEW_NUM(n + 1.0));
+                    break; // ++
+                case 6:
+                    push_stack(vm, NEW_NUM(n - 1.0));
+                    break; // --
+                case 4:    // # on a number makes no sense
+                    vm_error(vm, "Operator '#' is not defined for numbers.");
+                default:
+                    vm_error(vm, "Unknown unary operator.");
+                }
                 break;
             }
 
-            Value operand_prim = to_primitive(vm, operand, false);
-
-            switch (op)
+            // Fast path: bool - only logical NOT makes sense
+            if (IS_BOOL(operand))
             {
-            case 0: // Unary plus
-                push_stack(vm, NEW_NUM(as_number(operand_prim)));
-                break;
+                if (op == 2)
+                {
+                    push_stack(vm, NEW_BOOL(!AS_BOOL(operand)));
+                    break;
+                }
+                // fall through to slow path for anything else (e.g. +true coerces to 1)
+            }
 
-            case 1: // Unary minus
-                push_stack(vm, NEW_NUM(-as_number(operand_prim)));
-                break;
+            //  Fast path: nil - only logical NOT makes sense─
+            if (IS_NIL(operand))
+            {
+                if (op == 2)
+                {
+                    push_stack(vm, NEW_BOOL(true));
+                    break;
+                }
+                // nil coerces to 0 for numeric ops - fall through
+            }
 
-            case 2: // Logical NOT
+            //  Overload check - only for maps, only ops 0/1/3, only if flagged
+            if (IS_MAP(operand) &&
+                (op == 0 || op == 1 || op == 3))
+            {
+                Value computed = NEW_NIL();
+                if (try_callCompute(vm, operand, 100 + op, false, NEW_NIL(), &computed))
+                {
+                    push_stack(vm, computed);
+                    break;
+                }
+            }
+
+            //  op 2: logical NOT - works on any type via truthiness
+            if (op == 2)
+            {
                 push_stack(vm, NEW_BOOL(!as_bool(operand)));
                 break;
+            }
 
-            case 3: // Bitwise NOT
-                push_stack(vm, NEW_NUM(~(int)as_number(operand_prim)));
-                break;
-
-            case 4: // Collection size #
+            //  op 4: collection size '#'─
+            // Pulled before PRIM_AS_NUM - size needs the object itself, not coerced
+            if (op == 4)
             {
-                if (IS_COLLECTION(operand))
-                {
-                    switch (OBJ_TYPE(operand))
-                    {
-                    case OBJ_LIST:
-                        push_stack(vm, NEW_NUM(list_size(AS_LIST(operand)->items)));
-                        break;
-                    case OBJ_MATRIX:
-                        push_stack(vm, NEW_NUM(AS_MATRIX(operand)->rows));
-                        break;
-                    case OBJ_STRING:
-                        push_stack(vm, NEW_NUM(AS_STRING(operand)->length));
-                        break;
-                    case OBJ_MAP:
-                        push_stack(vm, NEW_NUM(map_size(AS_MAP(operand))));
-                        break;
-                    }
-                }
-                else
-                    vm_error(vm, "Unsupported operand type for '#' operator.");
+                if (!IS_OBJ(operand))
+                    vm_error(vm, "Operator '#' requires a collection.");
 
+                switch (OBJ_TYPE(operand))
+                {
+                case OBJ_LIST:
+                    push_stack(vm, NEW_NUM(list_size(AS_LIST(operand)->items)));
+                    break;
+                case OBJ_MATRIX:
+                    push_stack(vm, NEW_NUM(AS_MATRIX(operand)->rows));
+                    break;
+                case OBJ_STRING:
+                    push_stack(vm, NEW_NUM(AS_STRING(operand)->length));
+                    break;
+                case OBJ_MAP:
+                    push_stack(vm, NEW_NUM(map_size(AS_MAP(operand))));
+                    break;
+                default:
+                    vm_error(vm, "Unsupported operand type for '#' operator.");
+                }
                 break;
             }
-            case 5: // "++"
-                push_stack(vm, NEW_NUM(as_number(operand_prim) + 1));
-                break;
 
-            case 6: // "--"
-                push_stack(vm, NEW_NUM(as_number(operand_prim) - 1));
-                break;
-
+            //  Slow path: coerce to number for ops 0 - 1 - 3 - 5 - 6
+            // Only maps with val/fmt methods and nil/bool fallbacks reach here
+            double n = as_number(TO_PRIM_NUM(operand));
+            switch (op)
+            {
+            case 0:
+                push_stack(vm, NEW_NUM(n));
+                break; // unary +
+            case 1:
+                push_stack(vm, NEW_NUM(-n));
+                break; // unary -
+            case 3:
+                push_stack(vm, NEW_NUM(~(int)n));
+                break; // bitwise NOT
+            case 5:
+                push_stack(vm, NEW_NUM(n + 1.0));
+                break; // ++
+            case 6:
+                push_stack(vm, NEW_NUM(n - 1.0));
+                break; // --
             default:
                 vm_error(vm, "Unknown unary operator.");
             }
 
             break;
         }
+        // regular call, zero kwargs overhead
         case OP_CALL_FUNCTION:
         {
 
             // Read the number of arguments from the bytecode
-            uint8_t raw_args = code[pc++];
-            bool has_named = (raw_args & 0x80) != 0;
-            uint8_t num_args = raw_args & 0x7F;
+            uint8_t num_args = code[pc++];
 
             // Allocate memory for the arguments
             Value args[num_args];
-            Value kw_args = NEW_NIL();
-
-            if (has_named)
-            {
-                kw_args = pop_stack(vm);
-                if (!IS_OBJ(kw_args) || OBJ_TYPE(kw_args) != OBJ_MAP)
-                    vm_error(vm, "Named arguments must be a map.");
-            }
 
             // Pop the arguments off the VM's stack in reverse order.
             for (int i = num_args - 1; i >= 0; i--)
@@ -2479,7 +2820,7 @@ void run(vm_t *vm)
 
                 vm->pc = pc;
                 // Call native function if it's a built-in
-                Value result = call_func(vm, AS_FUN(callee), num_args, args, kw_args);
+                Value result = call_func(vm, AS_FUN(callee), num_args, args, NEW_NIL());
                 if (IS_OBJ(result))
                     add_obj(vm, AS_OBJ(result));
                 push_stack(vm, result);
@@ -2490,15 +2831,61 @@ void run(vm_t *vm)
                 if (map->is_instance)
                     vm_error(vm, "Attempt to call an Object instance.");
                 else
-                {
-                    if (has_named)
-                        vm_error(vm, "Named arguments are not supported for map constructors.");
                     push_stack(vm, NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args))));
-                }
             }
             else
                 vm_error(vm, "Attempt to call a non-function object.");
 
+            break;
+        }
+
+        // only emitted when named args are present
+        case OP_CALL_FUNCTION_KW:
+        {
+            uint8_t num_args = code[pc++];
+
+            Value kw_args = pop_stack(vm);
+            if (!IS_OBJ(kw_args) || OBJ_TYPE(kw_args) != OBJ_MAP)
+                vm_error(vm, "Named arguments must be a map.");
+
+            Value stack_args[8];
+            Value *args = num_args <= 8
+                              ? stack_args
+                              : (Value *)malloc(num_args * sizeof(Value));
+
+            if (num_args > 8 && !args)
+                vm_error(vm, "Memory allocation failed for argument list.");
+
+            for (int i = num_args - 1; i >= 0; i--)
+                args[i] = pop_stack(vm);
+
+            Value callee = pop_stack(vm);
+            Value result = NEW_NIL();
+
+            if (IS_FUN(callee))
+            {
+                vm->function = AS_OBJ(callee);
+                vm->pc = pc;
+                result = call_func(vm, AS_FUN(callee), num_args, args, kw_args);
+                if (IS_OBJ(result))
+                    add_obj(vm, AS_OBJ(result));
+            }
+            else if (IS_MAP(callee))
+            {
+                if (num_args > 8)
+                    free(args);
+                vm_error(vm, "Named arguments are not supported for map constructors.");
+            }
+            else
+            {
+                if (num_args > 8)
+                    free(args);
+                vm_error(vm, "Attempt to call a non-function object.");
+            }
+
+            if (num_args > 8)
+                free(args);
+            push_stack(vm, result);
             break;
         }
 

@@ -31,6 +31,7 @@ typedef struct
 
 // Create a table for values of size `i_size`
 table_t *ht_create(size_t i_size);
+bool ht_has(table_t *table, const char *key);
 void *ht_get(table_t *table, const char *key);
 bool ht_set(table_t *table, const char *key, const void *value);
 bool ht_put(table_t *table, const char *key, const void *value);

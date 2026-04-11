@@ -186,6 +186,7 @@ typedef struct PiMap
 
     // int current; // Iterator state
     ht_iter it;
+
 } PiMap;
 
 typedef struct

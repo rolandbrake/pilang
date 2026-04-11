@@ -1138,8 +1138,10 @@ static void declaration(parser_t *parser)
     else if (match(parser, TK_FUN))
         func_decl(parser);
     // If not a variable or function declaration, parse as a statement
-    else
+    else {
         statement(parser); // Parse as a statement
+        parser->is_return = false;
+    }
 }
 
 /**
@@ -1639,6 +1641,8 @@ static void statement(parser_t *parser)
         import_stmt(parser);
     else
         expr_state(parser);
+
+    // parser->is_return = false;
 }
 
 static void destructure_assign_stmt(parser_t *parser)
@@ -1943,8 +1947,8 @@ static void continue_stmt(parser_t *parser)
         p_errorf(tok.line, tok.column, "'continue' used outside of a loop");
 
     int address = get_continue(parser->comp);
-    emit_pop(parser->comp, loop_depth(parser->comp));
-    emit_jump(parser->comp, address);
+    emit_pop(parser->comp, loop_depth(parser->comp));    
+    emit_jump(parser->comp, address - code_size(parser->comp));
 
     parser->is_return = true;
 

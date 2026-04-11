@@ -69,6 +69,7 @@ static const char *op_names[] = {
     [0x47] = "MAP_EXTEND",
     [0x48] = "MAP_FINALIZE",
     [0x49] = "COMP_APPEND",
+    [0x4a] = "CALL_FUNCTION_KW",
 };
 
 /**

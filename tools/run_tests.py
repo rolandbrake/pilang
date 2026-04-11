@@ -68,7 +68,12 @@ def run_test(path: Path):
 
     expected_fail = is_expected_failure(path)
     ok = (result.returncode != 0) if expected_fail else (result.returncode == 0)
-    label = "XPASS" if expected_fail and result.returncode == 0 else "XFAIL" if expected_fail else "PASS" if ok else "FAIL"
+    label = (
+        "XPASS" if expected_fail and result.returncode == 0
+        else "XFAIL" if expected_fail
+        else "PASS" if ok
+        else "FAIL"
+    )
     color = GREEN if ok else RED
 
     print(f"  {color}[{label}]{RESET} {path.relative_to(TEST_DIR)} {DIM}({duration_ms:.1f} ms){RESET}")
@@ -136,6 +141,7 @@ def main():
     passed = 0
     failed = []
     expected_failures = 0
+    total_duration = 0.0  # <-- added
 
     print(f"\n{CYAN}Pilang Diagnostic Test Suite{RESET}")
     print(f"{DIM}Interpreter: {PI_COMMAND}{RESET}")
@@ -147,6 +153,7 @@ def main():
         for path in tests:
             record = run_test(path)
             total += 1
+            total_duration += record["duration_ms"]  # <-- added
 
             if record["expected_fail"]:
                 expected_failures += 1
@@ -163,6 +170,9 @@ def main():
     print(f"{GREEN}Passed:             {passed}{RESET}")
     print(f"{RED}Failed:             {len(failed)}{RESET}")
     print(f"{CYAN}Expected failures:  {expected_failures}{RESET}")
+
+    avg_duration = total_duration / total if total > 0 else 0.0
+    print(f"{DIM}Average runtime:   {avg_duration:.1f} ms{RESET}")  # <-- added
 
     if failed:
         print(f"\n{RED}---- FAILURE DETAILS ----{RESET}")

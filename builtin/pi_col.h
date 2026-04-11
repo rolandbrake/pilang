@@ -54,4 +54,10 @@ Value cl_shuffle(vm_t *vm, int argc, Value *argv);
 // Returns a shallow copy of a list or string.
 Value cl_copy(vm_t *vm, int argc, Value *argv);
 
+// used to combine multiple iterables into a single iterable
+Value cl_zip(vm_t *vm, int argc, Value *argv);
+
+Value cl_isIterable(vm_t *vm, int argc, Value *argv);
+
+
 #endif // PI_COL_H

@@ -1306,6 +1306,8 @@ bool is_numeric(Value val)
     if (val.type == VAL_OBJ && OBJ_TYPE(val) == OBJ_STRING)
     {
         char *str_value = AS_STRING(val)->chars;
+        if (*str_value == '\0')
+            return false;
         char *end_ptr;
         // Attempt to convert the string to a double
         strtod(str_value, &end_ptr);

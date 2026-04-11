@@ -1,0 +1,145 @@
+
+import lang
+import col.{reverse}
+
+fun set(items) {
+    let res = []
+    for item in items {
+        let exists = false
+        
+        for item in res 
+            if (item == item) {
+                exists = true
+                break
+            }
+        
+        if (!exists) 
+            res += item
+        
+    }
+    return res
+}
+
+
+
+
+Value = {
+    // stores a single scalar value and its gradient 
+
+    constructor(data, _children= [], _op='') {
+        this.data = data
+        this.grad = 0
+        // internal variables used for autograd graph construction
+        this._backward = () -> nil
+        this._prev = set(_children)
+        this._op = _op // the op that produced this node, for graphviz / debugging / etc
+    },
+
+    compute(op, other) {
+        let out
+        if op == lang.OP_ADD {
+            if other is Value
+                out = Value(this.data + other.data, [other], '+')
+            else
+                out = Value(this.data + other, [], '+')
+            _backward = () -> {
+                this.grad += out.grad
+                other.grad += out.grad
+            }
+            out._backward = _backward
+
+            return out
+        } 
+
+        else if op == lang.OP_MUL {
+            if other is Value
+                out = Value(this.data * other.data, [other], '*')
+            else
+                out = Value(this.data * other, [], '*')
+            _backward = () -> {
+                this.grad += other.data * out.grad
+                other.grad += this.data * out.grad
+            }
+            out._backward = _backward
+
+            return out
+        } 
+        else if op == lang.OP_POW {
+            if other is Value
+                out = Value(this.data**other.data, [other], '**')
+            else
+                out = Value(this.data**other, [], '**')
+            _backward = () -> {
+                this.grad += (other.data * this.data**(other.data-1)) * out.grad
+            }
+            out._backward = _backward
+
+            return out
+        }
+        else if op == lang.OP_NEG {
+            out = Value(-this.data, [], '-')
+            _backward = () -> {
+                this.grad += -1 * out.grad
+            }
+            out._backward = _backward
+
+            return out
+        }
+        else if op == lang.OP_SUB {
+            if other is Value
+                out = Value(this.data - other.data, [other], '-')
+            else
+                out = Value(this.data - other, [], '-')
+            _backward = () -> {
+                this.grad += out.grad
+                other.grad += -1 * out.grad
+            }
+            out._backward = _backward
+
+            return out
+        }
+    },
+    relu() {
+        out = Value(this.data < 0 ? 0 : this.data, [this], 'ReLU')
+
+        _backward = () -> {
+            this.grad += (out.data > 0) * out.grad
+        }
+        out._backward = _backward
+
+        return out
+    },
+    backward() {
+        // topological order all of the children in the graph
+        topo = []
+        visited = []
+        build_topo = (v) -> {
+            if !v in visited {
+                visited += v
+                for child in v._prev
+                    build_topo(child)
+                topo += v
+                v = set(v)
+            }
+        }
+        build_topo(this)
+
+        // go one variable at a time and apply the chain rule to get its gradient
+        this.grad = 1
+        for v in reverse(topo)
+            v._backward()
+
+    },    
+
+
+    format() {
+        return "Value(data=" + this.data + ", grad=" + this.grad + " )"
+    }
+
+}
+
+v1 = Value(2.0)
+v2 = Value(3.0)
+out = v1 + v2
+
+println(out)

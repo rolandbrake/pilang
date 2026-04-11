@@ -1,0 +1,78 @@
+// import engine.{Value}
+
+fun zip(a, b) {
+    let res = []
+    let l = min([#a, #b])
+    for i in range(l)
+        res += [a[i], b[i]]
+    return res
+}
+
+Module = {
+    zero_grad() {
+        for p in this.parameters()
+            p.grad = 0
+    },
+    parameters() {
+        return []
+    }
+}
+
+Neuron = {    
+    construct(nin, nonlin = true) {
+        this.w = [Value(2 * rand() - 1) :  _ in range(nin)]
+        this.b = Value(0)
+        this.nonlin = nonlin
+    }
+
+    call(x) {
+        act = sum([wi*xi : wi in this.w, xi in x], this.b)
+        return this.nonlin ? act.relu() : act
+    },
+    parameters() {
+        return this.w + [this.b]
+    },
+    format() {
+        return "{'ReLU' if this.nonlin else 'Linear'}Neuron({len(this.w)})"
+    }
+}
+
+Neuron.extends(Module)
+
+Layer = {    
+    constructor(nin, nout) {
+        this.neurons = [Neuron(nin, kw_args) : _ in range(nout)]
+    },
+    call(x) {
+        out = [n(x): n in this.neurons]
+        return len(out) == 1 ? out[0] : out
+    },
+    parameters() {
+        return [p :n in this.neurons, p in n.parameters()]
+    },
+    format() {
+        return "Layer of [{', '.join(str(n) for n in this.neurons)}]"
+    }
+}
+
+Layer.extends(Module)
+
+MLP = {    
+    constructor(nin, nouts) {
+        sz = [nin] + nouts
+        this.layers = [Layer(sz[i], sz[i+1], nonlin=i!=len(nouts)-1) : i in range(len(nouts))]
+    },
+    call(x) {
+        for layer in this.layers
+            x = layer(x)
+        return x
+    },
+    parameters() {
+        return [p : layer in this.layers, p in layer.parameters()]
+    },
+    format() {
+        return "MLP of [{', '.join(str(layer) for layer in this.layers)}]"
+    }
+}
+
+MLP.extends(Module)

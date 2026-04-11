@@ -61,6 +61,11 @@ table_t *ht_create(size_t i_size)
     return table;
 }
 
+bool ht_has(table_t *table, const char *key)
+{
+    return ht_get(table, key) != NULL;
+}
+
 void *ht_get(table_t *table, const char *key)
 {
 
