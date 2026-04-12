@@ -8,7 +8,7 @@ Point = {
 }
 
 point = Point(1, 2);
-point.c++
+point.c += 1
 other = Point(3, 4);
 
 println(point.c)

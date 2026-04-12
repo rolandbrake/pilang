@@ -9,7 +9,10 @@
 #include <SDL2/SDL_ttf.h>
 
 #include "../common.h"
+#include "../pi_func.h"
+
 #include "pi_builtin.h"
+
 
 #ifndef NIL_VAL
 #define NIL_VAL NEW_NIL()
@@ -703,6 +706,61 @@ Value pt_chart(vm_t *vm, int argc, Value *argv)
 
     // Add the chart as an object to the VM and return it
     return NEW_OBJ(add_obj(vm, new_chart(ctx)));
+}
+
+Value pt_func(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 3 || !IS_LIST(argv[1]) || !IS_FUN(argv[2]))
+        return NIL_VAL;
+    PiChart *chart = chart_from(vm, argv[0]);
+    if (!chart)
+        return NIL_VAL;
+
+    // Parse arguments: chart, x_list, func
+    PiList *x_list = AS_LIST(argv[1]);
+    int num_points = LIST_SIZE(x_list->items);
+
+    if (num_points < 1)
+        return NIL_VAL;
+
+    // Create y list by evaluating function at each x
+    list_t *y_list = list_create(VALUE_SIZE);
+
+    for (int i = 0; i < num_points; i++)
+    {
+        Value *vx = (Value *)list_getAt(x_list->items, i);
+        if (!IS_NUM(*vx))
+            continue;
+
+        double x = AS_NUM(*vx);
+
+        // Call the function with x as argument
+        Value args[1] = {NEW_NUM(x)};
+        Value result = call_func(vm, AS_FUN(argv[2]), 1, args, NEW_NIL());
+
+        if (IS_NUM(result))
+        {
+            list_add(y_list, &result);
+        }
+        else
+        {
+            // If function returns non-numeric, add NaN
+            Value nan_val = NEW_NAN();
+            list_add(y_list, &nan_val);
+        }
+    }
+
+    // Create the y list as object
+    Object *y_obj = new_list(y_list);
+    add_obj(vm, y_obj);
+    Value vy_list = NEW_OBJ(y_obj);
+
+    // Add to chart as line series
+    list_t *tail = list_create(VALUE_SIZE);
+    list_add(tail, &argv[1]); // x values
+    list_add(tail, &vy_list); // y values
+
+    return make_kindSeries(vm, chart, "line", tail);
 }
 
 // Helper function to draw a filled circle with border
@@ -2186,11 +2244,12 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
 
 static BuiltinFunc plot_funcs[] = {
     {"chart", pt_chart},
+    {"func", pt_func},
     {"scatter", pt_scatter},
     {"bar", pt_bar},
     {"line", pt_line},
     {"hist", pt_hist},
-    {"step", pt_step},
+    {"step", pt_step},    
     {"heatmap", pt_heatmap},
     // {"contour", pt_contour},
     // {"quiver", pt_quiver},

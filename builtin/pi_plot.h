@@ -6,6 +6,8 @@
 #include "../pi_object.h"
 
 Value pt_chart(vm_t *vm, int argc, Value *argv);
+
+Value pt_func(vm_t *vm, int argc, Value *argv);
 // returning Chart object
 Value pt_scatter(vm_t *vm, int argc, Value *argv);
 Value pt_bar(vm_t *vm, int argc, Value *argv);

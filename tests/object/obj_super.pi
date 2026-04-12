@@ -30,7 +30,7 @@ println(child.x)
 println(child.y)
 println(child.label())
 
-child.c++
+child.c += 1
 
 println(child.c)
 println(ColorPoint.c)

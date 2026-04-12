@@ -30,4 +30,11 @@ println(pow(2, 3))               // Expected: 8
 println(pow([2, 3, 4], 2))      // Expected: [4, 9, 16]
 
 
+
+x1 = linspace(-5, 5, 10)  // Generate 10 points from -5 to 5
+x2 = arange(-5, 5, 0.5)     // Generate points from -5 to 5 with step of 0.5
+
+println(x1)
+println(x2)
+
 println(sum([1,2,3,4,5]))       // Expected: 15

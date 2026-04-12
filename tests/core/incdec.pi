@@ -1,0 +1,39 @@
+lst = [5];
+x = lst[0]++;
+println(x);
+println(lst[0]);
+
+lst = [5];
+x = ++lst[0];
+println(x);
+println(lst[0]);
+
+lst = [5];
+x = lst[0]--;
+println(x);
+println(lst[0]);
+
+lst = [5];
+x = --lst[0];
+println(x);
+println(lst[0]);
+
+obj = { x: 5 };
+obj.x++;
+println(obj.x);
+++obj.x;
+println(obj.x);
+--obj.x;
+println(obj.x);
+obj.x--;
+println(obj.x);
+
+i = 5;
+i++;
+println(i);
+++i;
+println(i);
+--i;
+println(i);
+i--;
+println(i);
