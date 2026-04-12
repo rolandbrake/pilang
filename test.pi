@@ -1,1 +1,14 @@
-println("Hello, Mars!")
+// fun f(x) {
+//     return 3*x**2 - 4*x + 5
+// }
+
+// for i in range(10)
+//     println(f(i))
+
+fun f() {
+    println(kw_args[
+        'a'
+    ])
+}
+
+f(a=1, b=2, c=3)

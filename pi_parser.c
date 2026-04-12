@@ -3023,12 +3023,15 @@ static void member_expr(parser_t *parser)
             {
                 emit_8u(parser->comp, OP_CALL_SPREAD, name, named > 0 ? 1 : 0);
             }
+            else if (named > 0)
+            {
+                // Use OP_CALL_FUNCTION_KW when named arguments are present
+                emit_8u(parser->comp, OP_CALL_FUNCTION_KW, name, (uint8_t)args);
+            }
             else
             {
-                uint8_t operand = (uint8_t)args;
-                if (named > 0)
-                    operand |= 0x80;
-                emit_8u(parser->comp, OP_CALL_FUNCTION, name, operand);
+                // Use regular OP_CALL_FUNCTION when only positional arguments
+                emit_8u(parser->comp, OP_CALL_FUNCTION, name, (uint8_t)args);
             }
         }
         else
