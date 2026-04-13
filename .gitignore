@@ -36,6 +36,7 @@ build/
 dist/
 bin/
 emsdk/
+docs/
 
 # Emscripten cache
 .cache/

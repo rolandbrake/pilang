@@ -1,12 +1,46 @@
-// lst = [[1], 2, 3]
-// lst[0][0]++
-// println(lst[0])
+lst = [5];
+x = lst[0]++;
+assert(x == 5, "Expected x to be 5, but got " + x);
+assert(lst[0] == 6, "Expected lst[0] to be 6, but got " + lst[0]);
 
-obj = { x: 5 }
-++obj.x
-println(obj)
+lst = [5];
+x = ++lst[0];
+assert(x == 6, "Expected x to be 6, but got " + x);
+assert(lst[0] == 6, "Expected lst[0] to be 6, but got " + lst[0]);
 
+lst = [5];
+x = ++lst[0];
+assert(x == 6, "Expected x to be 6, but got " + x);
+assert(lst[0] == 6, "Expected lst[0] to be 6, but got " +   lst[0]);
 
-i = 0
---i
-println(i)
+lst = [5];
+x = lst[0]--;
+assert(x == 5, "Expected x to be 5, but got " + x);
+assert(lst[0] == 4, "Expected lst[0] to be 4, but got " + lst[0]);
+
+lst = [5];
+x = --lst[0];
+assert(x == 4, "Expected x to be 4, but got " + x);
+assert(lst[0] == 4, "Expected lst[0] to be 4, but got " + lst[0]);
+
+obj = { x: 5 };
+obj.x++;
+assert(obj.x == 6, "Expected obj.x to be 6, but got " + obj.x);
+++obj.x;
+assert(obj.x == 7, "Expected obj.x to be 7, but got " + obj.x);
+--obj.x;
+assert(obj.x == 6, "Expected obj.x to be 6, but got " + obj.x);
+obj.x--;
+assert(obj.x == 5, "Expected obj.x to be 5, but got " + obj.x);
+
+i = 5;
+i++;
+assert(i == 6, "Expected i to be 6, but got " + i);
+++i;
+assert(i == 7, "Expected i to be 7, but got " + i);
+--i;
+assert(i == 6, "Expected i to be 6, but got " + i);
+i--;
+assert(i == 5, "Expected i to be 5, but got " + i);
+
+println("All tests passed!");

@@ -90,36 +90,61 @@ typedef struct
     bool has_conditions;
 } list_comp_t;
 
+/**
+ * Emits the bytecode for a spread list literal.
+ * A spread list literal is a list literal with a spread operator (**) at the end.
+ * This allows the list to be extended with the elements of another list.
+ *
+ * @param parser The parser object.
+ */
 static void emit_spreadListLiteral(parser_t *parser)
 {
     emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
 
+    // If the list literal is empty, emit OP_LIST_FINALIZE and return
     if (match(parser, TK_RBRACKET))
     {
         emit(parser->comp, OP_LIST_FINALIZE);
         return;
     }
 
+    // Loop until the end of the list literal or a spread operator is encountered
     do
     {
+        // If the end of the list literal is reached, break
         if (check(parser, TK_RBRACKET))
             break;
 
+        // Check if the current token is a spread operator
         bool is_spread = match(parser, TK_ELLIPSIS);
+
+        // Parse the expression after the spread operator if it exists
         cond_expr(parser);
+
+        // Emit the bytecode for extending the list if a spread operator was encountered
         emit(parser->comp, is_spread ? OP_LIST_EXTEND : OP_LIST_APPEND);
     } while (match(parser, TK_COMMA));
 
+    // Consume the end of the list literal
     consume(parser, TK_RBRACKET, "Expect ']' at the end of list literal.");
+    // Emit the bytecode for finalizing the list
     emit(parser->comp, OP_LIST_FINALIZE);
 }
 
+/**
+ * Checks if the current function call has spread arguments.
+ * A spread argument is a argument that is prefixed with a spread operator (...)
+ * This allows the argument to be passed as a variable number of arguments.
+ *
+ * @param parser The parser object.
+ * @return True if the current function call has spread arguments, false otherwise.
+ */
 static bool call_hasSpreadArgs(parser_t *parser)
 {
     int index = parser->current;
-    int paren_depth = 1;
-    int bracket_depth = 0;
-    int brace_depth = 0;
+    int paren_depth = 1;   // The parentheses of the function call
+    int bracket_depth = 0; // The brackets of a list literal
+    int brace_depth = 0;   // The braces of a dictionary literal
 
     while (parser->tokens[index].type != TK_EOF)
     {
@@ -128,28 +153,37 @@ static bool call_hasSpreadArgs(parser_t *parser)
         switch (token.type)
         {
         case TK_LPAREN:
+            // Increment the parentheses depth
             paren_depth++;
             break;
         case TK_RPAREN:
+            // Decrement the parentheses depth
             paren_depth--;
             if (paren_depth == 0)
+                // If the parentheses depth is 0, the function call has ended
                 return false;
             break;
         case TK_LBRACKET:
+            // Increment the brackets depth
             bracket_depth++;
             break;
         case TK_RBRACKET:
             if (bracket_depth > 0)
+                // Decrement the brackets depth
                 bracket_depth--;
             break;
         case TK_LBRACE:
+            // Increment the braces depth
             brace_depth++;
             break;
         case TK_RBRACE:
             if (brace_depth > 0)
+                // Decrement the braces depth
                 brace_depth--;
             break;
         case TK_ELLIPSIS:
+            // If the parentheses depth is 1, the brackets depth is 0, and the braces depth is 0,
+            // the current token is a spread operator
             if (paren_depth == 1 && bracket_depth == 0 && brace_depth == 0)
                 return true;
             break;
@@ -161,12 +195,18 @@ static bool call_hasSpreadArgs(parser_t *parser)
     return false;
 }
 
+/**
+ * Checks if the current token is a spread operator in a list.
+ *
+ * @param parser The parser state.
+ * @return true if the current token is a spread operator, false otherwise.
+ */
 static bool list_hasSpreadItems(parser_t *parser)
 {
     int index = parser->current;
-    int paren_depth = 0;
-    int bracket_depth = 1;
-    int brace_depth = 0;
+    int paren_depth = 0;   // Depth of parentheses
+    int bracket_depth = 1; // Depth of brackets
+    int brace_depth = 0;   // Depth of braces
 
     while (parser->tokens[index].type != TK_EOF)
     {
@@ -175,28 +215,37 @@ static bool list_hasSpreadItems(parser_t *parser)
         switch (token.type)
         {
         case TK_LPAREN:
+            // Increment the parentheses depth
             paren_depth++;
             break;
         case TK_RPAREN:
+            // Decrement the parentheses depth
             if (paren_depth > 0)
                 paren_depth--;
             break;
         case TK_LBRACKET:
+            // Increment the brackets depth
             bracket_depth++;
             break;
         case TK_RBRACKET:
+            // Decrement the brackets depth
             bracket_depth--;
             if (bracket_depth == 0)
+                // If the brackets depth is 0, the current token is not a spread operator
                 return false;
             break;
         case TK_LBRACE:
+            // Increment the braces depth
             brace_depth++;
             break;
         case TK_RBRACE:
+            // Decrement the braces depth
             if (brace_depth > 0)
                 brace_depth--;
             break;
         case TK_ELLIPSIS:
+            // If the parentheses depth is 0, the brackets depth is 1, and the braces depth is 0,
+            // the current token is a spread operator
             if (paren_depth == 0 && bracket_depth == 1 && brace_depth == 0)
                 return true;
             break;
@@ -208,12 +257,20 @@ static bool list_hasSpreadItems(parser_t *parser)
     return false;
 }
 
+/**
+ * Checks if the current map expression has spread items.
+ * A spread item is a value that is prefixed with a spread operator (...).
+ * This allows the value to be passed as a variable number of arguments.
+ *
+ * @param parser The parser object.
+ * @return True if the current map expression has spread items, false otherwise.
+ */
 static bool map_hasSpreadItems(parser_t *parser)
 {
     int index = parser->current;
-    int paren_depth = 0;
-    int bracket_depth = 0;
-    int brace_depth = 1;
+    int paren_depth = 0;   // The parentheses depth of the current expression
+    int bracket_depth = 0; // The brackets depth of the current expression
+    int brace_depth = 1;   // The braces depth of the current expression
 
     while (parser->tokens[index].type != TK_EOF)
     {
@@ -222,30 +279,30 @@ static bool map_hasSpreadItems(parser_t *parser)
         switch (token.type)
         {
         case TK_LPAREN:
-            paren_depth++;
+            paren_depth++; // Increment the parentheses depth
             break;
         case TK_RPAREN:
             if (paren_depth > 0)
-                paren_depth--;
+                paren_depth--; // Decrement the parentheses depth
             break;
         case TK_LBRACKET:
-            bracket_depth++;
+            bracket_depth++; // Increment the brackets depth
             break;
         case TK_RBRACKET:
             if (bracket_depth > 0)
-                bracket_depth--;
+                bracket_depth--; // Decrement the brackets depth
             break;
         case TK_LBRACE:
-            brace_depth++;
+            brace_depth++; // Increment the braces depth
             break;
         case TK_RBRACE:
-            brace_depth--;
+            brace_depth--; // Decrement the braces depth
             if (brace_depth == 0)
-                return false;
+                return false; // If the braces depth is 0, the current token is not a spread operator
             break;
         case TK_ELLIPSIS:
             if (paren_depth == 0 && bracket_depth == 0 && brace_depth == 1)
-                return true;
+                return true; // If the parentheses depth is 0, the brackets depth is 0, and the braces depth is 1, the current token is a spread operator
             break;
         default:
             break;
@@ -255,15 +312,22 @@ static bool map_hasSpreadItems(parser_t *parser)
     return false;
 }
 
+/**
+ * Scans the current list comprehension expression and stores its parts in the given structure.
+ *
+ * @param parser The parser object.
+ * @param comp The list comprehension structure to store the parts in.
+ * @return True if the list comprehension expression has been successfully scanned, false otherwise.
+ */
 static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
 {
     int index = parser->current;
-    int paren_depth = 0;
-    int bracket_depth = 1;
-    int brace_depth = 0;
-    int ternary_depth = 0;
-    int first_colon = -1;
-    int second_colon = -1;
+    int paren_depth = 0;   // The parentheses depth of the current expression
+    int bracket_depth = 1; // The brackets depth of the current expression
+    int brace_depth = 0;   // The braces depth of the current expression
+    int ternary_depth = 0; // The ternary operator depth of the current expression
+    int first_colon = -1;  // The index of the first colon in the current expression
+    int second_colon = -1; // The index of the second colon in the current expression
 
     while (parser->tokens[index].type != TK_EOF)
     {
@@ -272,22 +336,28 @@ static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
         switch (token.type)
         {
         case TK_LPAREN:
+            // Increment the parentheses depth
             paren_depth++;
             break;
         case TK_RPAREN:
+            // Decrement the parentheses depth
             if (paren_depth > 0)
                 paren_depth--;
             break;
         case TK_LBRACKET:
+            // Increment the brackets depth
             bracket_depth++;
             break;
         case TK_RBRACKET:
+            // Decrement the brackets depth
             bracket_depth--;
             if (bracket_depth == 0)
             {
+                // If the brackets depth is 0, the current token is not a spread operator
                 if (first_colon == -1)
                     return false;
 
+                // Store the parts of the list comprehension expression in the given structure
                 comp->result.start = parser->current;
                 comp->result.end = first_colon;
                 comp->iterators.start = first_colon + 1;
@@ -300,19 +370,24 @@ static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
             }
             break;
         case TK_LBRACE:
+            // Increment the braces depth
             brace_depth++;
             break;
         case TK_RBRACE:
+            // Decrement the braces depth
             if (brace_depth > 0)
                 brace_depth--;
             break;
         case TK_QUESTION:
+            // Increment the ternary operator depth
             if (paren_depth == 0 && bracket_depth == 1 && brace_depth == 0)
                 ternary_depth++;
             break;
         case TK_COLON:
+            // If the parentheses depth is 0, the brackets depth is 1, and the braces depth is 0
             if (paren_depth == 0 && bracket_depth == 1 && brace_depth == 0)
             {
+                // If the ternary operator depth is greater than 0
                 if (ternary_depth > 0)
                     ternary_depth--;
                 else if (first_colon == -1)
@@ -334,34 +409,79 @@ static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
     return false;
 }
 
+/**
+ * Checks if the current token is the start of a list comprehension.
+ * If it is, parses the list comprehension and returns true. Otherwise, returns false.
+ *
+ * @param parser The current parser instance.
+ * @return true if the current token is the start of a list comprehension, false otherwise.
+ */
 static bool list_isComprehension(parser_t *parser)
 {
+    // The list comprehension structure to parse
     list_comp_t comp;
+
+    // Check if the current token is the start of a list comprehension
+    // If it is, parse the list comprehension
     return scan_listComprehension(parser, &comp);
 }
 
+/**
+ * Compiles an expression segment. If the segment is empty, an error is raised.
+ *
+ * @param parser The parser object.
+ * @param segment The segment of tokens to compile.
+ * @param message The error message to display if the segment is empty.
+ */
 static void compile_segment_expr(parser_t *parser, segment_t segment, const char *message)
 {
+    // Check if the segment is empty
     if (segment.start >= segment.end)
     {
+        // If it is, raise an error with the given message
         token_t token = parser->tokens[segment.start];
         p_error(message, token.line, token.column);
     }
 
+    // Save the current position of the parser
     int saved = parser->current;
+
+    // Save the token at the end of the segment
     token_t saved_end = parser->tokens[segment.end];
+
+    // Set the current position of the parser to the start of the segment
     parser->current = segment.start;
+
+    // Set the type of the token at the end of the segment to TK_EOF
     parser->tokens[segment.end].type = TK_EOF;
+
+    // Compile the expression
     cond_expr(parser);
+
+    // Restore the token at the end of the segment
     parser->tokens[segment.end] = saved_end;
+
+    // Check if the parser has reached the end of the segment
     if (parser->current != segment.end)
     {
+        // If not, raise an error
         token_t token = parser->tokens[parser->current];
         p_error(message, token.line, token.column);
     }
+
+    // Restore the current position of the parser
     parser->current = saved;
 }
 
+/**
+ * Parses the list comprehension iterator expressions.
+ *
+ * @param parser The current parser instance.
+ * @param segment The segment of tokens to parse.
+ * @param iters The iterator expressions to store.
+ * @param max_iters The maximum number of iterator expressions to store.
+ * @return The number of iterator expressions parsed.
+ */
 static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t *iters, int max_iters)
 {
     int index = segment.start;
@@ -369,16 +489,19 @@ static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t 
 
     while (index < segment.end)
     {
+        // Check for too many iterators
         if (count >= max_iters)
         {
             token_t token = parser->tokens[index];
             p_errorf(token.line, token.column, "Too many iterators in list comprehension.");
         }
 
+        // Parse the iterator variable name
         token_t name = parser->tokens[index++];
         if (name.type != TK_ID)
             p_errorf(name.line, name.column, "Expect iterator variable name in list comprehension.");
 
+        // Check for the 'in' keyword
         if (index >= segment.end || parser->tokens[index].type != TK_IN)
         {
             token_t token = parser->tokens[index < segment.end ? index : segment.end - 1];
@@ -386,6 +509,7 @@ static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t 
         }
         index++;
 
+        // Parse the iterable expression
         int expr_start = index;
         int paren_depth = 0;
         int bracket_depth = 0;
@@ -427,14 +551,17 @@ static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t 
             index++;
         }
 
+        // Check for empty iterable expression
         if (expr_start == index)
             p_errorf(name.line, name.column, "Expect iterable expression after 'in' in list comprehension.");
 
+        // Store the iterator expression
         iters[count].name = name;
         iters[count].iterable.start = expr_start;
         iters[count].iterable.end = index;
         count++;
 
+        // Check for trailing comma
         if (index < segment.end && parser->tokens[index].type == TK_COMMA)
             index++;
     }
@@ -442,6 +569,25 @@ static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t 
     return count;
 }
 
+/**
+ * Parses the conditions of a list comprehension expression.
+ * List comprehensions are a concise way of creating lists from other
+ * iterables. They are defined as [expr for var in iterable if cond1, cond2, ...],
+ * where expr is an expression that is evaluated for each value of var in
+ * iterable, and cond1, cond2, ... are conditions that must be true for
+ * the value to be included in the resulting list.
+ *
+ * This function parses the conditions of a list comprehension expression.
+ * It takes a parser object, a segment of tokens that contains the
+ * conditions, and an array of segment_t objects that will be filled with the
+ * parsed conditions. The function returns the number of conditions parsed.
+ *
+ * @param parser The parser object.
+ * @param segment The segment of tokens that contains the conditions.
+ * @param conds The array of segment_t objects that will be filled with the parsed conditions.
+ * @param max_conds The maximum number of conditions that can be parsed.
+ * @return The number of conditions parsed.
+ */
 static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *conds, int max_conds)
 {
     if (segment.start >= segment.end)
@@ -450,8 +596,10 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
     int index = segment.start;
     int count = 0;
 
+    // Loop until we reach the end of the segment
     while (index < segment.end)
     {
+        // Check if we have reached the maximum number of conditions
         if (count >= max_conds)
         {
             token_t token = parser->tokens[index];
@@ -463,6 +611,7 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
         int bracket_depth = 0;
         int brace_depth = 0;
 
+        // Loop until we reach the end of the expression or a comma
         while (index < segment.end)
         {
             token_t token = parser->tokens[index];
@@ -472,25 +621,25 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
             switch (token.type)
             {
             case TK_LPAREN:
-                paren_depth++;
+                paren_depth++; // Increment the parentheses depth
                 break;
             case TK_RPAREN:
                 if (paren_depth > 0)
-                    paren_depth--;
+                    paren_depth--; // Decrement the parentheses depth
                 break;
             case TK_LBRACKET:
-                bracket_depth++;
+                bracket_depth++; // Increment the brackets depth
                 break;
             case TK_RBRACKET:
                 if (bracket_depth > 0)
-                    bracket_depth--;
+                    bracket_depth--; // Decrement the brackets depth
                 break;
             case TK_LBRACE:
-                brace_depth++;
+                brace_depth++; // Increment the braces depth
                 break;
             case TK_RBRACE:
                 if (brace_depth > 0)
-                    brace_depth--;
+                    brace_depth--; // Decrement the braces depth
                 break;
             default:
                 break;
@@ -503,6 +652,7 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
         conds[count].end = index;
         count++;
 
+        // Check if there is a trailing comma
         if (index < segment.end && parser->tokens[index].type == TK_COMMA)
             index++;
     }
@@ -510,6 +660,22 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
     return count;
 }
 
+/**
+ * Emits bytecode for the loop of a list comprehension expression.
+ * The loop iterates over each iterator expression in the list comprehension,
+ * and for each iterator expression, it compiles the expression and checks
+ * if the resulting value is true. If it is, it compiles the list comprehension
+ * expression and appends the resulting value to the list.
+ *
+ * @param parser The parser object.
+ * @param comp The list comprehension expression to emit bytecode for.
+ * @param iters The array of iterator expressions.
+ * @param iter_count The number of iterator expressions.
+ * @param conds The array of condition expressions.
+ * @param cond_count The number of condition expressions.
+ * @param iter_index The index of the current iterator expression.
+ * @param acc_slot The slot in the local variable table where the resulting list is stored.
+ */
 static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
                                comp_iter_t *iters, int iter_count,
                                segment_t *conds, int cond_count,
@@ -517,45 +683,75 @@ static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
 {
     if (iter_index == iter_count)
     {
+        // If we have reached the end of the iterator expressions, compile the condition
+        // expressions and list comprehension expression, and append the resulting value to the list.
         int jumps[32];
         int jump_count = 0;
 
         for (int i = 0; i < cond_count; i++)
         {
+            // Compile the condition expression at conds[i]
             compile_segment_expr(parser, conds[i], "Invalid list comprehension condition.");
+            // Emit a jump if false instruction to jump over the list comprehension expression if the condition is false
             jumps[jump_count++] = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
         }
 
+        // Compile the list comprehension expression
         compile_segment_expr(parser, comp->result, "Invalid list comprehension expression.");
+        // Emit an instruction to append the resulting value to the list
         emit_8u(parser->comp, OP_COMP_APPEND, "<comp>", acc_slot);
 
+        // Patch the jump if false instructions to jump over the list comprehension expression if the condition is false
         for (int i = 0; i < jump_count; i++)
             patch_jump(parser->comp, jumps[i]);
         return;
     }
 
+    // Get the current iterator expression
     token_t iter_token = iters[iter_index].name;
+
+    // Set the position of the parser to the start of the current iterator expression
     set_pos(parser, parser->tokens[iters[iter_index].iterable.start]);
+
+    // Compile the current iterator expression
     compile_segment_expr(parser, iters[iter_index].iterable, "Invalid list comprehension iterator expression.");
+    // Emit an instruction to push the iterator expression onto the stack
     emit(parser->comp, OP_PUSH_ITER);
 
+    // Set the position of the parser to the current iterator expression
     set_pos(parser, iter_token);
+
+    // Emit an instruction to start the loop
     int address = emit_16u(parser->comp, OP_LOOP, "", 0);
 
+    // Push a new scope onto the stack
     push_scope(parser->comp);
+    // Add a new local variable to the scope with the name of the current iterator expression
     add_variable(parser->comp, token_value(iter_token));
+    // Push a new loop onto the stack
     push_loop(parser->comp, address - 2, true);
 
+    // Recursively emit bytecode for the loop
     emit_listCompLoops(parser, comp, iters, iter_count, conds, cond_count, iter_index + 1, acc_slot);
 
+    // Pop the scope off the stack
     pop_scope(parser->comp);
+    // Pop the loop off the stack
     pop_loop(parser->comp, address - 2);
+    // Patch the jump if false instruction to jump over the list comprehension expression if the condition is false
     patch_jump(parser->comp, address);
 }
 
+/**
+ * Emits the bytecode for a list comprehension expression.
+ * List comprehension expressions are in the form of [x for x in y if z].
+ * This function parses the list comprehension expression and emits the appropriate bytecode.
+ * @param parser The parser object.
+ */
 static void emit_listComprehension(parser_t *parser)
 {
     list_comp_t comp;
+    // Parse the list comprehension expression
     if (!scan_listComprehension(parser, &comp))
         return;
 
@@ -570,18 +766,26 @@ static void emit_listComprehension(parser_t *parser)
         p_errorf(token.line, token.column, "List comprehension requires at least one iterator.");
     }
 
+    // Create a hidden variable name for the list comprehension result
     char hidden_name[32];
     snprintf(hidden_name, sizeof(hidden_name), "<comp_%d>", comp.result.start);
 
+    // Emit an instruction to push a new list onto the stack
     emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
+    // Add a new local variable to the scope with the hidden variable name
     add_local(parser->comp, hidden_name);
     int acc_slot = get_local(parser->comp, hidden_name);
 
+    // Recursively emit bytecode for the loop
     emit_listCompLoops(parser, &comp, iters, iter_count, conds, cond_count, 0, acc_slot);
 
+    // Emit an instruction to finalize the list
     emit(parser->comp, OP_LIST_FINALIZE);
+    // Remove the local variable from the scope
     remove_locals(parser->comp, 1);
+    // Set the position of the parser to the end of the list comprehension
     parser->current = comp.end_index;
+    // Consume the end of the list comprehension
     consume(parser, TK_RBRACKET, "Expect ']' after list comprehension.");
 }
 
@@ -712,22 +916,32 @@ static bool match(parser_t *parser, tk_type type)
     return false;
 }
 
+/**
+ * Checks if the current token is the start of a destructure assignment.
+ * If so, advances the parser until the end of the assignment.
+ * @param parser The parser object.
+ * @return true if the current token is the start of a destructure assignment, false otherwise
+ */
 static bool is_destructure_assign(parser_t *parser)
 {
+    // Check if the current token is the start of a destructure assignment
     if (!check(parser, TK_LBRACKET))
         return false;
 
     int current = parser->current;
     next(parser);
 
+    // Check if the current token is the end of a destructure assignment
     if (check(parser, TK_RBRACKET))
     {
         parser->current = current;
         return false;
     }
 
+    // Iterate until the end of the assignment
     while (true)
     {
+        // Check if the current token is an identifier
         if (!check(parser, TK_ID))
         {
             parser->current = current;
@@ -735,10 +949,12 @@ static bool is_destructure_assign(parser_t *parser)
         }
         next(parser);
 
+        // Check if the current token is a comma
         if (!match(parser, TK_COMMA))
             break;
     }
 
+    // Check if the current token is an assignment operator
     bool is_assign = match(parser, TK_RBRACKET) && check(parser, TK_ASSIGN);
     parser->current = current;
     return is_assign;
@@ -935,6 +1151,7 @@ static bool is_assign(parser_t *parser)
         parser->is_store = false; // Reset the store state
         return true;              // Return true as the token is an assignment operator
     }
+
     return false; // Return false if no assignment operator is found
 }
 
@@ -2666,12 +2883,11 @@ static void unary_expr(parser_t *parser)
         current = parser->current;
         member_expr(parser);
         set_pos(parser, op_token);
-        
+
         if (op == TK_INCR || op == TK_DECR)
         {
             token_t target = previous(parser);
 
-            // Disallow applying ++ or -- to literals
             if (target.type == TK_NUM || target.type == TK_STR || target.type == TK_TRUE ||
                 target.type == TK_FALSE || target.type == TK_NIL)
                 p_error("Increment/Decrement operations cannot be applied to calls or literals.",
@@ -2679,12 +2895,22 @@ static void unary_expr(parser_t *parser)
 
             int type = (op == TK_INCR) ? 5 : 6;
             emit_8u(parser->comp, OP_UNARY, unary_ops[type], type);
+
+            // DUP: one copy to store, one to leave as expression result
             emit(parser->comp, OP_DUP_TOP);
+
+            // Inject a fake TK_ASSIGN token at the current position so is_assign()
+            // returns true during the store pass, works for simple vars AND member exprs
+            int store_end = parser->current;
+            token_t saved_token = parser->tokens[store_end];
+            parser->tokens[store_end].type = TK_ASSIGN;
 
             parser->current = current;
             parser->is_store = true;
             member_expr(parser);
 
+            // Restore the original token
+            parser->tokens[store_end] = saved_token;
             parser->is_store = false;
         }
         else
@@ -2828,8 +3054,15 @@ static bool slice_component(parser_t *parser, bool emit_slice)
     return is_slice;
 }
 
+/**
+ * Parses a slice expression, which is an expression that returns a slice of a
+ * list or string. A slice expression can include start and end indices, as
+ * well as a step.
+ * @returns nothing
+ */
 static bool slice_expr(parser_t *parser)
 {
+    // Parse the start, end and step expressions of a slice
     return slice_component(parser, true);
 }
 
@@ -2995,7 +3228,16 @@ static void member_expr(parser_t *parser)
     }
 }
 
-// Helper to parse the body of an arrow functionstatic void arrow_func(parser_t *parser)
+/**
+ * Helper to parse the body of an arrow function
+ *
+ * This function parses the body of an arrow function, which can be either
+ * an expression or a block of code. If the body is a block of code, it
+ * emits the bytecode for the block and a final return statement. If the
+ * body is an expression, it simply emits the bytecode for the expression.
+ *
+ * @param parser The parser structure containing the tokens to be parsed.
+ */
 static void arrow_func(parser_t *parser)
 {
     if (match(parser, TK_LBRACE))
@@ -3047,7 +3289,6 @@ static void arrow_func(parser_t *parser)
         emit(parser->comp, OP_RETURN);
     }
 }
-
 /**
  * primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expr ")" |
  * Parses a primary expression, which could be a literal, a grouped expression,
