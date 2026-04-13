@@ -42,3 +42,25 @@ assert(i == 7, "Expected i to be 7, but got " + i);
 assert(i == 6, "Expected i to be 6, but got " + i);
 i--;
 assert(i == 5, "Expected i to be 5, but got " + i);
+
+
+lst = [[1],2,3];
+lst[0][0]++;
+assert(lst[0][0] == 2, "Expected lst[0][0] to be 2, but got " + lst[0][0]);
+
+lst = [[1],2,3];
+++lst[0][0];
+assert(lst[0][0] == 2, "Expected lst[0][0] to be 2, but got " + lst[0][0]);
+
+lst = [[1],2,3];
+--lst[0][0];
+assert(lst[0][0] == 0, "Expected lst[0][0] to be 0, but got " + lst[0][0]);
+
+lst = [[1],2,3];
+lst[0][0]--;
+assert(lst[0][0] == 0, "Expected lst[0][0] to be 0, but got " + lst[0][0]);
+
+obj = { a: { b: 5 } };
+obj.a.b++;
+assert(obj.a.b == 6, "Expected obj.a.b to be 6, but got " + obj.a.b);
+println("All tests passed!");

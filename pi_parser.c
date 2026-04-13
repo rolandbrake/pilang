@@ -62,6 +62,7 @@ static bool list_hasSpreadItems(parser_t *parser);
 static bool list_isComprehension(parser_t *parser);
 
 static bool map_hasSpreadItems(parser_t *parser);
+static bool has_accessContinuation(parser_t *parser, token_t token);
 
 static token_t peek(parser_t *parser);
 static bool check(parser_t *parser, tk_type type);
@@ -1145,14 +1146,23 @@ bool need_delimiter(parser_t *parser)
 static bool is_assign(parser_t *parser)
 {
     // Check if the parser is in a store state and the current token is an assignment operator
-    if (parser->is_store && check_n(parser, 11, TK_ASSIGN, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_DIV_ASSIGN, TK_MULT_ASSIGN,
-                                    TK_MOD_ASSIGN, TK_BITOR_ASSIGN, TK_XOR_ASSIGN, TK_BITAND_ASSIGN, TK_INCR, TK_DECR))
+    if (parser->is_store &&
+        (parser->force_store ||
+         check_n(parser, 11, TK_ASSIGN, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_DIV_ASSIGN, TK_MULT_ASSIGN,
+                 TK_MOD_ASSIGN, TK_BITOR_ASSIGN, TK_XOR_ASSIGN, TK_BITAND_ASSIGN, TK_INCR, TK_DECR)))
     {
         parser->is_store = false; // Reset the store state
-        return true;              // Return true as the token is an assignment operator
+        parser->force_store = false;
+        return true; // Return true as the token is an assignment operator
     }
 
     return false; // Return false if no assignment operator is found
+}
+
+static bool has_accessContinuation(parser_t *parser, token_t token)
+{
+    return peek(parser).line == token.line &&
+           check_n(parser, 3, TK_DOT, TK_LBRACKET, TK_LPAREN);
 }
 
 /**
@@ -1227,6 +1237,7 @@ parser_t *init_parser(compiler_t *comp, token_t *tokens, ParserMode mode)
     parser->access = false;   // Indicates whether access is allowed
     parser->current = 0;      // Start at the first token
     parser->is_store = false; // Store flag set to false
+    parser->force_store = false;
     parser->is_return = false;
     parser->has_walrus = false;
 
@@ -1300,14 +1311,6 @@ static void declarations(parser_t *parser)
             int end = parser->current;
             mark_tokens(parser, start, end); // Mark tokens as processed
         }
-        // // Collect global variable declarations
-        // else if (match(parser, TK_LET))
-        // {
-        //     int start = parser->current - 1; // Start at 'let'
-        //     var_decl(parser);                // Parse variable declaration
-        //     int end = parser->current;
-        //     mark_tokens(parser, start, end); // Mark tokens as processed
-        // }
         // Skip global variable declarations to preserve execution order
         else if (match(parser, TK_LET))
             skip_letDecl(parser);
@@ -2899,19 +2902,12 @@ static void unary_expr(parser_t *parser)
             // DUP: one copy to store, one to leave as expression result
             emit(parser->comp, OP_DUP_TOP);
 
-            // Inject a fake TK_ASSIGN token at the current position so is_assign()
-            // returns true during the store pass, works for simple vars AND member exprs
-            int store_end = parser->current;
-            token_t saved_token = parser->tokens[store_end];
-            parser->tokens[store_end].type = TK_ASSIGN;
-
             parser->current = current;
             parser->is_store = true;
+            parser->force_store = true;
             member_expr(parser);
-
-            // Restore the original token
-            parser->tokens[store_end] = saved_token;
             parser->is_store = false;
+            parser->force_store = false;
         }
         else
         {
@@ -3093,7 +3089,10 @@ static void member_expr(parser_t *parser)
             int index = store_const(parser->comp, new_value(name)); // Store the property name as a constant
             emit_16u(parser->comp, OP_LOAD_CONST, token_value(name), index);
 
-            if (is_assign(parser))
+            bool defer_forced_store = parser->is_store && parser->force_store &&
+                                      has_accessContinuation(parser, name);
+
+            if (!defer_forced_store && is_assign(parser))
                 emit(parser->comp, OP_SET_ITEM); // Emit bytecode to set the property value
             else
                 emit(parser->comp, OP_GET_ITEM); // Emit bytecode to get the property value
@@ -3112,7 +3111,9 @@ static void member_expr(parser_t *parser)
 
             if (has_second_axis)
             {
-                bool assign = is_assign(parser);
+                bool defer_forced_store = parser->is_store && parser->force_store &&
+                                          has_accessContinuation(parser, previous(parser));
+                bool assign = !defer_forced_store && is_assign(parser);
                 uint8_t mode = (row_is_slice ? 0x1 : 0x0) | (col_is_slice ? 0x2 : 0x0);
 
                 if ((row_is_slice || col_is_slice) && assign)
@@ -3122,7 +3123,11 @@ static void member_expr(parser_t *parser)
             }
             else
             {
-                if (row_is_slice && is_assign(parser))
+                bool defer_forced_store = parser->is_store && parser->force_store &&
+                                          has_accessContinuation(parser, previous(parser));
+                bool assign = !row_is_slice && !defer_forced_store && is_assign(parser);
+
+                if (row_is_slice && !defer_forced_store && is_assign(parser))
                     p_error("Cannot assign to slice", peek(parser).line, peek(parser).column);
 
                 if (row_is_slice)
@@ -3132,7 +3137,6 @@ static void member_expr(parser_t *parser)
                 }
                 else
                 {
-                    bool assign = is_assign(parser);
                     emit(parser->comp, assign ? OP_SET_ITEM : OP_GET_ITEM);
                 }
             }
@@ -3486,12 +3490,16 @@ static void primary(parser_t *parser)
         }
         else
         {
+            bool defer_forced_store = parser->is_store && parser->force_store &&
+                                      peek(parser).line == previous(parser).line &&
+                                      check_n(parser, 3, TK_DOT, TK_LBRACKET, TK_LPAREN);
+
             if (is_object(parser->comp) && strcmp(name, "super") == 0)
             {
                 emit(parser->comp, OP_LOAD_SUPER);
                 return;
             }
-            if (is_assign(parser))
+            if (!defer_forced_store && is_assign(parser))
                 store_variable(parser->comp, name); // Handle variable assignment
             else                                    // Load variable value
                 load_variable(parser->comp, name);
