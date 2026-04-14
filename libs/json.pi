@@ -1,0 +1,384 @@
+// JSON module for Pilang
+// Provides JSON parsing and stringification in pure Pilang.
+
+fun _json_isWhitespace(ch) {
+    return contains(" \t\n\r", ch);
+}
+
+fun _json_skip(text, pos) {
+    while (pos < len(text) && _json_isWhitespace(text[pos])) {
+        pos = pos + 1;
+    }
+    return pos;
+}
+
+fun _json_hexValue(ch) {
+    if (contains("0123456789", ch))
+        return as_num(ch);
+
+    lowerChar = lower(ch);
+    if (lowerChar == "a")
+        return 10;
+    if (lowerChar == "b")
+        return 11;
+    if (lowerChar == "c")
+        return 12;
+    if (lowerChar == "d")
+        return 13;
+    if (lowerChar == "e")
+        return 14;
+    if (lowerChar == "f")
+        return 15;
+    return nil;
+}
+
+fun _json_parseUnicode(text, pos) {
+    code = 0;
+
+    for i in range(0, 4) {
+        if (pos + i >= len(text))
+            return ["", pos];
+
+        hexChar = lower(text[pos + i]);
+        digit = _json_hexValue(hexChar);
+        if (digit == nil)
+            return ["", pos];
+
+        code = code * 16 + digit;
+    }
+
+    return [char(code), pos + 4];
+}
+
+fun _json_parseString(text, pos) {
+    result = "";
+    if (pos >= len(text) || text[pos] != '"')
+        return [nil, pos];
+
+    pos = pos + 1;
+    while (pos < len(text)) {
+        ch = text[pos];
+        if (ch == '"') {
+            return [result, pos + 1];
+        }
+
+        if (ch == "\\") {
+            pos = pos + 1;
+            if (pos >= len(text))
+                break;
+
+            esc = text[pos];
+            if (esc == '"')
+                result = result + '"';
+            elif (esc == "\\")
+                result = result + "\\";
+            elif (esc == "/")
+                result = result + "/";
+            elif (esc == "b")
+                result = result + "\b";
+            elif (esc == "f")
+                result = result + "\f";
+            elif (esc == "n")
+                result = result + "\n";
+            elif (esc == "r")
+                result = result + "\r";
+            elif (esc == "t")
+                result = result + "\t";
+            elif (esc == "u") {
+                unicode = _json_parseUnicode(text, pos + 1);
+                if (unicode[0] == "")
+                    return [nil, pos];
+                result = result + unicode[0];
+                pos = unicode[1] - 1;
+            } else
+                result = result + esc;
+        } else {
+            result = result + ch;
+        }
+
+        pos = pos + 1;
+    }
+
+    return [nil, pos];
+}
+
+fun _json_parseNumber(text, pos) {
+    start = pos;
+
+    if (pos < len(text) && text[pos] == '-')
+        pos = pos + 1;
+
+    while (pos < len(text) && contains("0123456789", text[pos]))
+        pos = pos + 1;
+
+    if (pos < len(text) && text[pos] == '.') {
+        pos = pos + 1;
+        while (pos < len(text) && contains("0123456789", text[pos]))
+            pos = pos + 1;
+    }
+
+    if (pos < len(text) && (text[pos] == 'e' || text[pos] == 'E')) {
+        pos = pos + 1;
+        if (pos < len(text) && (text[pos] == '+' || text[pos] == '-'))
+            pos = pos + 1;
+        while (pos < len(text) && contains("0123456789", text[pos]))
+            pos = pos + 1;
+    }
+
+    numberText = _json_trim(_json_substr(text, start, pos));
+    number = as_num(numberText);
+    return [number, pos];
+}
+
+fun _json_parseLiteral(text, pos) {
+    if (len(text) - pos >= 4 && _json_substr(text, pos, pos + 4) == "true")
+        return [true, pos + 4];
+    if (len(text) - pos >= 5 && _json_substr(text, pos, pos + 5) == "false")
+        return [false, pos + 5];
+    if (len(text) - pos >= 4 && _json_substr(text, pos, pos + 4) == "null")
+        return [nil, pos + 4];
+    return [nil, pos];
+}
+
+fun _json_parseValue(text, pos) {
+    pos = _json_skip(text, pos);
+    if (pos >= len(text))
+        return [nil, pos];
+
+    ch = text[pos];
+    if (ch == '{')
+        return _json_parseObject(text, pos);
+    if (ch == '[')
+        return _json_parseArray(text, pos);
+    if (ch == '"')
+        return _json_parseString(text, pos);
+    if (ch == '-' || contains("0123456789", ch))
+        return _json_parseNumber(text, pos);
+
+    return _json_parseLiteral(text, pos);
+}
+
+fun _json_parseArray(text, pos) {
+    arr = [];
+    pos = pos + 1;
+    pos = _json_skip(text, pos);
+
+    if (pos < len(text) && text[pos] == ']')
+        return [arr, pos + 1];
+
+    while (pos < len(text)) {
+        item = _json_parseValue(text, pos);
+        if (item[0] == nil && item[1] == pos)
+            return [nil, pos];
+
+        arr += item[0];
+        pos = _json_skip(text, item[1]);
+
+        if (pos < len(text) && text[pos] == ']')
+            return [arr, pos + 1];
+
+        if (pos >= len(text) || text[pos] != ',')
+            return [nil, pos];
+
+        pos = pos + 1;
+        pos = _json_skip(text, pos);
+    }
+
+    return [nil, pos];
+}
+
+fun _json_parseObject(text, pos) {
+    obj = {};
+    pos = pos + 1;
+    pos = _json_skip(text, pos);
+
+    if (pos < len(text) && text[pos] == '}')
+        return [obj, pos + 1];
+
+    while (pos < len(text)) {
+        keyValue = _json_parseString(text, pos);
+        if (keyValue[0] == nil)
+            return [nil, pos];
+
+        key = keyValue[0];
+        pos = _json_skip(text, keyValue[1]);
+        if (pos >= len(text) || text[pos] != ':')
+            return [nil, pos];
+
+        pos = pos + 1;
+        valuePair = _json_parseValue(text, pos);
+        if (valuePair[0] == nil && valuePair[1] == pos)
+            return [nil, pos];
+
+        obj[key] = valuePair[0];
+        pos = _json_skip(text, valuePair[1]);
+
+        if (pos < len(text) && text[pos] == '}')
+            return [obj, pos + 1];
+
+        if (pos >= len(text) || text[pos] != ',')
+            return [nil, pos];
+
+        pos = pos + 1;
+        pos = _json_skip(text, pos);
+    }
+
+    return [nil, pos];
+}
+
+fun _json_substr(text, start, end) {
+    if (start < 0)
+        start = 0;
+    if (end < start)
+        return "";
+    if (end > len(text))
+        end = len(text);
+
+    result = "";
+    i = start;
+    while (i < end) {
+        result = result + text[i];
+        i = i + 1;
+    }
+    return result;
+}
+
+fun _json_trim(text) {
+    start = 0;
+    while (start < len(text) && _json_isWhitespace(text[start]))
+        start = start + 1;
+
+    end = len(text);
+    while (end > start && _json_isWhitespace(text[end - 1]))
+        end = end - 1;
+
+    return _json_substr(text, start, end);
+}
+
+fun parse(text) {
+    if (text == nil)
+        return nil;
+
+    pos = _json_skip(text, 0);
+    valuePair = _json_parseValue(text, pos);
+    endPos = _json_skip(text, valuePair[1]);
+    if (valuePair[0] == nil || endPos != len(text))
+        return nil;
+
+    return valuePair[0];
+}
+
+fun _json_quoteString(value) {
+    escaped = "";
+    i = 0;
+    while (i < len(value)) {
+        ch = value[i];
+        if (ch == '"')
+            escaped = escaped + "\\\"";
+        elif (ch == "\\")
+            escaped = escaped + "\\\\";
+        elif (ch == "\b")
+            escaped = escaped + "\\b";
+        elif (ch == "\f")
+            escaped = escaped + "\\f";
+        elif (ch == "\n")
+            escaped = escaped + "\\n";
+        elif (ch == "\r")
+            escaped = escaped + "\\r";
+        elif (ch == "\t")
+            escaped = escaped + "\\t";
+        else
+            escaped = escaped + ch;
+        i = i + 1;
+    }
+    return '"' + escaped + '"';
+}
+
+fun _json_join(parts, sep) {
+    result = "";
+    for i in range(0, len(parts)) {
+        if (i > 0)
+            result = result + sep;
+        result = result + parts[i];
+    }
+    return result;
+}
+
+fun _json_indent(depth, indent) {
+    result = "";
+    i = 0;
+    while (i < depth) {
+        result = result + indent;
+        i = i + 1;
+    }
+    return result;
+}
+
+fun _json_stringify(value, indent, depth) {
+    if (value == nil)
+        return "null";
+    if (value == true)
+        return "true";
+    if (value == false)
+        return "false";
+    if (is_str(value))
+        return _json_quoteString(as_string(value));
+    if (is_num(value))
+        return as_string(value);
+    if (is_list(value)) {
+        if (len(value) == 0)
+            return "[]";
+
+        items = [];
+        for item in value {
+            items += _json_stringify(item, indent, depth + 1);
+        }
+
+        if (indent == nil)
+            return "[" + _json_join(items, ",") + "]";
+
+        padded = [];
+        for item in items {
+            padded += _json_indent(depth + 1, indent) + item;
+        }
+
+        return "[\n" + _json_join(padded, ",\n") + "\n" + _json_indent(depth, indent) + "]";
+    }
+    if (is_map(value)) {
+        if (len(value) == 0)
+            return "{}";
+
+        pairs = [];
+        for key in value {
+            entry = _json_quoteString(as_string(key)) + ":";
+            if (indent != nil)
+                entry = entry + " ";
+            entry = entry + _json_stringify(value[key], indent, depth + 1);
+            pairs += entry;
+        }
+
+        if (indent == nil)
+            return "{" + _json_join(pairs, ",") + "}";
+
+        padded = [];
+        for entry in pairs {
+            padded += _json_indent(depth + 1, indent) + entry;
+        }
+
+        return "{\n" + _json_join(padded, ",\n") + "\n" + _json_indent(depth, indent) + "}";
+    }
+
+    return _json_quoteString(as_string(value));
+}
+
+fun stringify(value, indent = nil) {
+    return _json_stringify(value, indent, 0);
+}
+
+fun loads(text) {
+    return parse(text);
+}
+
+fun dumps(value, indent = nil) {
+    return stringify(value, indent);
+}

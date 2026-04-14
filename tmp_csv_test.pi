@@ -1,1 +1,0 @@
-import tmp_csv2:csv; data = csv.parse("name,age\nAlice,30\nBob,25"); println(data[0]["name"]);

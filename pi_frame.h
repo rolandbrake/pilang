@@ -18,6 +18,7 @@ typedef struct
     list_t *constants; // constants table for the frame
     list_t *names; // names table for the frame
     table_t *instrs; // instruction metadata for the frame
+    table_t *globals; // global environment for the frame
 
     int iters_top; // to track the state of iterators stack
 

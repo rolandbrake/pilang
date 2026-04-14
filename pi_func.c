@@ -50,6 +50,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     fn->need_args = true;
     fn->need_kwargs = true;
     fn->native = NULL;
+    fn->globals = NULL;
 
     // Handle upvalues
     fn->upvalues = upvalues;
@@ -161,10 +162,11 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         .names = vm->names,
         .instrs = vm->instrs,
         .iters_top = vm->iter_sp,
+        .globals = vm->globals,
         .function = function};
     push_frame(vm, &frame);
 
-    // Update the VM state with the function's bytecode
+    // Update the VM state with the function's bytecode and defining globals
     vm->function = (Object *)function;
     vm->code = function->body->data;
     if (function->constants)
@@ -173,6 +175,8 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         vm->names = function->names;
     if (function->instrs)
         vm->instrs = function->instrs;
+    if (function->globals)
+        vm->globals = function->globals;
 
     vm->pc = 0;
     vm->ip = 0;

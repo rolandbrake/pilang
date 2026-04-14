@@ -860,6 +860,7 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
     ((Function *)fn)->constants = function->constants;
     ((Function *)fn)->names = function->names;
     ((Function *)fn)->instrs = function->instrs;
+    ((Function *)fn)->globals = function->globals;
     ((Function *)fn)->need_args = function->need_args;
     ((Function *)fn)->need_kwargs = function->need_kwargs;
     ((Function *)fn)->owner = function->owner;
@@ -3238,6 +3239,7 @@ void run(vm_t *vm)
             ((Function *)function)->need_kwargs = fun_scanSlot(body, (uint8_t)(numParams + 1));
             ((Function *)function)->constants = vm->constants;
             ((Function *)function)->names = vm->names;
+            ((Function *)function)->globals = vm->globals;
 
             // Push the new function onto the stack
             push_stack(vm, NEW_OBJ(add_obj(vm, function)));
@@ -3289,6 +3291,7 @@ void run(vm_t *vm)
             ((Function *)fun_obj)->need_kwargs = fun_scanSlot(body, (uint8_t)(numParams + 1));
             ((Function *)fun_obj)->constants = vm->constants;
             ((Function *)fun_obj)->names = vm->names;
+            ((Function *)fun_obj)->globals = vm->globals;
 
             // Push the new closure onto the stack
             push_stack(vm, NEW_OBJ(add_obj(vm, fun_obj)));
@@ -3706,6 +3709,7 @@ void run(vm_t *vm)
             vm->bp = frame->bp;
             vm->sp = frame->sp;
             vm->ip = frame->ip;
+            vm->globals = frame->globals;
 
             vm->code = frame->code;
             vm->constants = frame->constants;

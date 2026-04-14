@@ -1,0 +1,7 @@
+import math  
+  
+fun f() {  
+    println(math)  
+    println(math.sqrt)  
+    println(math.sqrt(16))  
+}  

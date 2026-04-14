@@ -1,0 +1,379 @@
+// Regex module implemented in Pilang.
+// Supports basic regular expressions with dot, quantifiers, anchors,
+// character classes, and common shorthand escapes.
+import col.{contains}
+
+fun _regex_makeToken(type, value) {
+    token = {};
+    token["type"] = type;
+    token["quant"] = nil;
+
+    if (type == "literal")
+        token["char"] = value;
+    elif (type == "class")
+        token["chars"] = value;
+    elif (type == "anchor")
+        token["mode"] = value;
+    return token;
+}
+
+fun _regex_substr(text, start, end) {
+    if (start < 0)
+        start = len(text) + start;
+    if (end < 0)
+        end = len(text) + end;
+    if (start < 0)
+        start = 0;
+    if (end > len(text))
+        end = len(text);
+
+    result = "";
+    i = start;
+    while (i < end) {
+        result = result + text[i];
+        i = i + 1;
+    }
+    return result;
+}
+
+fun _regex_rangeChars(start_char, end_char) {
+    chars = "";
+    a = ord(start_char);
+    b = ord(end_char);
+    if (a <= b) {
+        i = a;
+        while (i <= b) {
+            chars = chars + char(i);
+            i = i + 1;
+        }
+    } else {
+        i = a;
+        while (i >= b) {
+            chars = chars + char(i);
+            i = i - 1;
+        }
+    }
+    return chars;
+}
+
+fun _regex_parseClass(pattern, index) {
+    chars = "";
+    negated = false;
+    i = index;
+
+    if (i < len(pattern) && pattern[i] == "^") {
+        negated = true;
+        i = i + 1;
+    }
+
+    while (i < len(pattern) && pattern[i] != "]") {
+        if (pattern[i] == "\\") {
+            i = i + 1;
+            if (i >= len(pattern))
+                chars = chars + "\\";
+            else
+                chars = chars + pattern[i];
+            i = i + 1;
+            continue;
+        }
+
+        if (i + 2 < len(pattern) && pattern[i + 1] == "-" && pattern[i + 2] != "]") {
+            chars = chars + _regex_rangeChars(pattern[i], pattern[i + 2]);
+            i = i + 3;
+            continue;
+        }
+
+        chars = chars + pattern[i];
+        i = i + 1;
+    }
+
+    if (i < len(pattern) && pattern[i] == "]")
+        i = i + 1;
+
+    token = _regex_makeToken("class", chars);
+    token["negated"] = negated;
+    return [token, i];
+}
+
+fun _regex_tokenMatches(token, ch) {
+    if (len(ch) == 0)
+        return false;
+
+    if (token["type"] == "dot")
+        return true;
+
+    if (token["type"] == "literal")
+        return ch == token["char"];
+
+    if (token["type"] == "digit")
+        return contains("0123456789", ch);
+
+    if (token["type"] == "word")
+        return is_alnum(ch) || ch == "_";
+
+    if (token["type"] == "space")
+        return contains(" \t\n\r", ch);
+
+    if (token["type"] == "class") {
+        match = contains(token["chars"], ch);
+        if (token["negated"])
+            return !match;
+        return match;
+    }
+
+    return false;
+}
+
+fun _regex_compile(pattern) {
+    tokens = [];
+    i = 0;
+
+    while (i < len(pattern)) {
+        ch = pattern[i];
+        token = nil;
+
+        if (ch == "\\") {
+            i = i + 1;
+            if (i >= len(pattern))
+                token = _regex_makeToken("literal", "\\");
+            else {
+                esc = pattern[i];
+                if (esc == "d")
+                    token = _regex_makeToken("digit", nil);
+                elif (esc == "w")
+                    token = _regex_makeToken("word", nil);
+                elif (esc == "s")
+                    token = _regex_makeToken("space", nil);
+                elif (esc == "n")
+                    token = _regex_makeToken("literal", "\n");
+                elif (esc == "r")
+                    token = _regex_makeToken("literal", "\r");
+                elif (esc == "t")
+                    token = _regex_makeToken("literal", "\t");
+                else
+                    token = _regex_makeToken("literal", esc);
+            }
+        }
+        elif (ch == ".")
+            token = _regex_makeToken("dot", nil);
+        elif (ch == "[") {
+            result = _regex_parseClass(pattern, i + 1);
+            token = result[0];
+            i = result[1] - 1;
+        }
+        elif (ch == "^" && len(tokens) == 0)
+            token = _regex_makeToken("anchor", "start");
+        elif (ch == "$" && i == len(pattern) - 1)
+            token = _regex_makeToken("anchor", "end");
+        else
+            token = _regex_makeToken("literal", ch);
+
+        tokens += token;
+        i = i + 1;
+
+        if (i < len(pattern)) {
+            next_ch = pattern[i];
+            if ((next_ch == "*" || next_ch == "+" || next_ch == "?") && token["type"] != "anchor") {
+                tokens[len(tokens) - 1]["quant"] = next_ch;
+                i = i + 1;
+            }
+        }
+    }
+
+    return tokens;
+}
+
+fun _regex_matchHere(text, start, pos, tokens, pi) {
+    if (pi == len(tokens)) {
+        return {"match": _regex_substr(text, start, pos), "start": start, "end": pos};
+    }
+
+    token = tokens[pi];
+    if (token["type"] == "anchor") {
+        if (token["mode"] == "end") {
+            if (pos == len(text))
+                return {"match": _regex_substr(text, start, pos), "start": start, "end": pos};
+            return nil;
+        }
+        return _regex_matchHere(text, start, pos, tokens, pi + 1);
+    }
+
+    quant = token["quant"];
+    if (quant == "*")
+        return _regex_matchStar(text, start, pos, tokens, pi);
+    if (quant == "+")
+        return _regex_matchPlus(text, start, pos, tokens, pi);
+    if (quant == "?")
+        return _regex_matchOptional(text, start, pos, tokens, pi);
+
+    if (pos < len(text) && _regex_tokenMatches(token, text[pos]))
+        return _regex_matchHere(text, start, pos + 1, tokens, pi + 1);
+
+    return nil;
+}
+
+fun _regex_matchStar(text, start, pos, tokens, pi) {
+    token = tokens[pi];
+    next = pi + 1;
+    max = pos;
+
+    while (max < len(text) && _regex_tokenMatches(token, text[max]))
+        max = max + 1;
+
+    j = max;
+    while (j >= pos) {
+        result = _regex_matchHere(text, start, j, tokens, next);
+        if (result != nil)
+            return result;
+        j = j - 1;
+    }
+    return nil;
+}
+
+fun _regex_matchPlus(text, start, pos, tokens, pi) {
+    token = tokens[pi];
+    if (pos >= len(text) || !_regex_tokenMatches(token, text[pos]))
+        return nil;
+    return _regex_matchStar(text, start, pos + 1, tokens, pi);
+}
+
+fun _regex_matchOptional(text, start, pos, tokens, pi) {
+    token = tokens[pi];
+    next = pi + 1;
+
+    result = _regex_matchHere(text, start, pos, tokens, next);
+    if (result != nil)
+        return result;
+
+    if (pos < len(text) && _regex_tokenMatches(token, text[pos]))
+        return _regex_matchHere(text, start, pos + 1, tokens, next);
+
+    return nil;
+}
+
+fun _regex_matchAt(text, start, tokens) {
+    if (len(tokens) > 0 && tokens[0]["type"] == "anchor" && tokens[0]["mode"] == "start")
+        return _regex_matchHere(text, start, start, tokens, 1);
+
+    return _regex_matchHere(text, start, start, tokens, 0);
+}
+
+fun _regex_searchFrom(text, start, tokens) {
+    i = start;
+    while (i <= len(text)) {
+        result = _regex_matchAt(text, i, tokens);
+        if (result != nil)
+            return result;
+        i = i + 1;
+    }
+    return nil;
+}
+
+fun escape(pattern) {
+    special = ".*+?^$()[]{}|\\";
+    output = "";
+    i = 0;    
+
+    while (i < len(pattern)) {        
+        ch = pattern[i];        
+        if (contains(special, ch))
+            output = output + "\\" + ch;
+        else
+            output = output + ch;
+        i = i + 1;
+    }
+
+    return output;
+}
+
+fun test(pattern, text) {
+    tokens = _regex_compile(pattern);
+    return _regex_searchFrom(text, 0, tokens) != nil;
+}
+
+fun search(pattern, text) {    
+    tokens = _regex_compile(pattern);
+    return _regex_searchFrom(text, 0, tokens);
+}
+
+fun match(pattern, text) {    
+    result = search(pattern, text);    
+    if (result == nil)
+        return nil;
+    return result["match"];
+}
+
+fun findall(pattern, text) {
+    tokens = _regex_compile(pattern);
+    matches = [];
+    cursor = 0;
+
+    while (cursor <= len(text)) {
+        result = _regex_searchFrom(text, cursor, tokens);
+        if (result == nil)
+            break;
+        matches += result["match"];
+
+        if (result["end"] <= cursor)
+            cursor = cursor + 1;
+        else
+            cursor = result["end"];
+    }
+
+    return matches;
+}
+
+fun replace(pattern, text, repl) {
+    tokens = _regex_compile(pattern);
+    output = "";
+    cursor = 0;
+
+    while (cursor <= len(text)) {
+        result = _regex_searchFrom(text, cursor, tokens);
+        if (result == nil)
+            break;
+
+        output = output + _regex_substr(text, cursor, result["start"]);
+        output = output + repl;
+
+        if (result["end"] <= cursor)
+            cursor = cursor + 1;
+        else
+            cursor = result["end"];
+    }
+
+    output = output + _regex_substr(text, cursor, len(text));
+    return output;
+}
+
+fun split(pattern, text) {
+    if (pattern == "") {
+        parts = [];
+        i = 0;
+        while (i < len(text)) {
+            parts += text[i];
+            i = i + 1;
+        }
+        return parts;
+    }
+
+    tokens = _regex_compile(pattern);
+    parts = [];
+    cursor = 0;
+
+    while (cursor <= len(text)) {
+        result = _regex_searchFrom(text, cursor, tokens);
+        if (result == nil)
+            break;
+
+        parts += _regex_substr(text, cursor, result["start"]);
+
+        if (result["end"] <= cursor)
+            cursor = cursor + 1;
+        else
+            cursor = result["end"];
+    }
+
+    parts += _regex_substr(text, cursor, len(text));
+    return parts;
+}

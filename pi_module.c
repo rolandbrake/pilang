@@ -380,6 +380,7 @@ Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin, b
     // Initialize the constants and names tables
     module->constants = NULL;
     module->names = NULL;
+    module->globals = NULL;
 
     // Create a new map to store the module's exports
     Object *exports_obj = add_obj(vm, new_map(ht_create(sizeof(Value)), false));
@@ -414,6 +415,11 @@ BuiltinModule *new_builtinModule(const char *name, BuiltinFunc *functions,
     module->const_count = const_count;
 
     return module;
+}
+
+static bool is_private_moduleName(const char *name)
+{
+    return name && name[0] == '_';
 }
 
 static table_t *collect_definedGlobals(compiler_t *comp)
@@ -574,6 +580,8 @@ Value load_module(vm_t *vm, const char *name)
     for (int i = 0; i < keys_count; i++)
     {
         char *key = keys[i];
+        if (is_private_moduleName(key))
+            continue;
 
         Value *value = ht_get(module_vm->globals, key);
         if (!value)
@@ -593,6 +601,10 @@ Value load_module(vm_t *vm, const char *name)
 
     free_parser(parser);
     free_compiler(comp);
+
+    // Preserve the module VM global table for later calls to functions defined in this module.
+    module->globals = module_vm->globals;
+    module_vm->globals = NULL;
 
     // Detach shared module cache so free_vm(module_vm) doesn't free parent cache.
     module_vm->modules = NULL;

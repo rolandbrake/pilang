@@ -1,0 +1,2 @@
+import repro1  
+repro1.f()  

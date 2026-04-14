@@ -43,7 +43,7 @@ fun _csv_escape(value, delimiter = ",") {
     if (value == nil)
         value = "";
 
-    text = as_str(value);
+    text = as_string(value);
     text = replace(text, '"', '""');
 
     if (contains(text, delimiter) || contains(text, "\n") || contains(text, "\r") || contains(text, '"')) {
