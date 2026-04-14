@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <time.h>
+#include <limits.h>
 
 #include "pi_col.h"
 #include "../list.h"

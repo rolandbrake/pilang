@@ -143,6 +143,16 @@ static const BuiltinModule *find_builtinModule(const char *name)
     return NULL;
 }
 
+#ifdef __EMSCRIPTEN__
+static bool is_browserUnsupportedBuiltin(const char *name)
+{
+    return strcmp(name, "draw") == 0 ||
+           strcmp(name, "plot") == 0 ||
+           strncmp(name, "draw.", 5) == 0 ||
+           strncmp(name, "plot.", 5) == 0;
+}
+#endif
+
 /**
  * Checks if a built-in module has children (i.e. if it has a dot in its name).
  *
@@ -311,6 +321,14 @@ static Value load_builtinPackage(vm_t *vm, const char *name)
 
 static Value load_builtinNamed(vm_t *vm, const char *name)
 {
+#ifdef __EMSCRIPTEN__
+    if (is_browserUnsupportedBuiltin(name))
+    {
+        vm_errorf(vm, "Builtin module '%s' is not available in the browser playground.", name);
+        return NEW_NIL();
+    }
+#endif
+
     const BuiltinModule *builtin = find_builtinModule(name);
     if (builtin)
         return load_builtinModule(vm, builtin);

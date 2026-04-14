@@ -1,5 +1,5 @@
 #include <errno.h>
-#include <signal.h>
+// #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -69,7 +69,7 @@ Value os_user(vm_t *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
-    return os_notSupported(vm, "user");
+    return NEW_NIL();
 }
 
 #else
@@ -509,6 +509,8 @@ Value os_user(vm_t *vm, int argc, Value *argv)
 #endif
 }
 
+#endif
+
 static BuiltinConst os_consts[] = {
     {"SIGINT", NEW_NUM(SIGINT)},
     {"SIGTERM", NEW_NUM(SIGTERM)},
@@ -528,5 +530,3 @@ static BuiltinFunc os_funcs[] = {
 };
 
 DEFINE_BUILTIN_MODULE(module_os, "os", os_funcs, os_consts);
-
-#endif

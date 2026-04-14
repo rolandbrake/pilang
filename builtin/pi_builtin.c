@@ -80,7 +80,6 @@ int BUILTIN_FUNC_COUNT = sizeof(builtin_functions) / sizeof(BuiltinFunc);
 
 BuiltinModule *builtin_modules[] = {
     &module_sys,
-    &module_os,
     &module_math,
     &module_stats,
     &module_string,
@@ -91,8 +90,11 @@ BuiltinModule *builtin_modules[] = {
     &module_time,
     &module_type,
     &module_lang,
+#ifndef __EMSCRIPTEN__
+    &module_os,
     &module_draw,
     &module_plot,
+#endif
     // matrix built-in package
     &module_matrix,
     &module_matReduce,    // matrix.reduce

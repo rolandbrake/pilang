@@ -2,8 +2,18 @@
 #define PI_OBJECT_H
 
 #include <stdint.h>
+#ifndef __EMSCRIPTEN__
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#else
+typedef struct SDL_Rect
+{
+    int x;
+    int y;
+    int w;
+    int h;
+} SDL_Rect;
+#endif
 
 #include "pi_value.h"
 #include "list.h"

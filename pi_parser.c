@@ -68,6 +68,7 @@ static token_t peek(parser_t *parser);
 static bool check(parser_t *parser, tk_type type);
 static bool match(parser_t *parser, tk_type type);
 static token_t consume(parser_t *parser, tk_type type, const char *message);
+static void advance(parser_t *parser);
 void set_pos(parser_t *parser, token_t token);
 
 typedef struct
@@ -1012,6 +1013,16 @@ static token_t consume(parser_t *parser, tk_type type, const char *message)
     else
         // If there is no error message, use a default error message
         p_error("Unexpected token", peek(parser).line, peek(parser).column);
+
+    if (global_errorHandler)
+    {
+        token_t token = peek(parser);
+
+        while (!is_atEnd(parser))
+            advance(parser);
+
+        return token;
+    }
 
     exit(EXIT_FAILURE);
 }

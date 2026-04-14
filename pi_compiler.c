@@ -4,6 +4,9 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <math.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
 
 #include "pi_compiler.h"
 #include "pi_object.h"
@@ -14,6 +17,20 @@
 #include "string.h"
 
 #include "builtin/pi_builtin.h"
+
+#ifdef __EMSCRIPTEN__
+static void dis_emit(const char *text)
+{
+    EM_ASM({
+        console.log(UTF8ToString($0));
+    }, text);
+}
+#else
+static void dis_emit(const char *text)
+{
+    printf("%s", text);
+}
+#endif
 
 static const char *op_names[] = {
     [0x4] = "RETURN_VALUE",
@@ -1307,7 +1324,7 @@ int code_size(compiler_t *comp)
 void dis(compiler_t *comp)
 {
 
-    printf("disassembling...\n");
+    dis_emit("disassembling...\n");
 
     // Ensure global scope instructions are in the hash table
     if (stack_size(comp->contexts) > 0)
@@ -1327,8 +1344,15 @@ void dis(compiler_t *comp)
         char *scope_name = scope_names[i];
         list_t *instrs = ht_get(comp->instrs, scope_name);
 
-        printf("\n\033[1;36m== Disassembly of %s ==\033[0m\n\n",
-               strcmp(scope_name, "<global>") == 0 ? "global scope" : scope_name);
+        char header_buf[256];
+#ifdef __EMSCRIPTEN__
+        snprintf(header_buf, sizeof(header_buf), "\n== Disassembly of %s ==\n\n",
+                 strcmp(scope_name, "<global>") == 0 ? "global scope" : scope_name);
+#else
+        snprintf(header_buf, sizeof(header_buf), "\n\033[1;36m== Disassembly of %s ==\033[0m\n\n",
+                 strcmp(scope_name, "<global>") == 0 ? "global scope" : scope_name);
+#endif
+        dis_emit(header_buf);
 
         if (!instrs)
             continue;
@@ -1343,6 +1367,82 @@ void dis(compiler_t *comp)
 
             char line_buf[256] = {0};
 
+#ifdef __EMSCRIPTEN__
+            switch (opcode)
+            {
+            case OP_STORE_GLOBAL:
+            case OP_STORE_LOCAL:
+            case OP_LOAD_GLOBAL:
+            case OP_LOAD_LOCAL:
+            case OP_LOAD_UPVALUE:
+            case OP_STORE_UPVALUE:
+            case OP_BINARY:
+            case OP_COMPARE:
+            case OP_UNARY:
+            case OP_POP_N:
+            case OP_CALL_FUNCTION:
+            case OP_CALL_FUNCTION_KW:
+            case OP_CALL_SPREAD:
+            case OP_PUSH_FUNCTION:
+            case OP_MAT_GET:
+            case OP_MAT_SET:
+            case OP_COMP_APPEND:
+                snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d",
+                         line++, op_names[opcode], operands[0]);
+                line++;
+                pc++;
+                break;
+
+            case OP_JUMP_IF_FALSE:
+            case OP_JUMP:
+            case OP_LOOP:
+            {
+                int offset = (int16_t)((operands[0] << 8) | operands[1]);
+                int target = instr->offset + offset;
+
+                snprintf(line_buf, sizeof(line_buf),
+                         offset < 0 ? "%-4d: %-14s %-6d [<< %-3d]\n"
+                                    : "%-4d: %-14s %-6d [>> %-3d]\n",
+                         line++, op_names[opcode], offset, target);
+                line += 2;
+                pc += 2;
+
+                dis_emit(line_buf);
+                continue;
+            }
+
+            case OP_LOAD_CONST:
+            case OP_PUSH_LIST:
+            case OP_PUSH_MAP:
+                snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d",
+                         line++, op_names[opcode], (int16_t)((operands[0] << 8) | operands[1]));
+                line += 2;
+                pc += 2;
+                break;
+
+            case OP_LIST_APPEND:
+            case OP_LIST_EXTEND:
+            case OP_LIST_FINALIZE:
+            case OP_MAP_SET:
+            case OP_MAP_EXTEND:
+            case OP_MAP_FINALIZE:
+                snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s",
+                         line++, op_names[opcode]);
+                break;
+
+            case OP_PUSH_CLOSURE:
+                snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %d %3d",
+                         line++, op_names[opcode], operands[0], operands[1]);
+                line += 2;
+                pc += 2;
+                break;
+
+            default:
+                snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s",
+                         line++, op_names[opcode]);
+                break;
+            }
+#else
             switch (opcode)
             {
             case OP_STORE_GLOBAL:
@@ -1433,6 +1533,7 @@ void dis(compiler_t *comp)
                          line++, op_names[opcode]);
                 break;
             }
+#endif
 
             // Print description
             if (descr && strcmp(descr, "") != 0)
@@ -1442,21 +1543,33 @@ void dis(compiler_t *comp)
                     char short_descr[21];
                     strncpy(short_descr, descr, 20);
                     short_descr[20] = '\0';
+#ifdef __EMSCRIPTEN__
+                    strcat(line_buf, " [");
+                    strcat(line_buf, short_descr);
+                    strcat(line_buf, "...]\n");
+#else
                     strcat(line_buf, " \033[38;2;34;139;34m[");
                     strcat(line_buf, short_descr);
                     strcat(line_buf, "...]\033[0m\n");
+#endif
                 }
                 else
                 {
+#ifdef __EMSCRIPTEN__
+                    strcat(line_buf, " [");
+                    strcat(line_buf, descr);
+                    strcat(line_buf, "]\n");
+#else
                     strcat(line_buf, " \033[38;2;34;139;34m[");
                     strcat(line_buf, descr);
                     strcat(line_buf, "]\033[0m\n");
+#endif
                 }
             }
             else
                 strcat(line_buf, "\n");
 
-            printf("%s", line_buf);
+            dis_emit(line_buf);
         }
     }
 }

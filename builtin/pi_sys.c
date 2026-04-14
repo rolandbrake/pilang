@@ -125,7 +125,9 @@ Value sy_exit(vm_t *vm, int argc, Value *argv)
 // A string that identifies the underlying operating system (e.g., 'win32', 'linux', 'darwin').
 Value sy_platform(vm_t *vm, int argc, Value *argv)
 {
-#ifdef _WIN32
+#ifdef __EMSCRIPTEN__
+    return NEW_OBJ(new_pistring(strdup("Emscripten")));
+#elif defined(_WIN32)
     return NEW_OBJ(new_pistring(strdup("Windows")));
 #else
     struct utsname buf;

@@ -14,7 +14,6 @@
 #include "../pi_func.h"
 #include "../pi_table.h"
 
-// Structure to hold transform state
 typedef struct TransformState
 {
     float tx, ty;
