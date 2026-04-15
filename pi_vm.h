@@ -5,8 +5,8 @@
 #include <stdarg.h>
 
 #include "pi_compiler.h"
-#include "pi_table.h"
-#include "pi_stack.h"
+#include "table.h"
+#include "stack.h"
 #include "list.h"
 #include "pi_object.h"
 #include "pi_frame.h"
@@ -109,6 +109,7 @@ Frame *pop_frame(vm_t *vm);
 
 void vm_error(vm_t *vm, const char *message);
 void vm_errorf(vm_t *vm, const char *fmt, ...);
+Value vm_callMethodNoArgs(vm_t *vm, Value receiver, const char *name);
 void free_vm(vm_t *vm);
 
 #endif // PI_VM_H

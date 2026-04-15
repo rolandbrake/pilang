@@ -188,9 +188,23 @@ Object *new_map(table_t *table, bool is_instance)
     // Set the prototype to NULL
     map->proto = NULL;
 
-
-
     return (Object *)map;
+}
+
+/**
+ * Creates a new PiSet object from a given table.
+ *
+ * @param table The underlying table that this object wraps.
+ * @return The newly created PiSet object.
+ */
+Object *new_set(table_t *table)
+{
+    PiSet *set = CREATE_OBJ(PiSet, OBJ_SET);
+
+    // Store the given table in the object
+    set->table = table;
+
+    return (Object *)set;
 }
 
 /**

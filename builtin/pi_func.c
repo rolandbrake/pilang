@@ -6,7 +6,7 @@
 #include "../pi_func.h"
 #include "../list.h"
 #include "../pi_object.h"
-#include "../pi_table.h"
+#include "../table.h"
 #include "../pi_value.h"
 #include "pi_builtin.h"
 

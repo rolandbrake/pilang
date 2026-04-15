@@ -1,5 +1,6 @@
 // JSON module for Pilang
 // Provides JSON parsing and stringification in pure Pilang.
+// import col.{contains}
 
 fun _json_isWhitespace(ch) {
     return contains(" \t\n\r", ch);

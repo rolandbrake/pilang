@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "pi_stack.h"
+#include "stack.h"
 #include "common.h"
 
 /**
@@ -67,7 +67,7 @@ void push(stack_t *stack, void *item)
     if (is_full(stack))
         stack_expand(stack, stack->capacity * 2); // Double the stack size
     stack->top++;
-    memcpy((byte *)stack->data + (stack->top * stack->i_size), item, stack->i_size);    
+    memcpy((byte *)stack->data + (stack->top * stack->i_size), item, stack->i_size);
 }
 
 /**
@@ -156,4 +156,10 @@ void stack_free(stack_t *stack)
 {
     free(stack->data); // Free the data array
     free(stack);       // Free the stack structure
+}
+
+void stack_print(stack_t *stack, void (*print_item)(void *))
+{
+    for (int i = 0; i <= stack->top; i++)
+        print_item(stack_getAt(stack, i));
 }

@@ -1,6 +1,0 @@
-import math.{sqrt}
-
-fun f() {
-    println(sqrt)
-    println(sqrt(16)) // Should print 4.0
-}

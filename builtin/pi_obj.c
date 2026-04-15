@@ -39,7 +39,6 @@ static bool value_equals(Value left, Value right)
     return equals(left, right);
 }
 
-
 static int value_compare(Value left, Value right)
 {
     if (IS_MAP(left) && IS_MAP(right))
@@ -233,8 +232,9 @@ Value pi_keys(vm_t *vm, int argc, Value *argv)
 
 Value pi_toString(vm_t *vm, int argc, Value *argv)
 {
-    if (argc < 1 || !IS_MAP(argv[0]))
-        vm_error(vm, "[format] expects a map as the first argument.");
+    if (argc < 1 || !(IS_MAP(argv[0]) &&
+                      AS_MAP(argv[0])->is_instance))
+        vm_error(vm, "[format] expects an object as the first argument.");
 
     char *text = as_string(argv[0]);
     return NEW_OBJ(add_obj(vm, new_pistring(text)));
@@ -242,8 +242,9 @@ Value pi_toString(vm_t *vm, int argc, Value *argv)
 
 Value pi_valueOf(vm_t *vm, int argc, Value *argv)
 {
-    if (argc < 1 || !IS_MAP(argv[0]))
-        vm_error(vm, "[value] expects a map as the first argument.");
+    if (argc < 1 || !(IS_MAP(argv[0]) &&
+                      AS_MAP(argv[0])->is_instance))
+        vm_error(vm, "[format] expects an object as the first argument.");
 
     return argv[0];
 }

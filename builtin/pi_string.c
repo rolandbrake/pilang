@@ -127,7 +127,7 @@ Value pi_lower(vm_t *vm, int argc, Value *argv)
  * Replaces all occurrences of `old` with `new` in the given string.
  * Returns a new string with replacements applied.
  */
-Value pi_replace(vm_t *vm, int argc, Value *argv)
+Value st_replace(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 3 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]) || !IS_STRING(argv[2]))
         vm_error(vm, "[replace] expects three string arguments: (str, old, new).");
@@ -176,7 +176,7 @@ Value pi_replace(vm_t *vm, int argc, Value *argv)
  *   is_upper("Hello") => false
  *   is_upper("123!")  => true (no lowercase letters)
  */
-Value pi_isUpper(vm_t *vm, int argc, Value *argv)
+Value st_isUpper(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[is_upper] expects a string as argument.");
@@ -201,7 +201,7 @@ Value pi_isUpper(vm_t *vm, int argc, Value *argv)
  *   is_lower("Hello") => false
  *   is_lower("123!")  => true (no uppercase letters)
  */
-Value pi_isLower(vm_t *vm, int argc, Value *argv)
+Value st_isLower(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[is_lower] expects a string as argument.");
@@ -226,7 +226,7 @@ Value pi_isLower(vm_t *vm, int argc, Value *argv)
  *   is_digit("123a5") => false
  *   is_digit("")      => false (empty string)
  */
-Value pi_isDigit(vm_t *vm, int argc, Value *argv)
+Value st_isDigit(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[is_digit] expects a string as argument.");
@@ -255,7 +255,7 @@ Value pi_isDigit(vm_t *vm, int argc, Value *argv)
  *   is_numeric("abc123") => false
  *   is_numeric("")       => false
  */
-Value pi_isNumeric(vm_t *vm, int argc, Value *argv)
+Value st_isNumeric(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[is_numeric] expects a string as argument.");
@@ -300,7 +300,7 @@ Value pi_isNumeric(vm_t *vm, int argc, Value *argv)
  *   is_alpha("abc123") => false
  *   is_alpha("")       => false
  */
-Value pi_isAlpha(vm_t *vm, int argc, Value *argv)
+Value st_isAlpha(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[is_alpha] expects a string as argument.");
@@ -331,7 +331,7 @@ Value pi_isAlpha(vm_t *vm, int argc, Value *argv)
  *   is_alnum("abc_123")  => false
  *   is_alnum("")         => false
  */
-Value pi_isAlnum(vm_t *vm, int argc, Value *argv)
+Value st_isAlnum(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[is_alnum] expects a string as argument.");
@@ -354,7 +354,7 @@ Value pi_isAlnum(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(true);
 }
 
-Value pi_split(vm_t *vm, int argc, Value *argv)
+Value st_split(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]))
         vm_error(vm, "[split] expects two string arguments.");
@@ -383,14 +383,14 @@ Value pi_split(vm_t *vm, int argc, Value *argv)
 
 // Module Definition
 BuiltinFunc string_funcs[] = {
-    {"replace", pi_replace},
-    {"is_upper", pi_isUpper},
-    {"is_lower", pi_isLower},
-    {"is_digit", pi_isDigit},
-    {"is_numeric", pi_isNumeric},
-    {"is_alpha", pi_isAlpha},
-    {"is_alnum", pi_isAlnum},
-    {"split", pi_split},
+    {"replace", st_replace},
+    {"is_upper", st_isUpper},
+    {"is_lower", st_isLower},
+    {"is_digit", st_isDigit},
+    {"is_numeric", st_isNumeric},
+    {"is_alpha", st_isAlpha},
+    {"is_alnum", st_isAlnum},
+    {"split", st_split},
 };
 
 DEFINE_BUILTIN_MODULE(module_string, "string", string_funcs, NULL);

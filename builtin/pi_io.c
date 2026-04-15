@@ -7,6 +7,7 @@
 
 #include "../common.h"
 #include "pi_builtin.h"
+#include "../pi_func.h"
 
 /**
  * @brief Appends a string to the given buffer.
@@ -145,16 +146,28 @@ static void format_text(vm_t *vm, int argc, Value *argv, char *out)
  */
 Value pi_print(vm_t *vm, int argc, Value *argv)
 {
-    (void)vm;
-
+    char *text;
     for (int i = 0; i < argc; i++)
     {
-        char *text = as_string(argv[i]);
+        if (i > 0)
+            putchar(' ');
+
+        if (IS_MAP(argv[i]))
+        {
+            Value formatted = vm_callMethodNoArgs(vm, argv[i], "format");
+            if (!(IS_MAP(formatted) && AS_MAP(formatted) == AS_MAP(argv[i])))
+            {
+                text = as_string(formatted);
+            }
+            else
+                text = as_string(argv[i]);
+        }
+        else
+            text = as_string(argv[i]);
+
         if (!text)
             text = strdup("<unknown>");
 
-        if (i > 0)
-            putchar(' ');
         fputs(text, stdout);
         free(text);
     }

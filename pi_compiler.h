@@ -7,12 +7,12 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "pi_stack.h"
+#include "stack.h"
 #include "pi_opcode.h"
 #include "pi_value.h"
 #include "common.h"
 #include "list.h"
-#include "pi_table.h"
+#include "table.h"
 
 // Represents a local variable in the current scope
 typedef struct

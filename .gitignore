@@ -37,6 +37,8 @@ dist/
 bin/
 emsdk/
 docs/
+micrograd/
+
 
 # Emscripten cache
 .cache/
@@ -61,8 +63,7 @@ piscript-site/
 
 #release files
 release/
-piscript v0.1.0.rar
-piscript v0.1.0/
+
 
 # macOS
 .DS_Store

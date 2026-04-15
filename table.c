@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "pi_table.h"
+#include "table.h"
 #include "pi_value.h"
 #include "string.h"
 #include "common.h"

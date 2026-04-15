@@ -11,7 +11,7 @@
 #include "common.h"
 #include "pi_lex.h"
 #include "pi_parser.h"
-#include "pi_stack.h"
+#include "stack.h"
 #include "pi_compiler.h"
 #include "pi_vm.h"
 
@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
 #include <time.h>
 #include "pi_lex.h"
 #include "pi_parser.h"
-#include "pi_stack.h"
+#include "stack.h"
 #include "pi_compiler.h"
 #include "pi_vm.h"
 #include "common.h"
@@ -239,13 +239,13 @@ int main(int argc, char *argv[])
 
 static void print_usage(const char *program)
 {
-    printf("PiScript v0.0.1\n");
+    printf("Pilangv0.0.1\n");
     printf("Usage:\n");
-    printf("  %s run <file>     Run the specified PiScript file\n", program);
+    printf("  %s run <file>     Run the specified Pilangfile\n", program);
     printf("  %s <file>         Shorthand for 'run <file>'\n", program);
     printf("  %s help           Display this help message\n", program);
-    printf("  %s min <file>     Minimize the specified PiScript file (coming soon)\n", program);
-    printf("  %s fmt <file>     Format the specified PiScript file (coming soon)\n", program);
+    printf("  %s min <file>     Minimize the specified Pilangfile (coming soon)\n", program);
+    printf("  %s fmt <file>     Format the specified Pilangfile (coming soon)\n", program);
 }
 
 char *read_file(const char *filename)
@@ -368,7 +368,7 @@ int main(int argc, char *argv[])
 
     if (strcmp(command, "--version") == 0 || strcmp(command, "-v") == 0)
     {
-        printf("PiScript v0.0.1\n");
+        printf("Pilangv0.0.1\n");
         return 0;
     }
 

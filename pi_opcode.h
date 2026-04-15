@@ -64,6 +64,9 @@ typedef enum
     OP_MAP_EXTEND = 0x47,
     OP_MAP_FINALIZE = 0x48,
     OP_COMP_APPEND = 0x49,
+    OP_PUSH_SET = 0x4a,
+    OP_PUSH_TUPLE = 0x4b,
+
 } OpCode;
 
 typedef struct
@@ -96,6 +99,7 @@ static inline int operand_count(uint8_t op)
     case OP_LOOP:
     case OP_PUSH_LIST:
     case OP_PUSH_MAP:
+    case OP_PUSH_SET:
     case OP_PUSH_CLOSURE:
         return 2;
 

@@ -184,6 +184,40 @@ void mark_object(Object *obj)
         break;
     }
 
+    case OBJ_SET:
+    {
+        PiSet *set = (PiSet *)obj;
+
+        table_t *table = set->table;
+        if (!table)
+            break;
+
+        for (int i = 0; i < table->capacity; i++)
+        {
+            ht_item *item = &table->items[i];
+            if (!item->key)
+                continue;
+
+            // Mark the key as it's the element
+            mark_value(*(Value *)item->key);
+            // Values are dummy, no need to mark
+        }
+        break;
+    }
+
+    case OBJ_TUPLE:
+    {
+        PiTuple *tuple = (PiTuple *)obj;
+        int size = LIST_SIZE(tuple->items);
+        for (int i = 0; i < size; i++)
+        {
+            Value *item = (Value *)list_getAt(tuple->items, i);
+            if (item)
+                mark_value(*item); // Ensure items inside tuples are also marked
+        }
+        break;
+    }
+
     case OBJ_MODULE:
     {
         ObjModule *module = (ObjModule *)obj;
@@ -343,6 +377,22 @@ void free_object(Object *obj)
         break;
     }
 
+    case OBJ_SET:
+    {
+        // Free the memory allocated for the set's elements
+        PiSet *set = (PiSet *)obj;
+        // Elements are stored as keys in the table, values are dummy
+        ht_free(set->table);
+        break;
+    }
+
+    case OBJ_TUPLE:
+    {
+        PiTuple *tuple = (PiTuple *)obj;
+        list_free(tuple->items);
+        break;
+    }
+
     case OBJ_MODULE:
     {
         ObjModule *module = (ObjModule *)obj;
@@ -392,7 +442,7 @@ void free_object(Object *obj)
             free(chart->ylabel);
         break;
     }
-    case OBJ_EVENT:        
+    case OBJ_EVENT:
         break;
 
     default:
@@ -498,4 +548,3 @@ static void print_object_chain(vm_t *vm)
         obj = obj->next;
     }
 }
-

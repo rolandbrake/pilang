@@ -30,6 +30,39 @@ Value pi_range(vm_t *vm, int argc, Value *argv);
 // Returns the last element or character from a list or string without removing it.
 Value pi_peek(vm_t *vm, int argc, Value *argv);
 
+// Creates a new set from a list or other iterable, removing duplicates.
+Value _pi_set(vm_t *vm, int argc, Value *argv);
+
+// Adds elements to a set.
+Value cl_add(vm_t *vm, int argc, Value *argv);
+
+// Removes all elements from a set.
+Value cl_clear(vm_t *vm, int argc, Value *argv);
+
+// Checks if a set contains an element.
+Value pi_contains(vm_t *vm, int argc, Value *argv);
+
+// Returns the union of two sets.
+Value pi_union(vm_t *vm, int argc, Value *argv);
+
+// Returns the intersection of two sets.
+Value pi_intersection(vm_t *vm, int argc, Value *argv);
+
+// Returns the difference of two sets.
+Value pi_difference(vm_t *vm, int argc, Value *argv);
+
+// Returns the symmetric difference of two sets.
+Value pi_symDiff(vm_t *vm, int argc, Value *argv);
+
+// Checks if one set is a subset of another.
+Value pi_issubset(vm_t *vm, int argc, Value *argv);
+
+// Checks if one set is a superset of another.
+Value pi_issuperset(vm_t *vm, int argc, Value *argv);
+
+// Checks if two sets are disjoint.
+Value pi_isdisjoint(vm_t *vm, int argc, Value *argv);
+
 // Sorts the elements of a list in ascending order.
 Value cl_sort(vm_t *vm, int argc, Value *argv);
 
@@ -58,6 +91,5 @@ Value cl_copy(vm_t *vm, int argc, Value *argv);
 Value cl_zip(vm_t *vm, int argc, Value *argv);
 
 Value cl_isIterable(vm_t *vm, int argc, Value *argv);
-
 
 #endif // PI_COL_H

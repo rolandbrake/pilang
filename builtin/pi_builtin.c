@@ -64,6 +64,16 @@ BuiltinFunc builtin_functions[] = {
     {"len", pi_len},
     {"range", pi_range},
 
+    // set operations
+    {"set", _pi_set},
+    {"union", pi_union},
+    {"intersection", pi_intersection},
+    {"difference", pi_difference},
+    {"s_diff", pi_symDiff},
+    {"issubset", pi_issubset},
+    {"issuperset", pi_issuperset},
+    {"isdisjoint", pi_isdisjoint},
+
     // Functional
     {"map", _pi_map},
     {"filter", pi_filter},

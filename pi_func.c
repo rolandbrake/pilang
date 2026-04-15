@@ -182,8 +182,6 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     vm->ip = 0;
     vm->bp = vm->sp;
     size_t param_count = list_size(function->params);
-    size_t aux_base = vm->bp + param_count;
-    vm->sp = aux_base;
 
     size_t arg_offset = 0;
     size_t param_offset = 0;
@@ -211,6 +209,10 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         arg_offset = 0;
         param_offset = 1;
     }
+
+    size_t local_count = param_count + arg_offset;
+    size_t aux_base = vm->bp + local_count;
+    vm->sp = aux_base;
 
     // Set function parameters and arguments
     Value *param_vals = NULL;

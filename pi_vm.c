@@ -886,7 +886,6 @@ static PiMap *create_objectProto(vm_t *vm)
 
     // Create built-in functions
     Value format = *new_native("format", pi_toString);
-    Value value = *new_native("value", pi_valueOf);
 
     Value hash = *new_native("hash", pi_hashCode);
 
@@ -915,7 +914,6 @@ static PiMap *create_objectProto(vm_t *vm)
 
     // Add built-in functions to the object prototype map
     ht_put(proto->table, "format", &format);
-    ht_put(proto->table, "value", &value);
     ht_put(proto->table, "hash", &hash);
     ht_put(proto->table, "clone", &clone);
     ht_put(proto->table, "extends", &extends_fn);
@@ -953,7 +951,7 @@ static PiMap *create_objectProto(vm_t *vm)
  */
 static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
 {
-    if (!IS_MAP(receiver))
+    if (!IS_MAP(receiver) || !AS_MAP(receiver)->is_instance)
         return receiver;
 
     Value key = NEW_OBJ(new_pistring(strdup(name)));
@@ -974,6 +972,11 @@ static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
     return call_func(vm, AS_FUN(method), 0, NULL, NEW_NIL());
 }
 
+Value vm_callMethodNoArgs(vm_t *vm, Value receiver, const char *name)
+{
+    return call_methodNoArgs(vm, receiver, name);
+}
+
 /**
  * Attempts to call a method on an object with one argument.
  *
@@ -991,7 +994,7 @@ static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
  */
 static bool try_callMethodOneArg(vm_t *vm, Value receiver, const char *name, Value arg, Value *result)
 {
-    if (!IS_MAP(receiver))
+    if (!IS_MAP(receiver) || !AS_MAP(receiver)->is_instance)
         return false;
 
     Value key = NEW_OBJ(new_pistring(strdup(name)));
@@ -1037,7 +1040,7 @@ static bool try_callMethodOneArg(vm_t *vm, Value receiver, const char *name, Val
  */
 static bool try_callCompute(vm_t *vm, Value receiver, int op, bool has_other, Value other, Value *result)
 {
-    if (!IS_MAP(receiver))
+    if (!IS_MAP(receiver) || !AS_MAP(receiver)->is_instance)
         return false;
 
     // Compute method is used to perform operations on the object
@@ -1152,34 +1155,23 @@ static bool try_overloadedCompare(vm_t *vm, Value left, Value right, int *cmp)
 /**
  * Attempts to coerce a given object into a primitive value.
  *
- * This function first attempts to call the object's "format" or "value" method,
- * depending on the value of the is_string parameter. If the object does not
- * contain a method with the given name, or if the method does not return a primitive
- * value, it then attempts to call the object's other method. If the object does not
- * contain either method, or if neither method returns a primitive value, this
- * function returns the original object.
+ * This function attempts to call the object's "format" method to coerce it
+ * into a primitive value. If the object does not contain a format method,
+ * or if the method does not return a primitive string, this function returns
+ * the original object.
  *
  * @param vm The virtual machine instance.
  * @param value The object to coerce into a primitive value.
- * @param is_string Whether to prefer the "format" or "value" method when
- *                     attempting to coerce the object.
+ * @param pref_string Unused; kept for API compatibility.
  * @return The coerced primitive value, or the original object if it cannot be coerced.
  */
-static Value to_primitive(vm_t *vm, Value value, bool is_string)
+static Value to_primitive(vm_t *vm, Value value, bool pref_string)
 {
-    if (!IS_MAP(value))
+    if (!IS_MAP(value) || !AS_MAP(value)->is_instance)
         return value;
 
-    const char *first = is_string ? "format" : "value";
-    const char *second = is_string ? "value" : "format";
-
-    // Try the preferred coercion method first, then its alternate spelling.
-    Value result = call_methodNoArgs(vm, value, first);
-    if (result.type != VAL_OBJ || IS_STRING(result))
-        return result;
-
-    // Fall back to the other coercion method and its alternate spelling.
-    result = call_methodNoArgs(vm, value, second);
+    (void)pref_string;
+    Value result = call_methodNoArgs(vm, value, "format");
     if (result.type != VAL_OBJ || IS_STRING(result))
         return result;
 
@@ -3212,6 +3204,65 @@ void run(vm_t *vm)
             finalize_mapLiteral(vm, AS_MAP(peek_stack(vm)));
             break;
         }
+
+        case OP_PUSH_SET:
+        {
+            int numElements = read_short(vm);
+            table_t *table = ht_create(sizeof(Value));
+
+            if (numElements == 0)
+            {
+                Object *set_obj = add_obj(vm, new_set(table));
+                push_stack(vm, NEW_OBJ(set_obj));
+                break;
+            }
+
+            vm->sp -= numElements;
+
+            for (int i = 0; i < numElements; i++)
+            {
+                Value element = vm->stack[vm->sp + i];
+                if (IS_OBJ(element))
+                {
+                    add_obj(vm, AS_OBJ(element));
+                }
+                // For set, value is ignored, key is the element itself
+                char *key_str = as_string(element);
+                ht_put(table, key_str, &NEW_NIL());
+                free(key_str);
+            }
+
+            Object *set_obj = add_obj(vm, new_set(table));
+            push_stack(vm, NEW_OBJ(set_obj));
+            break;
+        }
+
+            // case OP_PUSH_TUPLE:
+            // {
+            //     int numElements = read_short(vm);
+            //     Value *elements = ALLOCATE(Value, numElements);
+
+            //     if (numElements == 0)
+            //     {
+            //         Object *tuple_obj = add_obj(vm, new_tuple(elements, numElements));
+            //         push_stack(vm, NEW_OBJ(tuple_obj));
+            //         break;
+            //     }
+
+            //     vm->sp -= numElements;
+
+            //     for (int i = 0; i < numElements; i++)
+            //     {
+            //         Value element = vm->stack[vm->sp + i];
+            //         if (IS_OBJ(element))
+            //             add_obj(vm, AS_OBJ(element));
+            //         elements[i] = element;
+            //     }
+
+            //     Object *tuple_obj = add_obj(vm, new_tuple(elements, numElements));
+            //     push_stack(vm, NEW_OBJ(tuple_obj));
+            //     break;
+            // }
 
         case OP_PUSH_FUNCTION:
         {

@@ -1148,6 +1148,105 @@ char *as_string(Value val)
             return result;
         }
 
+        case OBJ_MAP:
+        {
+            PiMap *map = AS_MAP(val);
+            char **keys = map->table->_keys;
+            int size = ht_length(map->table);
+
+            if (size == 0)
+                return dup_cstring("{}");
+
+            size_t buffer_size = 2; // Start with "{}"
+            char *result = dup_cstring("{");
+
+            for (int i = 0; i < size; i++)
+            {
+                char *key = keys[i];
+                char *value = as_string(*(Value *)ht_get(map->table, key));
+
+                // Add comma and space if not the first entry
+                if (i > 0)
+                {
+                    buffer_size += 2;
+                    result = realloc(result, buffer_size);
+                    strcat(result, ", ");
+                }
+
+                buffer_size += strlen(key) + 2 + strlen(value) + 1; // key + ": " + value + null
+                result = realloc(result, buffer_size);
+                strcat(result, key);
+                strcat(result, ": ");
+                strcat(result, value);
+
+                free(value);
+            }
+
+            buffer_size += 2;
+            result = realloc(result, buffer_size);
+            strcat(result, "}");
+
+            return result;
+        }
+
+        case OBJ_SET:
+        {
+            PiSet *set = AS_SET(val);
+            size_t buffer_size = 2; // Start with "{}"
+            char *result = dup_cstring("{");
+            char **keys = set->table->_keys;
+            int size = ht_length(set->table);
+
+            if (size == 0)
+                return dup_cstring("{}");
+
+            for (int i = 0; i < size; i++)
+            {
+                char *key = keys[i];
+                if (i > 0)
+                {
+                    buffer_size += 2;
+                    result = realloc(result, buffer_size);
+                    strcat(result, ", ");
+                }
+                buffer_size += strlen(key) + 1; // key + null
+                result = realloc(result, buffer_size);
+                strcat(result, key);
+            }
+
+            buffer_size += 2;
+            result = realloc(result, buffer_size);
+            strcat(result, "}");
+
+            return result;
+        }
+            // case OBJ_TUPLE:
+            // {
+            // PiTuple *tuple = AS_TUPLE(val);
+            // size_t buffer_size = 2;
+            // char *result = dup_cstring("[");
+
+            // for (int i = 0; i < tuple->size; i++)
+            // {
+            //     if (i > 0)
+            //     {
+            //         buffer_size += 2;
+            //         result = realloc(result, buffer_size);
+            //         strcat(result, ", ");
+            //     }
+
+            //     Value item = *(Value *)tuple_getAt(tuple, i);
+            //     char *str = as_string(item);
+            //     buffer_size += strlen(str);
+            //     result = realloc(result, buffer_size);
+            //     strcat(result, str);
+            //     free(str);
+            // }
+            // buffer_size++;
+            // result = realloc(result, buffer_size);
+            // strcat(result, "]");
+            // return result;
+        // }
         case OBJ_MATRIX:
         {
             PiMatrix *matrix = AS_MATRIX(val);
@@ -1196,47 +1295,6 @@ char *as_string(Value val)
             buffer_size++;
             result = realloc(result, buffer_size);
             strcat(result, "]");
-            return result;
-        }
-
-        case OBJ_MAP:
-        {
-            PiMap *map = AS_MAP(val);
-            char **keys = map->table->_keys;
-            int size = ht_length(map->table);
-
-            if (size == 0)
-                return dup_cstring("{}");
-
-            size_t buffer_size = 2; // Start with "{}"
-            char *result = dup_cstring("{");
-
-            for (int i = 0; i < size; i++)
-            {
-                char *key = keys[i];
-                char *value = as_string(*(Value *)ht_get(map->table, key));
-
-                // Add comma and space if not the first entry
-                if (i > 0)
-                {
-                    buffer_size += 2;
-                    result = realloc(result, buffer_size);
-                    strcat(result, ", ");
-                }
-
-                buffer_size += strlen(key) + 2 + strlen(value) + 1; // key + ": " + value + null
-                result = realloc(result, buffer_size);
-                strcat(result, key);
-                strcat(result, ": ");
-                strcat(result, value);
-
-                free(value);
-            }
-
-            buffer_size += 2;
-            result = realloc(result, buffer_size);
-            strcat(result, "}");
-
             return result;
         }
 
@@ -1518,6 +1576,10 @@ char *type_name(Value val)
             }
             return "map";
         }
+        case OBJ_SET:
+            return "set";
+        case OBJ_TUPLE:
+            return "tuple";
         case OBJ_MODULE:
             return "module";
         case OBJ_RANGE:

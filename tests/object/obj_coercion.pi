@@ -1,16 +1,26 @@
+import lang
+
 Point = {
   constructor(x, y) {
     this.x = x;
     this.y = y;
   },
+  compute(op, other) {
+    if (op == lang.OP_ADD) {
+      if (!is_num(other)) {
+        error("point + other expects a number");
+      }
+      return Point(this.x + other, this.y + other);
+    } else if (op == lang.OP_POS) {
+      return this;
+    }
+
+    error("unsupported operator: " + op);
+  },
   format() {
     return "(" + this.x + ", " + this.y + ")";
   },
-
-  value() {
-    return this.x + this.y;
-  },
-}
+};
 
 point = Point(1, 2);
 

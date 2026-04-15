@@ -17,7 +17,7 @@ typedef struct SDL_Rect
 
 #include "pi_value.h"
 #include "list.h"
-#include "pi_table.h"
+#include "table.h"
 #include "common.h"
 
 #define OBJ_TYPE(o) (AS_OBJ(o)->type)
@@ -28,15 +28,18 @@ typedef struct SDL_Rect
 #define IS_MATRIX(o) IS_OBJ_TYPE(o, OBJ_MATRIX)
 #define IS_NUM_LIST(o) (IS_LIST(o) && AS_LIST(o)->is_numeric)
 #define IS_MAP(o) IS_OBJ_TYPE(o, OBJ_MAP)
+#define IS_OBJECT(o) (IS_MAP(o) && AS_MAP(o)->proto != NULL)
 #define IS_MODULE(o) IS_OBJ_TYPE(o, OBJ_MODULE)
 #define IS_FUN(o) IS_OBJ_TYPE(o, OBJ_FUN)
 #define IS_RANGE(o) IS_OBJ_TYPE(o, OBJ_RANGE)
+#define IS_SET(o) IS_OBJ_TYPE(o, OBJ_SET)
+#define IS_TUPLE(o) IS_OBJ_TYPE(o, OBJ_TUPLE)
 
 #define IS_CONTEXT(o) IS_OBJ_TYPE(o, OBJ_CONTEXT)
 #define IS_CHART(o) IS_OBJ_TYPE(o, OBJ_CHART)
 #define IS_EVENT(o) IS_OBJ_TYPE(o, OBJ_EVENT)
 
-#define IS_COLLECTION(o) (IS_LIST(o) || IS_MATRIX(o) || IS_MAP(o) || IS_STRING(o))
+#define IS_COLLECTION(o) (IS_LIST(o) || IS_MATRIX(o) || IS_MAP(o) || IS_SET(o) || IS_STRING(o))
 
 #define IS_SEQUENCE(o) (IS_LIST(o) || IS_STRING(o))
 
@@ -46,6 +49,8 @@ typedef struct SDL_Rect
 #define AS_MAP(o) ((PiMap *)AS_OBJ(o))
 #define AS_MODULE(o) ((ObjModule *)AS_OBJ(o))
 #define AS_RANGE(o) ((PiRange *)AS_OBJ(o))
+#define AS_SET(o) ((PiSet *)AS_OBJ(o))
+#define AS_TUPLE(o) ((PiTuple *)AS_OBJ(o))
 #define AS_FUN(o) ((Function *)AS_OBJ(o))
 #define AS_CODE(o) ((ObjCode *)AS_OBJ(o))
 #define AS_FILE(o) ((ObjFile *)AS_OBJ(o))
@@ -73,6 +78,8 @@ typedef enum
     OBJ_LIST,
     OBJ_MATRIX,
     OBJ_MAP,
+    OBJ_SET,
+    OBJ_TUPLE,
     OBJ_MODULE,
     OBJ_RANGE,
     OBJ_FUN,
@@ -202,6 +209,18 @@ typedef struct PiMap
 typedef struct
 {
     Object object;
+    table_t *table; // Use table for unique elements, keys are values, values are dummy
+} PiSet;
+
+typedef struct
+{
+    Object object;
+    list_t *items; // List of values for tuple
+} PiTuple;
+
+typedef struct
+{
+    Object object;
     list_t *data;
     list_t *param_names; // Parameter names for functions using this code
 
@@ -289,6 +308,10 @@ void matrix_set(PiMatrix *matrix, int row, int col, double value);
 Object *matrix_rowAsList(PiMatrix *matrix, int row);
 
 Object *new_map(table_t *table, bool is_instance);
+
+Object *new_set(table_t *table);
+
+Object *new_tuple(list_t *items);
 
 Object *new_file(FILE *file, char *filename, char *mode);
 

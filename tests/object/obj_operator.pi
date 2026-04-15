@@ -2,7 +2,7 @@ import lang
 
 let value = 10
 
-let box = {
+let Box = {
     "label": "Box",
 
     compute: fun(op, other = nil) {
@@ -76,6 +76,7 @@ let box = {
     }
 }
 
+let box = Box(10)
 assert(box + 5 == 15, "operator + should dispatch to compute(OP_ADD, other)")
 assert(box - 3 == 7, "operator - should dispatch to compute(OP_SUB, other)")
 assert(box * 4 == 40, "operator * should dispatch to compute(OP_MUL, other)")

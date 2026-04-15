@@ -8,7 +8,6 @@ plain = { a: 1 }
 c = p.clone()
 
 println(p.format())
-println(p.value())
 println(p.hash() > 0)
 println(c.format())
 println(c.x)

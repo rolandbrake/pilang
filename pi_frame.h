@@ -2,7 +2,7 @@
 #define PI_FRAME_H
 
 #include "list.h"
-#include "pi_table.h"
+#include "table.h"
 
 // Forward declare Function to avoid circular include
 typedef struct Function Function;

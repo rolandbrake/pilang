@@ -11,7 +11,7 @@
 #include "pi_compiler.h"
 #include "pi_object.h"
 #include "pi_opcode.h"
-#include "pi_stack.h"
+#include "stack.h"
 #include "common.h"
 #include "list.h"
 #include "string.h"
@@ -21,9 +21,7 @@
 #ifdef __EMSCRIPTEN__
 static void dis_emit(const char *text)
 {
-    EM_ASM({
-        console.log(UTF8ToString($0));
-    }, text);
+    EM_ASM({ console.log(UTF8ToString($0)); }, text);
 }
 #else
 static void dis_emit(const char *text)
@@ -189,9 +187,6 @@ static void free_loop(loop_t *loop)
 }
 
 static void free_loop(loop_t *loop);
-
-
-
 
 /**
  * Retrieves the current active context from the stack of contexts.
@@ -492,6 +487,15 @@ void print_locals(compiler_t *comp)
     printf("\n");
 }
 
+static void print_local(void *_local)
+{
+    local_t *local = (local_t *)_local;
+    printf("Local: name = %s, depth = %d, is_captured = %s\n",
+           local->name,
+           local->depth,
+           local->is_captured ? "true" : "false");
+}
+
 /**
  * @brief Adds a new local variable to the current scope.
  *
@@ -516,8 +520,10 @@ void add_local(compiler_t *comp, char *name)
             break; // Stop checking once we’re outside the current block
 
         if (strcmp(local->name, name) == 0)
+        {            
             p_errorf(comp->current_line, comp->current_col,
                      "Name already declared in this scope: [%s]", name);
+        }
     }
 
     // Allocate and initialize a new local variable
@@ -699,8 +705,8 @@ int add_upvalue(compiler_t *comp, int depth, int index, bool is_local)
     upvalue->is_local = is_local;
     list_add(current->upvalues, upvalue);
 
-    // Return the index of the new upvalue
-    return size - 1;
+    // Return the index of the newly appended upvalue.
+    return size;
 }
 
 /**
@@ -1064,14 +1070,14 @@ void pop_function(compiler_t *comp, int params)
         int uv_size = list_size(comp->current->upvalues);
         list_t *upvalues = comp->current->upvalues;
 
-        ObjCode *code = (ObjCode *)new_code(comp->code);        
+        ObjCode *code = (ObjCode *)new_code(comp->code);
         int c_index = store_const(comp, NEW_OBJ(code));
 
         context_t *context = (context_t *)pop(comp->contexts);
 
         code->param_names = context->param_names;
         context->param_names = NULL;
-        
+
         comp->current = (context_t *)top(comp->contexts);
         comp->code = comp->current->code;
         comp->locals = comp->current->locals;
@@ -1332,7 +1338,6 @@ void dis(compiler_t *comp)
         context_t *global_ctx = (context_t *)stack_getAt(comp->contexts, 0);
         ht_put(comp->instrs, "<global>", global_ctx->instrs);
     }
-
 
     // Get all function names in order
     char **scope_names = ht_keys(comp->instrs);

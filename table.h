@@ -1,5 +1,5 @@
-#ifndef PI_TABLE_H
-#define PI_TABLE_H
+#ifndef TABLE_H
+#define TABLE_H
 
 #include <string.h>
 #include <stdint.h>
@@ -56,4 +56,4 @@ bool ht_next(ht_iter *it);
 bool ht_hasNext(ht_iter *it);
 void ht_reset(ht_iter *it);
 
-#endif // PI_TABLE_H
+#endif // TABLE_H

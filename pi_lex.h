@@ -6,8 +6,8 @@
 #include <string.h>
 #include <stdbool.h>
 #include "pi_token.h"
-#include "pi_stack.h"
-#include "pi_table.h"
+#include "stack.h"
+#include "table.h"
 
 /**
  * Struct representing the lexical scanner.

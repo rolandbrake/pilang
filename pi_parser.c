@@ -10,6 +10,7 @@
 #include "pi_object.h"
 #include "string.h"
 
+// Operator definitions for parsing expressions
 char *comp_ops[] = {"==", "!=", ">", "<", ">=", "<=", "in"};
 char *bin_ops[] = {"+", "-", "*", "/", "%", "&&", "||", "**", "&", "|", "^", "<<", ">>", ">>>", ".", "is"};
 char *unary_ops[] = {"+", "-", "!", "~", "#", "++", "--", "typeof"};
@@ -21,7 +22,7 @@ static void var_decl(parser_t *parser);
 static void func_decl(parser_t *parser);
 static void statement(parser_t *parser);
 static void expr_state(parser_t *parser);
-static void destructure_assign_stmt(parser_t *parser);
+static void destructure_assignStatement(parser_t *parser);
 static void block(parser_t *parser);
 static void if_stmt(parser_t *parser);
 static void while_stmt(parser_t *parser);
@@ -435,7 +436,7 @@ static bool list_isComprehension(parser_t *parser)
  * @param segment The segment of tokens to compile.
  * @param message The error message to display if the segment is empty.
  */
-static void compile_segment_expr(parser_t *parser, segment_t segment, const char *message)
+static void compile_segmentExpr(parser_t *parser, segment_t segment, const char *message)
 {
     // Check if the segment is empty
     if (segment.start >= segment.end)
@@ -693,13 +694,13 @@ static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
         for (int i = 0; i < cond_count; i++)
         {
             // Compile the condition expression at conds[i]
-            compile_segment_expr(parser, conds[i], "Invalid list comprehension condition.");
+            compile_segmentExpr(parser, conds[i], "Invalid list comprehension condition.");
             // Emit a jump if false instruction to jump over the list comprehension expression if the condition is false
             jumps[jump_count++] = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
         }
 
         // Compile the list comprehension expression
-        compile_segment_expr(parser, comp->result, "Invalid list comprehension expression.");
+        compile_segmentExpr(parser, comp->result, "Invalid list comprehension expression.");
         // Emit an instruction to append the resulting value to the list
         emit_8u(parser->comp, OP_COMP_APPEND, "<comp>", acc_slot);
 
@@ -716,7 +717,7 @@ static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
     set_pos(parser, parser->tokens[iters[iter_index].iterable.start]);
 
     // Compile the current iterator expression
-    compile_segment_expr(parser, iters[iter_index].iterable, "Invalid list comprehension iterator expression.");
+    compile_segmentExpr(parser, iters[iter_index].iterable, "Invalid list comprehension iterator expression.");
     // Emit an instruction to push the iterator expression onto the stack
     emit(parser->comp, OP_PUSH_ITER);
 
@@ -1430,9 +1431,6 @@ static list_t *param_list(parser_t *parser)
 
     set_pos(parser, previous(parser));
 
-    if (is_object(parser->comp))
-        emit(parser->comp, OP_PUSH_NIL);
-
     // parse the parameter list until the right parenthesis is encountered
     if (!check(parser, TK_RPAREN))
     {
@@ -1537,7 +1535,7 @@ static void emit_spreadMapLiteral(parser_t *parser)
                 }
             }
 
-            pop_function(parser->comp, size + (is_object(parser->comp) ? 1 : 0));
+            pop_function(parser->comp, size);
             consume(parser, TK_RBRACE, "Expect '}' after function body.");
         }
         else
@@ -1836,7 +1834,7 @@ static void import_stmt(parser_t *parser)
 static void statement(parser_t *parser)
 {
     if (is_destructure_assign(parser))
-        destructure_assign_stmt(parser);
+        destructure_assignStatement(parser);
     else if (match(parser, TK_LBRACE))
     {
         // Look ahead to check if it's an object literal (key: value format)
@@ -1877,37 +1875,57 @@ static void statement(parser_t *parser)
     // parser->is_return = false;
 }
 
-static void destructure_assign_stmt(parser_t *parser)
+/**
+ * Parses a destructuring assignment statement.
+ * Destructuring assignment statements are in the form of [x, y, z] = [a, b, c],
+ * where x, y, and z are assigned the values of a, b, and c respectively.
+ * @param parser The parser object used for parsing.
+ */
+static void destructure_assignStatement(parser_t *parser)
 {
+    // Parse the destructuring assignment statement
+    // List to store the identifiers on the left-hand side of the assignment
     list_t *targets = list_create(sizeof(char *));
-
+    // Consume the left brace token
     consume(parser, TK_LBRACKET, "Expect '[' to start destructuring assignment.");
+    // Parse the identifiers on the left-hand side of the assignment
     do
     {
+        // Consume the identifier token and store its value in the list
         token_t name_tok = consume(parser, TK_ID, "Expect identifier in destructuring assignment.");
         char *name = token_value(name_tok);
         list_add(targets, &name);
     } while (match(parser, TK_COMMA));
 
+    // Consume the right brace token
     consume(parser, TK_RBRACKET, "Expect ']' after destructuring targets.");
+    // Consume the assignment operator token
     consume(parser, TK_ASSIGN, "Expect '=' after destructuring targets.");
-
+    // Parse the right-hand side of the assignment
     expr(parser);
 
+    // Get the size of the list
     int size = list_size(targets);
+    // Iterate over the list and create bytecode to assign the values
     for (int i = 0; i < size; i++)
     {
         char *name = *(char **)list_getAt(targets, i);
         int index = store_const(parser->comp, NEW_NUM(i));
 
+        // Duplicate the top of the stack (the value to be assigned)
         emit(parser->comp, OP_DUP_TOP);
+        // Load the constant value at the specified index
         emit_16u(parser->comp, OP_LOAD_CONST, name, index);
+        // Get the item at the specified index from the value
         emit(parser->comp, OP_GET_ITEM);
+        // Store the value in the variable
         store_variable(parser->comp, name);
     }
 
+    // Pop the value from the stack
     emit(parser->comp, OP_POP);
 
+    // Check if a delimiter is needed
     if (need_delimiter(parser))
         p_error("Expected delemiter between statements.", peek(parser).line, peek(parser).column);
 }
@@ -3395,9 +3413,6 @@ static void primary(parser_t *parser)
                 push_function(parser->comp, NULL);
                 parser->comp->current->param_names = params;
 
-                if (is_object(parser->comp))
-                    add_local(parser->comp, "this");
-
                 for (int i = 0; i < size; i++)
                     add_local(parser->comp, string_get(params, i));
                 add_local(parser->comp, "args");
@@ -3405,7 +3420,7 @@ static void primary(parser_t *parser)
 
                 arrow_func(parser);
 
-                pop_function(parser->comp, size + (is_object(parser->comp) ? 1 : 0));
+                pop_function(parser->comp, size);
             }
             else
             {
@@ -3457,16 +3472,10 @@ static void primary(parser_t *parser)
 
             emit(parser->comp, OP_PUSH_NIL);
 
-            if (is_object(parser->comp))
-                emit(parser->comp, OP_PUSH_NIL);
-
             push_function(parser->comp, NULL);
             list_t *single_params = list_create(sizeof(String));
             list_add(single_params, new_string(name));
             parser->comp->current->param_names = single_params;
-
-            if (is_object(parser->comp))
-                add_local(parser->comp, "this");
 
             add_local(parser->comp, name);
             add_local(parser->comp, "args");
@@ -3474,7 +3483,7 @@ static void primary(parser_t *parser)
 
             arrow_func(parser);
 
-            pop_function(parser->comp, (is_object(parser->comp) ? 2 : 1));
+            pop_function(parser->comp, 1);
         }
         // First handle potential walrus operator
         else if (match(parser, TK_LARROW))
@@ -3649,7 +3658,7 @@ static void primary(parser_t *parser)
                         }
                     }
 
-                    pop_function(parser->comp, size + (is_object(parser->comp) ? 1 : 0));
+                    pop_function(parser->comp, size);
                     consume(parser, TK_RBRACE, "Expect '}' after function body.");
                 }
                 else
@@ -3675,6 +3684,46 @@ static void primary(parser_t *parser)
     else if (match(parser, TK_FUN))
     {
         set_pos(parser, previous(parser));
+
+        if (is_lookUp(parser->comp))
+        {
+            int depth = 0;
+
+            consume(parser, TK_LPAREN, "Expect '(' after function name.");
+
+            depth = 1;
+            while (depth > 0 && !is_atEnd(parser))
+            {
+                if (check(parser, TK_LPAREN))
+                    depth++;
+                else if (check(parser, TK_RPAREN))
+                    depth--;
+
+                next(parser);
+            }
+
+            if (depth != 0)
+                p_error("Unmatched '(' in anonymous function.", peek(parser).line, peek(parser).column);
+
+            consume(parser, TK_LBRACE, "Expect '{' before function body.");
+
+            depth = 1;
+            while (depth > 0 && !is_atEnd(parser))
+            {
+                if (check(parser, TK_LBRACE))
+                    depth++;
+                else if (check(parser, TK_RBRACE))
+                    depth--;
+
+                next(parser);
+            }
+
+            if (depth != 0)
+                p_error("Unmatched '{' in anonymous function.", peek(parser).line, peek(parser).column);
+
+            return;
+        }
+
         /**
          * Parses an anonymous function expression.
          * Anonymous functions are functions that are declared without a name.
@@ -3692,16 +3741,13 @@ static void primary(parser_t *parser)
         push_function(comp, NULL); // Push the function onto the stack
         comp->current->param_names = params;
 
-        if (is_object(comp))
-            add_local(comp, "this"); // Add the "this" variable to the local scope
-
         // Add the parameters to the local scope
         for (int i = 0; i < size; i++)
             add_local(comp, string_get(params, i));
         add_local(comp, "args"); // Add the "args" variable to the local scope
         add_local(comp, "kw_args");
 
-        if (match(parser, TK_RBRACE))
+        if (check(parser, TK_RBRACE))
         {
             // If the anonymous function expression is empty, return nil
             if (is_constructor(comp))
@@ -3731,7 +3777,7 @@ static void primary(parser_t *parser)
             }
         }
 
-        pop_function(comp, size + (is_object(parser->comp) ? 1 : 0)); // Pop the function from the stack
+        pop_function(comp, size); // Pop the function from the stack
 
         consume(parser, TK_RBRACE, "Expect '}' after function body.");
     }
