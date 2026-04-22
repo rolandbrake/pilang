@@ -122,6 +122,7 @@ static inline int operand_count(uint8_t op)
     case OP_MAT_SET:
     case OP_CALL_SPREAD:
     case OP_COMP_APPEND:
+    case OP_MAP_FINALIZE:
         return 1;
 
     default:

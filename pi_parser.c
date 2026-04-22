@@ -71,6 +71,10 @@ static bool match(parser_t *parser, tk_type type);
 static token_t consume(parser_t *parser, tk_type type, const char *message);
 static void advance(parser_t *parser);
 void set_pos(parser_t *parser, token_t token);
+static bool is_functionLiteral(parser_t *parser, int index);
+static bool is_objectLiteral(parser_t *parser, int index);
+static char *get_pendingFunctionName(parser_t *parser);
+static void emit_mapFinalize(parser_t *parser);
 
 typedef struct
 {
@@ -92,6 +96,66 @@ typedef struct
     int end_index;
     bool has_conditions;
 } list_comp_t;
+
+
+
+
+static bool is_functionLiteral(parser_t *parser, int index)
+{
+    tk_type type = parser->tokens[index].type;
+
+    if (type == TK_FUN)
+        return true;
+
+    if (type == TK_ID && parser->tokens[index + 1].type == TK_RARROW)
+        return true;
+
+    if (type != TK_LPAREN)
+        return false;
+
+    int depth = 1;
+
+    for (int i = index + 1; parser->tokens[i].type != TK_EOF; i++)
+    {
+        if (parser->tokens[i].type == TK_LPAREN)
+            depth++;
+        else if (parser->tokens[i].type == TK_RPAREN)
+            depth--;
+
+        if (depth == 0)
+            return parser->tokens[i + 1].type == TK_RARROW;
+    }
+
+    return false;
+}
+
+static bool is_objectLiteral(parser_t *parser, int index)
+{
+    return parser->tokens[index].type == TK_LBRACE;
+}
+
+static char *get_pendingFunctionName(parser_t *parser)
+{
+    char *name = parser->fun_name;
+
+    parser->fun_name = NULL;
+
+    return name ? strdup(name) : NULL;
+}
+
+static void emit_mapFinalize(parser_t *parser)
+{
+    int name_index = 0xFF;
+    char *descr = "";
+
+    if (parser->object_name != NULL)
+    {
+        name_index = store_name(parser->comp, parser->object_name);
+        descr = parser->object_name;
+    }
+
+    emit_8u(parser->comp, OP_MAP_FINALIZE, descr, name_index);
+}
 
 /**
  * Emits the bytecode for a spread list literal.
@@ -1252,6 +1316,9 @@ parser_t *init_parser(compiler_t *comp, token_t *tokens, ParserMode mode)
     parser->force_store = false;
     parser->is_return = false;
     parser->has_walrus = false;
+    parser->object_member = false;
+    parser->fun_name = NULL;
+    parser->object_name = NULL;
 
     // Initialize the compiler associated with the parser
     parser->comp = comp;
@@ -1407,7 +1474,19 @@ static void variable(parser_t *parser)
 
     // Check if the variable is being assigned a value
     if (match(parser, TK_ASSIGN))
+    {
+        char *prev_fun = parser->fun_name; // Store the pending function name
+        char *prev_obj = parser->object_name; // Store the pending object name
+
+        if (is_functionLiteral(parser, parser->current))
+            parser->fun_name = name;
+        if (is_objectLiteral(parser, parser->current))
+            parser->object_name = name;
+
         assignment(parser, true);
+        parser->fun_name = prev_fun;
+        parser->object_name = prev_obj;
+    }
 
     else
         emit(parser->comp, OP_PUSH_NIL);
@@ -1465,7 +1544,7 @@ static void emit_spreadMapLiteral(parser_t *parser)
 
     if (match(parser, TK_RBRACE))
     {
-        emit(parser->comp, OP_MAP_FINALIZE);
+        emit_mapFinalize(parser);
         return;
     }
 
@@ -1543,7 +1622,10 @@ static void emit_spreadMapLiteral(parser_t *parser)
             if (strcmp(key, "constructor") == 0)
                 p_error("Constructor is a reserved keyword.", peek(parser).line, peek(parser).column);
             consume(parser, TK_COLON, "Expect ':' after object key expression.");
+            char *prev_obj = parser->object_name;
+            parser->object_name = NULL;
             cond_expr(parser);
+            parser->object_name = prev_obj;
         }
 
         emit_16u(parser->comp, OP_LOAD_CONST, key, index);
@@ -1551,7 +1633,7 @@ static void emit_spreadMapLiteral(parser_t *parser)
     } while (match(parser, TK_COMMA) && !check(parser, TK_RBRACE));
 
     consume(parser, TK_RBRACE, "Expect '}' at the end of map literal.");
-    emit(parser->comp, OP_MAP_FINALIZE);
+    emit_mapFinalize(parser);
 }
 /**
  * func_decl -> "fun" IDENT "(" param_list ")" block
@@ -2395,7 +2477,17 @@ static void assignment(parser_t *parser, bool emit_load)
 
             // Evaluate RHS
             parser->current = right;
+            char *prev_fun = parser->fun_name;
+            char *prev_obj = parser->object_name;
+
+            if (op == TK_ASSIGN && is_functionLiteral(parser, right))
+                parser->fun_name = token_value(lhs);
+            if (op == TK_ASSIGN && is_objectLiteral(parser, right))
+                parser->object_name = token_value(lhs);
+
             cond_expr(parser);
+            parser->fun_name = prev_fun;
+            parser->object_name = prev_obj;
 
             // Emit the bytecode for compound operation (e.g., `+=`)
             if (op != TK_ASSIGN)
@@ -3410,9 +3502,13 @@ static void primary(parser_t *parser)
                 consume(parser, TK_RPAREN, "Expect ')' after expression.");
                 consume(parser, TK_RARROW, "Expect '->' after function parameters.");
 
-                push_function(parser->comp, NULL);
+                bool method_value = parser->object_member;
+                parser->object_member = false;
+                push_function(parser->comp, get_pendingFunctionName(parser));
                 parser->comp->current->param_names = params;
 
+                if (method_value)
+                    add_local(parser->comp, "this");
                 for (int i = 0; i < size; i++)
                     add_local(parser->comp, string_get(params, i));
                 add_local(parser->comp, "args");
@@ -3421,6 +3517,7 @@ static void primary(parser_t *parser)
                 arrow_func(parser);
 
                 pop_function(parser->comp, size);
+                parser->object_member = method_value;
             }
             else
             {
@@ -3472,11 +3569,15 @@ static void primary(parser_t *parser)
 
             emit(parser->comp, OP_PUSH_NIL);
 
-            push_function(parser->comp, NULL);
+            bool method_value = parser->object_member;
+            parser->object_member = false;
+            push_function(parser->comp, get_pendingFunctionName(parser));
             list_t *single_params = list_create(sizeof(String));
             list_add(single_params, new_string(name));
             parser->comp->current->param_names = single_params;
 
+            if (method_value)
+                add_local(parser->comp, "this");
             add_local(parser->comp, name);
             add_local(parser->comp, "args");
             add_local(parser->comp, "kw_args");
@@ -3484,6 +3585,7 @@ static void primary(parser_t *parser)
             arrow_func(parser);
 
             pop_function(parser->comp, 1);
+            parser->object_member = method_value;
         }
         // First handle potential walrus operator
         else if (match(parser, TK_LARROW))
@@ -3588,6 +3690,7 @@ static void primary(parser_t *parser)
         {
             pop_object(parser->comp);
             emit_16u(parser->comp, OP_PUSH_MAP, "", 0); // Emit empty map
+            emit_mapFinalize(parser);
         }
         else if (map_hasSpreadItems(parser))
         {
@@ -3666,7 +3769,19 @@ static void primary(parser_t *parser)
                     if (strcmp(key, "constructor") == 0)
                         p_error("Constructor is a reserved keyword.", peek(parser).line, peek(parser).column);
                     consume(parser, TK_COLON, "Expect ':' after object key expression.");
+                    bool prev_object_member = parser->object_member;
+                    char *prev_fun = parser->fun_name;
+                    char *prev_obj = parser->object_name;
+                    parser->object_member = true;
+                    parser->object_name = NULL;
+
+                    if (is_functionLiteral(parser, parser->current))
+                        parser->fun_name = key;
+
                     cond_expr(parser);
+                    parser->object_member = prev_object_member;
+                    parser->fun_name = prev_fun;
+                    parser->object_name = prev_obj;
                 }
 
                 // Emit bytecode to load the key as a constant
@@ -3677,6 +3792,7 @@ static void primary(parser_t *parser)
             consume(parser, TK_RBRACE, "Expect '}' at the end of map literal.");
             pop_object(parser->comp);
             emit_16u(parser->comp, OP_PUSH_MAP, "", size); // Emit map with key-value pairs
+            emit_mapFinalize(parser);
         }
     }
 
@@ -3738,9 +3854,13 @@ static void primary(parser_t *parser)
         consume(parser, TK_RPAREN, "Expect ')' before function body.");
         consume(parser, TK_LBRACE, "Expect '{' before function body.");
 
-        push_function(comp, NULL); // Push the function onto the stack
+        bool method_value = parser->object_member;
+        parser->object_member = false;
+        push_function(comp, get_pendingFunctionName(parser)); // Push the function onto the stack
         comp->current->param_names = params;
 
+        if (method_value)
+            add_local(comp, "this");
         // Add the parameters to the local scope
         for (int i = 0; i < size; i++)
             add_local(comp, string_get(params, i));
@@ -3778,6 +3898,7 @@ static void primary(parser_t *parser)
         }
 
         pop_function(comp, size); // Pop the function from the stack
+        parser->object_member = method_value;
 
         consume(parser, TK_RBRACE, "Expect '}' after function body.");
     }

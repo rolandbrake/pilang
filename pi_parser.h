@@ -26,12 +26,15 @@ typedef struct
     bool emit_load;  // Flag indicating whether to emit a LOAD instruction.
     bool is_assign;  // Flag indicating whether an assignment is in progress.
     bool has_walrus; // Flag indicating whether a walrus operator is in progress.
+    bool object_member; // True only while parsing a direct object-literal value expression.
     tk_type op;      // Type of operator being parsed (e.g. TK_PLUS, TK_MINUS, etc.).
 
     // Compiler associated with the parser
     compiler_t *comp;
 
     bool is_return;
+    char *fun_name; // (pending functoin name) Inferred name for the next direct function literal RHS.
+    char *object_name; // Inferred name for the next direct object-literal RHS.
 
     ParserMode mode; // The current parsing mode (file or REPL).
 

@@ -1,0 +1,21 @@
+Value = {
+    constructor(data) {
+        this.data = data
+    },
+    f() {
+        let out = Value(0)
+        backward = () -> {
+            return this
+        }
+        out.backward = backward
+        return out
+    },
+}
+
+v1 = Value(2)
+v2 = v1.f()
+
+back = v2.backward()
+
+assert(back.data == 2, "bound closures stored on instances should keep captured this")
+println("ok")

@@ -370,14 +370,16 @@ Value pi_name(vm_t *vm, int argc, Value *argv)
     if (argc == 1 && IS_MAP(argv[0]))
     {
         map = AS_MAP(argv[0]);
-        const char *name = map->intrinsic_name ? map->intrinsic_name : "";
-        return NEW_OBJ(add_obj(vm, new_pistring(strdup(name))));
+        if (map->intrinsic_name == NULL)
+            return NEW_NIL();
+        return NEW_OBJ(add_obj(vm, new_pistring(strdup(map->intrinsic_name))));
     }
     else if (argc == 2 && IS_MAP(argv[1]))
     {
         map = AS_MAP(argv[1]);
-        const char *name = map->intrinsic_name ? map->intrinsic_name : "";
-        return NEW_OBJ(add_obj(vm, new_pistring(strdup(name))));
+        if (map->intrinsic_name == NULL)
+            return NEW_NIL();
+        return NEW_OBJ(add_obj(vm, new_pistring(strdup(map->intrinsic_name))));
     }
 
     vm_error(vm, "[name] expects obj.name() or Object.name(obj).");

@@ -191,6 +191,15 @@ typedef struct
     int current;
 } PiMatrix;
 
+typedef struct
+{
+    double *data; // contiguous block of memory
+    int *shape;   // array of dimensions
+    int *strides; // steps in memory for each dimension
+    int ndim;     // number of dimensions
+    int size;     // total number of elements
+} PiTensor;
+
 typedef struct PiMap
 {
     Object object;

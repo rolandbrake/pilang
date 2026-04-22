@@ -1,29 +1,19 @@
-
-
 Point = {
-  constructor(x, y) {
-    this.x = x;
-    this.y = y;
-  },
-  compute(op, other) {
-    if (op == lang.OP_ADD) {
-      if (!is_num(other)) {
-        error("point + other expects a number");
-      }
-      return Point(this.x + other, this.y + other);
-    } else if (op == lang.OP_POS) {
-      return this;
-    }
+    x: 1,
+    y: 2
+}
 
-    error("unsupported operator: " + op);
-  },
-  format() {
-    return "(" + this.x + ", " + this.y + ")";
-  },
-};
+p = Point()
+assert(p.name() == nil, "objects should start without an intrinsic name")
 
-point = Point(1, 2);
+p.setName("player")
+assert(p.name() == "player", "name() should return the intrinsic name after setting it")
+assert(Object.name(p) == "player", "Object.name(obj) should read the intrinsic name")
+Object.setName(p, "hero")
+assert(p.name() == "hero", "Object.setName(obj, value) should update the intrinsic name")
 
-println(point + 3);
-println("point=" + point);
-println(+point);
+c = p.clone()
+assert(c.name() == "hero", "clone() should preserve the intrinsic name")
+
+println(p.name())
+println(c.name())

@@ -1,0 +1,15 @@
+let value = 10
+
+let Box = {
+    format: () -> "Box(" + value + ")",
+    equals: (candidate) -> is_num(candidate) && candidate == value,
+    compare: (rhs) -> value - rhs
+}
+
+let box = Box()
+
+assert(box == 10, "arrow methods in object literals should bind arguments correctly")
+assert(10 == box, "right-side equality should still work for arrow methods")
+assert(box > 8, "compare via arrow method should receive rhs instead of this")
+assert(box.format() == "Box(10)", "format via arrow method should still work")
+println("ok")

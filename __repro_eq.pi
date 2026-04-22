@@ -1,0 +1,18 @@
+import lang
+let value = 10
+let Box = {
+    compute: fun(op, other = nil) {
+        if (op == lang.OP_ADD) return value + other
+        error('bad')
+    },
+    equals: fun(candidate) {
+        println('equals candidate:')
+        println(candidate)
+        return is_num(candidate) && candidate == value
+    },
+    compare: fun(rhs) { return value - rhs },
+    format: fun() { return 'Box(' + value + ')' }
+}
+let box = Box(10)
+println(box + 5)
+println(box == 10)

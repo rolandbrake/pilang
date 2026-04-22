@@ -861,6 +861,9 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
     ((Function *)fn)->names = function->names;
     ((Function *)fn)->instrs = function->instrs;
     ((Function *)fn)->globals = function->globals;
+    ((Function *)fn)->param_names = function->param_names;
+    ((Function *)fn)->upvalues = function->upvalues;
+    ((Function *)fn)->upvalue_count = function->upvalue_count;
     ((Function *)fn)->need_args = function->need_args;
     ((Function *)fn)->need_kwargs = function->need_kwargs;
     ((Function *)fn)->owner = function->owner;
@@ -1606,7 +1609,6 @@ void run(vm_t *vm)
 
     while (pc < length && vm->running)
     {
-
         op = code[pc++];
 
         vm->ip++; // Advance instruction index
@@ -1683,6 +1685,7 @@ void run(vm_t *vm)
             op = code[pc++];
             int slot = vm->bp + op;
             vm->stack[slot] = pop_stack(vm);
+
             // Ensure the stack pointer reserves space for locals.
             if (vm->sp <= slot)
                 vm->sp = slot + 1;
@@ -3138,8 +3141,6 @@ void run(vm_t *vm)
             numElements |= code[pc++];
             // create a new hashtable
             table_t *table = ht_create(sizeof(Value));
-            PiMap *proto = NULL;
-            bool has_methods = false;
 
             // Adjust the stack pointer to the first element of the map
             int _sp = vm->sp - (numElements * 2);
@@ -3150,12 +3151,6 @@ void run(vm_t *vm)
                 Value value = vm->stack[i];
 
                 char *key = AS_CSTRING(vm->stack[i + 1]);
-                if (IS_FUN(value))
-                {
-                    AS_FUN(value)->is_method = true;
-                    has_methods = true;
-                }
-
                 ht_put(table, key, &value);
             }
 
@@ -3163,10 +3158,6 @@ void run(vm_t *vm)
 
             // Push the new map onto the stack
             Object *map = add_obj(vm, new_map(table, false));
-            if (proto == NULL && has_methods)
-                proto = vm->object_proto;
-            ((PiMap *)map)->proto = proto;
-            finalize_mapLiteral(vm, (PiMap *)map);
             push_stack(vm, NEW_OBJ(map));
 
             break;
@@ -3198,10 +3189,15 @@ void run(vm_t *vm)
 
         case OP_MAP_FINALIZE:
         {
+            int name_index = code[pc++];
             if (!IS_MAP(peek_stack(vm)))
                 vm_error(vm, "Map finalize expects a map target.");
 
-            finalize_mapLiteral(vm, AS_MAP(peek_stack(vm)));
+            PiMap *map = AS_MAP(peek_stack(vm));
+            finalize_mapLiteral(vm, map);
+
+            if (name_index != 0xFF && map->proto != NULL && map->intrinsic_name == NULL)
+                map->intrinsic_name = strdup(string_get(vm->names, name_index));
             break;
         }
 
@@ -3353,6 +3349,8 @@ void run(vm_t *vm)
         case OP_LOAD_UPVALUE:
         {
             int index = code[pc++];
+            if (function->upvalues == NULL || function->upvalues[index] == NULL)
+                vm_error(vm, "Invalid method binding: closure lost its captured variables while binding a method.");
             UpValue *upValue = function->upvalues[index];
             if (upValue->index != -1)
                 push_stack(vm, vm->stack[upValue->index]);
@@ -3364,11 +3362,15 @@ void run(vm_t *vm)
         case OP_STORE_UPVALUE:
         {
             int index = code[pc++];
+            if (function->upvalues == NULL || function->upvalues[index] == NULL)
+                vm_error(vm, "Invalid method binding: closure lost its captured variables while binding a method.");
             UpValue *upValue = function->upvalues[index];
+            Value stored = pop_stack(vm);
+
             if (upValue->index != -1)
-                vm->stack[upValue->index] = pop_stack(vm);
+                vm->stack[upValue->index] = stored;
             else
-                function->upvalues[index]->value = pop_stack(vm);
+                function->upvalues[index]->value = stored;
             break;
         }
 
