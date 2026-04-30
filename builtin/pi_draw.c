@@ -412,7 +412,8 @@ static void pump_events(vm_t *vm, PiContext *ctx)
     while (SDL_PollEvent(&sdl_event))
     {
         if (sdl_event.type == SDL_QUIT ||
-            (sdl_event.type == SDL_WINDOWEVENT && sdl_event.window.event == SDL_WINDOWEVENT_CLOSE))
+            (sdl_event.type == SDL_WINDOWEVENT && sdl_event.window.event == SDL_WINDOWEVENT_CLOSE) ||
+            (sdl_event.type == SDL_KEYDOWN && sdl_event.key.keysym.sym == SDLK_ESCAPE))
             ctx->running = false;
 
         if (sdl_event.type == SDL_WINDOWEVENT &&

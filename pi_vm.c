@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <time.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "pi_vm.h"
 
@@ -21,6 +22,86 @@
 
 static PiMap *create_objectProto(vm_t *vm);
 static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv);
+
+static char *copy_dirName(const char *path)
+{
+    if (!path || path[0] == '\0')
+        return strdup(".");
+
+    char *dir = strdup(path);
+    int len = (int)strlen(dir);
+
+    while (len > 0 && dir[len - 1] != '/' && dir[len - 1] != '\\')
+        len--;
+
+    if (len == 0)
+    {
+        free(dir);
+        return strdup(".");
+    }
+
+    dir[len - 1] = '\0';
+    return dir;
+}
+
+static ObjModule *vm_currentModule(vm_t *vm)
+{
+    if (!vm || !vm->globals)
+        return NULL;
+
+    Value *module_val = ht_get(vm->globals, "module");
+    if (!module_val || !IS_MODULE(*module_val))
+        return NULL;
+
+    return AS_MODULE(*module_val);
+}
+
+static const char *vm_moduleLabel(vm_t *vm)
+{
+    ObjModule *module = vm_currentModule(vm);
+    if (!module)
+        return NULL;
+
+    if (module->path && module->path[0] != '\0')
+        return module->path;
+    if (module->name && module->name[0] != '\0')
+        return module->name;
+    return NULL;
+}
+
+static instr_t *vm_currentInstr(vm_t *vm)
+{
+    if (!vm || !vm->instrs)
+        return NULL;
+
+    char *scope_name = "<global>";
+    if (vm->function && IS_FUN(NEW_OBJ(vm->function)))
+    {
+        Function *fn = (Function *)vm->function;
+        if (fn->name && fn->name[0] != '\0')
+            scope_name = fn->name;
+    }
+
+    list_t *instrs = ht_get(vm->instrs, scope_name);
+    if (!instrs && strcmp(scope_name, "<global>") != 0)
+        instrs = ht_get(vm->instrs, "<global>");
+    if (!instrs)
+        return NULL;
+
+    int size = list_size(instrs);
+    instr_t *instr = NULL;
+    int target_offset = vm->pc;
+
+    for (int i = 0; i < size; i++)
+    {
+        instr_t *cur = (instr_t *)list_getAt(instrs, i);
+        if (cur->offset > target_offset)
+            break;
+        instr = cur;
+    }
+
+    return instr;
+}
 
 /**
  * Initializes the virtual machine by allocating memory and
@@ -87,12 +168,25 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     vm->current_path = getcwd(NULL, 0);
     vm->object_proto = NULL;
 
+    if (entry_name && entry_name[0] != '\0')
+    {
+        char *entry_dir = copy_dirName(entry_name);
+        if (entry_dir)
+        {
+            free(vm->current_path);
+            vm->current_path = entry_dir;
+        }
+    }
+
     // Expose current module context in every VM as `module`.
-    const char *module_name = entry_name ? entry_name : "";
+    const char *module_name = (entry_name && entry_name[0] != '\0') ? entry_name : "<main>";
+    const char *module_path = (entry_name && entry_name[0] != '\0')
+                                  ? entry_name
+                                  : (vm->current_path ? vm->current_path : "");
     Object *main_moduleObj = new_module(
         vm,
         module_name,
-        vm->current_path ? vm->current_path : "",
+        module_path,
         false,
         is_main);
 
@@ -224,48 +318,42 @@ static inline int count_objs(vm_t *vm)
 
 void vm_error(vm_t *vm, const char *message)
 {
-    instr_t *instr = NULL;
-    char *name = "<global>";
-
-    if (vm->frame_sp > 0)
-    {
-        Frame *top = &vm->frames[vm->frame_sp - 1];
-        name = top->function->name;
-    }
-
-    list_t *instrs = ht_get(vm->instrs, name);
-    int size = instrs ? list_size(instrs) : 0;
-
-    for (int i = 0; i < size; i++)
-    {
-        instr_t *cur = (instr_t *)list_getAt(instrs, i);
-
-        if (cur->offset > vm->pc)
-            break;
-        instr = cur;
-    }
+    instr_t *instr = vm_currentInstr(vm);
+    const char *module_label = vm_moduleLabel(vm);
 
     if (global_errorHandler)
     {
         char buffer[1024];
-        if (instr && instr->fun_name)
+        if (module_label && instr && instr->fun_name)
+            snprintf(buffer, sizeof(buffer), "%s (module '%s', function '%s')", message, module_label, instr->fun_name);
+        else if (module_label)
+            snprintf(buffer, sizeof(buffer), "%s (module '%s')", message, module_label);
+        else if (instr && instr->fun_name)
             snprintf(buffer, sizeof(buffer), "%s (in function '%s')", message, instr->fun_name);
         else
             snprintf(buffer, sizeof(buffer), "%s", message);
 
-        global_errorHandler(buffer, instr ? instr->line : -1, 0);
+        global_errorHandler(buffer, instr ? instr->line : -1, instr ? instr->column : 0);
         return;
     }
 
     if (instr)
     {
-        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR] at line %d", instr->line);
+        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR]");
+        if (module_label)
+            fprintf(stderr, " in %s", module_label);
+        fprintf(stderr, " at line %d, column %d", instr->line, instr->column);
         if (instr->fun_name)
             fprintf(stderr, " in function '%s'", instr->fun_name);
         fprintf(stderr, ":\033[0m %s\n\n", message);
     }
     else
-        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR] at unknown location:\033[0m %s\n\n", message);
+    {
+        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR]");
+        if (module_label)
+            fprintf(stderr, " in %s", module_label);
+        fprintf(stderr, " at unknown location:\033[0m %s\n\n", message);
+    }
 
     exit(EXIT_FAILURE);
 }
@@ -284,26 +372,8 @@ void vm_error(vm_t *vm, const char *message)
 
 void vm_errorf(vm_t *vm, const char *fmt, ...)
 {
-    instr_t *instr = NULL;
-    char *name = "<global>";
-
-    if (vm->frame_sp > 0)
-    {
-        Frame *top = &vm->frames[vm->frame_sp - 1];
-        name = top->function->name;
-    }
-
-    list_t *instrs = ht_get(vm->instrs, name);
-    int size = instrs ? list_size(instrs) : 0;
-
-    for (int i = 0; i < size; i++)
-    {
-        instr_t *cur = (instr_t *)list_getAt(instrs, i);
-
-        if (cur->offset > vm->pc)
-            break;
-        instr = cur;
-    }
+    instr_t *instr = vm_currentInstr(vm);
+    const char *module_label = vm_moduleLabel(vm);
 
     // Format the message first
     char message[1024];
@@ -317,25 +387,35 @@ void vm_errorf(vm_t *vm, const char *fmt, ...)
     {
         char buffer[1024];
 
-        if (instr && instr->fun_name)
+        if (module_label && instr && instr->fun_name)
+            snprintf(buffer, sizeof(buffer), "%s (module '%s', function '%s')", message, module_label, instr->fun_name);
+        else if (module_label)
+            snprintf(buffer, sizeof(buffer), "%s (module '%s')", message, module_label);
+        else if (instr && instr->fun_name)
             snprintf(buffer, sizeof(buffer), "%s (in function '%s')", message, instr->fun_name);
         else
             snprintf(buffer, sizeof(buffer), "%s", message);
 
-        global_errorHandler(buffer, instr ? instr->line : -1, 0);
+        global_errorHandler(buffer, instr ? instr->line : -1, instr ? instr->column : 0);
         return;
     }
 
     if (instr)
     {
-        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR] at line %d", instr->line);
+        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR]");
+        if (module_label)
+            fprintf(stderr, " in %s", module_label);
+        fprintf(stderr, " at line %d, column %d", instr->line, instr->column);
         if (instr->fun_name)
             fprintf(stderr, " in function '%s'", instr->fun_name);
         fprintf(stderr, ":\033[0m %s\n\n", message);
     }
     else
     {
-        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR] at unknown location:\033[0m %s\n\n", message);
+        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR]");
+        if (module_label)
+            fprintf(stderr, " in %s", module_label);
+        fprintf(stderr, " at unknown location:\033[0m %s\n\n", message);
     }
 
     exit(EXIT_FAILURE);
@@ -610,7 +690,6 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
 
     if (IS_FUN(callee))
     {
-        vm->function = AS_OBJ(callee);
         result = call_func(vm, AS_FUN(callee), num_args, args, kw_args);
         if (IS_OBJ(result))
             add_obj(vm, AS_OBJ(result));
@@ -1371,7 +1450,7 @@ static Value matrix_broadcastBinary(vm_t *vm, PiMatrix *left, PiMatrix *right, i
 }
 
 // Matrix slice specification
-typedef struct
+typedef struct MatrixSliceSpec
 {
     int start;
     int end;
@@ -1609,6 +1688,7 @@ void run(vm_t *vm)
 
     while (pc < length && vm->running)
     {
+        vm->pc = pc;
         op = code[pc++];
 
         vm->ip++; // Advance instruction index
@@ -2811,9 +2891,6 @@ void run(vm_t *vm)
 
             if (IS_FUN(callee))
             {
-
-                vm->function = AS_OBJ(callee);
-
                 vm->pc = pc;
                 // Call native function if it's a built-in
                 Value result = call_func(vm, AS_FUN(callee), num_args, args, NEW_NIL());
@@ -2860,7 +2937,6 @@ void run(vm_t *vm)
 
             if (IS_FUN(callee))
             {
-                vm->function = AS_OBJ(callee);
                 vm->pc = pc;
                 result = call_func(vm, AS_FUN(callee), num_args, args, kw_args);
                 if (IS_OBJ(result))

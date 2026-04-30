@@ -30,6 +30,8 @@ static void dis_emit(const char *text)
 }
 #endif
 
+static const char *error_source = NULL;
+
 static const char *op_names[] = {
     [0x4] = "RETURN_VALUE",
     [0x5] = "LOAD_CONST",
@@ -282,6 +284,7 @@ compiler_t *init_compiler()
     comp->is_lookUp = false;
     comp->is_upvalue = false;
     comp->is_repl = false;
+    comp->source_name = NULL;
 
     push(comp->contexts, comp->current);
 
@@ -1579,6 +1582,11 @@ void dis(compiler_t *comp)
     }
 }
 
+void set_errorSource(const char *source_name)
+{
+    error_source = source_name;
+}
+
 /**
  * Reports a parsing error with a specified message, line, and column.
  *
@@ -1597,8 +1605,12 @@ void p_error(const char *message, int line, int column)
     else
     {
         // Print the error message with the specified line and column
-        fprintf(stderr, "[Parsing Error] at line %d, column %d: %s\n",
-                line, column, message);
+        if (error_source && error_source[0] != '\0')
+            fprintf(stderr, "[Parsing Error] in %s at line %d, column %d: %s\n",
+                    error_source, line, column, message);
+        else
+            fprintf(stderr, "[Parsing Error] at line %d, column %d: %s\n",
+                    line, column, message);
         exit(EXIT_FAILURE);
     }
 }
@@ -1634,7 +1646,12 @@ void p_errorf(int line, int column, const char *format, ...)
         fflush(stdout);
 
         // Print the error message with the specified line and column
-        fprintf(stderr, "\n\033[1;31m[PARSE ERROR] at line %d, column %d:\033[0m %s", line, column, buffer);
+        if (error_source && error_source[0] != '\0')
+            fprintf(stderr, "\n\033[1;31m[PARSE ERROR] in %s at line %d, column %d:\033[0m %s",
+                    error_source, line, column, buffer);
+        else
+            fprintf(stderr, "\n\033[1;31m[PARSE ERROR] at line %d, column %d:\033[0m %s",
+                    line, column, buffer);
         fprintf(stderr, "\n");
 
         exit(EXIT_FAILURE);
@@ -1661,6 +1678,7 @@ void free_compiler(compiler_t *comp)
     list_free(comp->builtin_names);
     if (comp->declared_globals)
         ht_free(comp->declared_globals);
+    free(comp->source_name);
 
     // Free the contexts stack and their contents
     while (!is_empty(comp->contexts))
@@ -1722,6 +1740,7 @@ void reset_compiler(compiler_t *comp)
     stack_free(comp->loops);
 
     stack_free(comp->objects);
+    free(comp->source_name);
 
     // instr_t/list ownership is handled by free_context() above.
     ht_free(comp->instrs);
@@ -1744,6 +1763,7 @@ void reset_compiler(compiler_t *comp)
     comp->is_lookUp = false;
     comp->is_upvalue = false;
     comp->is_repl = false;
+    comp->source_name = NULL;
 
     push(comp->contexts, comp->current);
 }

@@ -39,6 +39,12 @@ typedef uint8_t byte;
 
 #define EPSILON 1e-5f
 
+#ifndef NIL_VAL
+#define NIL_VAL NEW_NIL()
+#define TRUE_VAL NEW_BOOL(true)
+#define FALSE_VAL NEW_BOOL(false)
+#endif
+
 // A simple 3D vector structure
 typedef struct
 {

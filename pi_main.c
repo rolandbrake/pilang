@@ -91,6 +91,7 @@ static int browser_prepareExecution(void)
     token_t *tokens = scan();
 
     browser_comp = init_compiler();
+    browser_comp->source_name = strdup("<browser>");
     browser_parser = init_parser(browser_comp, tokens, MODE_FILE);
     parse(browser_parser);
 
@@ -305,6 +306,9 @@ static int run_source(const char *source, ParserMode mode, const char *entry_nam
     token_t *tokens = scan();
 
     compiler_t *comp = init_compiler();
+    comp->source_name = strdup((entry_name && entry_name[0] != '\0')
+                                   ? entry_name
+                                   : (mode == MODE_REPL ? "<repl>" : "<source>"));
     parser_t *parser = init_parser(comp, tokens, mode);
     parse(parser);
 #ifdef DEBUG_BUILD

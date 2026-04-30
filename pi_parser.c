@@ -1322,6 +1322,7 @@ parser_t *init_parser(compiler_t *comp, token_t *tokens, ParserMode mode)
 
     // Initialize the compiler associated with the parser
     parser->comp = comp;
+    set_errorSource(comp ? comp->source_name : NULL);
 
     // Set the parsing mode
     parser->mode = mode;
@@ -1352,6 +1353,10 @@ void parse(parser_t *parser)
 
     // Emit HALT bytecode to indicate the end of the program
     emit(parser->comp, OP_HALT);
+
+    // Runtime diagnostics need the global instruction metadata even when
+    // debug disassembly is disabled.
+    ht_put(parser->comp->instrs, "<global>", parser->comp->current->instrs);
 }
 
 /**
@@ -2888,12 +2893,12 @@ static void compare_expr(parser_t *parser)
  */
 static void add_expr(parser_t *parser)
 {
-    dot_expr(parser); // 👈 changed from mult_expr()
+    dot_expr(parser);
     while (match_n(parser, 2, TK_PLUS, TK_MINUS))
     {
 
         token_t op = previous(parser);
-        dot_expr(parser); // 👈 changed from mult_expr()
+        dot_expr(parser);
         set_pos(parser, op);
         if (op.type == TK_PLUS)
             emit_8u(parser->comp, OP_BINARY, bin_ops[0], 0);

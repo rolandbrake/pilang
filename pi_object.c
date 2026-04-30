@@ -475,6 +475,7 @@ Object *new_chart(PiContext *ctx)
     chart->has_bounds = false;
     chart->show_grid = true;
     chart->show_axes = true;
+    chart->show_ticks = true;
     chart->title = NULL;
     chart->xlabel = NULL;
     chart->ylabel = NULL;

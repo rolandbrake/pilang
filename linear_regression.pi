@@ -108,8 +108,7 @@ fun gradient_descent(x, y, w_in, b_in, alpha, num_iters, cost_function, gradient
             b_history += b
             cost_history += cost_function(x, y, w, b)
         }
-    }     
-    
+    }        
     
     return [w, b, cost_history, w_history, b_history]
 }

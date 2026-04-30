@@ -547,6 +547,7 @@ Value load_module(vm_t *vm, const char *name)
     init_scanner(source);
     token_t *tokens = scan();
     compiler_t *comp = init_compiler();
+    comp->source_name = strdup(resolved);
     parser_t *parser = init_parser(comp, tokens, MODE_FILE);
     parse(parser);
 

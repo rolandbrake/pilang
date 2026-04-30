@@ -1,0 +1,22 @@
+import stats
+
+
+lst = [0.2, 0.9, 1, 0.33, 0.5, 0.7, 0.8]
+
+println(stats.mean(lst)) // Expected: 0.64
+println(stats.avg(lst)) // Expected: 0.64
+println(stats.var(lst))  // Expected: 0.13
+println(stats.dev(lst)) // Expected: 0.37
+println(stats.median(lst))  // Expected: 0.7
+println(stats.mode(lst))  // Expected: 0.7
+
+import stats.{mean, avg, var, dev, median, mode}
+
+println(mean([1,2,3,4,5]))      // Expected: 3
+println(avg([1,2,3,4,5]))       // Expected: 3
+
+println(var([1,2,3,4,5]))       // Expected: 2.5
+println(dev([1,2,3,4,5]))       // Expected: ~1.58
+
+println(median([1,3,3,6,7,8,9]))// Expected: 6
+println(mode([1,2,2,3,3,3,4]))  // Expected: 3

@@ -5,6 +5,14 @@
 #include "../pi_value.h"
 #include "../pi_object.h"
 
+typedef struct
+{
+    SDL_Renderer *r;
+    PiChart *chart;
+    int W, H, margin;
+    int col; /* palette colour for this series */
+} DrawContext;
+
 Value pt_chart(vm_t *vm, int argc, Value *argv);
 
 Value pt_func(vm_t *vm, int argc, Value *argv);
@@ -27,6 +35,7 @@ Value pt_show(vm_t *vm, int argc, Value *argv);
 Value pt_title(vm_t *vm, int argc, Value *argv);
 Value pt_xlabel(vm_t *vm, int argc, Value *argv);
 Value pt_ylabel(vm_t *vm, int argc, Value *argv);
+Value pt_tick(vm_t *vm, int argc, Value *argv);
 Value pt_grid(vm_t *vm, int argc, Value *argv);
 Value pt_axes(vm_t *vm, int argc, Value *argv);
 Value pt_legend(vm_t *vm, int argc, Value *argv);

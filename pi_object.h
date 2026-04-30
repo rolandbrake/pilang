@@ -191,9 +191,26 @@ typedef struct
     int current;
 } PiMatrix;
 
+typedef enum
+{
+    TN_FLOAT32,
+    TN_FLOAT64,
+    TN_INT32,
+    TN_INT64,
+} TN_TYPE;
+
 typedef struct
 {
-    double *data; // contiguous block of memory
+    Object object; // Object header
+    // double *data;  // contiguous block of memory
+    union
+    {
+        double *f32;
+        double *f64;
+        int32_t *i32;
+        int64_t *i64;
+    } data;       // union for different data types
+    TN_TYPE type; // data type (e.g., float32, int64)
     int *shape;   // array of dimensions
     int *strides; // steps in memory for each dimension
     int ndim;     // number of dimensions
@@ -299,14 +316,14 @@ typedef struct
 
     bool show_grid;
     bool show_axes;
+    bool show_ticks;
 
     char *title;
     char *xlabel;
     char *ylabel;
 } PiChart;
 
-uint32_t
-string_hash(char *chars, size_t length);
+uint32_t string_hash(char *chars, size_t length);
 Object *new_pistring(char *str);
 PiString *copy_pistring(char *chars, int length);
 

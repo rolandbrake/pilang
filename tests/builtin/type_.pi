@@ -1,0 +1,6 @@
+import type:tp;
+
+let source = 1..5;
+let converted = tp.list(source);
+
+println(converted);

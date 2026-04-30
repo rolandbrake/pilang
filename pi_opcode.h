@@ -56,7 +56,7 @@ typedef enum
     OP_IMPORT_ALL = 0x3f,
     OP_IMPORT_DEFAULT = 0x40,
     OP_LOAD_SUPER = 0x41,
-    OP_MAT_GET = 0x42,
+    OP_MAT_GET = 0x42,    
     OP_MAT_SET = 0x43,
     OP_LIST_FINALIZE = 0x44,
     OP_CALL_SPREAD = 0x45,

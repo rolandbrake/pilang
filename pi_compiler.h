@@ -68,6 +68,7 @@ typedef struct
     int current_line; // Current line number in the source code
     int current_col;  // Current column number in the source code
 
+    char *source_name; // Source file/module name for parser diagnostics
     char *name; // Name of the current variable being processed
 } compiler_t;
 
@@ -172,6 +173,7 @@ int code_size(compiler_t *comp);
 
 
 // Error handling functions
+void set_errorSource(const char *source_name);
 void p_error(const char *message, int line, int column);
 void p_errorf(int line, int column, const char *format, ...);
 

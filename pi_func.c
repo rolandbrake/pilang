@@ -151,6 +151,8 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         return result;
     }
 
+    Object *prev_function = vm->function;
+
     // Push the current frame onto the call stack
     Frame frame = {
         .pc = vm->pc,
@@ -163,7 +165,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         .instrs = vm->instrs,
         .iters_top = vm->iter_sp,
         .globals = vm->globals,
-        .function = function};
+        .function = (Function *)prev_function};
     push_frame(vm, &frame);
 
     // Update the VM state with the function's bytecode and defining globals
