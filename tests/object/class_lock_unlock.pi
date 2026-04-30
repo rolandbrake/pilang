@@ -1,0 +1,10 @@
+class A {
+    x = 1
+}
+
+A.x = 2
+println(A.x)
+
+Object.lock(A, false)
+A.y = 3
+println(A.y)

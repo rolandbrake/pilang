@@ -168,6 +168,7 @@ Value pi_clone(vm_t *vm, int argc, Value *argv)
 
     map->proto = original->proto;
     map->super_instance = original->super_instance;
+    map->locked = original->locked;
     if (original->intrinsic_name)
         map->intrinsic_name = strdup(original->intrinsic_name);
 
@@ -417,6 +418,29 @@ Value pi_setName(vm_t *vm, int argc, Value *argv)
     return argv[1];
 }
 
+Value pi_lock(vm_t *vm, int argc, Value *argv)
+{
+    PiMap *map;
+    bool locked = true;
+
+    if (argc >= 3 && IS_MAP(argv[1]))
+    {
+        map = AS_MAP(argv[1]);
+        locked = as_bool(argv[2]);
+    }
+    else if (argc >= 1 && IS_MAP(argv[0]))
+    {
+        map = AS_MAP(argv[0]);
+        if (argc >= 2)
+            locked = as_bool(argv[1]);
+    }
+    else
+        vm_error(vm, "[lock] expects obj.lock(value) or Object.lock(obj, value).");
+
+    map->locked = locked;
+    return NEW_OBJ((Object *)map);
+}
+
 Value pi_get(vm_t *vm, int argc, Value *argv)
 {
     PiMap *map;
@@ -458,6 +482,10 @@ Value pi_set(vm_t *vm, int argc, Value *argv)
     }
     else
         vm_error(vm, "[set] expects either obj.set(key, value) or Object.set(obj, key, value).");
+
+    PiMap *owner = map_owner(map, key);
+    if (map->locked && owner == NULL)
+        vm_error(vm, "[set] cannot add a new key to a locked object.");
 
     map_set(map, key, value);
     return NEW_OBJ((Object *)map);
@@ -501,6 +529,10 @@ Value pi_delete(vm_t *vm, int argc, Value *argv)
     }
     else
         vm_error(vm, "[delete] expects either obj.delete(key) or Object.delete(obj, key).");
+
+    PiMap *owner = map_owner(map, key);
+    if (owner && owner->locked)
+        vm_error(vm, "[delete] cannot delete from a locked object.");
 
     return NEW_BOOL(map_delete(map, key));
 }

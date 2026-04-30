@@ -177,6 +177,7 @@ Object *new_map(table_t *table, bool is_instance)
     // Store the given table in the object
     map->table = table;
     map->intrinsic_name = NULL;
+    map->locked = false;
 
     // Initialize the iterator for the object
     map->it = ht_iterator(table);
@@ -317,7 +318,7 @@ bool map_delete(PiMap *map, Value key)
     PiMap *owner = map_findOwner(map, key_str);
     bool removed = false;
 
-    if (owner != NULL)
+    if (owner != NULL && !owner->locked)
         removed = ht_delete(owner->table, key_str);
 
     free(key_str);
@@ -347,7 +348,7 @@ void map_set(PiMap *map, Value key, Value value)
     bool updated = ht_set(owner->table, key_str, &value);
 
     // If the key does not exist in the table, add it
-    if (!updated)
+    if (!updated && !owner->locked)
         ht_put(owner->table, key_str, &value);
 
     free(key_str);

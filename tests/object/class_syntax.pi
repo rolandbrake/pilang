@@ -1,0 +1,30 @@
+class Animal {
+    type = "Animal"
+
+    constructor(name) {
+        this.name = name
+    }
+
+    format() {
+        return "Animal(name = " + this.name + ")"
+    }
+}
+
+class Dog : Animal {
+    type = "Dog"
+
+    constructor(name, age) {
+        super.constructor(name)
+        this.age = age
+    }
+
+    format() {
+        return "Dog(name = " + this.name + ", age = " + this.age + ")"
+    }
+}
+
+dog = Dog("Buddy", 5)
+println(Dog.type)
+println(Object.name(Dog))
+println(dog.format())
+println(dog)

@@ -982,6 +982,7 @@ static PiMap *create_objectProto(vm_t *vm)
     Value type_fn = *new_native("type", pi_type);
     Value name_fn = *new_native("name", pi_name);
     Value set_name_fn = *new_native("setName", pi_setName);
+    Value lock_fn = *new_native("lock", pi_lock);
 
     Value get_fn = *new_native("get", pi_get);
     Value set_fn = *new_native("set", pi_set);
@@ -1005,6 +1006,7 @@ static PiMap *create_objectProto(vm_t *vm)
     ht_put(proto->table, "type", &type_fn);
     ht_put(proto->table, "name", &name_fn);
     ht_put(proto->table, "setName", &set_name_fn);
+    ht_put(proto->table, "lock", &lock_fn);
     ht_put(proto->table, "get", &get_fn);
     ht_put(proto->table, "set", &set_fn);
     ht_put(proto->table, "has", &has_fn);
@@ -3683,9 +3685,21 @@ void run(vm_t *vm)
 
             case OBJ_MAP:
             {
-                table_t *table = AS_MAP(container)->table;
+                PiMap *map = AS_MAP(container);
+                if (map->is_instance)
+                {
+                    char *key = as_string(index);
+                    if (!ht_set(map->table, key, &value))
+                        ht_put(map->table, key, &value);
+                    free(key);
+                }
+                else
+                {
+                    if (map->locked && map_owner(map, index) == NULL)
+                        vm_error(vm, "Cannot add a new key to a locked object.");
+                    map_set(map, index, value);
+                }
 
-                map_set(AS_MAP(container), index, value);
                 break;
             }
 

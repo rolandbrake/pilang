@@ -20,6 +20,7 @@ static void program(parser_t *parser);
 static void declaration(parser_t *parser);
 static void var_decl(parser_t *parser);
 static void func_decl(parser_t *parser);
+static void class_decl(parser_t *parser);
 static void statement(parser_t *parser);
 static void expr_state(parser_t *parser);
 static void destructure_assignStatement(parser_t *parser);
@@ -55,6 +56,8 @@ static void primary(parser_t *parser);
 
 static void emit_spreadListLiteral(parser_t *parser);
 static void emit_spreadMapLiteral(parser_t *parser);
+static void emit_classMap(parser_t *parser, const char *class_name);
+static void emit_boundMethodCall(parser_t *parser, const char *receiver, const char *method, int argc);
 static void emit_listComprehension(parser_t *parser);
 
 static bool call_hasSpreadArgs(parser_t *parser);
@@ -155,6 +158,15 @@ static void emit_mapFinalize(parser_t *parser)
     }
 
     emit_8u(parser->comp, OP_MAP_FINALIZE, descr, name_index);
+}
+
+static void emit_boundMethodCall(parser_t *parser, const char *receiver, const char *method, int argc)
+{
+    load_variable(parser->comp, (char *)receiver);
+
+    int method_index = store_const(parser->comp, NEW_OBJ(new_pistring((char *)method)));
+    emit_16u(parser->comp, OP_LOAD_CONST, (char *)method, method_index);
+    emit(parser->comp, OP_GET_ITEM);
 }
 
 /**
@@ -1441,6 +1453,8 @@ static void declaration(parser_t *parser)
     // Check if the declaration is a function declaration using 'fun'
     else if (match(parser, TK_FUN))
         func_decl(parser);
+    else if (match(parser, TK_CLASS))
+        class_decl(parser);
     // If not a variable or function declaration, parse as a statement
     else
     {
@@ -1640,6 +1654,139 @@ static void emit_spreadMapLiteral(parser_t *parser)
     consume(parser, TK_RBRACE, "Expect '}' at the end of map literal.");
     emit_mapFinalize(parser);
 }
+
+static void emit_classMap(parser_t *parser, const char *class_name)
+{
+    char *prev_obj = parser->object_name;
+    parser->object_name = (char *)class_name;
+
+    push_object(parser->comp);
+
+    int size = 0;
+    while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
+    {
+        token_t key_tok = consume(parser, TK_ID, "Expect class member name.");
+        char *key = token_value(key_tok);
+        int index = store_const(parser->comp, NEW_OBJ(new_pistring(key)));
+
+        if (match(parser, TK_LPAREN))
+        {
+            list_t *params = param_list(parser);
+            int param_count = list_size(params);
+            consume(parser, TK_RPAREN, "Expect ')' before method body.");
+            consume(parser, TK_LBRACE, "Expect '{' before method body.");
+
+            push_function(parser->comp, key);
+            parser->comp->current->param_names = params;
+
+            add_local(parser->comp, "this");
+
+            for (int i = 0; i < param_count; i++)
+                add_local(parser->comp, string_get(params, i));
+            add_local(parser->comp, "args");
+            add_local(parser->comp, "kw_args");
+
+            if (match(parser, TK_RBRACE))
+            {
+                if (is_constructor(parser->comp))
+                    emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
+                else
+                    emit(parser->comp, OP_PUSH_NIL);
+                emit(parser->comp, OP_RETURN);
+            }
+            else
+            {
+                while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
+                    declaration(parser);
+
+                if (!parser->is_return)
+                {
+                    if (is_constructor(parser->comp))
+                        emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
+                    else
+                        emit(parser->comp, OP_PUSH_NIL);
+                    emit(parser->comp, OP_RETURN);
+                }
+            }
+
+            parser->is_return = false;
+            pop_function(parser->comp, param_count);
+            consume(parser, TK_RBRACE, "Expect '}' after method body.");
+        }
+        else
+        {
+            if (strcmp(key, "constructor") == 0)
+                p_error("Constructor is a reserved keyword.", peek(parser).line, peek(parser).column);
+
+            consume(parser, TK_ASSIGN, "Expect '=' after static class member name.");
+
+            bool prev_object_member = parser->object_member;
+            char *prev_fun = parser->fun_name;
+            char *member_prev_obj = parser->object_name;
+            parser->object_member = true;
+            parser->object_name = NULL;
+
+            if (is_functionLiteral(parser, parser->current))
+                parser->fun_name = key;
+
+            cond_expr(parser);
+            parser->object_member = prev_object_member;
+            parser->fun_name = prev_fun;
+            parser->object_name = member_prev_obj;
+        }
+
+        emit_16u(parser->comp, OP_LOAD_CONST, key, index);
+        size++;
+
+        bool had_comma = consume_ifExist(parser, 1, TK_COMMA);
+        if (!had_comma && need_delimiter(parser))
+            p_error("Expected delimiter between class members.", peek(parser).line, peek(parser).column);
+    }
+
+    consume(parser, TK_RBRACE, "Expect '}' after class body.");
+    pop_object(parser->comp);
+    emit_16u(parser->comp, OP_PUSH_MAP, "", size);
+    emit_mapFinalize(parser);
+
+    parser->object_name = prev_obj;
+}
+
+static void class_decl(parser_t *parser)
+{
+    token_t name_tok = consume(parser, TK_ID, "Expect class name.");
+    char *class_name = token_value(name_tok);
+    char *parent_name = "Object";
+
+    if (match(parser, TK_COLON))
+    {
+        token_t parent_tok = consume(parser, TK_ID, "Expect parent class name after ':'.");
+        parent_name = token_value(parent_tok);
+    }
+
+    consume(parser, TK_LBRACE, "Expect '{' before class body.");
+
+    emit_classMap(parser, class_name);
+    add_variable(parser->comp, class_name);
+
+    emit_boundMethodCall(parser, "Object", "extends", 2);
+    load_variable(parser->comp, parent_name);
+    load_variable(parser->comp, class_name);
+    emit_8u(parser->comp, OP_CALL_FUNCTION, "extends", 2);
+    emit(parser->comp, OP_POP);
+
+    emit_boundMethodCall(parser, class_name, "setName", 1);
+    int name_index = store_const(parser->comp, NEW_OBJ(new_pistring(class_name)));
+    emit_16u(parser->comp, OP_LOAD_CONST, class_name, name_index);
+    emit_8u(parser->comp, OP_CALL_FUNCTION, "setName", 1);
+    emit(parser->comp, OP_POP);
+
+    emit_boundMethodCall(parser, "Object", "lock", 2);
+    load_variable(parser->comp, class_name);
+    int lock_index = store_const(parser->comp, NEW_BOOL(true));
+    emit_16u(parser->comp, OP_LOAD_CONST, "true", lock_index);
+    emit_8u(parser->comp, OP_CALL_FUNCTION, "lock", 2);
+    emit(parser->comp, OP_POP);
+}
 /**
  * func_decl -> "fun" IDENT "(" param_list ")" block
  * Parses a function declaration, which is a statement that declares a function.
@@ -1697,7 +1844,7 @@ static void func_decl(parser_t *parser)
         // Implicit return if no return seen
         if (!parser->is_return)
         {
-            // ⬇️ Important: Mark where the implicit return comes from
+            //  Important: Mark where the implicit return comes from
             token_t rbrace = peek(parser);
             set_pos(parser, rbrace);
             emit(parser->comp, OP_PUSH_NIL);
@@ -1712,7 +1859,7 @@ static void func_decl(parser_t *parser)
 
         if (!is_localScope(parser->comp))
         {
-            // ⬇️ Mark function definition location before storing it
+            // Mark function definition location before storing it
             set_pos(parser, id_token);
             emit_8u(parser->comp, OP_STORE_GLOBAL, name, store_name(parser->comp, name));
         }
