@@ -1,0 +1,11 @@
+fun add3(a = 1, b = 2, c = 3) {
+    return a + b + c
+}
+
+fun capture(a = 1) {
+    return [a, kw_args]
+}
+
+println(add3(b = 6))
+println(add3(10, c = 30, b = 20))
+println(capture(extra = 9))

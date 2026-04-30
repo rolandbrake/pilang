@@ -14,6 +14,20 @@ static void l_error(const char *message)
     exit(1);
 }
 
+static void exponent()
+{
+    if (!match_s("eE"))
+        return;
+
+    match_s("+-");
+
+    if (!is_digit(peek(0)))
+        l_error("invalid decimal literal");
+
+    while (is_digit(peek(0)))
+        next();
+}
+
 // Function to initialize the scanner instance
 void init_scanner(char *source)
 {
@@ -340,6 +354,11 @@ void scan_token()
                         decimal();
                     add_token(TK_NUM);
                 }
+                else if (peek(0) == 'e' || peek(0) == 'E')
+                {
+                    exponent();
+                    add_token(TK_NUM);
+                }
                 else if (is_digit(peek(0)))
                     l_error("leading zeros in decimal integer literals are not permitted");
                 else
@@ -355,6 +374,8 @@ void scan_token()
                     if (is_digit(peek(0)))
                         decimal();
                 }
+                else
+                    exponent();
                 add_token(TK_NUM);
             }
         }
@@ -554,21 +575,7 @@ void decimal()
 {
     while (is_digit(peek(0)))
         next();
-    if (match_s("eE"))
-    {
-        if (match_s("+-"))
-        {
-            next();
-            if (!is_digit(peek(0)))
-                l_error("invalid decimal literal");
-            while (is_digit(peek(0)))
-                next();
-        }
-        else if (!is_digit(peek(0)))
-            l_error("invalid decimal literal");
-        while (is_digit(peek(0)))
-            next();
-    }
+    exponent();
 }
 
 bool is_alpha(char ch)

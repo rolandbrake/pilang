@@ -1,0 +1,4 @@
+println(1e3)
+println(1.0e-5)
+println(.5e+2)
+println(2E4 + 3e-2)

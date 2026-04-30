@@ -2303,7 +2303,12 @@ static void return_stmt(parser_t *parser)
     set_pos(parser, tok);
 
     if (is_constructor(parser->comp))
+    {
+        if (!check(parser, TK_SEMICOLON) && !is_lineBreak(parser))
+            p_error("Constructors cannot return a value.", peek(parser).line, peek(parser).column);
+
         emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
+    }
     else
     {
         // Check if return is followed by a newline or semicolon => nil

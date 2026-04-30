@@ -21,7 +21,7 @@
 #define GC_MAX_THRESHOLD (1024 * 1024 * 8)
 
 static PiMap *create_objectProto(vm_t *vm);
-static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv);
+static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value kw_args);
 
 static char *copy_dirName(const char *path)
 {
@@ -702,12 +702,7 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
             free(args);
             vm_error(vm, "Attempt to call an Object instance.");
         }
-        if (has_named)
-        {
-            free(args);
-            vm_error(vm, "Named arguments are not supported for map constructors.");
-        }
-        result = NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args)));
+        result = NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, kw_args)));
     }
     else
     {
@@ -949,6 +944,11 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
 
     // Set the is_method flag to true
     ((Function *)fn)->is_method = true;
+
+    int param_count = list_size(function->params);
+    ((Function *)fn)->need_args = fun_scanSlot(function->body, (uint8_t)(param_count + 1));
+    ((Function *)fn)->need_kwargs = fun_scanSlot(function->body, (uint8_t)(param_count + 2));
+
     add_obj(vm, fn); // Critical - adds to GC tracking
 
     // Return the new function
@@ -1273,7 +1273,7 @@ static Value to_primitive(vm_t *vm, Value value, bool pref_string)
  * @param argv The arguments to pass to the constructor.
  * @return A new object instance.
  */
-static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv)
+static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value kw_args)
 {
 
     // ensure that the object prototype is set if the object has no parent
@@ -1299,7 +1299,7 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv)
     if (IS_FUN(constructor))
     {
         Value bound = bind(vm, AS_FUN(constructor), instance);
-        call_func(vm, AS_FUN(bound), argc, argv, NEW_NIL());
+        call_func(vm, AS_FUN(bound), argc, argv, kw_args);
     }
 
     return instance;
@@ -2904,7 +2904,7 @@ void run(vm_t *vm)
                 if (map->is_instance)
                     vm_error(vm, "Attempt to call an Object instance.");
                 else
-                    push_stack(vm, NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args))));
+                    push_stack(vm, NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, NEW_NIL()))));
             }
             else
                 vm_error(vm, "Attempt to call a non-function object.");
@@ -2944,9 +2944,7 @@ void run(vm_t *vm)
             }
             else if (IS_MAP(callee))
             {
-                if (num_args > 8)
-                    free(args);
-                vm_error(vm, "Named arguments are not supported for map constructors.");
+                result = NEW_OBJ(add_obj(vm, construct(vm, AS_MAP(callee), num_args, args, kw_args)));
             }
             else
             {

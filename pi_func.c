@@ -244,6 +244,29 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         }
     }
 
+    if (IS_MAP(kw_args) && function->param_names && param_vals)
+    {
+        PiMap *kw_map = AS_MAP(kw_args);
+        int name_count = list_size(function->param_names);
+
+        for (int i = 0; i < name_count; i++)
+        {
+            char *param_name = string_get(function->param_names, i);
+            Value *kw_value = ht_get(kw_map->table, param_name);
+            if (!kw_value)
+                continue;
+
+            size_t slot = (size_t)i + param_offset;
+            if (slot >= param_count)
+                continue;
+
+            if (slot < positional_count + param_offset)
+                vm_error(vm, "Function argument got multiple values.");
+
+            param_vals[slot] = *kw_value;
+        }
+    }
+
     for (size_t i = 0; i < param_count; i++)
         vm->stack[vm->bp + arg_offset + i] = param_vals[i];
 
