@@ -302,6 +302,13 @@ Value map_get(PiMap *map, Value key)
     return *(Value *)item;
 }
 
+Value map_getValue(PiMap *map, const char *key)
+{
+    PiMap *owner = map_findOwner(map, key);
+    void *item = owner ? ht_get(owner->table, key) : NULL;
+    return item == NULL ? NEW_NIL() : *(Value *)item;
+}
+
 /**
  * Checks if a given key exists in a PiMap.
  *

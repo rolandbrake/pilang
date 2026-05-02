@@ -1,0 +1,12 @@
+Counter = {
+    count: 0,
+    call() {
+        this.count = this.count + 1
+        return this.count
+    }
+}
+
+c = Counter()
+println(Counter.call)
+println(c())
+println(c())

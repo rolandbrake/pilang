@@ -22,6 +22,7 @@
 
 static PiMap *create_objectProto(vm_t *vm);
 static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value kw_args);
+static Value bind(vm_t *vm, Function *function, Object *instance);
 
 static char *copy_dirName(const char *path)
 {
@@ -757,6 +758,19 @@ static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
  * @return The return value of the function.
  */
 
+static bool object_instanceCall(vm_t *vm, PiMap *map, size_t argc, Value *args, Value kw_args, Value *result)
+{
+    Value call_method = map_getValue(map, "call");
+    if (!IS_FUN(call_method))
+        return false;
+
+    Value bound = bind(vm, AS_FUN(call_method), (Object *)map);
+    *result = call_func(vm, AS_FUN(bound), argc, args, kw_args);
+    if (IS_OBJ(*result))
+        add_obj(vm, AS_OBJ(*result));
+    return true;
+}
+
 static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw_args, bool has_named)
 {
     int num_args = arg_list->items->size;
@@ -782,10 +796,24 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
         PiMap *map = AS_MAP(callee);
         if (map->is_instance)
         {
+            if (object_instanceCall(vm, map, num_args, args, kw_args, &result))
+            {
+                free(args);
+                return result;
+            }
             free(args);
             vm_error(vm, "Attempt to call an Object instance.");
         }
-        result = NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, kw_args)));
+
+        Value constructor = map_getValue(map, "constructor");
+        if (IS_FUN(constructor))
+        {
+            result = NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, kw_args)));
+        }
+        else
+        {
+            result = NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, kw_args)));
+        }
     }
     else
     {
@@ -1379,7 +1407,7 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value k
     // vm->stack[vm->sp] = NEW_OBJ(instance);
 
     // Invoke the constructor if it exists
-    Value constructor = map_get(map, NEW_OBJ(new_pistring(strdup("constructor"))));
+    Value constructor = map_getValue(map, "constructor");
 
     if (IS_FUN(constructor))
     {
@@ -3070,10 +3098,26 @@ void run(vm_t *vm)
             else if (IS_MAP(callee))
             {
                 PiMap *map = AS_MAP(callee);
+                Value result;
                 if (map->is_instance)
+                {
+                    if (object_instanceCall(vm, map, num_args, args, NEW_NIL(), &result))
+                    {
+                        push_stack(vm, result);
+                        break;
+                    }
                     vm_error(vm, "Attempt to call an Object instance.");
-                else
+                }
+
+                Value constructor = map_getValue(map, "constructor");
+                if (IS_FUN(constructor))
+                {
                     push_stack(vm, NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, NEW_NIL()))));
+                }
+                else
+                {
+                    push_stack(vm, NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, NEW_NIL()))));
+                }
             }
             else
                 vm_error(vm, "Attempt to call a non-function object.");
@@ -3113,7 +3157,25 @@ void run(vm_t *vm)
             }
             else if (IS_MAP(callee))
             {
-                result = NEW_OBJ(add_obj(vm, construct(vm, AS_MAP(callee), num_args, args, kw_args)));
+                PiMap *map = AS_MAP(callee);
+                if (map->is_instance)
+                {
+                    if (object_instanceCall(vm, map, num_args, args, kw_args, &result))
+                    {
+                        if (num_args > 8)
+                            free(args);
+                    }
+                    else
+                    {
+                        if (num_args > 8)
+                            free(args);
+                        vm_error(vm, "Attempt to call an Object instance.");
+                    }
+                }
+                else
+                {
+                    result = NEW_OBJ(add_obj(vm, construct(vm, AS_MAP(callee), num_args, args, kw_args)));
+                }
             }
             else
             {

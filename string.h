@@ -1,6 +1,7 @@
 #ifndef STRING_H
 #define STRING_H
 
+#include_next <string.h>
 #include "list.h"
 
 #define GET_STRING(STR) ((String *)STR)->data
