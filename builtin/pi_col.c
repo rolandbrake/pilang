@@ -328,8 +328,8 @@ Value pi_slice(vm_t *vm, int argc, Value *argv)
     Value start = argv[1];
     Value end = argv[2];
 
-    if (!IS_LIST(collection) && !IS_STRING(collection))
-        vm_error(vm, "[slice] first argument must be a list or a string.");
+    if (!IS_LIST(collection) && !IS_STRING(collection) && !IS_TUPLE(collection))
+        vm_error(vm, "[slice] first argument must be a list, tuple, or a string.");
 
     if (!IS_NUM(start) || !IS_NUM(end))
         vm_error(vm, "[slice] second and third arguments must be numbers.");
@@ -370,8 +370,19 @@ Value pi_slice(vm_t *vm, int argc, Value *argv)
 
         return NEW_OBJ(new_pistring(sliced_chars));
     }
+    else if (IS_TUPLE(collection))
+    {
+        PiTuple *tuple = AS_TUPLE(collection);
+        list_t *sliced_items = list_create(sizeof(Value));
+        for (int i = start_index; i <= end_index; i++)
+        {
+            Value *item = (Value *)list_getAt(tuple->items, i);
+            list_add(sliced_items, item);
+        }
+        return NEW_OBJ(new_tuple(sliced_items));
+    }
 
-    vm_error(vm, "[slice] only works with lists or strings.");
+    vm_error(vm, "[slice] only works with lists, tuples, or strings.");
 
     return NEW_NIL(); // unreachable
 }
@@ -1067,6 +1078,16 @@ Value cl_contains(vm_t *vm, int argc, Value *argv)
                 return NEW_BOOL(true);
         }
     }
+    else if (IS_TUPLE(collection))
+    {
+        PiTuple *tuple = AS_TUPLE(collection);
+        for (int i = 0; i < tuple->items->size; i++)
+        {
+            Value item = *(Value *)list_getAt(tuple->items, i);
+            if (equals(item, target))
+                return NEW_BOOL(true);
+        }
+    }
     else if (IS_MAP(collection))
     {
         PiMap *map = AS_MAP(collection);
@@ -1081,7 +1102,7 @@ Value cl_contains(vm_t *vm, int argc, Value *argv)
         return NEW_BOOL(found);
     }
     else
-        vm_error(vm, "[contains] First argument must be a list, string, map, or set.");
+        vm_error(vm, "[contains] First argument must be a list, tuple, string, map, or set.");
 
     return NEW_BOOL(false);
 }
@@ -1129,16 +1150,212 @@ Value cl_indexOf(vm_t *vm, int argc, Value *argv)
             if (strncmp(&str->chars[i], substr->chars, substr->length) == 0)
                 return NEW_NUM(i);
     }
+    else if (IS_TUPLE(collection))
+    {
+        PiTuple *tuple = AS_TUPLE(collection);
+        for (int i = 0; i < tuple->items->size; i++)
+        {
+            Value item = *(Value *)list_getAt(tuple->items, i);
+            if (equals(item, target))
+                return NEW_NUM(i);
+        }
+    }
     else
-        vm_error(vm, "[index_of] First argument must be a list or a string.");
+        vm_error(vm, "[index_of] First argument must be a list, tuple, or string.");
 
     return NEW_NUM(-1); // Not found
 }
 
+Value cl_count(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 2)
+        vm_error(vm, "[count] expects at least two arguments: a collection and a value.");
+
+    Value collection = argv[0];
+    Value target = argv[1];
+    int count = 0;
+
+    if (IS_LIST(collection))
+    {
+        PiList *list = AS_LIST(collection);
+        for (int i = 0; i < list->items->size; i++)
+        {
+            Value item = *(Value *)list_getAt(list->items, i);
+            if (equals(item, target))
+                count++;
+        }
+    }
+    else if (IS_TUPLE(collection))
+    {
+        PiTuple *tuple = AS_TUPLE(collection);
+        for (int i = 0; i < tuple->items->size; i++)
+        {
+            Value item = *(Value *)list_getAt(tuple->items, i);
+            if (equals(item, target))
+                count++;
+        }
+    }
+    else if (IS_STRING(collection))
+    {
+        if (!IS_STRING(target))
+            vm_error(vm, "[count] When counting in a string, the target must also be a string.");
+
+        PiString *str = AS_STRING(collection);
+        PiString *substr = AS_STRING(target);
+
+        if (substr->length == 0)
+            return NEW_NUM(0);
+
+        for (int i = 0; i <= str->length - substr->length; i++)
+            if (strncmp(&str->chars[i], substr->chars, substr->length) == 0)
+                count++;
+    }
+    else if (IS_SET(collection))
+    {
+        Value args[2] = {collection, target};
+        Value contains = cl_contains(vm, 2, args);
+        return NEW_NUM(as_bool(contains) ? 1 : 0);
+    }
+    else
+        vm_error(vm, "[count] First argument must be a list, tuple, string, or set.");
+
+    return NEW_NUM(count);
+}
+
+Value cl_concat(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 2)
+        vm_error(vm, "[concat] expects at least two arguments.");
+
+    Value left = argv[0];
+    Value right = argv[1];
+
+    if (IS_LIST(left) && IS_LIST(right))
+    {
+        PiList *l_list = AS_LIST(left);
+        PiList *r_list = AS_LIST(right);
+        list_t *result = list_copy(l_list->items);
+        list_addAll(result, r_list->items);
+        return NEW_OBJ(add_obj(vm, new_list(result)));
+    }
+    else if (IS_TUPLE(left) && IS_TUPLE(right))
+    {
+        PiTuple *l_tuple = AS_TUPLE(left);
+        PiTuple *r_tuple = AS_TUPLE(right);
+        list_t *result = list_copy(l_tuple->items);
+        list_addAll(result, r_tuple->items);
+        return NEW_OBJ(add_obj(vm, new_tuple(result)));
+    }
+    else if (IS_STRING(left) && IS_STRING(right))
+    {
+        const char *l_str = AS_STRING(left)->chars;
+        const char *r_str = AS_STRING(right)->chars;
+        size_t l_len = AS_STRING(left)->length;
+        size_t r_len = AS_STRING(right)->length;
+        char *res = malloc(l_len + r_len + 1);
+        if (!res)
+            vm_error(vm, "Memory allocation failed.");
+        memcpy(res, l_str, l_len);
+        memcpy(res + l_len, r_str, r_len + 1);
+        return NEW_OBJ(add_obj(vm, new_pistring(res)));
+    }
+
+    vm_error(vm, "[concat] expects both arguments to be lists, tuples, or strings.");
+    return NEW_NIL();
+}
+
+Value pi_tuple(vm_t *vm, int argc, Value *argv)
+{
+    if (argc == 0)
+    {
+        list_t *items = list_create(sizeof(Value));
+        return NEW_OBJ(add_obj(vm, new_tuple(items)));
+    }
+
+    if (argc == 1)
+    {
+        Value arg = argv[0];
+        if (IS_LIST(arg))
+        {
+            PiList *list = AS_LIST(arg);
+            return NEW_OBJ(add_obj(vm, new_tuple(list_copy(list->items))));
+        }
+        else if (IS_TUPLE(arg))
+        {
+            PiTuple *tuple = AS_TUPLE(arg);
+            return NEW_OBJ(add_obj(vm, new_tuple(list_copy(tuple->items))));
+        }
+        else if (IS_STRING(arg))
+        {
+            PiString *str = AS_STRING(arg);
+            list_t *items = list_create(sizeof(Value));
+            for (int i = 0; i < str->length; i++)
+            {
+                char *ch = malloc(2);
+                ch[0] = str->chars[i];
+                ch[1] = '\0';
+                Value value = NEW_OBJ(add_obj(vm, new_pistring(ch)));
+                list_add(items, &value);
+            }
+            return NEW_OBJ(add_obj(vm, new_tuple(items)));
+        }
+    }
+
+    list_t *items = list_create(sizeof(Value));
+    for (int i = 0; i < argc; i++)
+        list_add(items, &argv[i]);
+
+    return NEW_OBJ(add_obj(vm, new_tuple(items)));
+}
+
+Value cl_repeat(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 2)
+        vm_error(vm, "[repeat] expects two arguments: a collection and a repeat count.");
+
+    Value collection = argv[0];
+    int times = (int)as_number(argv[1]);
+    if (times < 0)
+        times = 0;
+
+    if (IS_LIST(collection))
+    {
+        PiList *list = AS_LIST(collection);
+        list_t *result = list_create(sizeof(Value));
+        for (int i = 0; i < times; i++)
+            list_addAll(result, list->items);
+
+        Object *o = add_obj(vm, new_list(result));
+        return NEW_OBJ(o);
+    }
+    else if (IS_TUPLE(collection))
+    {
+        PiTuple *tuple = AS_TUPLE(collection);
+        list_t *result = list_create(sizeof(Value));
+        for (int i = 0; i < times; i++)
+            list_addAll(result, tuple->items);
+        Object *o = add_obj(vm, new_tuple(result));
+        return NEW_OBJ(o);
+    }
+    else if (IS_STRING(collection))
+    {
+        const char *str = AS_STRING(collection)->chars;
+        size_t len = AS_STRING(collection)->length;
+        size_t total = len * (size_t)times;
+        char *res = malloc(total + 1);
+        if (!res)
+            vm_error(vm, "Memory allocation failed.");
+        for (int i = 0; i < times; i++)
+            memcpy(res + i * len, str, len);
+        res[total] = '\0';
+        return NEW_OBJ(add_obj(vm, new_pistring(res)));
+    }
+
+    vm_error(vm, "[repeat] expects a list, tuple, or string as the first argument.");
+    return NEW_NIL();
+}
+
 /**
- * @brief Reverses a collection in-place (for lists) or returns a reversed string.
- *
- * @param vm The virtual machine instance.
  * @param argc Number of arguments (should be 1).
  * @param argv Arguments: [collection]
  * @return The reversed collection.

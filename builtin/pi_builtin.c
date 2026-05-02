@@ -1,4 +1,5 @@
 #include "pi_builtin.h"
+#include "pi_col.h"
 #include "../pi_value.h"
 
 BuiltinConst builtin_constants[] = {
@@ -62,6 +63,12 @@ BuiltinFunc builtin_functions[] = {
     {"remove", pi_remove},
     {"slice", pi_slice},
     {"len", pi_len},
+    {"tuple", pi_tuple},
+    {"contains", cl_contains},
+    {"index", cl_indexOf},
+    {"count", cl_count},
+    {"concat", cl_concat},
+    {"repeat", cl_repeat},
     {"range", pi_range},
 
     // set operations

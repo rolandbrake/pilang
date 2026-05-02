@@ -41,7 +41,7 @@ typedef struct SDL_Rect
 
 #define IS_COLLECTION(o) (IS_LIST(o) || IS_MATRIX(o) || IS_MAP(o) || IS_SET(o) || IS_TUPLE(o) || IS_STRING(o))
 
-#define IS_SEQUENCE(o) (IS_LIST(o) || IS_STRING(o))
+#define IS_SEQUENCE(o) (IS_LIST(o) || IS_STRING(o) || IS_TUPLE(o))
 
 #define AS_STRING(o) ((PiString *)AS_OBJ(o))
 #define AS_LIST(o) ((PiList *)AS_OBJ(o))
@@ -244,6 +244,7 @@ typedef struct
 {
     Object object;
     list_t *items; // List of values for tuple
+    int current;   // Iterator state
 } PiTuple;
 
 typedef struct

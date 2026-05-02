@@ -3624,8 +3624,7 @@ static void arrow_func(parser_t *parser)
  * a variable, a list literal, or a map literal. Emits the corresponding bytecode
  * for the parsed expression.
  */
-static void primary(parser_t *parser)
-{
+static void primary(parser_t *parser) {
     // Check for literal values (numbers, strings, boolean, nil)
     if (match_n(parser, 7, TK_NUM, TK_STR, TK_TRUE, TK_FALSE, TK_NIL, TK_INF, TK_NAN))
     {
@@ -3639,11 +3638,10 @@ static void primary(parser_t *parser)
         else
         {
             int index = store_const(parser->comp, new_value(token));
-            // Emit bytecode to load the constant value
             emit_16u(parser->comp, OP_LOAD_CONST, token_value(token), index);
         }
     }
-    // Check for grouped expressions
+    // Check for grouped expressions, arrow functions, or tuple literals
     else if (match(parser, TK_LPAREN))
     {
         int _current = parser->current;
@@ -3651,6 +3649,38 @@ static void primary(parser_t *parser)
 
         if (is_lookUp(parser->comp))
         {
+            // Lookahead mode: scan past the parenthesized expression without emitting
+            // Empty parens () are valid in lookahead — just skip past them
+            if (check(parser, TK_RPAREN))
+            {
+                next(parser); // consume ')'
+                // Check if it's an arrow function: () -> ...
+                if (match(parser, TK_RARROW))
+                {
+                    if (match(parser, TK_LBRACE))
+                    {
+                        int depth = 1;
+                        while (depth > 0 && !is_atEnd(parser))
+                        {
+                            if (check(parser, TK_RBRACE))
+                                depth--;
+                            else if (check(parser, TK_LBRACE))
+                                depth++;
+                            if (depth == 0)
+                                break;
+                            next(parser);
+                        }
+                        if (depth != 0)
+                            p_error("Unmatched '{' in arrow function.", peek(parser).line, peek(parser).column);
+                        consume(parser, TK_RBRACE, "Expect '}' after arrow function.");
+                    }
+                    else
+                        expr(parser);
+                }
+                return;
+            }
+
+            // Scan past the contents of the parens
             int depth = 1;
             while (depth > 0 && !is_atEnd(parser))
             {
@@ -3658,8 +3688,7 @@ static void primary(parser_t *parser)
                     depth--;
                 else if (check(parser, TK_LPAREN))
                     depth++;
-
-                next(parser); // Move to the next token
+                next(parser);
             }
 
             if (depth != 0)
@@ -3676,13 +3705,10 @@ static void primary(parser_t *parser)
                             depth--;
                         else if (check(parser, TK_LBRACE))
                             depth++;
-
                         if (depth == 0)
                             break;
-
-                        next(parser); // Move to the next token
+                        next(parser);
                     }
-
                     if (depth != 0)
                         p_error("Unmatched '{' in arrow function.", peek(parser).line, peek(parser).column);
                     consume(parser, TK_RBRACE, "Expect '}' after arrow function.");
@@ -3693,13 +3719,47 @@ static void primary(parser_t *parser)
         }
         else
         {
+            // Empty tuple: ()
+            if (check(parser, TK_RPAREN))
+            {
+                consume(parser, TK_RPAREN, "Expect ')' after empty tuple.");
+
+                // Check for arrow function: () -> ...
+                if (match(parser, TK_RARROW))
+                {
+                    bool method_value = parser->object_member;
+                    parser->object_member = false;
+                    push_function(parser->comp, get_pendingFunctionName(parser));
+                    list_t *empty_params = list_create(sizeof(String));
+                    parser->comp->current->param_names = empty_params;
+
+                    if (method_value)
+                        add_local(parser->comp, "this");
+                    add_local(parser->comp, "args");
+                    add_local(parser->comp, "kw_args");
+
+                    arrow_func(parser);
+
+                    pop_function(parser->comp, 0);
+                    parser->object_member = method_value;
+                }
+                else
+                {
+                    // Bare () with no arrow → empty tuple
+                    emit_16u(parser->comp, OP_PUSH_TUPLE, "", 0);
+                }
+                return;
+            }
+
+            // Scan ahead to determine whether this is an arrow function
             while (!check(parser, TK_RPAREN))
                 next(parser);
 
-            next(parser);
-            // handle arrow functions
+            next(parser); // consume ')'
+
             if (match(parser, TK_RARROW))
             {
+                // ── Arrow function: (params) -> body ────────────────────────────────
                 parser->current = _current;
                 list_t *params = param_list(parser);
                 int size = list_size(params);
@@ -3725,10 +3785,34 @@ static void primary(parser_t *parser)
             }
             else
             {
+                //  Grouped expression or tuple literal 
                 parser->current = _current;
-                // Parse the expression inside parentheses
-                assignment(parser, true); // Parse the inner expression
-                consume(parser, TK_RPAREN, "Expect ')' after expression.");
+
+                // Parse the first element/expression
+                cond_expr(parser);
+
+                if (match(parser, TK_COMMA))
+                {
+                    // At least one comma seen → tuple literal.
+                    // (expr,)  is a single-element tuple.
+                    // (expr, expr, ...) is a multi-element tuple.
+                    // A trailing comma after the last element is allowed.
+                    int size = 1;
+                    while (!check(parser, TK_RPAREN) && !is_atEnd(parser))
+                    {
+                        cond_expr(parser);
+                        size++;
+                        if (!match(parser, TK_COMMA))
+                            break;
+                    }
+                    consume(parser, TK_RPAREN, "Expect ')' after tuple literal.");
+                    emit_16u(parser->comp, OP_PUSH_TUPLE, "", size);
+                }
+                else
+                {
+                    // ── Grouped expression: (expr) ───────────────────────────────────
+                    consume(parser, TK_RPAREN, "Expect ')' after expression.");
+                }
             }
         }
     }
@@ -3738,7 +3822,7 @@ static void primary(parser_t *parser)
         char *name = tk_string(previous(parser));
         set_pos(parser, previous(parser));
 
-        // Lookup for right-associative arrow functions or assignment chains
+        // Lookahead: skip arrow function body without emitting
         if (is_lookUp(parser->comp) && match(parser, TK_RARROW))
         {
             if (match(parser, TK_LBRACE))
@@ -3750,13 +3834,10 @@ static void primary(parser_t *parser)
                         depth--;
                     else if (check(parser, TK_LBRACE))
                         depth++;
-
                     if (depth == 0)
                         break;
-
-                    next(parser); // Move to the next token
+                    next(parser);
                 }
-
                 if (depth != 0)
                     p_error("Unmatched '{' in arrow function.", peek(parser).line, peek(parser).column);
                 consume(parser, TK_RBRACE, "Expect '}' after arrow function.");
@@ -3767,10 +3848,9 @@ static void primary(parser_t *parser)
             return;
         }
 
-        // handle arrow functions
+        // Single-param arrow function: name -> body
         if (match(parser, TK_RARROW))
         {
-
             emit(parser->comp, OP_PUSH_NIL);
 
             bool method_value = parser->object_member;
@@ -3791,27 +3871,19 @@ static void primary(parser_t *parser)
             pop_function(parser->comp, 1);
             parser->object_member = method_value;
         }
-        // First handle potential walrus operator
+        // Walrus operator: name <- expr
         else if (match(parser, TK_LARROW))
         {
-
-            // Verify we didn't chain assignments
             if (parser->has_walrus)
                 p_error("Chained '<-' operators are not allowed",
                         peek(parser).line, peek(parser).column);
 
             parser->has_walrus = true;
-            // Parse the right-hand side (disallow chaining)
-            cond_expr(parser); // Use expr() instead of cond_expr() to prevent chaining
-
+            cond_expr(parser);
             parser->has_walrus = false;
 
-            // Duplicate result on stack (if needed by your VM)
             emit(parser->comp, OP_DUP_TOP);
-
-            // Emit store instruction for lhs variable
             store_variable(parser->comp, name);
-
             return;
         }
         else
@@ -3826,8 +3898,8 @@ static void primary(parser_t *parser)
                 return;
             }
             if (!defer_forced_store && is_assign(parser))
-                store_variable(parser->comp, name); // Handle variable assignment
-            else                                    // Load variable value
+                store_variable(parser->comp, name);
+            else
                 load_variable(parser->comp, name);
         }
     }
@@ -3837,7 +3909,7 @@ static void primary(parser_t *parser)
         int size = 0;
         set_pos(parser, previous(parser));
         if (match(parser, TK_RBRACKET))
-            emit_16u(parser->comp, OP_PUSH_LIST, "", 0); // Emit empty list
+            emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
         else if (list_isComprehension(parser))
             emit_listComprehension(parser);
         else if (list_hasSpreadItems(parser))
@@ -3848,25 +3920,22 @@ static void primary(parser_t *parser)
             {
                 if (!check(parser, TK_RBRACKET))
                 {
-                    cond_expr(parser); // Parse list elements
+                    cond_expr(parser);
                     size++;
                 }
                 else
-                    // Handle trailing comma case
-                    break;
-
+                    break; // trailing comma
             } while (match(parser, TK_COMMA));
             consume(parser, TK_RBRACKET, "Expect ']' at the end of list literal.");
-            emit_16u(parser->comp, OP_PUSH_LIST, "", size); // Emit list with elements
+            emit_16u(parser->comp, OP_PUSH_LIST, "", size);
         }
     }
-    // Check for map / object literals
+    // Check for map / set / object literals
     else if (match(parser, TK_LBRACE))
     {
         set_pos(parser, previous(parser));
         if (is_lookUp(parser->comp))
         {
-            // Verify the map is a valid expression
             int depth = 1;
             while (depth > 0 && !is_atEnd(parser))
             {
@@ -3875,29 +3944,25 @@ static void primary(parser_t *parser)
                 else if (check(parser, TK_RBRACE))
                     depth--;
                 next(parser);
-
                 if (depth == 0)
                     break;
             }
-
             if (depth != 0)
                 p_error("Unmatched '}' in map.", peek(parser).line, peek(parser).column);
-
             return;
         }
 
-        token_t token = previous(parser);
-        int size = 0;
-        // push_object(parser->comp);
         if (match(parser, TK_RBRACE))
         {
             push_object(parser->comp);
             pop_object(parser->comp);
-            emit_16u(parser->comp, OP_PUSH_MAP, "", 0); // Emit empty map
+            emit_16u(parser->comp, OP_PUSH_MAP, "", 0);
             emit_mapFinalize(parser);
         }
-        else if (!is_mapEntry(parser) && !map_hasSpreadItems(parser))        
-            emit_setLiteral(parser);        
+        else if (!is_mapEntry(parser) && !map_hasSpreadItems(parser))
+        {
+            emit_setLiteral(parser);
+        }
         else
         {
             push_object(parser->comp);
@@ -3910,6 +3975,7 @@ static void primary(parser_t *parser)
             {
                 char *key;
                 int index = 0;
+                int size = 0;
                 do
                 {
                     if (match_n(parser, 5, TK_STR, TK_ID, TK_NUM, TK_FALSE, TK_TRUE))
@@ -3924,13 +3990,14 @@ static void primary(parser_t *parser)
 
                     if (match(parser, TK_LPAREN))
                     {
+                        // Method shorthand: { key(params) { body } }
                         /**
                          * Parse a function expression as a value in the map.
                          * The function expression is parsed as a lambda function
                          * so it can be used as a value in the map.
                          */
                         list_t *params = param_list(parser);
-                        int size = list_size(params);
+                        int param_size = list_size(params);
                         consume(parser, TK_RPAREN, "Expect ')' before function body.");
                         consume(parser, TK_LBRACE, "Expect '{' before function body.");
 
@@ -3940,7 +4007,7 @@ static void primary(parser_t *parser)
                         if (is_object(parser->comp))
                             add_local(parser->comp, "this");
 
-                        for (int i = 0; i < size; i++)
+                        for (int i = 0; i < param_size; i++)
                             add_local(parser->comp, string_get(params, i));
                         add_local(parser->comp, "args");
                         add_local(parser->comp, "kw_args");
@@ -3965,12 +4032,11 @@ static void primary(parser_t *parser)
                                 else
                                     emit(parser->comp, OP_PUSH_NIL);
                                 emit(parser->comp, OP_RETURN);
-
                                 parser->is_return = false;
                             }
                         }
 
-                        pop_function(parser->comp, size);
+                        pop_function(parser->comp, param_size);
                         consume(parser, TK_RBRACE, "Expect '}' after function body.");
                     }
                     else
@@ -3978,6 +4044,7 @@ static void primary(parser_t *parser)
                         if (strcmp(key, "constructor") == 0)
                             p_error("Constructor is a reserved keyword.", peek(parser).line, peek(parser).column);
                         consume(parser, TK_COLON, "Expect ':' after object key expression.");
+
                         bool prev_object_member = parser->object_member;
                         char *prev_fun = parser->fun_name;
                         char *prev_obj = parser->object_name;
@@ -3995,17 +4062,16 @@ static void primary(parser_t *parser)
 
                     emit_16u(parser->comp, OP_LOAD_CONST, key, index);
                     size++;
-                } while (match(parser, TK_COMMA) && !check(parser, TK_RBRACE)); // Allow trailing comma
+                } while (match(parser, TK_COMMA) && !check(parser, TK_RBRACE));
 
                 consume(parser, TK_RBRACE, "Expect '}' at the end of map literal.");
                 pop_object(parser->comp);
-                emit_16u(parser->comp, OP_PUSH_MAP, "", size); // Emit map with key-value pairs
+                emit_16u(parser->comp, OP_PUSH_MAP, "", size);
                 emit_mapFinalize(parser);
             }
         }
     }
-
-    // Parse anonymous function expressions
+    // Anonymous function expressions: fun(params) { body }
     else if (match(parser, TK_FUN))
     {
         set_pos(parser, previous(parser));
@@ -4023,10 +4089,8 @@ static void primary(parser_t *parser)
                     depth++;
                 else if (check(parser, TK_RPAREN))
                     depth--;
-
                 next(parser);
             }
-
             if (depth != 0)
                 p_error("Unmatched '(' in anonymous function.", peek(parser).line, peek(parser).column);
 
@@ -4039,10 +4103,8 @@ static void primary(parser_t *parser)
                     depth++;
                 else if (check(parser, TK_RBRACE))
                     depth--;
-
                 next(parser);
             }
-
             if (depth != 0)
                 p_error("Unmatched '{' in anonymous function.", peek(parser).line, peek(parser).column);
 
@@ -4055,22 +4117,21 @@ static void primary(parser_t *parser)
          * They can be used as values in expressions.
          */
         compiler_t *comp = parser->comp;
-
-        // Function expressions
+        // Function expressions do not have their name set until we parse the parameter list, since the name may be needed for recursion within the function body. So we use a placeholder name for now and set the actual name after parsing the parameters.
         consume(parser, TK_LPAREN, "Expect '(' after function name.");
-        list_t *params = param_list(parser); // Parse the parameter list
-        int size = list_size(params);        // Get the number of parameters
+        list_t *params = param_list(parser);
+        int size = list_size(params);
         consume(parser, TK_RPAREN, "Expect ')' before function body.");
         consume(parser, TK_LBRACE, "Expect '{' before function body.");
 
         bool method_value = parser->object_member;
         parser->object_member = false;
-        push_function(comp, get_pendingFunctionName(parser)); // Push the function onto the stack
+        push_function(comp, get_pendingFunctionName(parser));
         comp->current->param_names = params;
 
         if (method_value)
             add_local(comp, "this");
-        // Add the parameters to the local scope
+            // Add the parameters to the local scope
         for (int i = 0; i < size; i++)
             add_local(comp, string_get(params, i));
         add_local(comp, "args"); // Add the "args" variable to the local scope
@@ -4084,7 +4145,6 @@ static void primary(parser_t *parser)
             else
                 emit(comp, OP_PUSH_NIL);
             emit(comp, OP_RETURN);
-
             parser->is_return = true;
         }
         else
@@ -4101,7 +4161,6 @@ static void primary(parser_t *parser)
                 else
                     emit(comp, OP_PUSH_NIL);
                 emit(comp, OP_RETURN);
-
                 parser->is_return = true;
             }
         }
@@ -4112,7 +4171,7 @@ static void primary(parser_t *parser)
         consume(parser, TK_RBRACE, "Expect '}' after function body.");
     }
     else
-        p_error("Expect expression.", previous(parser).line, previous(parser).column); // Handle unexpected tokens
+        p_error("Expect expression.", previous(parser).line, previous(parser).column);
 }
 
 /**

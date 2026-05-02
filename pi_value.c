@@ -760,6 +760,9 @@ bool equals(Value left, Value right)
         case OBJ_LIST:
             return list_equals(AS_LIST(left), AS_LIST(right));
 
+        case OBJ_TUPLE:
+            return value_listEquals(AS_TUPLE(left)->items, AS_TUPLE(right)->items);
+
         case OBJ_MATRIX:
             return matrix_equals(AS_MATRIX(left), AS_MATRIX(right));
 
@@ -837,6 +840,8 @@ int compare(Value left, Value right)
         }
         else if (OBJ_TYPE(left) == OBJ_LIST)
             return list_compare(AS_LIST(left), AS_LIST(right));
+        else if (OBJ_TYPE(left) == OBJ_TUPLE)
+            return value_list_compare(AS_TUPLE(left)->items, AS_TUPLE(right)->items);
         else if (OBJ_TYPE(left) == OBJ_MATRIX)
             return matrix_compare(AS_MATRIX(left), AS_MATRIX(right));
         else if (OBJ_TYPE(left) == OBJ_MAP)
@@ -1220,33 +1225,42 @@ char *as_string(Value val)
 
             return result;
         }
-            // case OBJ_TUPLE:
-            // {
-            // PiTuple *tuple = AS_TUPLE(val);
-            // size_t buffer_size = 2;
-            // char *result = dup_cstring("[");
+        case OBJ_TUPLE:
+        {
+            PiTuple *tuple = AS_TUPLE(val);
+            size_t buffer_size = 2; // start with "()"
+            char *result = dup_cstring("(");
+            int size = LIST_SIZE(tuple->items);
 
-            // for (int i = 0; i < tuple->size; i++)
-            // {
-            //     if (i > 0)
-            //     {
-            //         buffer_size += 2;
-            //         result = realloc(result, buffer_size);
-            //         strcat(result, ", ");
-            //     }
+            for (int i = 0; i < size; i++)
+            {
+                if (i > 0)
+                {
+                    buffer_size += 2;
+                    result = realloc(result, buffer_size);
+                    strcat(result, ", ");
+                }
 
-            //     Value item = *(Value *)tuple_getAt(tuple, i);
-            //     char *str = as_string(item);
-            //     buffer_size += strlen(str);
-            //     result = realloc(result, buffer_size);
-            //     strcat(result, str);
-            //     free(str);
-            // }
-            // buffer_size++;
-            // result = realloc(result, buffer_size);
-            // strcat(result, "]");
-            // return result;
-        // }
+                Value item = *(Value *)list_getAt(tuple->items, i);
+                char *str = as_string(item);
+                buffer_size += strlen(str);
+                result = realloc(result, buffer_size);
+                strcat(result, str);
+                free(str);
+            }
+
+            if (size == 1)
+            {
+                buffer_size += 1;
+                result = realloc(result, buffer_size);
+                strcat(result, ",");
+            }
+
+            buffer_size++;
+            result = realloc(result, buffer_size);
+            strcat(result, ")");
+            return result;
+        }
         case OBJ_MATRIX:
         {
             PiMatrix *matrix = AS_MATRIX(val);

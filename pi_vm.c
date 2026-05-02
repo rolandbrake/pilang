@@ -2366,6 +2366,17 @@ void run(vm_t *vm)
                     break;
                 }
 
+                if (IS_TUPLE(left) && IS_TUPLE(right))
+                {
+                    PiTuple *l_tuple = AS_TUPLE(left);
+                    PiTuple *r_tuple = AS_TUPLE(right);
+                    list_t *result = list_copy(l_tuple->items);
+                    list_addAll(result, r_tuple->items);
+                    Object *tuple_obj = add_obj(vm, new_tuple(result));
+                    push_stack(vm, NEW_OBJ(tuple_obj));
+                    break;
+                }
+
                 // Matrix paths
                 if (IS_MATRIX(left))
                 {
@@ -2592,6 +2603,30 @@ void run(vm_t *vm)
                         memcpy(result + i * o_len, str, o_len);
                     result[r_len] = '\0';
                     push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(result))));
+                    break;
+                }
+
+                if (IS_TUPLE(left) && is_numeric(right))
+                {
+                    int repeatCount = (int)as_number(right);
+                    PiTuple *tuple = AS_TUPLE(left);
+                    list_t *result = list_create(sizeof(Value));
+                    for (int i = 0; i < repeatCount; i++)
+                        list_addAll(result, tuple->items);
+                    Object *tuple_obj = add_obj(vm, new_tuple(result));
+                    push_stack(vm, NEW_OBJ(tuple_obj));
+                    break;
+                }
+
+                if (is_numeric(left) && IS_TUPLE(right))
+                {
+                    int repeatCount = (int)as_number(left);
+                    PiTuple *tuple = AS_TUPLE(right);
+                    list_t *result = list_create(sizeof(Value));
+                    for (int i = 0; i < repeatCount; i++)
+                        list_addAll(result, tuple->items);
+                    Object *tuple_obj = add_obj(vm, new_tuple(result));
+                    push_stack(vm, NEW_OBJ(tuple_obj));
                     break;
                 }
 
@@ -3328,32 +3363,27 @@ void run(vm_t *vm)
             break;
         }
 
-            // case OP_PUSH_TUPLE:
-            // {
-            //     int numElements = (code[pc++] << 8) | code[pc++];
-            //     Value *elements = ALLOCATE(Value, numElements);
+        case OP_PUSH_TUPLE:
+        {
+            int numElements = (code[pc++] << 8) | code[pc++];
+            list_t *items = list_create(sizeof(Value));
 
-            //     if (numElements == 0)
-            //     {
-            //         Object *tuple_obj = add_obj(vm, new_tuple(elements, numElements));
-            //         push_stack(vm, NEW_OBJ(tuple_obj));
-            //         break;
-            //     }
+            if (numElements > 0)
+            {
+                vm->sp -= numElements;
+                for (int i = 0; i < numElements; i++)
+                {
+                    Value element = vm->stack[vm->sp + i];
+                    if (IS_OBJ(element))
+                        add_obj(vm, AS_OBJ(element));
+                    list_add(items, &element);
+                }
+            }
 
-            //     vm->sp -= numElements;
-
-            //     for (int i = 0; i < numElements; i++)
-            //     {
-            //         Value element = vm->stack[vm->sp + i];
-            //         if (IS_OBJ(element))
-            //             add_obj(vm, AS_OBJ(element));
-            //         elements[i] = element;
-            //     }
-
-            //     Object *tuple_obj = add_obj(vm, new_tuple(elements, numElements));
-            //     push_stack(vm, NEW_OBJ(tuple_obj));
-            //     break;
-            // }
+            Object *tuple_obj = add_obj(vm, new_tuple(items));
+            push_stack(vm, NEW_OBJ(tuple_obj));
+            break;
+        }
 
         case OP_LIST_APPEND:
         {
@@ -3604,7 +3634,7 @@ void run(vm_t *vm)
                     push_stack(vm, slice); // Push the slice onto the stack
                 }
                 else
-                    vm_error(vm, "Slice operand must be a list or string.");
+                    vm_error(vm, "Slice operand must be a list, tuple, or string.");
             }
 
             break;
@@ -3703,6 +3733,14 @@ void run(vm_t *vm)
                 break;
             }
 
+            case OBJ_TUPLE:
+            {
+                PiTuple *tuple = AS_TUPLE(container);
+                int _index = get_index(as_number(index), LIST_SIZE(tuple->items));
+                Value item = *(Value *)list_getAt(tuple->items, _index);
+                push_stack(vm, item);
+                break;
+            }
             case OBJ_STRING:
             {
 

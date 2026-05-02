@@ -72,11 +72,17 @@ Value cl_unshift(vm_t *vm, int argc, Value *argv);
 // Appends a value to the end of a list or string (alias of push).
 Value cl_append(vm_t *vm, int argc, Value *argv);
 
-// Checks if a list contains a value, or if a map contains a key.
+// Checks if a list or tuple contains a value, or if a map contains a key.
 Value cl_contains(vm_t *vm, int argc, Value *argv);
 
-// Returns the index of a value in a list or character in a string.
+// Returns the index of a value in a list, tuple, or character in a string.
 Value cl_indexOf(vm_t *vm, int argc, Value *argv);
+
+// Tuple and collection helpers.
+Value cl_count(vm_t *vm, int argc, Value *argv);
+Value cl_concat(vm_t *vm, int argc, Value *argv);
+Value cl_repeat(vm_t *vm, int argc, Value *argv);
+Value pi_tuple(vm_t *vm, int argc, Value *argv);
 
 // Reverses the elements of a list or characters of a string in place.
 Value cl_reverse(vm_t *vm, int argc, Value *argv);

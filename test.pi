@@ -1,2 +1,4 @@
-s = set("hello")
-println(s)
+t = tuple()
+println(len(t)) // 4
+println(contains(t, 2)) // true
+println(t)

@@ -209,6 +209,14 @@ Object *new_set(table_t *table)
     return (Object *)set;
 }
 
+Object *new_tuple(list_t *items)
+{
+    PiTuple *tuple = CREATE_OBJ(PiTuple, OBJ_TUPLE);
+    tuple->items = items;
+    tuple->current = 0;
+    return (Object *)tuple;
+}
+
 /**
  * Creates a new ObjFile object that represents a file stream.
  *
@@ -566,6 +574,9 @@ void iter_reset(Object *col)
         // Reset the current index of the string to 0
         ((PiString *)col)->current = 0;
         break;
+    case OBJ_TUPLE:
+        ((PiTuple *)col)->current = 0;
+        break;
     case OBJ_MAP:
     {
         // Reset the map's iterator to its first key-value pair
@@ -638,6 +649,11 @@ bool iter_hasNext(Object *col)
         PiSet *set = (PiSet *)col;
         return ht_hasNext(&set->it);
     }
+    else if (type == OBJ_TUPLE)
+    {
+        PiTuple *tuple = (PiTuple *)col;
+        return tuple->current < LIST_SIZE(tuple->items);
+    }
     return false;
 }
 
@@ -685,6 +701,13 @@ Value iter_next(Object *col)
         PiRange *range = (PiRange *)col;
         Value value = NEW_NUM(range->current);
         range->current += range->step;
+        return value;
+    }
+    else if (type == OBJ_TUPLE)
+    {
+        PiTuple *tuple = (PiTuple *)col;
+        Value value = *(Value *)list_getAt(tuple->items, tuple->current);
+        tuple->current++;
         return value;
     }
     else if (type == OBJ_MAP)
@@ -806,6 +829,31 @@ Value get_slice(Object *sequence, double start, double end, double step)
         }
 
         return NEW_OBJ(new_list(s_list));
+    }
+    else if (sequence->type == OBJ_TUPLE)
+    {
+        PiTuple *tuple = (PiTuple *)sequence;
+        size = LIST_SIZE(tuple->items);
+
+        if (isinf(start))
+            _start = (sign > 0) ? size : -1;
+        else
+            _start = get_index((int)start, size);
+
+        if (isinf(end))
+            _end = (sign > 0) ? size : -1;
+        else
+            _end = get_index((int)end, size);
+
+        list_t *s_list = list_create(sizeof(Value));
+        while (sign * (_end - _start) > 0)
+        {
+            Value *item = (Value *)list_getAt(tuple->items, _start);
+            list_add(s_list, item);
+            _start += _step;
+        }
+
+        return NEW_OBJ(new_tuple(s_list));
     }
     else if (sequence->type == OBJ_STRING)
     {
