@@ -22,6 +22,15 @@ ColorPoint = Object.extends(Point, {
 
 
 
+ColorPoint2 = Object.extends(Point, {
+    constructor(x, y) {
+        super(x, y);
+    },
+    label() {
+        return super.label() + " ColorPoint2";
+    }
+})
+
 point = Point(1, 2);
 child = ColorPoint(3, 4);
 

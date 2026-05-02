@@ -52,7 +52,7 @@ Value pi_intersection(vm_t *vm, int argc, Value *argv);
 Value pi_difference(vm_t *vm, int argc, Value *argv);
 
 // Returns the symmetric difference of two sets.
-Value pi_symDiff(vm_t *vm, int argc, Value *argv);
+Value pi_symmetricDiff(vm_t *vm, int argc, Value *argv);
 
 // Checks if one set is a subset of another.
 Value pi_issubset(vm_t *vm, int argc, Value *argv);

@@ -39,7 +39,7 @@ typedef struct SDL_Rect
 #define IS_CHART(o) IS_OBJ_TYPE(o, OBJ_CHART)
 #define IS_EVENT(o) IS_OBJ_TYPE(o, OBJ_EVENT)
 
-#define IS_COLLECTION(o) (IS_LIST(o) || IS_MATRIX(o) || IS_MAP(o) || IS_SET(o) || IS_STRING(o))
+#define IS_COLLECTION(o) (IS_LIST(o) || IS_MATRIX(o) || IS_MAP(o) || IS_SET(o) || IS_TUPLE(o) || IS_STRING(o))
 
 #define IS_SEQUENCE(o) (IS_LIST(o) || IS_STRING(o))
 
@@ -237,6 +237,7 @@ typedef struct
 {
     Object object;
     table_t *table; // Use table for unique elements, keys are values, values are dummy
+    ht_iter it;     // Iterator state for set iteration
 } PiSet;
 
 typedef struct

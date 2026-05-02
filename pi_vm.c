@@ -56,6 +56,89 @@ static ObjModule *vm_currentModule(vm_t *vm)
     return AS_MODULE(*module_val);
 }
 
+static bool set_equals(PiSet *left, PiSet *right)
+{
+    if (left->table->size != right->table->size)
+        return false;
+
+    ht_iter it = ht_iterator(left->table);
+    while (ht_next(&it))
+    {
+        if (ht_get(right->table, it.key) == NULL)
+            return false;
+    }
+    return true;
+}
+
+static bool set_isSubset(PiSet *left, PiSet *right)
+{
+    ht_iter it = ht_iterator(left->table);
+    while (ht_next(&it))
+    {
+        if (ht_get(right->table, it.key) == NULL)
+            return false;
+    }
+    return true;
+}
+
+static Object *set_ops(vm_t *vm, PiSet *left, PiSet *right, int op)
+{
+    table_t *table = ht_create(sizeof(Value));
+
+    if (op == 9) // union
+    {
+        ht_iter it = ht_iterator(left->table);
+        while (ht_next(&it))
+            ht_put(table, it.key, it.value);
+
+        ht_iter other = ht_iterator(right->table);
+        while (ht_next(&other))
+        {
+            if (ht_get(table, other.key) == NULL)
+                ht_put(table, other.key, other.value);
+        }
+    }
+    else if (op == 8) // intersection
+    {
+        ht_iter it = ht_iterator(left->table);
+        while (ht_next(&it))
+        {
+            if (ht_get(right->table, it.key) != NULL)
+                ht_put(table, it.key, it.value);
+        }
+    }
+    else if (op == 10) // symmetric difference
+    {
+        ht_iter it = ht_iterator(left->table);
+        while (ht_next(&it))
+            ht_put(table, it.key, it.value);
+
+        ht_iter other = ht_iterator(right->table);
+        while (ht_next(&other))
+        {
+            if (ht_get(table, other.key) != NULL)
+                ht_delete(table, other.key);
+            else
+                ht_put(table, other.key, other.value);
+        }
+    }
+
+    return new_set(table);
+}
+
+static Object *set_difference(vm_t *vm, PiSet *left, PiSet *right)
+{
+    table_t *table = ht_create(sizeof(Value));
+    ht_iter it = ht_iterator(left->table);
+
+    while (ht_next(&it))
+    {
+        if (ht_get(right->table, it.key) == NULL)
+            ht_put(table, it.key, it.value);
+    }
+    return new_set(table);
+}
+
 static const char *vm_moduleLabel(vm_t *vm)
 {
     ObjModule *module = vm_currentModule(vm);
@@ -1920,6 +2003,41 @@ void run(vm_t *vm)
                 break;
             }
 
+            if ((IS_SET(left) || IS_SET(right)) && op <= 5)
+            {
+                if (!IS_SET(left) || !IS_SET(right))
+                    vm_error(vm, "Set comparison requires two sets.");
+
+                PiSet *left_set = AS_SET(left);
+                PiSet *right_set = AS_SET(right);
+                bool result = false;
+
+                switch (op)
+                {
+                case 0: // ==
+                    result = set_equals(left_set, right_set);
+                    break;
+                case 1: // !=
+                    result = !set_equals(left_set, right_set);
+                    break;
+                case 2: // >
+                    result = set_isSubset(right_set, left_set) && left_set->table->size != right_set->table->size;
+                    break;
+                case 3: // <
+                    result = set_isSubset(left_set, right_set) && left_set->table->size != right_set->table->size;
+                    break;
+                case 4: // >=
+                    result = set_isSubset(right_set, left_set);
+                    break;
+                case 5: // <=
+                    result = set_isSubset(left_set, right_set);
+                    break;
+                }
+
+                push_stack(vm, NEW_BOOL(result));
+                break;
+            }
+
         LABEL_COMPARE:
 
             //  op 6: 'in' operator
@@ -2303,6 +2421,7 @@ void run(vm_t *vm)
 
             case 1: // "-"
             {
+
                 // List remove first occurrence
                 if (IS_LIST(left))
                 {
@@ -2351,6 +2470,12 @@ void run(vm_t *vm)
 
                     free(l_str);
                     free(r_str);
+                    break;
+                }
+
+                if (IS_SET(left) && IS_SET(right))
+                {
+                    push_stack(vm, NEW_OBJ(add_obj(vm, set_difference(vm, AS_SET(left), AS_SET(right)))));
                     break;
                 }
 
@@ -2564,6 +2689,13 @@ void run(vm_t *vm)
             case 12: // ">>"
             case 13: // ">>>"
             {
+                // Set operations for two sets
+                if ((op == 8 || op == 9 || op == 10) && IS_SET(left) && IS_SET(right))
+                {
+                    push_stack(vm, NEW_OBJ(add_obj(vm, set_ops(vm, AS_SET(left), AS_SET(right), op))));
+                    break;
+                }
+
                 // Cross product: special case for op 10 with two lists
                 if (op == 10 && IS_LIST(left) && IS_LIST(right))
                 {
@@ -3166,6 +3298,63 @@ void run(vm_t *vm)
             break;
         }
 
+        case OP_PUSH_SET:
+        {
+            int numElements = (code[pc++] << 8) | code[pc++];
+            table_t *table = ht_create(sizeof(Value));
+
+            if (numElements == 0)
+            {
+                Object *set_obj = add_obj(vm, new_set(table));
+                push_stack(vm, NEW_OBJ(set_obj));
+                break;
+            }
+
+            vm->sp -= numElements;
+
+            for (int i = 0; i < numElements; i++)
+            {
+                Value element = vm->stack[vm->sp + i];
+                if (IS_OBJ(element))
+                    add_obj(vm, AS_OBJ(element));
+                // For set, value is ignored, key is the element itself
+                char *key_str = as_string(element);
+                ht_put(table, key_str, &NEW_NIL());
+                free(key_str);
+            }
+
+            Object *set_obj = add_obj(vm, new_set(table));
+            push_stack(vm, NEW_OBJ(set_obj));
+            break;
+        }
+
+            // case OP_PUSH_TUPLE:
+            // {
+            //     int numElements = (code[pc++] << 8) | code[pc++];
+            //     Value *elements = ALLOCATE(Value, numElements);
+
+            //     if (numElements == 0)
+            //     {
+            //         Object *tuple_obj = add_obj(vm, new_tuple(elements, numElements));
+            //         push_stack(vm, NEW_OBJ(tuple_obj));
+            //         break;
+            //     }
+
+            //     vm->sp -= numElements;
+
+            //     for (int i = 0; i < numElements; i++)
+            //     {
+            //         Value element = vm->stack[vm->sp + i];
+            //         if (IS_OBJ(element))
+            //             add_obj(vm, AS_OBJ(element));
+            //         elements[i] = element;
+            //     }
+
+            //     Object *tuple_obj = add_obj(vm, new_tuple(elements, numElements));
+            //     push_stack(vm, NEW_OBJ(tuple_obj));
+            //     break;
+            // }
+
         case OP_LIST_APPEND:
         {
             Value value = pop_stack(vm);
@@ -3276,65 +3465,6 @@ void run(vm_t *vm)
                 map->intrinsic_name = strdup(string_get(vm->names, name_index));
             break;
         }
-
-        case OP_PUSH_SET:
-        {
-            int numElements = read_short(vm);
-            table_t *table = ht_create(sizeof(Value));
-
-            if (numElements == 0)
-            {
-                Object *set_obj = add_obj(vm, new_set(table));
-                push_stack(vm, NEW_OBJ(set_obj));
-                break;
-            }
-
-            vm->sp -= numElements;
-
-            for (int i = 0; i < numElements; i++)
-            {
-                Value element = vm->stack[vm->sp + i];
-                if (IS_OBJ(element))
-                {
-                    add_obj(vm, AS_OBJ(element));
-                }
-                // For set, value is ignored, key is the element itself
-                char *key_str = as_string(element);
-                ht_put(table, key_str, &NEW_NIL());
-                free(key_str);
-            }
-
-            Object *set_obj = add_obj(vm, new_set(table));
-            push_stack(vm, NEW_OBJ(set_obj));
-            break;
-        }
-
-            // case OP_PUSH_TUPLE:
-            // {
-            //     int numElements = read_short(vm);
-            //     Value *elements = ALLOCATE(Value, numElements);
-
-            //     if (numElements == 0)
-            //     {
-            //         Object *tuple_obj = add_obj(vm, new_tuple(elements, numElements));
-            //         push_stack(vm, NEW_OBJ(tuple_obj));
-            //         break;
-            //     }
-
-            //     vm->sp -= numElements;
-
-            //     for (int i = 0; i < numElements; i++)
-            //     {
-            //         Value element = vm->stack[vm->sp + i];
-            //         if (IS_OBJ(element))
-            //             add_obj(vm, AS_OBJ(element));
-            //         elements[i] = element;
-            //     }
-
-            //     Object *tuple_obj = add_obj(vm, new_tuple(elements, numElements));
-            //     push_stack(vm, NEW_OBJ(tuple_obj));
-            //     break;
-            // }
 
         case OP_PUSH_FUNCTION:
         {

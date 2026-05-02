@@ -1,46 +1,77 @@
-s = {1, 2, 3} // set literal
-s2 = set([1, 2, 2, 3])   // duplicates removed → {1, 2, 3}
-empty = set()            // NOT {} (that creates a dict)
-add(s, 4)                 // add single element
-add(s, [1,2,3]) // add multiple element
-add(s, {1,2,3}) // add from other list
+import col.{add, clear, contains, copy}
 
-remove(s, 2)              // remove element
-remove(s, [1, 3])           // remove multiple elements
-remove(s, {4, 5})           // remove from other list (no error if not found)
+// initialization
+s = {1, 2, 3}
+println("s =", s)
 
-pop(s) // remove and return random element
-clear(s) // remove all elements
+s2 = set([1, 2, 2, 3])
+println("s2 =", s2)
 
-len(s) // number of elements
-contains(s, 2) // check if element is in set
-copy(s) // create a shallow copy of the set
+empty = set()
+println("empty =", empty)
+
+// add operations
+add(s, 4)
+println("after add 4 ->", s) // should print {1, 2, 3, 4}
+
+add(s, [1,2,3])
+println("after add list [1,2,3] ->", s)
+
+add(s, {1,2,3})
+println("after add set {1,2,3} ->", s)
+
+// remove operations
+remove(s, 2)
+println("after remove 2 ->", s)
+
+remove(s, [1, 3])
+println("after remove [1,3] ->", s)
+
+remove(s, {4, 5})
+println("after remove {4,5} ->", s)
 
 
-// set operations 
+
+// clear
+clear(s)
+println("after clear ->", s)
+
+// basic checks
+println("len(s) =", len(s))
+println("contains 2 =", contains(s, 2))
+
+c = copy(s)
+println("copy(s) =", c)
+
+
+// set operations
 s1 = {1, 2, 3}
 s2 = {3, 4, 5}
-union(s1, s2) // {1, 2, 3, 4, 5}
-intersection(s1, s2) // {3}
-difference(s1, s2) // {1, 2}
-s_diff(s1, s2) // {1, 2, 4, 5} symmetric difference
 
-issubset(s1, s2) // False
-issuperset(s1, s2) // False
-isdisjoint(s1, s2) // False (they share element 3)
+println("s1 =", s1)
+println("s2 =", s2)
+
+println("union =", union(s1, s2))
+println("intersection =", intersection(s1, s2))
+println("difference =", difference(s1, s2))
+println("symmetric difference =", symmetric_diff(s1, s2))
+
+println("issubset =", issubset(s1, s2))
+println("issuperset =", issuperset(s1, s2))
+println("isdisjoint =", isdisjoint(s1, s2))
+
 
 // using operators
-s1 = {1, 2, 3}
-s2 = {3, 4, 5}
-s1 | s2 // union
-s1 & s2 // intersection
-s1 - s2 // difference
-s1 ^ s2 // symmetric difference
-a <= b // issubset
-a >= b // issuperset
+println("s1 | s2 =", s1 | s2)
+println("s1 & s2 =", s1 & s2)
+println("s1 - s2 =", s1 - s2)
+println("s1 ^ s2 =", s1 ^ s2)
+
+println("s1 <= s2 =", s1 <= s2)
+println("s1 >= s2 =", s1 >= s2)
+
 
 // additional operations
-len(s1) // 3
-min(s1) // 1
-max(s1) // 3
-
+println("len(s1) =", len(s1))
+println("min(s1) =", min(s1))
+println("max(s1) =", max(s1))

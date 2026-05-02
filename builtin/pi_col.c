@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <limits.h>
+#include <string.h>
 
 #include "pi_col.h"
 #include "../list.h"
@@ -543,7 +544,7 @@ Value pi_difference(vm_t *vm, int argc, Value *argv)
 /**
  * Returns the symmetric difference of two sets.
  */
-Value pi_symDiff(vm_t *vm, int argc, Value *argv)
+Value pi_symmetricDiff(vm_t *vm, int argc, Value *argv)
 {
     if (argc != 2)
         vm_error(vm, "[s_diff] expects two sets.");
@@ -658,12 +659,12 @@ Value pi_isdisjoint(vm_t *vm, int argc, Value *argv)
  */
 Value _pi_set(vm_t *vm, int argc, Value *argv)
 {
-    if (argc > 1)
-        vm_error(vm, "[set] expects at most one argument: an iterable.");
+    if (argc >= 1 && !IS_COLLECTION(argv[0]))
+        vm_error(vm, "[set] expects one argument: an iterable.");
 
     table_t *table = ht_create(sizeof(Value));
 
-    if (argc == 1)
+    if (argc >= 1)
     {
         Value iterable = argv[0];
         if (IS_LIST(iterable))
@@ -673,21 +674,45 @@ Value _pi_set(vm_t *vm, int argc, Value *argv)
             {
                 Value *item = (Value *)list_getAt(list->items, i);
                 char *key = as_string(*item);
-                ht_set(table, key, item);
+                ht_put(table, key, item);
                 free(key);
             }
         }
         else if (IS_SET(iterable))
         {
-            // Copy the set
-            PiSet *orig = AS_SET(iterable);
-            ht_iter it = ht_iterator(orig->table);
+            PiSet *set = AS_SET(iterable);
+            ht_iter it = ht_iterator(set->table);
             while (ht_next(&it))
             {
-                Value *val = (Value *)it.value;
-                ht_set(table, it.key, val);
+                char *key = strdup(it.key);
+                Value *value = (Value *)it.value;
+                ht_put(table, key, value);
+                free(key);
             }
         }
+        else if (IS_STRING(iterable))
+        {
+            PiString *str = AS_STRING(iterable);
+            for (int i = 0; i < str->length; i++)
+            {
+                char ch[2] = {str->chars[i], '\0'};
+                char *key = strdup(ch);
+                Value value = NEW_OBJ(new_pistring(strdup(ch)));
+                ht_put(table, key, &value);
+                free(key);
+            }
+        }
+        // else if (IS_TUPLE(iterable))
+        // {
+        //     PiTuple *tuple = AS_TUPLE(iterable);
+        //     for (int i = 0; i < tuple->items->size; i++)
+        //     {
+        //         Value *item = (Value *)list_getAt(tuple->items, i);
+        //         char *key = as_string(*item);
+        //         ht_set(table, key, &NIL_VAL());
+        //         free(key);
+        //     }
+        // }
         else
             vm_error(vm, "[set] argument must be a list or set.");
     }
@@ -711,11 +736,11 @@ Value cl_add(vm_t *vm, int argc, Value *argv)
     for (int i = 1; i < argc; i++)
     {
         Value elem = argv[i];
-        if (!is_iterable(AS_OBJ(elem)))
+        if (!IS_COLLECTION(elem))
         {
             // Single element
             char *key_str = as_string(elem);
-            ht_set(set->table, key_str, &elem);
+            ht_put(set->table, key_str, &elem);
             free(key_str);
         }
         else
@@ -727,7 +752,7 @@ Value cl_add(vm_t *vm, int argc, Value *argv)
             {
                 Value it_elem = iter_next(iterable);
                 char *key_str = as_string(it_elem);
-                ht_set(set->table, key_str, &it_elem);
+                ht_put(set->table, key_str, &it_elem);
                 free(key_str);
             }
         }
@@ -1333,7 +1358,7 @@ static BuiltinFunc col_functions[] = {
     {"shuffle", cl_shuffle},
     {"copy", cl_copy},
     {"zip", cl_zip},
-    {"is_iterable", cl_isIterable},    
+    {"is_iterable", cl_isIterable},
     {"add", cl_add},
     {"clear", cl_clear},
 };

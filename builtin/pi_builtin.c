@@ -69,7 +69,7 @@ BuiltinFunc builtin_functions[] = {
     {"union", pi_union},
     {"intersection", pi_intersection},
     {"difference", pi_difference},
-    {"s_diff", pi_symDiff},
+    {"symmetric_diff", pi_symmetricDiff},
     {"issubset", pi_issubset},
     {"issuperset", pi_issuperset},
     {"isdisjoint", pi_isdisjoint},

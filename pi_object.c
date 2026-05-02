@@ -202,8 +202,9 @@ Object *new_set(table_t *table)
 {
     PiSet *set = CREATE_OBJ(PiSet, OBJ_SET);
 
-    // Store the given table in the object
+    // Store the given table in the object and initialize iterator state
     set->table = table;
+    set->it = ht_iterator(table);
 
     return (Object *)set;
 }
@@ -572,6 +573,13 @@ void iter_reset(Object *col)
         ht_reset(&map->it);
         break;
     }
+    case OBJ_SET:
+    {
+        // Reset the set's iterator to its first element
+        PiSet *set = (PiSet *)col;
+        ht_reset(&set->it);
+        break;
+    }
     default:
         // Raise an error if the object type is not iterable
         fprintf(stderr, "Object type is not iterable.\n");
@@ -624,6 +632,11 @@ bool iter_hasNext(Object *col)
         PiMap *map = (PiMap *)col;
         // Check if there are more key-value pairs to iterate
         return ht_hasNext(&map->it);
+    }
+    else if (type == OBJ_SET)
+    {
+        PiSet *set = (PiSet *)col;
+        return ht_hasNext(&set->it);
     }
     return false;
 }
@@ -680,6 +693,12 @@ Value iter_next(Object *col)
         ht_next(&map->it);
         return *(Value *)map->it.value;
     }
+    else if (type == OBJ_SET)
+    {
+        PiSet *set = (PiSet *)col;
+        ht_next(&set->it);
+        return *(Value *)set->it.value;
+    }
 
     fprintf(stderr, "Invalid col type for iteration.\n");
     exit(EXIT_FAILURE);
@@ -706,6 +725,8 @@ bool is_iterable(Object *obj)
     case OBJ_STRING:
     case OBJ_RANGE:
     case OBJ_MAP:
+    case OBJ_SET:
+    case OBJ_TUPLE:
         return true; // Return true for iterable types
     default:
         return false; // Return false for non-iterable types

@@ -243,35 +243,92 @@ Value pi_rand_n(vm_t *vm, int argc, Value *argv)
 /**
  * @brief Returns the minimum value in a list of numeric values.
  *
- * Accepts a single argument which must be a list of numeric values.
+ * Accepts a single argument which must be a list or set of numeric values
+ * or multiple numeric arguments.
+ *
  * Returns the smallest number in the list.
  */
 Value pi_min(vm_t *vm, int argc, Value *argv)
 {
-    if (argc == 0 || !IS_LIST(argv[0]))
-        vm_error(vm, "[min] expects a list of numeric values.");
-
-    list_t *input = AS_CLIST(argv[0]);
-
-    if (input->size == 0)
-        vm_error(vm, "[min] cannot operate on an empty list.");
+    if (argc == 0)
+        vm_error(vm, "[min] expects numerical values or a list or set of numeric values.");
 
     double min_val = 0;
     bool initialized = false;
 
-    for (int i = 0; i < input->size; i++)
+    if (argc > 1 && is_numeric(argv[0]))
     {
-        Value item = *(Value *)list_getAt(input, i);
-        if (!is_numeric(item))
-            vm_error(vm, "[min] All elements in the list must be numeric.");
-
-        double num = as_number(item);
-        if (!initialized || num < min_val)
+        // If multiple numeric arguments are provided, find the minimum among them
+        for (int i = 0; i < argc; i++)
         {
-            min_val = num;
-            initialized = true;
+            if (!is_numeric(argv[i]))
+                vm_error(vm, "[min] All arguments must be numeric.");
+
+            double num = as_number(argv[i]);
+            if (!initialized || num < min_val)
+            {
+                min_val = num;
+                initialized = true;
+            }
+        }
+        return NEW_NUM(min_val);
+    }
+    else if (IS_LIST(argv[0]))
+    {
+        list_t *input = AS_CLIST(argv[0]);
+
+        if (input->size == 0)
+            vm_error(vm, "[min] cannot operate on an empty list.");
+
+        for (int i = 0; i < input->size; i++)
+        {
+            Value item = *(Value *)list_getAt(input, i);
+            if (!is_numeric(item))
+                vm_error(vm, "[min] All elements in the list must be numeric.");
+
+            double num = as_number(item);
+            if (!initialized || num < min_val)
+            {
+                min_val = num;
+                initialized = true;
+            }
         }
     }
+    else if (IS_SET(argv[0]))
+    {
+        PiSet *set = AS_SET(argv[0]);
+
+        if (set->table->size == 0)
+            vm_error(vm, "[min] cannot operate on an empty set.");
+
+        ht_iter it = ht_iterator(set->table);
+        while (ht_next(&it))
+        {
+            Value actual;
+            if (it.value && ((Value *)it.value)->type != VAL_NIL)
+                actual = *(Value *)it.value;
+            else
+            {
+                char *endptr;
+                double num = strtod(it.key, &endptr);
+                if (endptr == it.key || *endptr != '\0')
+                    vm_error(vm, "[min] All elements in the set must be numeric.");
+                actual = NEW_NUM(num);
+            }
+
+            if (!is_numeric(actual))
+                vm_error(vm, "[min] All elements in the set must be numeric.");
+
+            double num = as_number(actual);
+            if (!initialized || num < min_val)
+            {
+                min_val = num;
+                initialized = true;
+            }
+        }
+    }
+    else
+        vm_error(vm, "[min] expects a list or set of numeric values.");
 
     return NEW_NUM(min_val);
 }
@@ -279,35 +336,91 @@ Value pi_min(vm_t *vm, int argc, Value *argv)
 /**
  * @brief Returns the maximum value in a list of numeric values.
  *
- * Accepts a single argument which must be a list of numeric values.
+ * Accepts a single argument which must be a list or set of
+ * numeric values or multiple numeric arguments
+ *
  * Returns the largest number in the list.
  */
 Value pi_max(vm_t *vm, int argc, Value *argv)
 {
-    if (argc == 0 || !IS_LIST(argv[0]))
-        vm_error(vm, "[max] expects a list of numeric values.");
-
-    list_t *input = AS_CLIST(argv[0]);
-
-    if (input->size == 0)
-        vm_error(vm, "[max] cannot operate on an empty list.");
+    if (argc == 0)
+        vm_error(vm, "[max] expects numerical values or a list or set of numeric values.");
 
     double max_val = 0;
     bool initialized = false;
-
-    for (int i = 0; i < input->size; i++)
+    if (argc > 1 && is_numeric(argv[0]))
     {
-        Value item = *(Value *)list_getAt(input, i);
-        if (!is_numeric(item))
-            vm_error(vm, "[max] All elements in the list must be numeric.");
-
-        double num = as_number(item);
-        if (!initialized || num > max_val)
+        // If multiple numeric arguments are provided, find the maximum among them
+        for (int i = 0; i < argc; i++)
         {
-            max_val = num;
-            initialized = true;
+            if (!is_numeric(argv[i]))
+                vm_error(vm, "[max] All arguments must be numeric.");
+
+            double num = as_number(argv[i]);
+            if (!initialized || num > max_val)
+            {
+                max_val = num;
+                initialized = true;
+            }
+        }
+        return NEW_NUM(max_val);
+    }
+    else if (IS_LIST(argv[0]))
+    {
+        list_t *input = AS_CLIST(argv[0]);
+
+        if (input->size == 0)
+            vm_error(vm, "[max] cannot operate on an empty list.");
+
+        for (int i = 0; i < input->size; i++)
+        {
+            Value item = *(Value *)list_getAt(input, i);
+            if (!is_numeric(item))
+                vm_error(vm, "[max] All elements in the list must be numeric.");
+
+            double num = as_number(item);
+            if (!initialized || num > max_val)
+            {
+                max_val = num;
+                initialized = true;
+            }
         }
     }
+    else if (IS_SET(argv[0]))
+    {
+        PiSet *set = AS_SET(argv[0]);
+
+        if (set->table->size == 0)
+            vm_error(vm, "[max] cannot operate on an empty set.");
+
+        ht_iter it = ht_iterator(set->table);
+        while (ht_next(&it))
+        {
+            Value actual;
+            if (it.value && ((Value *)it.value)->type != VAL_NIL)
+                actual = *(Value *)it.value;
+            else
+            {
+                char *endptr;
+                double num = strtod(it.key, &endptr);
+                if (endptr == it.key || *endptr != '\0')
+                    vm_error(vm, "[max] All elements in the set must be numeric.");
+                actual = NEW_NUM(num);
+            }
+
+            if (!is_numeric(actual))
+                vm_error(vm, "[max] All elements in the set must be numeric.");
+
+            double num = as_number(actual);
+            if (!initialized || num > max_val)
+            {
+                max_val = num;
+                initialized = true;
+            }
+        }
+    }
+    else
+        vm_error(vm, "[max] expects a list or set of numeric values.");
 
     return NEW_NUM(max_val);
 }

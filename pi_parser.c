@@ -66,6 +66,8 @@ static bool list_hasSpreadItems(parser_t *parser);
 static bool list_isComprehension(parser_t *parser);
 
 static bool map_hasSpreadItems(parser_t *parser);
+static bool is_mapEntry(parser_t *parser);
+static void emit_setLiteral(parser_t *parser);
 static bool has_accessContinuation(parser_t *parser, token_t token);
 
 static token_t peek(parser_t *parser);
@@ -389,6 +391,51 @@ static bool map_hasSpreadItems(parser_t *parser)
     }
 
     return false;
+}
+
+static bool is_mapEntry(parser_t *parser)
+{
+    if (check(parser, TK_ELLIPSIS))
+        return true;
+
+    token_t token = peek(parser);
+    switch (token.type)
+    {
+    case TK_STR:
+    case TK_ID:
+    case TK_NUM:
+    case TK_FALSE:
+    case TK_TRUE:
+    {
+        token_t next_token = parser->tokens[parser->current + 1];
+        return next_token.type == TK_COLON || next_token.type == TK_LPAREN;
+    }
+    default:
+        return false;
+    }
+}
+
+static void emit_setLiteral(parser_t *parser)
+{
+    int size = 0;
+    if (check(parser, TK_RBRACE))
+    {
+        consume(parser, TK_RBRACE, "Expect '}' at the end of set literal.");
+        emit_16u(parser->comp, OP_PUSH_SET, "", 0);
+        return;
+    }
+
+    do
+    {
+        if (check(parser, TK_RBRACE))
+            break;
+
+        cond_expr(parser);
+        size++;
+    } while (match(parser, TK_COMMA));
+
+    consume(parser, TK_RBRACE, "Expect '}' at the end of set literal.");
+    emit_16u(parser->comp, OP_PUSH_SET, "", size);
 }
 
 /**
@@ -3841,115 +3888,120 @@ static void primary(parser_t *parser)
 
         token_t token = previous(parser);
         int size = 0;
-
-        push_object(parser->comp);
+        // push_object(parser->comp);
         if (match(parser, TK_RBRACE))
         {
+            push_object(parser->comp);
             pop_object(parser->comp);
             emit_16u(parser->comp, OP_PUSH_MAP, "", 0); // Emit empty map
             emit_mapFinalize(parser);
         }
-        else if (map_hasSpreadItems(parser))
-        {
-            emit_spreadMapLiteral(parser);
-            pop_object(parser->comp);
-        }
+        else if (!is_mapEntry(parser) && !map_hasSpreadItems(parser))        
+            emit_setLiteral(parser);        
         else
         {
-            char *key;
-            int index = 0;
-            do
+            push_object(parser->comp);
+            if (map_hasSpreadItems(parser))
             {
-                if (match_n(parser, 5, TK_STR, TK_ID, TK_NUM, TK_FALSE, TK_TRUE))
+                emit_spreadMapLiteral(parser);
+                pop_object(parser->comp);
+            }
+            else
+            {
+                char *key;
+                int index = 0;
+                do
                 {
-                    key = tk_string(previous(parser));
-                    index = store_const(parser->comp, NEW_OBJ(new_pistring(key)));
-                }
-                else
-                    p_error("Unexpected key expression.", peek(parser).line, peek(parser).column);
-
-                if (match(parser, TK_LPAREN))
-                {
-                    /**
-                     * Parse a function expression as a value in the map.
-                     * The function expression is parsed as a lambda function
-                     * so it can be used as a value in the map.
-                     */
-                    list_t *params = param_list(parser);
-                    int size = list_size(params);
-                    consume(parser, TK_RPAREN, "Expect ')' before function body.");
-                    consume(parser, TK_LBRACE, "Expect '{' before function body.");
-
-                    push_function(parser->comp, key);
-                    parser->comp->current->param_names = params;
-
-                    if (is_object(parser->comp))
-                        add_local(parser->comp, "this");
-
-                    for (int i = 0; i < size; i++)
-                        add_local(parser->comp, string_get(params, i));
-                    add_local(parser->comp, "args");
-                    add_local(parser->comp, "kw_args");
-
-                    // if (check(parser, TK_RBRACE))
-                    if (match(parser, TK_RBRACE))
+                    if (match_n(parser, 5, TK_STR, TK_ID, TK_NUM, TK_FALSE, TK_TRUE))
                     {
-                        if (is_constructor(parser->comp))
-                            emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
-                        else
-                            emit(parser->comp, OP_PUSH_NIL);
-                        emit(parser->comp, OP_RETURN);
+                        key = tk_string(previous(parser));
+                        index = store_const(parser->comp, NEW_OBJ(new_pistring(key)));
                     }
                     else
                     {
-                        // Parse the function body
-                        while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
-                            declaration(parser);
+                        p_error("Unexpected key expression.", peek(parser).line, peek(parser).column);
+                    }
 
-                        if (!parser->is_return)
+                    if (match(parser, TK_LPAREN))
+                    {
+                        /**
+                         * Parse a function expression as a value in the map.
+                         * The function expression is parsed as a lambda function
+                         * so it can be used as a value in the map.
+                         */
+                        list_t *params = param_list(parser);
+                        int size = list_size(params);
+                        consume(parser, TK_RPAREN, "Expect ')' before function body.");
+                        consume(parser, TK_LBRACE, "Expect '{' before function body.");
+
+                        push_function(parser->comp, key);
+                        parser->comp->current->param_names = params;
+
+                        if (is_object(parser->comp))
+                            add_local(parser->comp, "this");
+
+                        for (int i = 0; i < size; i++)
+                            add_local(parser->comp, string_get(params, i));
+                        add_local(parser->comp, "args");
+                        add_local(parser->comp, "kw_args");
+
+                        if (match(parser, TK_RBRACE))
                         {
                             if (is_constructor(parser->comp))
                                 emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
                             else
                                 emit(parser->comp, OP_PUSH_NIL);
                             emit(parser->comp, OP_RETURN);
-
-                            parser->is_return = false;
                         }
+                        else
+                        {
+                            while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
+                                declaration(parser);
+
+                            if (!parser->is_return)
+                            {
+                                if (is_constructor(parser->comp))
+                                    emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
+                                else
+                                    emit(parser->comp, OP_PUSH_NIL);
+                                emit(parser->comp, OP_RETURN);
+
+                                parser->is_return = false;
+                            }
+                        }
+
+                        pop_function(parser->comp, size);
+                        consume(parser, TK_RBRACE, "Expect '}' after function body.");
+                    }
+                    else
+                    {
+                        if (strcmp(key, "constructor") == 0)
+                            p_error("Constructor is a reserved keyword.", peek(parser).line, peek(parser).column);
+                        consume(parser, TK_COLON, "Expect ':' after object key expression.");
+                        bool prev_object_member = parser->object_member;
+                        char *prev_fun = parser->fun_name;
+                        char *prev_obj = parser->object_name;
+                        parser->object_member = true;
+                        parser->object_name = NULL;
+
+                        if (is_functionLiteral(parser, parser->current))
+                            parser->fun_name = key;
+
+                        cond_expr(parser);
+                        parser->object_member = prev_object_member;
+                        parser->fun_name = prev_fun;
+                        parser->object_name = prev_obj;
                     }
 
-                    pop_function(parser->comp, size);
-                    consume(parser, TK_RBRACE, "Expect '}' after function body.");
-                }
-                else
-                {
-                    if (strcmp(key, "constructor") == 0)
-                        p_error("Constructor is a reserved keyword.", peek(parser).line, peek(parser).column);
-                    consume(parser, TK_COLON, "Expect ':' after object key expression.");
-                    bool prev_object_member = parser->object_member;
-                    char *prev_fun = parser->fun_name;
-                    char *prev_obj = parser->object_name;
-                    parser->object_member = true;
-                    parser->object_name = NULL;
+                    emit_16u(parser->comp, OP_LOAD_CONST, key, index);
+                    size++;
+                } while (match(parser, TK_COMMA) && !check(parser, TK_RBRACE)); // Allow trailing comma
 
-                    if (is_functionLiteral(parser, parser->current))
-                        parser->fun_name = key;
-
-                    cond_expr(parser);
-                    parser->object_member = prev_object_member;
-                    parser->fun_name = prev_fun;
-                    parser->object_name = prev_obj;
-                }
-
-                // Emit bytecode to load the key as a constant
-                emit_16u(parser->comp, OP_LOAD_CONST, key, index);
-                size++;
-            } while (match(parser, TK_COMMA) && !check(parser, TK_RBRACE)); // Allow trailing comma
-
-            consume(parser, TK_RBRACE, "Expect '}' at the end of map literal.");
-            pop_object(parser->comp);
-            emit_16u(parser->comp, OP_PUSH_MAP, "", size); // Emit map with key-value pairs
-            emit_mapFinalize(parser);
+                consume(parser, TK_RBRACE, "Expect '}' at the end of map literal.");
+                pop_object(parser->comp);
+                emit_16u(parser->comp, OP_PUSH_MAP, "", size); // Emit map with key-value pairs
+                emit_mapFinalize(parser);
+            }
         }
     }
 
