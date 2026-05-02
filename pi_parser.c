@@ -8,7 +8,7 @@
 #include "pi_compiler.h"
 #include "pi_opcode.h"
 #include "pi_object.h"
-#include "string.h"
+#include "pi_string.h"
 
 // Operator definitions for parsing expressions
 char *comp_ops[] = {"==", "!=", ">", "<", ">=", "<=", "in"};

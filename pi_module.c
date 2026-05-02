@@ -8,7 +8,7 @@
 #include "pi_parser.h"
 #include "pi_compiler.h"
 #include "pi_opcode.h"
-#include "string.h"
+#include "pi_string.h"
 #include "pi_func.h"
 #include "builtin/pi_builtin.h"
 

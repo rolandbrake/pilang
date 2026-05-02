@@ -11,10 +11,10 @@
 #include "pi_compiler.h"
 #include "pi_object.h"
 #include "pi_opcode.h"
-#include "stack.h"
+#include "pi_stack.h"
 #include "common.h"
-#include "list.h"
-#include "string.h"
+#include "pi_list.h"
+#include "pi_string.h"
 
 #include "builtin/pi_builtin.h"
 

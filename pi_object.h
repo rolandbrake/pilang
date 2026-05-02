@@ -16,8 +16,8 @@ typedef struct SDL_Rect
 #endif
 
 #include "pi_value.h"
-#include "list.h"
-#include "table.h"
+#include "pi_list.h"
+#include "pi_table.h"
 #include "common.h"
 
 #define OBJ_TYPE(o) (AS_OBJ(o)->type)
@@ -345,7 +345,7 @@ Object *new_tuple(list_t *items);
 Object *new_file(FILE *file, char *filename, char *mode);
 
 Value map_get(PiMap *map, Value key);
-Value map_getValue(PiMap *map, const char *key);
+Value map_getValueByKey(PiMap *map, const char *key);
 void map_set(PiMap *map, Value key, Value value);
 bool map_has(PiMap *map, Value key);
 bool map_delete(PiMap *map, Value key);

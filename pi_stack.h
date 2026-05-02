@@ -1,5 +1,5 @@
-#ifndef STACK_H
-#define STACK_H
+#ifndef PI_STACK_H
+#define PI_STACK_H
 
 // Define macros for pushing and popping integers
 #define PUSH_INT(stack, value) \
@@ -57,4 +57,4 @@ void stack_free(stack_t *stack);
 
 void stack_print(stack_t *stack, void (*print_item)(void *));
 
-#endif
+#endif // PI_STACK_H

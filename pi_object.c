@@ -302,7 +302,7 @@ Value map_get(PiMap *map, Value key)
     return *(Value *)item;
 }
 
-Value map_getValue(PiMap *map, const char *key)
+Value map_getValueByKey(PiMap *map, const char *key)
 {
     PiMap *owner = map_findOwner(map, key);
     void *item = owner ? ht_get(owner->table, key) : NULL;

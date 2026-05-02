@@ -6,7 +6,7 @@
 
 #include "pi_os.h"
 #include "../pi_object.h"
-#include "../table.h"
+#include "../pi_table.h"
 #include "pi_builtin.h"
 
 #ifdef __EMSCRIPTEN__

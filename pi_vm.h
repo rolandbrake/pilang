@@ -5,9 +5,9 @@
 #include <stdarg.h>
 
 #include "pi_compiler.h"
-#include "table.h"
-#include "stack.h"
-#include "list.h"
+#include "pi_table.h"
+#include "pi_stack.h"
+#include "pi_list.h"
 #include "pi_object.h"
 #include "pi_frame.h"
 

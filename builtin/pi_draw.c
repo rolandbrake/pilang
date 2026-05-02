@@ -12,7 +12,7 @@
 #include "../common.h"
 #include "pi_builtin.h"
 #include "../pi_func.h"
-#include "../table.h"
+#include "../pi_table.h"
 
 typedef struct TransformState
 {

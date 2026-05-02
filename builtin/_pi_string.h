@@ -1,5 +1,5 @@
-#ifndef PI_STRING_H
-#define PI_STRING_H
+#ifndef _PI_STRING_H
+#define _PI_STRING_H
 
 #include "../pi_value.h"
 #include "../pi_vm.h"
@@ -18,4 +18,4 @@ Value st_isAlpha(vm_t *vm, int argc, Value *argv);
 Value st_isAlnum(vm_t *vm, int argc, Value *argv);
 Value st_split(vm_t *vm, int argc, Value *argv);
 
-#endif // PI_STRING_H
+#endif // _PI_STRING_H

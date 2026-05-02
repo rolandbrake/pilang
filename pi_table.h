@@ -1,11 +1,11 @@
-#ifndef TABLE_H
-#define TABLE_H
+#ifndef PI_TABLE_H
+#define PI_TABLE_H
 
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "list.h"
+#include "pi_list.h"
 
 #define FNV_OFFSET 14695981039346656037UL
 #define FNV_PRIME 1099511628211UL
@@ -56,4 +56,4 @@ bool ht_next(ht_iter *it);
 bool ht_hasNext(ht_iter *it);
 void ht_reset(ht_iter *it);
 
-#endif // TABLE_H
+#endif // PI_TABLE_H

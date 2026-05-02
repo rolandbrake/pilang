@@ -10,7 +10,7 @@
 #include "pi_value.h"
 #include "pi_module.h"
 
-#include "string.h"
+#include "pi_string.h"
 #include "common.h"
 #include "pi_func.h"
 #include "gc.h"
@@ -760,7 +760,7 @@ static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
 
 static bool object_instanceCall(vm_t *vm, PiMap *map, size_t argc, Value *args, Value kw_args, Value *result)
 {
-    Value call_method = map_getValue(map, "call");
+    Value call_method = map_getValueByKey(map, "call");
     if (!IS_FUN(call_method))
         return false;
 
@@ -805,7 +805,7 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
             vm_error(vm, "Attempt to call an Object instance.");
         }
 
-        Value constructor = map_getValue(map, "constructor");
+        Value constructor = map_getValueByKey(map, "constructor");
         if (IS_FUN(constructor))
         {
             result = NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, kw_args)));
@@ -1407,7 +1407,7 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value k
     // vm->stack[vm->sp] = NEW_OBJ(instance);
 
     // Invoke the constructor if it exists
-    Value constructor = map_getValue(map, "constructor");
+    Value constructor = map_getValueByKey(map, "constructor");
 
     if (IS_FUN(constructor))
     {
@@ -3109,15 +3109,8 @@ void run(vm_t *vm)
                     vm_error(vm, "Attempt to call an Object instance.");
                 }
 
-                Value constructor = map_getValue(map, "constructor");
-                if (IS_FUN(constructor))
-                {
-                    push_stack(vm, NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, NEW_NIL()))));
-                }
-                else
-                {
-                    push_stack(vm, NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, NEW_NIL()))));
-                }
+                Value constructor = map_getValueByKey(map, "constructor");
+                push_stack(vm, NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, NEW_NIL()))));
             }
             else
                 vm_error(vm, "Attempt to call a non-function object.");

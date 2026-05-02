@@ -1,7 +1,7 @@
 #include "reduce.h"
 
 #include "reduce.h"
-#include "../../list.h"
+#include "../../pi_list.h"
 #include "../pi_builtin.h"
 #include <math.h>
 

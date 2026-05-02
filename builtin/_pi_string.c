@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-#include "pi_string.h"
+#include "_pi_string.h"
 #include "../pi_object.h"
 #include "pi_builtin.h"
 

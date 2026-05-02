@@ -1,39 +1,7 @@
-class Multiplier {
-    constructor(factor) {
-        this.factor = factor
-    }
-
-    call(value) {
-        return value * this.factor
-    }
-}
-// Create an instance
-double = Multiplier(2)
-
-// Call the object like a function
-println(double(5))  // Output: 10
-println(double(10)) // Output: 20
-
-
-Counter = {
-    count: 0,
-    call() {
-        this.count = this.count + 1
-        return this.count
-    }
+fun fib(n = 0) {
+    if(n <= 1)
+        return n;
+    return fib(n-1) + fib(n-2);
 }
 
-counter = Counter()
-
-assert(counter() == 1, "instance call should invoke call method")
-assert(counter() == 2, "callable instance should preserve state")
-
-Adder = {
-    base: 5,
-    call(x, y) {
-        return x + y + this.base
-    }
-}
-
-adder = Adder()
-assert(adder(1, 2) == 8, "instance call should forward positional arguments")
+println(fib(10));

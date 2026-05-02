@@ -11,7 +11,7 @@
 #include "common.h"
 #include "pi_lex.h"
 #include "pi_parser.h"
-#include "stack.h"
+#include "pi_stack.h"
 #include "pi_compiler.h"
 #include "pi_vm.h"
 
@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
 #include <time.h>
 #include "pi_lex.h"
 #include "pi_parser.h"
-#include "stack.h"
+#include "pi_stack.h"
 #include "pi_compiler.h"
 #include "pi_vm.h"
 #include "common.h"

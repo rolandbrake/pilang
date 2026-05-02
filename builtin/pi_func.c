@@ -4,9 +4,9 @@
 
 #include "pi_func.h"
 #include "../pi_func.h"
-#include "../list.h"
+#include "../pi_list.h"
 #include "../pi_object.h"
-#include "../table.h"
+#include "../pi_table.h"
 #include "../pi_value.h"
 #include "pi_builtin.h"
 

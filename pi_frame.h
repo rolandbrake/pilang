@@ -1,8 +1,8 @@
 #ifndef PI_FRAME_H
 #define PI_FRAME_H
 
-#include "list.h"
-#include "table.h"
+#include "pi_list.h"
+#include "pi_table.h"
 
 // Forward declare Function to avoid circular include
 typedef struct Function Function;

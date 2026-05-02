@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include "pi_func.h"
 #include "pi_object.h"
-#include "string.h"
+#include "pi_string.h"
 
 /**
  * Create a new function object.

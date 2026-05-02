@@ -8,7 +8,7 @@
 
 #include "../pi_value.h"
 #include "../pi_object.h"
-#include "../list.h"
+#include "../pi_list.h"
 #include "../common.h"
 #include "../gc.h"
 

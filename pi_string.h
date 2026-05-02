@@ -1,8 +1,8 @@
-#ifndef STRING_H
-#define STRING_H
+#ifndef PI_STRING_H
+#define PI_STRING_H
 
 #include_next <string.h>
-#include "list.h"
+#include "pi_list.h"
 
 #define GET_STRING(STR) ((String *)STR)->data
 
@@ -18,4 +18,4 @@ char *string_get(list_t *list, int index);
 void free_strings(list_t *list);
 void free_string(String *str);
 
-#endif // STRING_H
+#endif // PI_STRING_H
