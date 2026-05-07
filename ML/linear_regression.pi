@@ -1,12 +1,28 @@
-// import io.{format}
-// import math.{ceil}
+import io.{format}
+import math.{ceil}
 
-// x_train = [1.0, 1.7, 2.0, 2.5, 3.0, 3.2]
-// y_train = [250, 300, 480, 430, 630, 730]
+
+// Larger dataset with some noise
+// x_train = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5]
+// y_train = [320.0, 360.0, 510.0, 600.0, 690.0, 810.0, 880.0, 990.0, 1080.0, 1190.0, 1300.0, 1380.0]
 
 // Load our data set
-x_train = [1.0, 2.0]  //features
-y_train = [300.0, 500.0]   //target value
+// x_train = [1.0, 2.0]  //features
+// y_train = [300.0, 500.0]   //target value
+
+x_train = []
+y_train = []
+
+for i in range(1, 51) {
+    let x = i * 0.5
+    let noise = (rand() - 0.5) * 50   // small randomness
+    let y = 200 * x + 100 + noise
+
+    x_train += x
+    y_train += y
+}
+
+
 
 
 fun compute_cost(x, y, w, b) {
@@ -28,7 +44,7 @@ fun compute_cost(x, y, w, b) {
     for i in range(m) { 
         let f_wb = w * x[i] + b   
         let cost = (f_wb - y[i]) ** 2  
-        cost_sum = cost_sum + cost  
+        cost_sum += cost  
     }
     let total_cost = (1 / (2 * m)) * cost_sum  
 
@@ -70,7 +86,8 @@ fun compute_gradient(x, y, w, b) {
 }
 
 
-fun gradient_descent(x, y, w_in, b_in, alpha, num_iters, cost_function, gradient_function) {
+fun gradient_descent(x, y, w_in, b_in, alpha, num_iters, 
+                  cost_function, gradient_function) {
     /*
     Performs gradient descent to learn w and b. Updates w and b by taking 
     num_iters gradient steps with learning rate alpha
@@ -106,7 +123,7 @@ fun gradient_descent(x, y, w_in, b_in, alpha, num_iters, cost_function, gradient
         if i < 100 || i % 1000 == 0 {
             w_history += w
             b_history += b
-            cost_history += cost_function(x, y, w, b)
+            cost_history += cost_function(x, y, w, b)            
         }
     }        
     
@@ -119,10 +136,10 @@ w_init = 0
 b_init = 0
 // some gradient descent settings
 iterations = 10000
-tmp_alpha = 0.01
+alpha = 0.004
 
 [w_final, b_final, cost_history, w_history, b_history] = gradient_descent(x_train, y_train, w_init, b_init,
-                                                         tmp_alpha, iterations, compute_cost, compute_gradient)
+                                                         alpha, iterations, compute_cost, compute_gradient)
 
 
 println("(w,b) found by gradient descent:", w_final, b_final)

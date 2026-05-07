@@ -23,7 +23,7 @@
 // Macros for handling opcodes [for future use]
 #define VM_LABEL(name) L_##name
 #define VM_TARGET(name) &&L_##name
-#define VM_DISPATCH() goto *dispatch[code[pc++]]
+#define VM_DISPATCH(op) goto *dispatch[op]
 #define VM_CASE(name) VM_LABEL(name)
 
 #define VM_DISPATCH_SAFE()                  \

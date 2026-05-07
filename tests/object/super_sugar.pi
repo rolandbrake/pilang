@@ -1,0 +1,18 @@
+class A {
+    constructor(value) {
+        this.value = value
+    }
+}
+
+class B : A {
+    constructor(value) {
+        super(value)
+    }
+
+    get_value() {
+        return this.value
+    }
+}
+
+b = B(42)
+println(b.get_value())

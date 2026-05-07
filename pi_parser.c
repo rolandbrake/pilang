@@ -3475,6 +3475,13 @@ static void member_expr(parser_t *parser)
             bool saw_named = false;
             bool saw_spread = call_hasSpreadArgs(parser);
 
+            if (token.type == TK_SUPER)
+            {
+                int ctor_index = store_const(parser->comp, NEW_OBJ(new_pistring("constructor")));
+                emit_16u(parser->comp, OP_LOAD_CONST, "constructor", ctor_index);
+                emit(parser->comp, OP_GET_ITEM);
+            }
+
             if (!check(parser, TK_RPAREN))
             {
                 if (saw_spread)
@@ -3815,6 +3822,12 @@ static void primary(parser_t *parser) {
                 }
             }
         }
+    }
+    // Check for variable identifiers
+    else if (match(parser, TK_SUPER))
+    {
+        set_pos(parser, previous(parser));
+        emit(parser->comp, OP_LOAD_SUPER);
     }
     // Check for variable identifiers
     else if (match(parser, TK_ID))
