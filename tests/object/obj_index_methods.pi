@@ -1,0 +1,33 @@
+class Box {
+    constructor(values) {
+        this.values = values
+    }
+
+    get_item(index) {
+        return this.values[index]
+    }
+
+    set_item(index, value) {
+        this.values[index] = value
+    }
+
+    slice(start, end, step) {
+        return this.values[start:end:step]
+    }
+}
+
+box = Box([10, 20, 30, 40, 50])
+
+assert(box[1] == 20, "object indexing should dispatch to get_item(index)")
+
+box[2] = 99
+assert(box[2] == 99, "object index assignment should dispatch to set_item(index, value)")
+
+part = box[1:4:2]
+assert(part[0] == 20, "object slicing should dispatch to slice(start, end, step)")
+assert(part[1] == 40, "object slicing should preserve the step argument")
+
+println("object index methods")
+println(box[1])
+println(box[2])
+println(part)

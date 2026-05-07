@@ -1218,6 +1218,37 @@ static bool try_callMethodOneArg(vm_t *vm, Value receiver, const char *name, Val
 }
 
 /**
+ * Attempts to call a method on an object with an arbitrary argument list.
+ *
+ * Used by syntax-level overrides where the number of arguments is fixed by the
+ * operator, such as indexing and slicing. Only object instances participate so
+ * plain map indexing keeps its direct key lookup behavior.
+ */
+static bool try_callMethodArgs(vm_t *vm, Value receiver, const char *name, int argc, Value *args, Value *result)
+{
+    if (!IS_MAP(receiver) || !AS_MAP(receiver)->is_instance)
+        return false;
+
+    Value key = NEW_OBJ(new_pistring(strdup(name)));
+    PiMap *owner = map_owner(AS_MAP(receiver), key);
+    if (owner == NULL)
+        return false;
+
+    Value method = map_get(owner, key);
+    if (!IS_FUN(method))
+        return false;
+
+    Object *target = AS_MAP(receiver)->super_instance ? AS_MAP(receiver)->super_instance : AS_OBJ(receiver);
+    method = bind(vm, AS_FUN(method), target);
+
+    *result = call_func(vm, AS_FUN(method), argc, args, NEW_NIL());
+    if (IS_OBJ(*result))
+        add_obj(vm, AS_OBJ(*result));
+
+    return true;
+}
+
+/**
  * Attempts to call the compute method on the given object.
  *
  * This function attempts to call the compute method on the given object. The compute
@@ -3671,6 +3702,15 @@ void run(vm_t *vm)
             Value step = pop_stack(vm);
             Value end = pop_stack(vm);
             Value start = pop_stack(vm);
+            Value sequence = pop_stack(vm);
+            Value method_result;
+            Value args[3] = {start, end, step};
+
+            if (try_callMethodArgs(vm, sequence, "slice", 3, args, &method_result))
+            {
+                push_stack(vm, method_result);
+                break;
+            }
 
             if (!IS_NUM(start) || !IS_NUM(end))
                 vm_error(vm, "Slice [start] and [end] must be numbers.");
@@ -3680,7 +3720,6 @@ void run(vm_t *vm)
                 vm_error(vm, "Slice [step] must be nil or a number.");
             else
             {
-                Value sequence = pop_stack(vm);
                 if (IS_SEQUENCE(sequence))
                 {
                     double end_num = as_number(end);
@@ -3699,6 +3738,7 @@ void run(vm_t *vm)
         {
             Value index = pop_stack(vm);     // Get the index from the stack
             Value container = pop_stack(vm); // Get the container from the stack
+            Value method_result;
 
             if (!IS_OBJ(container))
                 vm_error(vm, "Unsupported operand type for get item operator.\n");
@@ -3728,6 +3768,12 @@ void run(vm_t *vm)
             case OBJ_MAP:
             {
                 PiMap *map = AS_MAP(container);
+                if (!IS_STRING(index) && try_callMethodArgs(vm, container, "get_item", 1, &index, &method_result))
+                {
+                    push_stack(vm, method_result);
+                    break;
+                }
+
                 PiMap *owner = map_owner(map, index);
                 Value item = owner ? map_get(owner, index) : NEW_NIL();
 
@@ -3866,6 +3912,7 @@ void run(vm_t *vm)
             Value index = pop_stack(vm);     // The index/key
             Value container = pop_stack(vm); // The container (list/map)
             Value value = pop_stack(vm);     // The value to set
+            Value method_result;
 
             if (!IS_OBJ(container))
                 vm_error(vm, "Unsupported operand type for set item operator.\n");
@@ -3909,6 +3956,10 @@ void run(vm_t *vm)
             case OBJ_MAP:
             {
                 PiMap *map = AS_MAP(container);
+                Value args[2] = {index, value};
+                if (!IS_STRING(index) && try_callMethodArgs(vm, container, "set_item", 2, args, &method_result))
+                    break;
+
                 if (map->is_instance)
                 {
                     char *key = as_string(index);
