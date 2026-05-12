@@ -157,7 +157,7 @@ void mark_object(Object *obj)
         break;
     }
 
-    case OBJ_MATRIX:
+    case OBJ_TENSOR:
         break;
 
     case OBJ_MAP:
@@ -358,10 +358,12 @@ void free_object(Object *obj)
         break;
     }
 
-    case OBJ_MATRIX:
+    case OBJ_TENSOR:
     {
-        PiMatrix *matrix = (PiMatrix *)obj;
-        free(matrix->data);
+        PiTensor *tensor = (PiTensor *)obj;
+        free(tensor->data.f64);
+        free(tensor->shape);
+        free(tensor->strides);
         break;
     }
 

@@ -1,4 +1,4 @@
-import matrix.{ones};
+import tensor.{ones};
 
 let A = ones(4, 4)
 

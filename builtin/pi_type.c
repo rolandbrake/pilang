@@ -137,9 +137,8 @@ Value tp_size(vm_t *vm, int argc, Value *argv)
             return NEW_NUM((double)PILIST_SIZE(arg));
         case OBJ_MAP:
             return NEW_NUM((double)PIMAP_SIZE(arg));
-        case OBJ_MATRIX:
-            // For matrix, return number of elements (rows * cols)
-            return NEW_NUM((double)(AS_MATRIX(arg)->rows * AS_MATRIX(arg)->cols));
+        case OBJ_TENSOR:
+            return NEW_NUM((double)AS_TENSOR(arg)->size);
         case OBJ_RANGE:
             // For range, return the number of elements in the range
             return NEW_NUM((double)(((AS_RANGE(arg)->end - AS_RANGE(arg)->start) / AS_RANGE(arg)->step) + 1));

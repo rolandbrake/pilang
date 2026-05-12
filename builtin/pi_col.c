@@ -321,70 +321,25 @@ Value pi_remove(vm_t *vm, int argc, Value *argv)
 
 Value pi_slice(vm_t *vm, int argc, Value *argv)
 {
-    if (argc < 3)
-        vm_error(vm, "[slice] expects 3 arguments at least: collection, start, end.");
+    if (argc < 2)
+        vm_error(vm, "[slice] expects at least 2 arguments: start, end [, step].");
 
-    Value collection = argv[0];
-    Value start = argv[1];
-    Value end = argv[2];
-
-    if (!IS_LIST(collection) && !IS_STRING(collection) && !IS_TUPLE(collection))
-        vm_error(vm, "[slice] first argument must be a list, tuple, or a string.");
+    Value start = argv[0];
+    Value end = argv[1];
+    Value step = argc >= 3 ? argv[2] : NEW_NUM(1.0);
 
     if (!IS_NUM(start) || !IS_NUM(end))
-        vm_error(vm, "[slice] second and third arguments must be numbers.");
+        vm_error(vm, "[slice] start and end must be numbers.");
 
-    int len = COL_LENGTH(collection);
-    int start_index = get_index(as_number(start), len);
-    int end_index = get_index(as_number(end), len);
+    if (!IS_NUM(step))
+        vm_error(vm, "[slice] step must be a number.");
 
-    if (start_index > end_index)
-        vm_error(vm, "[slice] start index must be less than or equal to end index.");
+    if (as_number(step) == 0.0)
+        vm_error(vm, "[slice] step cannot be zero.");
 
-    if (IS_LIST(collection))
-    {
-        PiList *list = AS_LIST(collection);
-
-        list_t *sliced_items = list_create(sizeof(Value));
-        for (int i = start_index; i <= end_index; i++)
-        {
-            Value *item = (Value *)list_getAt(list->items, i);
-            list_add(sliced_items, item);
-        }
-
-        PiList *result = (PiList *)new_list(sliced_items);
-        result->is_numeric = list->is_numeric;
-        result->is_matrix = list->is_matrix;
-
-        return NEW_OBJ(result);
-    }
-    else if (IS_STRING(collection))
-    {
-        PiString *str = AS_STRING(collection);
-
-        char *sliced_chars = malloc(end_index - start_index + 1);
-        for (int i = start_index; i <= end_index; i++)
-            sliced_chars[i - start_index] = str->chars[i];
-
-        sliced_chars[end_index - start_index + 1] = '\0';
-
-        return NEW_OBJ(new_pistring(sliced_chars));
-    }
-    else if (IS_TUPLE(collection))
-    {
-        PiTuple *tuple = AS_TUPLE(collection);
-        list_t *sliced_items = list_create(sizeof(Value));
-        for (int i = start_index; i <= end_index; i++)
-        {
-            Value *item = (Value *)list_getAt(tuple->items, i);
-            list_add(sliced_items, item);
-        }
-        return NEW_OBJ(new_tuple(sliced_items));
-    }
-
-    vm_error(vm, "[slice] only works with lists, tuples, or strings.");
-
-    return NEW_NIL(); // unreachable
+    return NEW_OBJ(add_obj(vm, new_slice(as_number(start),
+                                             as_number(end),
+                                             as_number(step))));
 }
 
 Value pi_len(vm_t *vm, int argc, Value *argv)
@@ -405,8 +360,8 @@ Value pi_len(vm_t *vm, int argc, Value *argv)
         return NEW_NUM(AS_SET(arg)->table->size);
     case OBJ_TUPLE:
         return NEW_NUM(AS_TUPLE(arg)->items->size);
-    case OBJ_MATRIX:
-        return NEW_NUM(AS_MATRIX(arg)->rows);
+    case OBJ_TENSOR:
+        return NEW_NUM(AS_TENSOR(arg)->ndim == 0 ? 0 : AS_TENSOR(arg)->shape[0]);
     default:
         return NEW_NIL();
     }

@@ -6,7 +6,7 @@ println();
 println("io.println", "adds a newline");
 printf("io.printf -> user={0}, score={1}, escaped={{ok}}\n", "matebook", 99);
 
-formatted = mod.format("io.format -> matrix={0}, ready={1}", [1, 2, 3], true);
+formatted = mod.format("io.format -> list={0}, ready={1}", [1, 2, 3], true);
 println(formatted);
 
 log("io.log info");

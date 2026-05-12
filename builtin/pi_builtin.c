@@ -112,12 +112,7 @@ BuiltinModule *builtin_modules[] = {
     &module_draw,
     &module_plot,
 #endif
-    // matrix built-in package
-    &module_matrix,
-    &module_matReduce,    // matrix.reduce
-    &module_matlinalgs,   // matrix.linalgs
-    &module_matStats,     // matrix.stats
-    &module_matTransform, // matrix.transform
+    &module_tensor,
 
 };
 

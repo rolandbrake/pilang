@@ -45,6 +45,12 @@ typedef uint8_t byte;
 #define FALSE_VAL NEW_BOOL(false)
 #endif
 
+
+// Maximum number of dimensions for tensors (e.g., matrices, higher-dimensional arrays).
+#define MAX_TENSOR_DIMS 16
+
+
+
 // A simple 3D vector structure
 typedef struct
 {

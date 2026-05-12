@@ -1,14 +1,14 @@
-import matrix:mat;
-import matrix.ones:make_ones;
-import matrix.{eye:identity, size};
+import tensor:ten;
+import tensor.ones:make_ones;
+import tensor.{eye:identity, size};
 
-let A = mat.ones(2, 2)
+    let A = ten.ones(2, 2)
 let B = make_ones(1, 3)
 let I = identity(2, 2)
 
-assert(mat.is_mat(A), "module alias should expose module members")
+assert(ten.is_matrix(A), "module alias should expose module members")
 assert(B[0, 1] == 1, "element alias should call exported function")
-assert(size(I) == [2, 2], "braced import with alias should work")
+assert(size(I) == 4, "braced import with alias should work")
 
 println(A)
 println(B)

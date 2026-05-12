@@ -1,7 +1,7 @@
 Pilang tests are organized by language area:
 
 - `core/`: basic language behavior and regressions
-- `matrix/`: dense matrix math, broadcasting, indexing, slicing
+- `tensor/`: dense tensor math, broadcasting, indexing, slicing
 - `module/`: imports, aliasing, and module privacy
 - `object/`: prototype/object behavior
 - `type/`: runtime type coverage

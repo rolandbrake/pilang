@@ -1,0 +1,25 @@
+import tensor.{zeros, ones, from, shape, ndim, size, reshape, is_tensor};
+
+let a = zeros([2, 2]);
+assert(type(a) == "tensor", "matrix-shaped literals should parse as tensors");
+assert(is_tensor(a), "tensor predicate should recognize literals");
+assert(shape(a) == [2, 2], "tensor literal shape should be inferred");
+assert(a[1, 0] == 0, "tensor 2d indexing should work");
+
+a[0, 1] = 9;
+assert(a[0, 1] == 9, "tensor 2d assignment should work");
+
+let b = a + 1;
+assert(b[0, 0] == 1, "tensor scalar addition should work");
+assert(b[0, 1] == 10, "tensor scalar addition should preserve assignment");
+
+let c = ones([2, 2]) * 3;
+assert(c[1, 1] == 3, "tensor constructors should create tensors");
+
+let d = from([[[1, 2], [3, 4]], [[5, 6], [7, 8]]]);
+assert(ndim(d) == 3, "tensor.from should support rank 3");
+assert(size(d) == 8, "tensor size should count flat elements");
+assert(shape(reshape(d, [4, 2])) == [4, 2], "tensor reshape should preserve data size");
+
+assert(shape(a) == [2, 2], "tensor views should accept rank-2 tensors");
+assert(shape(zeros(1, 3)) == [1, 3], "tensor constructors should accept variadic shape");

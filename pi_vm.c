@@ -440,6 +440,7 @@ void vm_error(vm_t *vm, const char *message)
     }
 
     exit(EXIT_FAILURE);
+    return; // Unreachable, but added to satisfy non-void return type
 }
 
 /**
@@ -1450,34 +1451,6 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value k
 }
 
 /**
- * Checks if two matrices can be broadcasted together.
- *
- * The broadcasting rules are as follows: each dimension must be either the same
- * or one of the matrices must have size 1 in that dimension.
- *
- * @param left The first matrix to check.
- * @param right The second matrix to check.
- * @param rows Where to store the final number of rows.
- * @param cols Where to store the final number of columns.
- * @return true if the matrices can be broadcasted, false otherwise.
- */
-static bool matrix_broadcastShape(PiMatrix *left, PiMatrix *right, int *rows, int *cols)
-{
-    // Check if the rows and columns can be broadcasted together
-    bool rows_ok = left->rows == right->rows || left->rows == 1 || right->rows == 1;
-    bool cols_ok = left->cols == right->cols || left->cols == 1 || right->cols == 1;
-
-    if (!rows_ok || !cols_ok)
-        return false;
-
-    // Calculate the final number of rows and columns
-    *rows = left->rows > right->rows ? left->rows : right->rows;
-    *cols = left->cols > right->cols ? left->cols : right->cols;
-
-    return true;
-}
-
-/**
  * Applies a binary operation to two doubles.
  *
  * This function applies a binary operation to two doubles and returns the result.
@@ -1493,7 +1466,7 @@ static bool matrix_broadcastShape(PiMatrix *left, PiMatrix *right, int *rows, in
  * @param right The second double to operate on.
  * @return The result of applying the binary operation to the two doubles.
  */
-static double matrix_applyBinary(int op, double left, double right)
+static double tensor_applyBinary(int op, double left, double right)
 {
     switch (op)
     {
@@ -1511,114 +1484,120 @@ static double matrix_applyBinary(int op, double left, double right)
 }
 
 /**
- * Applies a binary operation to a scalar and a matrix.
+ * Applies a binary operation to a scalar and a tensor.
  *
- * This function applies a binary operation to a scalar and a matrix and returns the result.
+ * This function applies a binary operation to a scalar and a tensor and returns the result.
  * The operation is specified by the `op` parameter, which can take on the following values:
- *   - 0: add the scalar to each element of the matrix
- *   - 1: subtract the scalar from each element of the matrix
- *   - 2: multiply each element of the matrix by the scalar
- *   - 3: divide each element of the matrix by the scalar
+ *   - 0: add the scalar to each element of the tensor
+ *   - 1: subtract the scalar from each element of the tensor
+ *   - 2: multiply each element of the tensor by the scalar
+ *   - 3: divide each element of the tensor by the scalar
  * Any other value of `op` will result in `NAN` being returned.
  *
  * @param vm The virtual machine to allocate memory on.
- * @param matrix The matrix to operate on.
+ * @param tensor The tensor to operate on.
  * @param scalar The scalar to operate on.
  * @param op The operation to apply.
  * @param scalar_left Whether the scalar is on the left side of the operation.
- * @return The result of applying the binary operation to the scalar and the matrix.
+ * @return The result of applying the binary operation to the scalar and the tensor.
  */
-static Value matrix_scalarBinary(vm_t *vm, PiMatrix *matrix, double scalar, int op, bool scalar_left)
+static Value tensor_scalarBinary(vm_t *vm, PiTensor *tensor, double scalar, int op, bool scalar_left)
 {
-    PiMatrix *result = (PiMatrix *)add_obj(vm, new_matrix(matrix->rows, matrix->cols));
+    PiTensor *result = (PiTensor *)add_obj(vm, new_tensor(tensor->ndim, tensor->shape, tensor->type));
+    for (int i = 0; i < tensor->size; i++)
+    {
+        double cell = tensor_getFlat(tensor, i);
+        double value = scalar_left ? tensor_applyBinary(op, scalar, cell)
+                                   : tensor_applyBinary(op, cell, scalar);
+        tensor_setFlat(result, i, value);
+    }
+    return NEW_OBJ(result);
+}
 
-    // Apply the binary operation to each element of the matrix
-    for (int row = 0; row < matrix->rows; row++)
-        for (int col = 0; col < matrix->cols; col++)
+static bool tensor_broadcastShape(PiTensor *left, PiTensor *right, int *ndim, int *shape)
+{
+    *ndim = left->ndim > right->ndim ? left->ndim : right->ndim;
+    for (int i = 0; i < *ndim; i++)
+    {
+        int li = left->ndim - *ndim + i;
+        int ri = right->ndim - *ndim + i;
+        int ldim = li < 0 ? 1 : left->shape[li];
+        int rdim = ri < 0 ? 1 : right->shape[ri];
+
+        if (ldim != rdim && ldim != 1 && rdim != 1)
+            return false;
+
+        shape[i] = ldim > rdim ? ldim : rdim;
+    }
+    return true;
+}
+
+static int tensor_projectOffset(PiTensor *tensor, int result_ndim, int *result_indices)
+{
+    int offset = 0;
+    int shift = result_ndim - tensor->ndim;
+    for (int i = 0; i < tensor->ndim; i++)
+    {
+        int result_i = i + shift;
+        int index = tensor->shape[i] == 1 ? 0 : result_indices[result_i];
+        offset += index * tensor->strides[i];
+    }
+    return offset;
+}
+
+static Value tensor_broadcastBinary(vm_t *vm, PiTensor *left, PiTensor *right, int op)
+{
+    int shape[16];
+    int ndim = 0;
+    if (left->ndim > 16 || right->ndim > 16 || !tensor_broadcastShape(left, right, &ndim, shape))
+        vm_error(vm, "Tensor broadcast dimension mismatch.");
+
+    PiTensor *result = (PiTensor *)add_obj(vm, new_tensor(ndim, shape, TN_FLOAT64));
+    int indices[16] = {0};
+
+    for (int flat = 0; flat < result->size; flat++)
+    {
+        int remaining = flat;
+        for (int dim = 0; dim < ndim; dim++)
         {
-            double cell = matrix_get(matrix, row, col);
-            double value = scalar_left ? matrix_applyBinary(op, scalar, cell)
-                                       : matrix_applyBinary(op, cell, scalar);
-            matrix_set(result, row, col, value);
+            indices[dim] = remaining / result->strides[dim];
+            remaining %= result->strides[dim];
         }
+
+        double l = tensor_getFlat(left, tensor_projectOffset(left, ndim, indices));
+        double r = tensor_getFlat(right, tensor_projectOffset(right, ndim, indices));
+        tensor_setFlat(result, flat, tensor_applyBinary(op, l, r));
+    }
 
     return NEW_OBJ(result);
 }
 
-/**
- * Broadcasts two matrices together and applies a binary operation to each pair of elements.
- *
- * This function broadcasts two matrices together and applies a binary operation to each pair of elements.
- * The operation is specified by the `op` parameter, which can take on the following values:
- *   - 0: add the two elements together
- *   - 1: subtract the second element from the first element
- *   - 2: multiply the two elements together
- *   - 3: divide the second element by the first element
- * Any other value of `op` will result in `NAN` being returned.
- *
- * @param vm The virtual machine to allocate memory on.
- * @param left The left matrix to broadcast.
- * @param right The right matrix to broadcast.
- * @param op The binary operation to apply to each pair of elements.
- * @return The result of broadcasting the two matrices together and applying the binary operation to each pair of elements.
- */
-static Value matrix_broadcastBinary(vm_t *vm, PiMatrix *left, PiMatrix *right, int op)
-{
-    // Check if the two matrices can be broadcast together
-    int rows;
-    int cols;
-    if (!matrix_broadcastShape(left, right, &rows, &cols))
-        vm_error(vm, "Matrix broadcast dimension mismatch.");
-
-    // Allocate memory for the result matrix
-    PiMatrix *result = (PiMatrix *)add_obj(vm, new_matrix(rows, cols));
-
-    // Apply the binary operation to each pair of elements
-    for (int row = 0; row < rows; row++)
-        for (int col = 0; col < cols; col++)
-        {
-            int left_row = left->rows == 1 ? 0 : row;
-            int left_col = left->cols == 1 ? 0 : col;
-            int right_row = right->rows == 1 ? 0 : row;
-            int right_col = right->cols == 1 ? 0 : col;
-
-            double value = matrix_applyBinary(
-                op,
-                matrix_get(left, left_row, left_col),
-                matrix_get(right, right_row, right_col));
-
-            matrix_set(result, row, col, value);
-        }
-
-    return NEW_OBJ(result);
-}
-
-// Matrix slice specification
-typedef struct MatrixSliceSpec
+// Tensor slice specification
+typedef struct TensorSliceSpec
 {
     int start;
     int end;
     int step;
     int count;
-} MatrixSliceSpec;
+} TensorSliceSpec;
 
 /**
- * Returns a matrix slice specification from a given index and length.
+ * Returns a tensor slice specification from a given index and length.
  *
- * This function takes a length and an index and returns a matrix slice specification
- * that can be used to slice a matrix. The index must be a number.
+ * This function takes a length and an index and returns a tensor slice specification
+ * that can be used to slice a 2D tensor. The index must be a number.
  *
  * @param vm The virtual machine to allocate memory on.
- * @param length The length of the matrix.
- * @param index The index of the matrix to slice at.
- * @return A matrix slice specification that can be used to slice a matrix.
+ * @param length The length of the tensor dimension.
+ * @param index The index of the tensor dimension to slice at.
+ * @return A tensor slice specification that can be used to slice a 2D tensor.
  */
-static MatrixSliceSpec matrix_indexSpec(vm_t *vm, int length, Value index)
+static TensorSliceSpec tensor2d_indexSpec(vm_t *vm, int length, Value index)
 {
-    MatrixSliceSpec spec;
+    TensorSliceSpec spec;
 
     if (!IS_NUM(index))
-        vm_error(vm, "Matrix index must be a number.");
+        vm_error(vm, "Tensor index must be a number.");
 
     spec.start = get_index((int)as_number(index), length);
     spec.end = spec.start + 1;
@@ -1628,19 +1607,19 @@ static MatrixSliceSpec matrix_indexSpec(vm_t *vm, int length, Value index)
 }
 
 /**
- * Returns a bound index for a matrix slice operation.
+ * Returns a bound index for a tensor slice operation.
  *
  * This function takes a length, a value, and a sign and returns a bound index
- * that can be used to slice a matrix. The sign is used to determine whether the
+ * that can be used to slice a tensor. The sign is used to determine whether the
  * bound should be ceilinged or floored.
  *
- * @param length The length of the matrix.
+ * @param length The length of the tensor dimension.
  * @param value The value to bound.
  * @param sign The sign of the value. If the sign is positive, the bound is
  *        ceilinged. If the sign is negative, the bound is floored.
- * @return The bound index for the matrix slice operation.
+ * @return The bound index for the tensor slice operation.
  */
-static int matrix_sliceBound(int length, double value, int sign)
+static int tensor_sliceBound(int length, double value, int sign)
 {
     int bound = (int)value;
 
@@ -1664,45 +1643,45 @@ static int matrix_sliceBound(int length, double value, int sign)
 }
 
 /**
- * Returns a matrix slice specification from a given start, end, and step.
+ * Returns a tensor slice specification from a given start, end, and step.
  *
  * This function takes a length, a start value, an end value, and a step value and
- * returns a matrix slice specification that can be used to slice a matrix.
+ * returns a tensor slice specification that can be used to slice a 2D tensor.
  *
  * The start and end values must be numbers, and the step value must be a non-zero
  * number. The sign of the step value determines whether the slice is taken from
  * the start to the end (positive step) or from the end to the start (negative step).
  *
  * If the start or end values are positive infinity, the slice is taken from the
- * start of the matrix. If the start or end values are negative infinity, the
- * slice is taken from the end of the matrix.
+ * start of the tensor. If the start or end values are negative infinity, the
+ * slice is taken from the end of the tensor.
  *
  * @param vm The virtual machine to allocate memory on.
- * @param length The length of the matrix.
+ * @param length The length of the tensor dimension.
  * @param start The starting index of the slice.
  * @param end The ending index of the slice.
  * @param step The step value of the slice.
- * @return A matrix slice specification that can be used to slice a matrix.
+ * @return A tensor slice specification that can be used to slice a 2D tensor.
  */
-static MatrixSliceSpec matrix_sliceSpec(vm_t *vm, int length, Value start, Value end, Value step)
+static TensorSliceSpec tensor2d_sliceSpec(vm_t *vm, int length, Value start, Value end, Value step)
 {
-    MatrixSliceSpec spec;
+    TensorSliceSpec spec;
     int sign;
     int current;
 
     if (!IS_NUM(start) || !IS_NUM(end))
-        vm_error(vm, "Matrix slice bounds must be numbers.");
+        vm_error(vm, "Tensor slice bounds must be numbers.");
 
     if (!IS_NUM(step))
-        vm_error(vm, "Matrix slice step must be a number.");
+        vm_error(vm, "Tensor slice step must be a number.");
 
     spec.step = (int)as_number(step);
     if (spec.step == 0)
-        vm_error(vm, "Matrix slice step cannot be zero.");
+        vm_error(vm, "Tensor slice step cannot be zero.");
 
     sign = spec.step > 0 ? 1 : -1;
-    spec.start = isinf(as_number(start)) ? (sign > 0 ? length : -1) : matrix_sliceBound(length, as_number(start), sign);
-    spec.end = isinf(as_number(end)) ? (sign > 0 ? length : -1) : matrix_sliceBound(length, as_number(end), sign);
+    spec.start = isinf(as_number(start)) ? (sign > 0 ? length : -1) : tensor_sliceBound(length, as_number(start), sign);
+    spec.end = isinf(as_number(end)) ? (sign > 0 ? length : -1) : tensor_sliceBound(length, as_number(end), sign);
     spec.count = 0;
 
     for (current = spec.start; sign * (spec.end - current) > 0; current += spec.step)
@@ -1712,13 +1691,13 @@ static MatrixSliceSpec matrix_sliceSpec(vm_t *vm, int length, Value start, Value
 }
 
 /**
- * Retrieves a value from a matrix at a given row and column index.
+ * Retrieves a value from a 2D tensor at a given row and column index.
  *
- * If the row or column index is a slice, the function will return a new matrix
- * containing the values from the slice of the original matrix.
+ * If the row or column index is a slice, the function will return a new 2D tensor
+ * containing the values from the slice of the original tensor.
  *
  * @param vm The virtual machine to allocate memory on.
- * @param matrix The matrix to retrieve the value from.
+ * @param tensor The tensor to retrieve the value from.
  * @param row_is_slice Whether the row index is a slice.
  * @param row_start The starting index of the row slice.
  * @param row_end The ending index of the row slice.
@@ -1729,24 +1708,31 @@ static MatrixSliceSpec matrix_sliceSpec(vm_t *vm, int length, Value start, Value
  * @param col_end The ending index of the column slice.
  * @param col_step The step value of the column slice.
  * @param col_index The column index of the value to retrieve.
- * @return A value from the matrix at the given row and column index, or a new
- *         matrix containing the values from the slice of the original matrix.
+ * @return A value from the tensor at the given row and column index, or a new
+ *         tensor containing the values from the slice of the original tensor.
  */
-static Value matrix_get2d(vm_t *vm, PiMatrix *matrix,
+static Value tensor_get2d(vm_t *vm, PiTensor *tensor,
                           bool row_is_slice, Value row_start, Value row_end, Value row_step, Value row_index,
                           bool col_is_slice, Value col_start, Value col_end, Value col_step, Value col_index)
 {
-    MatrixSliceSpec row = row_is_slice
-                              ? matrix_sliceSpec(vm, matrix->rows, row_start, row_end, row_step)
-                              : matrix_indexSpec(vm, matrix->rows, row_index);
-    MatrixSliceSpec col = col_is_slice
-                              ? matrix_sliceSpec(vm, matrix->cols, col_start, col_end, col_step)
-                              : matrix_indexSpec(vm, matrix->cols, col_index);
+    if (tensor->ndim != 2)
+        vm_error(vm, "Two-dimensional indexing requires a rank-2 tensor.");
+
+    TensorSliceSpec row = row_is_slice
+                              ? tensor2d_sliceSpec(vm, tensor->shape[0], row_start, row_end, row_step)
+                              : tensor2d_indexSpec(vm, tensor->shape[0], row_index);
+    TensorSliceSpec col = col_is_slice
+                              ? tensor2d_sliceSpec(vm, tensor->shape[1], col_start, col_end, col_step)
+                              : tensor2d_indexSpec(vm, tensor->shape[1], col_index);
 
     if (!row_is_slice && !col_is_slice)
-        return NEW_NUM(matrix_get(matrix, row.start, col.start));
+    {
+        int indices[2] = {row.start, col.start};
+        return NEW_NUM(tensor_get(tensor, indices));
+    }
 
-    PiMatrix *result = (PiMatrix *)add_obj(vm, new_matrix(row.count, col.count));
+    int shape[2] = {row.count, col.count};
+    PiTensor *result = (PiTensor *)add_obj(vm, new_tensor(2, shape, tensor->type));
     int out_row = 0;
 
     for (int src_row = row.start; (row.step > 0 ? src_row < row.end : src_row > row.end); src_row += row.step)
@@ -1754,7 +1740,9 @@ static Value matrix_get2d(vm_t *vm, PiMatrix *matrix,
         int out_col = 0;
         for (int src_col = col.start; (col.step > 0 ? src_col < col.end : src_col > col.end); src_col += col.step)
         {
-            matrix_set(result, out_row, out_col, matrix_get(matrix, src_row, src_col));
+            int src[2] = {src_row, src_col};
+            int dst[2] = {out_row, out_col};
+            tensor_set(result, dst, tensor_get(tensor, src));
             out_col++;
         }
         out_row++;
@@ -1763,30 +1751,23 @@ static Value matrix_get2d(vm_t *vm, PiMatrix *matrix,
     return NEW_OBJ(result);
 }
 
-/**
- * Sets a value in a matrix using row and column indices.
- *
- * @param vm The virtual machine to allocate memory on.
- * @param matrix The matrix to set a value in.
- * @param row_index The row index of the value to set.
- * @param col_index The column index of the value to set.
- * @param value The value to set in the matrix.
- */
-static void matrix_set2d(vm_t *vm, PiMatrix *matrix, Value row_index,
+static void tensor_set2d(vm_t *vm, PiTensor *tensor, Value row_index,
                          Value col_index, Value value)
 {
-    int row;
-    int col;
+    if (tensor->ndim != 2)
+        vm_error(vm, "Two-dimensional assignment requires a rank-2 tensor.");
 
     if (!IS_NUM(row_index) || !IS_NUM(col_index))
-        vm_error(vm, "Matrix assignment indices must be numbers.");
+        vm_error(vm, "Tensor assignment indices must be numbers.");
 
     if (!is_numeric(value))
-        vm_error(vm, "Matrix cell assignment requires a numeric value.");
+        vm_error(vm, "Tensor cell assignment requires a numeric value.");
 
-    row = get_index((int)as_number(row_index), matrix->rows);
-    col = get_index((int)as_number(col_index), matrix->cols);
-    matrix_set(matrix, row, col, as_number(value));
+    int indices[2] = {
+        get_index((int)as_number(row_index), tensor->shape[0]),
+        get_index((int)as_number(col_index), tensor->shape[1]),
+    };
+    tensor_set(tensor, indices, as_number(value));
 }
 
 /**
@@ -2436,20 +2417,20 @@ void run(vm_t *vm)
                     break;
                 }
 
-                // Matrix paths
-                if (IS_MATRIX(left))
+                // Tensor paths
+                if (IS_TENSOR(left))
                 {
-                    if (IS_MATRIX(right))
-                        push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left), AS_MATRIX(right), 0));
+                    if (IS_TENSOR(right))
+                        push_stack(vm, tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 0));
                     else if (is_numeric(right))
-                        push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left), as_number(right), 0, false));
+                        push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 0, false));
                     else
-                        vm_error(vm, "Unsupported right operand for matrix [+].");
+                        vm_error(vm, "Unsupported right operand for tensor [+].");
                     break;
                 }
-                if (IS_MATRIX(right) && is_numeric(left))
+                if (IS_TENSOR(right) && is_numeric(left))
                 {
-                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right), as_number(left), 0, true));
+                    push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 0, true));
                     break;
                 }
 
@@ -2549,24 +2530,21 @@ void run(vm_t *vm)
                     break;
                 }
 
-                // Matrix paths
-                if (IS_MATRIX(left))
+                // Tensor paths
+                if (IS_TENSOR(left))
                 {
-                    if (IS_MATRIX(right))
-                        push_stack(vm, matrix_broadcastBinary(vm,
-                                                              AS_MATRIX(left), AS_MATRIX(right), 1));
+                    if (IS_TENSOR(right))
+                        push_stack(vm, tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 1));
                     else if (is_numeric(right))
-                        push_stack(vm, matrix_scalarBinary(vm,
-                                                           AS_MATRIX(left), as_number(right), 1, false));
+                        push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 1, false));
                     else
-                        vm_error(vm, "Unsupported right operand for matrix [-].");
+                        vm_error(vm, "Unsupported right operand for tensor [-].");
                     break;
                 }
 
-                if (IS_MATRIX(right) && is_numeric(left))
+                if (IS_TENSOR(right) && is_numeric(left))
                 {
-                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right),
-                                                       as_number(left), 1, true));
+                    push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 1, true));
                     break;
                 }
 
@@ -2689,24 +2667,21 @@ void run(vm_t *vm)
                     break;
                 }
 
-                // Matrix paths
-                if (IS_MATRIX(left))
+                // Tensor paths
+                if (IS_TENSOR(left))
                 {
-                    if (IS_MATRIX(right))
-                        push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left),
-                                                              AS_MATRIX(right), 2));
+                    if (IS_TENSOR(right))
+                        push_stack(vm, tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 2));
                     else if (is_numeric(right))
-                        push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left),
-                                                           as_number(right), 2, false));
+                        push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 2, false));
                     else
-                        vm_error(vm, "Unsupported right operand for matrix [*].");
+                        vm_error(vm, "Unsupported right operand for tensor [*].");
                     break;
                 }
 
-                if (IS_MATRIX(right) && is_numeric(left))
+                if (IS_TENSOR(right) && is_numeric(left))
                 {
-                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right),
-                                                       as_number(left), 2, true));
+                    push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 2, true));
                     break;
                 }
 
@@ -2725,22 +2700,19 @@ void run(vm_t *vm)
             }
             case 3: // /
             {
-                if (IS_MATRIX(left))
+                if (IS_TENSOR(left))
                 {
-                    if (IS_MATRIX(right))
-                        push_stack(vm, matrix_broadcastBinary(vm, AS_MATRIX(left),
-                                                              AS_MATRIX(right), 3));
+                    if (IS_TENSOR(right))
+                        push_stack(vm, tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 3));
                     else if (is_numeric(right))
-                        push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(left),
-                                                           as_number(right), 3, false));
+                        push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 3, false));
                     else
-                        vm_error(vm, "Unsupported right operand for matrix [/].");
+                        vm_error(vm, "Unsupported right operand for tensor [/].");
                     break;
                 }
-                if (IS_MATRIX(right) && is_numeric(left))
+                if (IS_TENSOR(right) && is_numeric(left))
                 {
-                    push_stack(vm, matrix_scalarBinary(vm, AS_MATRIX(right),
-                                                       as_number(left), 3, true));
+                    push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 3, true));
                     break;
                 }
 
@@ -3059,8 +3031,8 @@ void run(vm_t *vm)
                 case OBJ_LIST:
                     push_stack(vm, NEW_NUM(list_size(AS_LIST(operand)->items)));
                     break;
-                case OBJ_MATRIX:
-                    push_stack(vm, NEW_NUM(AS_MATRIX(operand)->rows));
+                case OBJ_TENSOR:
+                    push_stack(vm, NEW_NUM(AS_TENSOR(operand)->ndim == 0 ? 0 : AS_TENSOR(operand)->shape[0]));
                     break;
                 case OBJ_STRING:
                     push_stack(vm, NEW_NUM(AS_STRING(operand)->length));
@@ -3698,39 +3670,24 @@ void run(vm_t *vm)
 
         case OP_PUSH_SLICE:
         {
-            // Pop the slice values from the stack
-            Value step = pop_stack(vm);
-            Value end = pop_stack(vm);
-            Value start = pop_stack(vm);
-            Value sequence = pop_stack(vm);
-            Value method_result;
-            Value args[3] = {start, end, step};
 
-            if (try_callMethodArgs(vm, sequence, "slice", 3, args, &method_result))
-            {
-                push_stack(vm, method_result);
-                break;
-            }
+            Value _step = pop_stack(vm);
+            Value _end = pop_stack(vm);
+            Value _start = pop_stack(vm);
 
-            if (!IS_NUM(start) || !IS_NUM(end))
-                vm_error(vm, "Slice [start] and [end] must be numbers.");
+            double start = as_number(_start);
+            double end = as_number(_end);
+            double step = IS_NIL(_step) ? 1.0 : as_number(_step);
 
-            // Create a new slice object
-            if (!IS_NIL(step) && !IS_NUM(step))
-                vm_error(vm, "Slice [step] must be nil or a number.");
-            else
-            {
-                if (IS_SEQUENCE(sequence))
-                {
-                    double end_num = as_number(end);
-                    Value slice = get_slice(AS_OBJ(sequence), as_number(start), as_number(end),
-                                            IS_NIL(step) ? 1.0 : as_number(step));
-                    push_stack(vm, slice); // Push the slice onto the stack
-                }
-                else
-                    vm_error(vm, "Slice operand must be a list, tuple, or string.");
-            }
+            if (!IS_NUM(_start) || !IS_NUM(_end))
+                vm_error(vm, "Slice start and end must be numbers");
+            if (!IS_NIL(_step) && !IS_NUM(_step))
+                vm_error(vm, "Slice step must be nil or a number");
+            if (step == 0.0)
+                vm_error(vm, "Slice step cannot be zero");
 
+            Object *slice_obj = add_obj(vm, new_slice(start, end, step));
+            push_stack(vm, NEW_OBJ(slice_obj));
             break;
         }
 
@@ -3743,13 +3700,27 @@ void run(vm_t *vm)
             if (!IS_OBJ(container))
                 vm_error(vm, "Unsupported operand type for get item operator.\n");
 
+            // If it's a slice, handle it specially for sequences
+            if (IS_SLICE(index) &&
+                (OBJ_TYPE(container) == OBJ_LIST ||
+                 OBJ_TYPE(container) == OBJ_TUPLE ||
+                 OBJ_TYPE(container) == OBJ_STRING))
+            {
+                PiSlice *s = AS_SLICE(index);
+                Value result = get_slice(AS_OBJ(container), s->start, s->stop, s->step);
+                push_stack(vm, result);
+                break;
+            }
+
             switch (OBJ_TYPE(container))
             {
-            case OBJ_MATRIX:
+            case OBJ_TENSOR:
             {
-                PiMatrix *matrix = AS_MATRIX(container);
-                int row = get_index(as_number(index), matrix->rows);
-                push_stack(vm, NEW_OBJ(add_obj(vm, matrix_rowAsList(matrix, row))));
+                PiTensor *tensor = AS_TENSOR(container);
+                if (tensor->ndim == 0)
+                    vm_error(vm, "Cannot index a scalar tensor.");
+                int row = get_index(as_number(index), tensor->shape[0]);
+                push_stack(vm, NEW_OBJ(add_obj(vm, tensor_rowAsList(tensor, row))));
                 break;
             }
             case OBJ_LIST:
@@ -3863,47 +3834,128 @@ void run(vm_t *vm)
             break;
         }
 
-        case OP_MAT_GET:
+        case OP_TENSOR_GET:
         {
-            uint8_t mode = code[pc++];
-            bool row_is_slice = (mode & 0x1) != 0;
-            bool col_is_slice = (mode & 0x2) != 0;
-            Value col_index = NEW_NIL();
-            Value col_step = NEW_NIL();
-            Value col_end = NEW_NIL();
-            Value col_start = NEW_NIL();
-            Value row_index = NEW_NIL();
-            Value row_step = NEW_NIL();
-            Value row_end = NEW_NIL();
-            Value row_start = NEW_NIL();
-            Value container;
+            uint8_t ndim = code[pc++];
+            Value indices[MAX_TENSOR_DIMS];
+            for (int i = ndim - 1; i >= 0; i--)
+                indices[i] = pop_stack(vm);
 
-            if (col_is_slice)
+            Value container = pop_stack(vm);
+            if (!IS_TENSOR(container))
+                vm_error(vm, "N-dimensional indexing is only supported for tensors.");
+
+            PiTensor *tensor = AS_TENSOR(container);
+            if (ndim > tensor->ndim)
+                vm_error(vm, "Too many tensor indices.");
+
+            TensorSliceSpec specs[MAX_TENSOR_DIMS];
+            bool has_slice = false;
+
+            for (int i = 0; i < tensor->ndim; i++)
             {
-                col_step = pop_stack(vm);
-                col_end = pop_stack(vm);
-                col_start = pop_stack(vm);
-            }
-            else
-                col_index = pop_stack(vm);
+                if (i < ndim)
+                {
+                    if (IS_SLICE(indices[i]))
+                    {
+                        PiSlice *slice = AS_SLICE(indices[i]);
+                        if (slice->step == 0)
+                            vm_error(vm, "Tensor slice step cannot be zero.");
 
-            if (row_is_slice)
+                        specs[i].step = (int)slice->step;
+                        int sign = specs[i].step > 0 ? 1 : -1;
+                        specs[i].start = isinf(slice->start)
+                                             ? (sign > 0 ? tensor->shape[i] : -1)
+                                             : tensor_sliceBound(tensor->shape[i], slice->start, sign);
+                        specs[i].end = isinf(slice->stop)
+                                           ? (sign > 0 ? tensor->shape[i] : -1)
+                                           : tensor_sliceBound(tensor->shape[i], slice->stop, sign);
+                        specs[i].count = 0;
+                        for (int current = specs[i].start; sign * (specs[i].end - current) > 0; current += specs[i].step)
+                            specs[i].count++;
+                        has_slice = true;
+                    }
+                    else
+                    {
+                        if (!IS_NUM(indices[i]))
+                            vm_error(vm, "Tensor index must be a number.");
+                        specs[i].start = get_index((int)as_number(indices[i]), tensor->shape[i]);
+                        specs[i].end = specs[i].start + 1;
+                        specs[i].step = 1;
+                        specs[i].count = 1;
+                    }
+                }
+                else
+                {
+                    specs[i].start = 0;
+                    specs[i].end = tensor->shape[i];
+                    specs[i].step = 1;
+                    specs[i].count = tensor->shape[i];
+                    has_slice = true;
+                }
+            }
+
+            if (!has_slice)
             {
-                row_step = pop_stack(vm);
-                row_end = pop_stack(vm);
-                row_start = pop_stack(vm);
+                int coords[MAX_TENSOR_DIMS];
+                for (int i = 0; i < tensor->ndim; i++)
+                    coords[i] = specs[i].start;
+                push_stack(vm, NEW_NUM(tensor_get(tensor, coords)));
+                break;
             }
-            else
-                row_index = pop_stack(vm);
 
-            container = pop_stack(vm);
+            int out_shape[MAX_TENSOR_DIMS];
+            int dim_map[MAX_TENSOR_DIMS];
+            int out_ndim = 0;
 
-            if (!IS_MATRIX(container))
-                vm_error(vm, "Two-dimensional indexing is only supported for matrices.");
+            for (int i = 0; i < tensor->ndim; i++)
+            {
+                if (i >= ndim || IS_SLICE(indices[i]))
+                {
+                    out_shape[out_ndim] = specs[i].count;
+                    dim_map[out_ndim] = i;
+                    out_ndim++;
+                }
+            }
 
-            push_stack(vm, matrix_get2d(vm, AS_MATRIX(container),
-                                        row_is_slice, row_start, row_end, row_step, row_index,
-                                        col_is_slice, col_start, col_end, col_step, col_index));
+            if (out_ndim == 0)
+            {
+                int coords[MAX_TENSOR_DIMS];
+                for (int i = 0; i < tensor->ndim; i++)
+                    coords[i] = specs[i].start;
+                push_stack(vm, NEW_NUM(tensor_get(tensor, coords)));
+                break;
+            }
+
+            int out_strides[MAX_TENSOR_DIMS];
+            out_strides[out_ndim - 1] = 1;
+            for (int i = out_ndim - 2; i >= 0; i--)
+                out_strides[i] = out_strides[i + 1] * out_shape[i + 1];
+
+            PiTensor *result = (PiTensor *)add_obj(vm, new_tensor(out_ndim, out_shape, tensor->type));
+            int total = result->size;
+            int src_coords[MAX_TENSOR_DIMS];
+
+            for (int i = 0; i < tensor->ndim; i++)
+            {
+                if (i < ndim && !IS_SLICE(indices[i]))
+                    src_coords[i] = specs[i].start;
+            }
+
+            for (int flat = 0; flat < total; flat++)
+            {
+                int remainder = flat;
+                for (int j = 0; j < out_ndim; j++)
+                {
+                    int coord = remainder / out_strides[j];
+                    remainder %= out_strides[j];
+                    int src_dim = dim_map[j];
+                    src_coords[src_dim] = specs[src_dim].start + coord * specs[src_dim].step;
+                }
+                tensor_setFlat(result, flat, tensor_get(tensor, src_coords));
+            }
+
+            push_stack(vm, NEW_OBJ(result));
             break;
         }
 
@@ -3919,29 +3971,26 @@ void run(vm_t *vm)
 
             switch (OBJ_TYPE(container))
             {
-            case OBJ_MATRIX:
+            case OBJ_TENSOR:
             {
-                PiMatrix *matrix = AS_MATRIX(container);
-                int row = get_index(as_number(index), matrix->rows);
+                PiTensor *tensor = AS_TENSOR(container);
+                if (tensor->ndim != 2)
+                    vm_error(vm, "Tensor row assignment requires a rank-2 tensor.");
 
-                if (IS_MATRIX(value))
-                {
-                    PiMatrix *src = AS_MATRIX(value);
-                    if (src->rows != 1 || src->cols != matrix->cols)
-                        vm_error(vm, "Matrix row assignment dimension mismatch.");
-                    for (int col = 0; col < matrix->cols; col++)
-                        matrix_set(matrix, row, col, matrix_get(src, 0, col));
-                }
-                else if (IS_LIST(value))
+                int row = get_index(as_number(index), tensor->shape[0]);
+                if (IS_LIST(value))
                 {
                     PiList *src = AS_LIST(value);
-                    if (!src->is_numeric || src->items->size != matrix->cols)
-                        vm_error(vm, "Matrix row assignment requires a numeric list of matching width.");
-                    for (int col = 0; col < matrix->cols; col++)
-                        matrix_set(matrix, row, col, as_number(*(Value *)list_getAt(src->items, col)));
+                    if (!src->is_numeric || src->items->size != tensor->shape[1])
+                        vm_error(vm, "Tensor row assignment requires a numeric list of matching width.");
+                    for (int col = 0; col < tensor->shape[1]; col++)
+                    {
+                        int indices[2] = {row, col};
+                        tensor_set(tensor, indices, as_number(*(Value *)list_getAt(src->items, col)));
+                    }
                 }
                 else
-                    vm_error(vm, "Matrix row assignment requires a list or 1xN matrix.");
+                    vm_error(vm, "Tensor row assignment requires a list.");
                 break;
             }
             case OBJ_LIST:
@@ -3991,29 +4040,180 @@ void run(vm_t *vm)
             break;
         }
 
-        case OP_MAT_SET:
+        case OP_TENSOR_SET:
         {
-            uint8_t mode = code[pc++];
-            bool row_is_slice = (mode & 0x1) != 0;
-            bool col_is_slice = (mode & 0x2) != 0;
-            Value col_index = NEW_NIL();
-            Value row_index = NEW_NIL();
-            Value container;
-            Value assign_value;
+            uint8_t ndim = code[pc++];
+            Value indices[MAX_TENSOR_DIMS];
+            for (int i = ndim - 1; i >= 0; i--)
+                indices[i] = pop_stack(vm);
 
-            if (row_is_slice || col_is_slice)
-                vm_error(vm, "Matrix slice assignment is not supported yet.");
+            Value container = pop_stack(vm);
+            Value assign_value = pop_stack(vm); /* pushed before the subscript chain */
 
-            col_index = pop_stack(vm);
-            row_index = pop_stack(vm);
-            container = pop_stack(vm);
-            assign_value = pop_stack(vm);
+            if (!IS_TENSOR(container))
+                vm_error(vm, "N-dimensional assignment is only supported for tensors.");
 
-            if (!IS_MATRIX(container))
-                vm_error(vm, "Two-dimensional assignment is only supported for matrices.");
+            PiTensor *tensor = AS_TENSOR(container);
+            if (ndim > tensor->ndim)
+                vm_error(vm, "Too many tensor indices.");
 
-            matrix_set2d(vm, AS_MATRIX(container), row_index, col_index, assign_value);
-            push_stack(vm, assign_value);
+            TensorSliceSpec specs[MAX_TENSOR_DIMS];
+            bool has_slice = false;
+
+            for (int i = 0; i < tensor->ndim; i++)
+            {
+                if (i < ndim)
+                {
+                    if (IS_SLICE(indices[i]))
+                    {
+                        PiSlice *slice = AS_SLICE(indices[i]);
+                        if (slice->step == 0)
+                            vm_error(vm, "Tensor slice step cannot be zero.");
+
+                        specs[i].step = (int)slice->step;
+                        int sign = specs[i].step > 0 ? 1 : -1;
+                        specs[i].start = isinf(slice->start)
+                                             ? (sign > 0 ? tensor->shape[i] : -1)
+                                             : tensor_sliceBound(tensor->shape[i], slice->start, sign);
+                        specs[i].end = isinf(slice->stop)
+                                           ? (sign > 0 ? tensor->shape[i] : -1)
+                                           : tensor_sliceBound(tensor->shape[i], slice->stop, sign);
+                        specs[i].count = 0;
+                        for (int current = specs[i].start; sign * (specs[i].end - current) > 0; current += specs[i].step)
+                            specs[i].count++;
+                        has_slice = true;
+                    }
+                    else
+                    {
+                        if (!IS_NUM(indices[i]))
+                            vm_error(vm, "Tensor index must be a number.");
+                        specs[i].start = get_index((int)as_number(indices[i]), tensor->shape[i]);
+                        specs[i].end = specs[i].start + 1;
+                        specs[i].step = 1;
+                        specs[i].count = 1;
+                    }
+                }
+                else
+                {
+                    specs[i].start = 0;
+                    specs[i].end = tensor->shape[i];
+                    specs[i].step = 1;
+                    specs[i].count = tensor->shape[i];
+                    has_slice = true;
+                }
+            }
+
+            if (!has_slice)
+            {
+                int coords[MAX_TENSOR_DIMS];
+                for (int i = 0; i < tensor->ndim; i++)
+                    coords[i] = specs[i].start;
+
+                if (IS_NUM(assign_value))
+                    tensor_set(tensor, coords, as_number(assign_value));
+                else if (IS_TENSOR(assign_value) && AS_TENSOR(assign_value)->size == 1)
+                    tensor_set(tensor, coords, tensor_getFlat(AS_TENSOR(assign_value), 0));
+                else
+                    vm_error(vm, "Tensor assignment requires a numeric value.");
+
+                push_stack(vm, assign_value); /* assignment is an expression, leave value on stack */
+                break;
+            }
+
+            int out_shape[MAX_TENSOR_DIMS];
+            int dim_map[MAX_TENSOR_DIMS];
+            int out_ndim = 0;
+
+            for (int i = 0; i < tensor->ndim; i++)
+            {
+                if (i >= ndim || IS_SLICE(indices[i]))
+                {
+                    out_shape[out_ndim] = specs[i].count;
+                    dim_map[out_ndim] = i;
+                    out_ndim++;
+                }
+            }
+
+            int out_strides[MAX_TENSOR_DIMS];
+            if (out_ndim > 0)
+            {
+                out_strides[out_ndim - 1] = 1;
+                for (int i = out_ndim - 2; i >= 0; i--)
+                    out_strides[i] = out_strides[i + 1] * out_shape[i + 1];
+            }
+
+            int total = 1;
+            for (int i = 0; i < out_ndim; i++)
+                total *= out_shape[i];
+
+            bool scalar_assign = IS_NUM(assign_value) || (IS_TENSOR(assign_value) && AS_TENSOR(assign_value)->size == 1);
+            bool tensor_assign = IS_TENSOR(assign_value) && AS_TENSOR(assign_value)->size != 1;
+            bool list_assign = IS_LIST(assign_value) && AS_LIST(assign_value)->is_numeric && out_ndim == 1;
+
+            PiTensor *src_tensor = tensor_assign ? AS_TENSOR(assign_value) : NULL;
+            PiList *src_list = list_assign ? AS_LIST(assign_value) : NULL;
+
+            if (tensor_assign)
+            {
+                if (src_tensor->ndim != out_ndim)
+                    vm_error(vm, "Assigned tensor shape does not match target tensor slice.");
+                for (int i = 0; i < out_ndim; i++)
+                {
+                    if (src_tensor->shape[i] != out_shape[i])
+                        vm_error(vm, "Assigned tensor shape does not match target tensor slice.");
+                }
+            }
+
+            if (list_assign && LIST_SIZE(src_list->items) != total)
+                vm_error(vm, "Assigned list length does not match target tensor slice.");
+
+            int src_coords[MAX_TENSOR_DIMS];
+            for (int i = 0; i < tensor->ndim; i++)
+            {
+                if (i < ndim && !IS_SLICE(indices[i]))
+                    src_coords[i] = specs[i].start;
+            }
+
+            for (int flat = 0; flat < total; flat++)
+            {
+                int remainder = flat;
+                for (int j = 0; j < out_ndim; j++)
+                {
+                    int coord = remainder / out_strides[j];
+                    remainder %= out_strides[j];
+                    int src_dim = dim_map[j];
+                    src_coords[src_dim] = specs[src_dim].start + coord * specs[src_dim].step;
+                }
+
+                double assign_num = 0.0;
+
+                if (scalar_assign)
+                {
+                    if (IS_NUM(assign_value))
+                        assign_num = as_number(assign_value);
+                    else
+                        assign_num = tensor_getFlat(AS_TENSOR(assign_value), 0);
+                }
+                else if (tensor_assign)
+                {
+                    assign_num = tensor_getFlat(src_tensor, flat);
+                }
+                else if (list_assign)
+                {
+                    Value item = *(Value *)list_getAt(src_list->items, flat);
+                    if (!IS_NUM(item))
+                        vm_error(vm, "Assigned list must contain only numeric values.");
+                    assign_num = as_number(item);
+                }
+                else
+                {
+                    vm_error(vm, "Tensor slice assignment requires a numeric scalar, numeric list, or tensor.");
+                }
+
+                tensor_set(tensor, src_coords, assign_num);
+            }
+
+            push_stack(vm, assign_value); /* assignment is an expression, leave value on stack */
             break;
         }
 

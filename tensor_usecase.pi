@@ -1,0 +1,83 @@
+// Tensor API Usecase Example
+import tensor
+// Create tensors
+a = tensor.zeros(3, 4)  // 3x4 zeros
+b = tensor.ones(3, 4)   // 3x4 ones
+c = tensor.eye(3, 3)    // 3x3 identity
+d = tensor.rand(2, 2)   // 2x2 random [0,1)
+e = tensor.randn(2, 2)  // 2x2 normal distribution
+f = tensor.randint(2, 2, 10)  // 2x2 random integers 0-9
+
+println("Zeros:", a)
+println("Ones:", b)
+println("Eye:", c)
+println("Rand:", d)
+println("Randn:", e)
+println("Randint:", f)
+
+// From nested list
+g = tensor.from([[1, 2], [3, 4]])
+println("From list:", g)
+
+// Properties
+println("Shape of g:", tensor.shape(g))
+println("Ndim of g:", tensor.ndim(g))
+println("Size of g:", tensor.size(g))
+
+// Reshape
+h = tensor.reshape(g, 4)
+println("Reshaped to 1D:", h)
+
+// Transpose
+i = tensor.transpose(g)
+println("Transposed:", i)
+
+// Flatten
+j = tensor.flatten(g)
+println("Flattened:", j)
+
+// Element-wise operations
+k = tensor.add(g, i)
+println("g + i:", k)
+
+l = tensor.exp(tensor.ones(2, 2))
+println("Exp of ones:", l)
+
+// Matrix multiplication
+m = tensor.mult(g, i)
+println("g * i:", m)
+
+// Dot product
+v1 = tensor.from([1, 2, 3])
+v2 = tensor.from([4, 5, 6])
+dp = tensor.dot(v1, v2)
+println("Dot product:", dp)
+
+// Cross product
+v3 = tensor.from([1, 0, 0])
+v4 = tensor.from([0, 1, 0])
+cp = tensor.cross(v3, v4)
+println("Cross product:", cp)
+
+// Reductions
+println("Sum of g:", tensor.sum(g))
+println("Mean of g:", tensor.mean(g))
+println("Min of g:", tensor.min(g))
+println("Max of g:", tensor.max(g))
+println("Argmax of h:", tensor.argmax(h))
+println("Any non-zero in g:", tensor.any(g))
+println("All non-zero in g:", tensor.all(g))
+
+// Statistics
+println("Variance of h:", tensor.var(h))
+println("Std of h:", tensor.std(h))
+println("Median of h:", tensor.median(h))
+
+// Linear algebra
+println("Determinant of g:", tensor.det(g))
+println("Norm of v1:", tensor.norm(v1))
+println("Trace of g:", tensor.trace(g))
+
+// Shuffle
+tensor.shuffle(h)
+println("Shuffled h:", h)

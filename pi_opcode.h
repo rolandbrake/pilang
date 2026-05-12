@@ -56,8 +56,8 @@ typedef enum
     OP_IMPORT_ALL = 0x3f,
     OP_IMPORT_DEFAULT = 0x40,
     OP_LOAD_SUPER = 0x41,
-    OP_MAT_GET = 0x42,    
-    OP_MAT_SET = 0x43,
+    OP_TENSOR_GET = 0x42,    
+    OP_TENSOR_SET = 0x43,
     OP_LIST_FINALIZE = 0x44,
     OP_CALL_SPREAD = 0x45,
     OP_MAP_SET = 0x46,
@@ -118,8 +118,8 @@ static inline int operand_count(uint8_t op)
     case OP_PUSH_FUNCTION:
     case OP_PUSH_UPVALUE:
     case OP_UNARY:
-    case OP_MAT_GET:
-    case OP_MAT_SET:
+    case OP_TENSOR_GET:
+    case OP_TENSOR_SET:
     case OP_CALL_SPREAD:
     case OP_COMP_APPEND:
     case OP_MAP_FINALIZE:
@@ -129,5 +129,7 @@ static inline int operand_count(uint8_t op)
         return 0;
     }
 }
+
+
 
 #endif

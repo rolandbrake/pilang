@@ -102,9 +102,6 @@ typedef struct
     bool has_conditions;
 } list_comp_t;
 
-
-
-
 static bool is_functionLiteral(parser_t *parser, int index)
 {
     tk_type type = parser->tokens[index].type;
@@ -1541,7 +1538,7 @@ static void variable(parser_t *parser)
     // Check if the variable is being assigned a value
     if (match(parser, TK_ASSIGN))
     {
-        char *prev_fun = parser->fun_name; // Store the pending function name
+        char *prev_fun = parser->fun_name;    // Store the pending function name
         char *prev_obj = parser->object_name; // Store the pending object name
 
         if (is_functionLiteral(parser, parser->current))
@@ -3313,78 +3310,53 @@ static void unary_expr(parser_t *parser)
  * step are optional and default to 0, the size of the list, and 1, respectively.
  * @returns nothing
  */
-static bool slice_component(parser_t *parser, bool emit_slice)
+static bool slice_expr(parser_t *parser)
 {
     int index;
     bool is_slice = false;
-    token_t token = peek(parser); // position marking for error reporting
+    token_t token = peek(parser);
 
-    // Handle the start of the slice
     if (check(parser, TK_COLON))
     {
-        // If the start is missing, assume 0
-        index = store_const(parser->comp, NEW_NUM(0));
-        emit_16u(parser->comp, OP_LOAD_CONST, "0", index);
+        // Missing start → emit INFINITY so get_slice's isinf() check fires
+        emit_16u(parser->comp, OP_LOAD_CONST, "inf", 1);
         is_slice = true;
+        next(parser); // consume the leading ':'
     }
     else
-        cond_expr(parser); // Parse start expression
+        cond_expr(parser);
 
-    // Check for the first colon (start:end)
-    if (match(parser, TK_COLON))
+    // FIX: flip operands so match() is only called when is_slice is false
+    if (is_slice || match(parser, TK_COLON))
     {
         is_slice = true;
         token = previous(parser);
 
-        // Handle the end expression
-        if (!check_n(parser, 2, TK_RBRACKET, TK_COMMA) && !check(parser, TK_COLON))
+        if (!check(parser, TK_RBRACKET) && !check(parser, TK_COLON) && !check(parser, TK_COMMA))
             cond_expr(parser);
         else
-        {
-            // If the end is missing, assume infinity
-            emit_16u(parser->comp, OP_LOAD_CONST, "inf", 1);
-        }
+            emit_16u(parser->comp, OP_LOAD_CONST, "inf", 1); // missing end → INFINITY
 
-        // Check for the second colon (start:end:step)
         if (match(parser, TK_COLON))
         {
-            // Handle the step expression
-            if (!check_n(parser, 2, TK_RBRACKET, TK_COMMA))
+            if (!check(parser, TK_RBRACKET) && !check(parser, TK_COMMA))
                 cond_expr(parser);
             else
             {
-                // If the step is missing, assume 1
                 index = store_const(parser->comp, NEW_NUM(1));
                 emit_16u(parser->comp, OP_LOAD_CONST, "1", index);
             }
         }
         else
         {
-            // If step colon is missing, assume 1
             index = store_const(parser->comp, NEW_NUM(1));
             emit_16u(parser->comp, OP_LOAD_CONST, "1", index);
         }
 
-        if (emit_slice)
-        {
-            set_pos(parser, token); // Set the position to the start of the slice
-            emit(parser->comp, OP_PUSH_SLICE);
-        }
+        set_pos(parser, token);
+        emit(parser->comp, OP_PUSH_SLICE);
     }
-
     return is_slice;
-}
-
-/**
- * Parses a slice expression, which is an expression that returns a slice of a
- * list or string. A slice expression can include start and end indices, as
- * well as a step.
- * @returns nothing
- */
-static bool slice_expr(parser_t *parser)
-{
-    // Parse the start, end and step expressions of a slice
-    return slice_component(parser, true);
 }
 
 /**
@@ -3414,56 +3386,63 @@ static void member_expr(parser_t *parser)
             int index = store_const(parser->comp, new_value(name)); // Store the property name as a constant
             emit_16u(parser->comp, OP_LOAD_CONST, token_value(name), index);
 
-            bool defer_forced_store = parser->is_store && parser->force_store &&
-                                      has_accessContinuation(parser, name);
+            bool is_chained_access = parser->is_store && parser->force_store &&
+                                     has_accessContinuation(parser, name);
 
-            if (!defer_forced_store && is_assign(parser))
+            if (!is_chained_access && is_assign(parser))
                 emit(parser->comp, OP_SET_ITEM); // Emit bytecode to set the property value
             else
                 emit(parser->comp, OP_GET_ITEM); // Emit bytecode to get the property value
         }
+
+
+        // Handle property access using bracket notation and slicing for lists and tensors
         else if (match(parser, TK_LBRACKET))
         {
             token_t token = previous(parser);
-            bool row_is_slice = slice_component(parser, false);
-            bool has_second_axis = match(parser, TK_COMMA);
-            bool col_is_slice = false;
+            bool is_slice = slice_expr(parser); // still need return value for 1D
 
-            if (has_second_axis)
-                col_is_slice = slice_component(parser, false);
-
-            consume(parser, TK_RBRACKET, "Expect ']' after list index expression");
-
-            if (has_second_axis)
+            if (check(parser, TK_COMMA))
             {
-                bool defer_forced_store = parser->is_store && parser->force_store &&
-                                          has_accessContinuation(parser, previous(parser));
-                bool assign = !defer_forced_store && is_assign(parser);
-                uint8_t mode = (row_is_slice ? 0x1 : 0x0) | (col_is_slice ? 0x2 : 0x0);
+                /*  Tensor indexing: tensor[i, j:k, m, ...]  */
+                int ndim = 1;
+                while (match(parser, TK_COMMA))
+                {
+                    if (check(parser, TK_RBRACKET))
+                        break; /* trailing comma */
 
-                if ((row_is_slice || col_is_slice) && assign)
-                    p_error("Cannot assign to matrix slice", peek(parser).line, peek(parser).column);
+                    if (ndim >= MAX_TENSOR_DIMS)
+                        p_error("Too many tensor dimensions",
+                                peek(parser).line, peek(parser).column);
 
-                emit_8u(parser->comp, assign ? OP_MAT_SET : OP_MAT_GET, "[]", mode);
+                    slice_expr(parser); /* return value discarded, VM checks at runtime */
+                    ndim++;
+                }
+
+                // Check for chained access before deciding whether this is an assignment to a tensor element or just an access
+                consume(parser, TK_RBRACKET, "Expect ']' after tensor index");
+                bool is_chained_access = parser->is_store && parser->force_store &&
+                                         has_accessContinuation(parser, previous(parser));
+                bool assign = !is_chained_access && is_assign(parser);
+
+                /* VM pops ndim values and checks each at runtime for slice vs index */
+                emit_8u(parser->comp, assign ? OP_TENSOR_SET : OP_TENSOR_GET, "", (uint8_t)ndim);
             }
             else
             {
-                bool defer_forced_store = parser->is_store && parser->force_store &&
-                                          has_accessContinuation(parser, previous(parser));
-                bool assign = !row_is_slice && !defer_forced_store && is_assign(parser);
+                /*  List / 1-D indexing: list[i] or list[a:b:c]  */
+                consume(parser, TK_RBRACKET, "Expect ']' after index");
+                bool is_chained_access = parser->is_store && parser->force_store &&
+                                         has_accessContinuation(parser, previous(parser));
 
-                if (row_is_slice && !defer_forced_store && is_assign(parser))
-                    p_error("Cannot assign to slice", peek(parser).line, peek(parser).column);
+                /* slice_expr already emitted OP_PUSH_SLICE — nothing more to emit,
+                       but assignment to a slice is illegal.                            */
+                if (is_slice && !is_chained_access && is_assign(parser))
+                    p_error("Cannot assign to a slice", peek(parser).line, peek(parser).column);
 
-                if (row_is_slice)
-                {
-                    set_pos(parser, token);
-                    emit(parser->comp, OP_PUSH_SLICE);
-                }
-                else
-                {
-                    emit(parser->comp, assign ? OP_SET_ITEM : OP_GET_ITEM);
-                }
+                // Always emit GET_ITEM or SET_ITEM – the slice object is already on the stack
+                bool assign = !is_chained_access && is_assign(parser);
+                emit(parser->comp, assign ? OP_SET_ITEM : OP_GET_ITEM);
             }
         }
 
@@ -3631,7 +3610,8 @@ static void arrow_func(parser_t *parser)
  * a variable, a list literal, or a map literal. Emits the corresponding bytecode
  * for the parsed expression.
  */
-static void primary(parser_t *parser) {
+static void primary(parser_t *parser)
+{
     // Check for literal values (numbers, strings, boolean, nil)
     if (match_n(parser, 7, TK_NUM, TK_STR, TK_TRUE, TK_FALSE, TK_NIL, TK_INF, TK_NAN))
     {
@@ -3766,7 +3746,7 @@ static void primary(parser_t *parser) {
 
             if (match(parser, TK_RARROW))
             {
-                // ── Arrow function: (params) -> body ────────────────────────────────
+                //  Arrow function: (params) -> body
                 parser->current = _current;
                 list_t *params = param_list(parser);
                 int size = list_size(params);
@@ -3792,7 +3772,7 @@ static void primary(parser_t *parser) {
             }
             else
             {
-                //  Grouped expression or tuple literal 
+                //  Grouped expression or tuple literal
                 parser->current = _current;
 
                 // Parse the first element/expression
@@ -3817,7 +3797,7 @@ static void primary(parser_t *parser) {
                 }
                 else
                 {
-                    // ── Grouped expression: (expr) ───────────────────────────────────
+                    //  Grouped expression: (expr) ─
                     consume(parser, TK_RPAREN, "Expect ')' after expression.");
                 }
             }
@@ -3901,16 +3881,16 @@ static void primary(parser_t *parser) {
         }
         else
         {
-            bool defer_forced_store = parser->is_store && parser->force_store &&
-                                      peek(parser).line == previous(parser).line &&
-                                      check_n(parser, 3, TK_DOT, TK_LBRACKET, TK_LPAREN);
+            bool is_chained_access = parser->is_store && parser->force_store &&
+                                     peek(parser).line == previous(parser).line &&
+                                     check_n(parser, 3, TK_DOT, TK_LBRACKET, TK_LPAREN);
 
             if (is_object(parser->comp) && strcmp(name, "super") == 0)
             {
                 emit(parser->comp, OP_LOAD_SUPER);
                 return;
             }
-            if (!defer_forced_store && is_assign(parser))
+            if (!is_chained_access && is_assign(parser))
                 store_variable(parser->comp, name);
             else
                 load_variable(parser->comp, name);
@@ -3921,12 +3901,16 @@ static void primary(parser_t *parser) {
     {
         int size = 0;
         set_pos(parser, previous(parser));
+
         if (match(parser, TK_RBRACKET))
             emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
+
         else if (list_isComprehension(parser))
             emit_listComprehension(parser);
+
         else if (list_hasSpreadItems(parser))
             emit_spreadListLiteral(parser);
+
         else
         {
             do
@@ -4144,7 +4128,7 @@ static void primary(parser_t *parser) {
 
         if (method_value)
             add_local(comp, "this");
-            // Add the parameters to the local scope
+        // Add the parameters to the local scope
         for (int i = 0; i < size; i++)
             add_local(comp, string_get(params, i));
         add_local(comp, "args"); // Add the "args" variable to the local scope

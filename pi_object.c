@@ -126,32 +126,121 @@ Object *new_list(list_t *items)
     return (Object *)list;
 }
 
-Object *new_matrix(int rows, int cols)
+static int tensor_elemSize(TN_TYPE type)
 {
-    PiMatrix *matrix = CREATE_OBJ(PiMatrix, OBJ_MATRIX);
-    matrix->rows = rows;
-    matrix->cols = cols;
-    matrix->current = 0;
-    matrix->data = calloc((size_t)rows * (size_t)cols, sizeof(double));
-    return (Object *)matrix;
+    switch (type)
+    {
+    case TN_FLOAT32:
+        return sizeof(float);
+    case TN_FLOAT64:
+        return sizeof(double);
+    case TN_INT32:
+        return sizeof(int32_t);
+    case TN_INT64:
+        return sizeof(int64_t);
+    }
+    return sizeof(double);
 }
 
-double matrix_get(PiMatrix *matrix, int row, int col)
+Object *new_tensor(int ndim, int *shape, TN_TYPE type)
 {
-    return matrix->data[row * matrix->cols + col];
+    PiTensor *tensor = CREATE_OBJ(PiTensor, OBJ_TENSOR);
+    tensor->type = type;
+    tensor->ndim = ndim;
+    tensor->size = 1;
+    tensor->current = 0;
+    tensor->rows = ndim > 0 ? shape[0] : 0;
+    tensor->cols = ndim > 1 ? shape[1] : 1;
+    tensor->shape = malloc(sizeof(int) * (size_t)ndim);
+    tensor->strides = malloc(sizeof(int) * (size_t)ndim);
+
+    if (!tensor->shape || !tensor->strides)
+        error("[new_tensor] Memory allocation failed.");
+
+    for (int i = 0; i < ndim; i++)
+    {
+        tensor->shape[i] = shape[i];
+        tensor->size *= shape[i];
+    }
+
+    int stride = 1;
+    for (int i = ndim - 1; i >= 0; i--)
+    {
+        tensor->strides[i] = stride;
+        stride *= shape[i];
+    }
+
+    tensor->data.f64 = calloc((size_t)tensor->size, (size_t)tensor_elemSize(type));
+    if (!tensor->data.f64)
+        error("[new_tensor] Data allocation failed.");
+
+    return (Object *)tensor;
 }
 
-void matrix_set(PiMatrix *matrix, int row, int col, double value)
+static int tensor_offset(PiTensor *tensor, int *indices)
 {
-    matrix->data[row * matrix->cols + col] = value;
+    int offset = 0;
+    for (int i = 0; i < tensor->ndim; i++)
+        offset += get_index(indices[i], tensor->shape[i]) * tensor->strides[i];
+    return offset;
 }
 
-Object *matrix_rowAsList(PiMatrix *matrix, int row)
+double tensor_getFlat(PiTensor *tensor, int index)
+{
+    switch (tensor->type)
+    {
+    case TN_FLOAT32:
+        return ((float *)tensor->data.f32)[index];
+    case TN_FLOAT64:
+        return tensor->data.f64[index];
+    case TN_INT32:
+        return tensor->data.i32[index];
+    case TN_INT64:
+        return (double)tensor->data.i64[index];
+    }
+    return 0.0;
+}
+
+void tensor_setFlat(PiTensor *tensor, int index, double value)
+{
+    switch (tensor->type)
+    {
+    case TN_FLOAT32:
+        ((float *)tensor->data.f32)[index] = (float)value;
+        break;
+    case TN_FLOAT64:
+        tensor->data.f64[index] = value;
+        break;
+    case TN_INT32:
+        tensor->data.i32[index] = (int32_t)value;
+        break;
+    case TN_INT64:
+        tensor->data.i64[index] = (int64_t)value;
+        break;
+    }
+}
+
+double tensor_get(PiTensor *tensor, int *indices)
+{
+    return tensor_getFlat(tensor, tensor_offset(tensor, indices));
+}
+
+void tensor_set(PiTensor *tensor, int *indices, double value)
+{
+    tensor_setFlat(tensor, tensor_offset(tensor, indices), value);
+}
+
+Object *tensor_rowAsList(PiTensor *tensor, int row)
 {
     list_t *items = list_create(sizeof(Value));
-    for (int col = 0; col < matrix->cols; col++)
+    if (tensor->ndim == 0)
+        return new_list(items);
+
+    int row_size = tensor->size / tensor->shape[0];
+    int start = get_index(row, tensor->shape[0]) * row_size;
+    for (int i = 0; i < row_size; i++)
     {
-        Value value = NEW_NUM(matrix_get(matrix, row, col));
+        Value value = NEW_NUM(tensor_getFlat(tensor, start + i));
         list_add(items, &value);
     }
 
@@ -159,7 +248,7 @@ Object *matrix_rowAsList(PiMatrix *matrix, int row)
     list->is_numeric = true;
     list->is_matrix = false;
     list->rows = 1;
-    list->cols = matrix->cols;
+    list->cols = row_size;
     return (Object *)list;
 }
 
@@ -552,6 +641,17 @@ Object *new_range(double start, double end, double step)
     return (Object *)range;
 }
 
+Object *new_slice(double start, double stop, double step)
+{
+    PiSlice *slice = CREATE_OBJ(PiSlice, OBJ_SLICE);
+
+    slice->start = start;
+    slice->stop = stop;
+    slice->step = step;
+
+    return (Object *)slice;
+}
+
 /**
  * Resets the given iterable object to its initial state.
  *
@@ -574,8 +674,8 @@ void iter_reset(Object *col)
         // Reset the current index of the list to 0
         ((PiList *)col)->current = 0;
         break;
-    case OBJ_MATRIX:
-        ((PiMatrix *)col)->current = 0;
+    case OBJ_TENSOR:
+        ((PiTensor *)col)->current = 0;
         break;
     case OBJ_STRING:
         // Reset the current index of the string to 0
@@ -627,10 +727,10 @@ bool iter_hasNext(Object *col)
         // Check if the current index is less than the length of the list
         return list->current < LIST_SIZE(list->items);
     }
-    else if (type == OBJ_MATRIX)
+    else if (type == OBJ_TENSOR)
     {
-        PiMatrix *matrix = (PiMatrix *)col;
-        return matrix->current < matrix->rows;
+        PiTensor *tensor = (PiTensor *)col;
+        return tensor->ndim > 0 && tensor->current < tensor->shape[0];
     }
     else if (type == OBJ_STRING)
     {
@@ -686,11 +786,11 @@ Value iter_next(Object *col)
         list->current++;
         return value;
     }
-    else if (type == OBJ_MATRIX)
+    else if (type == OBJ_TENSOR)
     {
-        PiMatrix *matrix = (PiMatrix *)col;
-        Value value = NEW_OBJ(matrix_rowAsList(matrix, matrix->current));
-        matrix->current++;
+        PiTensor *tensor = (PiTensor *)col;
+        Value value = NEW_OBJ(tensor_rowAsList(tensor, tensor->current));
+        tensor->current++;
         return value;
     }
     else if (type == OBJ_STRING)
@@ -751,7 +851,7 @@ bool is_iterable(Object *obj)
     switch (obj->type)
     {
     case OBJ_LIST:
-    case OBJ_MATRIX:
+    case OBJ_TENSOR:
     case OBJ_STRING:
     case OBJ_RANGE:
     case OBJ_MAP:
@@ -786,6 +886,33 @@ int get_index(int index, int length)
     return _index;
 }
 
+int slice_index(int index, int length, int step)
+{
+    
+    // Handle negative indexing first (Python rule)
+    if (index < 0)
+        index += length;
+
+    if (step > 0)
+    {
+        // Forward slice: clamp to [0, length]
+        if (index < 0)
+            index = 0;
+        if (index > length)
+            index = length;
+    }
+    else
+    {
+        // Reverse slice: clamp to [-1, length-1]
+        if (index < -1)
+            index = -1;
+        if (index > length - 1)
+            index = length - 1;
+    }
+
+    return index;
+}
+
 /**
  * Retrieves a slice of a sequence (list or string) from the specified start
  * index to the specified end index with the specified step.
@@ -798,95 +925,139 @@ int get_index(int index, int length)
  */
 Value get_slice(Object *sequence, double start, double end, double step)
 {
-    int size = 0; // Size of the sequence (list or string)
-    int sign = (step > 0) ? 1 : -1;
+    int size = 0;
     int _start, _end, _step;
 
-    // Convert step to integer (must be non-zero)
     if (step == 0)
     {
         fprintf(stderr, "Slice step cannot be zero.\n");
         exit(EXIT_FAILURE);
     }
-    _step = (int)step;
+
+    _step = (int)step;    
 
     if (sequence->type == OBJ_LIST)
     {
         PiList *list = (PiList *)sequence;
         size = LIST_SIZE(list->items);
 
-        // Handle infinity values and convert to integers
+        // START
         if (isinf(start))
-            _start = (sign > 0) ? size : -1;
-        else
-            _start = get_index((int)start, size);
-
-        if (isinf(end))
-            _end = (sign > 0) ? size : -1;
-        else
-            _end = get_index((int)end, size);
-
-        // Create the sliced list
-        list_t *s_list = list_create(sizeof(Value));
-        while (sign * (_end - _start) > 0)
         {
-            Value *item = (Value *)list_getAt(list->items, _start);
-            list_add(s_list, item); // Add the item to the sublist
-            _start += _step;
+            _start = (_step > 0) ? 0 : size - 1;
+        }
+        else
+        {
+            _start = slice_index((int)start, size, _step);
+        }
+
+        // END
+        if (isinf(end))
+        {
+            _end = (_step > 0) ? size : -1;
+        }
+        else
+        {
+            _end = slice_index((int)end, size, _step);
+        }
+
+        list_t *s_list = list_create(sizeof(Value));
+
+        if (_step > 0)
+        {
+            while (_start < _end)
+            {
+                Value *item = (Value *)list_getAt(list->items, _start);
+                list_add(s_list, item);
+                _start += _step;
+            }
+        }
+        else
+        {
+            while (_start > _end)
+            {
+                Value *item = (Value *)list_getAt(list->items, _start);
+                list_add(s_list, item);
+                _start += _step;
+            }
         }
 
         return NEW_OBJ(new_list(s_list));
     }
+
     else if (sequence->type == OBJ_TUPLE)
     {
         PiTuple *tuple = (PiTuple *)sequence;
         size = LIST_SIZE(tuple->items);
 
         if (isinf(start))
-            _start = (sign > 0) ? size : -1;
+            _start = (_step > 0) ? 0 : size - 1;
         else
-            _start = get_index((int)start, size);
+            _start = slice_index((int)start, size, _step);
 
         if (isinf(end))
-            _end = (sign > 0) ? size : -1;
+            _end = (_step > 0) ? size : -1;
         else
-            _end = get_index((int)end, size);
+            _end = slice_index((int)end, size, _step);
 
         list_t *s_list = list_create(sizeof(Value));
-        while (sign * (_end - _start) > 0)
+
+        if (_step > 0)
         {
-            Value *item = (Value *)list_getAt(tuple->items, _start);
-            list_add(s_list, item);
-            _start += _step;
+            while (_start < _end)
+            {
+                Value *item = (Value *)list_getAt(tuple->items, _start);
+                list_add(s_list, item);
+                _start += _step;
+            }
+        }
+        else
+        {
+            while (_start > _end)
+            {
+                Value *item = (Value *)list_getAt(tuple->items, _start);
+                list_add(s_list, item);
+                _start += _step;
+            }
         }
 
         return NEW_OBJ(new_tuple(s_list));
     }
+
     else if (sequence->type == OBJ_STRING)
     {
         PiString *str = (PiString *)sequence;
         size = str->length;
 
-        // Handle infinity values and convert to integers
         if (isinf(start))
-            _start = (sign > 0) ? size : -1;
+            _start = (_step > 0) ? 0 : size - 1;
         else
-            _start = get_index((int)start, size);
+            _start = slice_index((int)start, size, _step);
 
         if (isinf(end))
-            _end = (sign > 0) ? size : -1;
+            _end = (_step > 0) ? size : -1;
         else
-            _end = get_index((int)end, size);
+            _end = slice_index((int)end, size, _step);
 
-        // Create the sliced string
-        char *s_str = malloc(abs(_end - _start) + 1);
-        int i, j = 0;
-        for (i = _start; sign * (_end - i) > 0; i += _step)
-            s_str[j++] = str->chars[i];
+        char *s_str = malloc(size + 1);
+        int j = 0;
+
+        if (_step > 0)
+        {
+            for (int i = _start; i < _end; i += _step)
+                s_str[j++] = str->chars[i];
+        }
+        else
+        {
+            for (int i = _start; i > _end; i += _step)
+                s_str[j++] = str->chars[i];
+        }
+
         s_str[j] = '\0';
 
         return NEW_OBJ(new_pistring(s_str));
     }
+    
 
     fprintf(stderr, "Invalid sequence type.\n");
     exit(EXIT_FAILURE);

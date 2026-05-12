@@ -172,32 +172,34 @@ static int list_compare(PiList *left, PiList *right)
     return 0;
 }
 
-static bool matrix_equals(PiMatrix *left, PiMatrix *right)
+static bool tensor_equals(PiTensor *left, PiTensor *right)
 {
-    if (left->rows != right->rows || left->cols != right->cols)
+    if (left->type != right->type || left->ndim != right->ndim || left->size != right->size)
         return false;
 
-    int size = left->rows * left->cols;
-    for (int i = 0; i < size; i++)
-    {
-        if (fabs(left->data[i] - right->data[i]) >= 1e-9)
+    for (int i = 0; i < left->ndim; i++)
+        if (left->shape[i] != right->shape[i])
             return false;
-    }
+
+    for (int i = 0; i < left->size; i++)
+        if (fabs(tensor_getFlat(left, i) - tensor_getFlat(right, i)) >= 1e-9)
+            return false;
 
     return true;
 }
 
-static int matrix_compare(PiMatrix *left, PiMatrix *right)
+static int tensor_compare(PiTensor *left, PiTensor *right)
 {
-    if (left->rows != right->rows)
-        return (left->rows > right->rows) ? 1 : -1;
-    if (left->cols != right->cols)
-        return (left->cols > right->cols) ? 1 : -1;
+    if (left->ndim != right->ndim)
+        return (left->ndim > right->ndim) ? 1 : -1;
 
-    int size = left->rows * left->cols;
-    for (int i = 0; i < size; i++)
+    for (int i = 0; i < left->ndim; i++)
+        if (left->shape[i] != right->shape[i])
+            return (left->shape[i] > right->shape[i]) ? 1 : -1;
+
+    for (int i = 0; i < left->size; i++)
     {
-        int cmp = compare_numbers(left->data[i], right->data[i]);
+        int cmp = compare_numbers(tensor_getFlat(left, i), tensor_getFlat(right, i));
         if (cmp != 0)
             return cmp;
     }
@@ -763,8 +765,8 @@ bool equals(Value left, Value right)
         case OBJ_TUPLE:
             return value_listEquals(AS_TUPLE(left)->items, AS_TUPLE(right)->items);
 
-        case OBJ_MATRIX:
-            return matrix_equals(AS_MATRIX(left), AS_MATRIX(right));
+        case OBJ_TENSOR:
+            return tensor_equals(AS_TENSOR(left), AS_TENSOR(right));
 
         case OBJ_MAP:
             return map_equals(AS_MAP(left), AS_MAP(right));
@@ -842,8 +844,8 @@ int compare(Value left, Value right)
             return list_compare(AS_LIST(left), AS_LIST(right));
         else if (OBJ_TYPE(left) == OBJ_TUPLE)
             return value_list_compare(AS_TUPLE(left)->items, AS_TUPLE(right)->items);
-        else if (OBJ_TYPE(left) == OBJ_MATRIX)
-            return matrix_compare(AS_MATRIX(left), AS_MATRIX(right));
+        else if (OBJ_TYPE(left) == OBJ_TENSOR)
+            return tensor_compare(AS_TENSOR(left), AS_TENSOR(right));
         else if (OBJ_TYPE(left) == OBJ_MAP)
             return map_compare(AS_MAP(left), AS_MAP(right));
         else if (OBJ_TYPE(left) == OBJ_RANGE)
@@ -1056,11 +1058,8 @@ bool as_bool(Value val)
         case OBJ_LIST:
             // Lists are true if they have items
             return LIST_SIZE(AS_LIST(val)->items) > 0;
-        case OBJ_MATRIX:
-        {
-            PiMatrix *matrix = AS_MATRIX(val);
-            return matrix->rows > 0 && matrix->cols > 0;
-        }
+        case OBJ_TENSOR:
+            return AS_TENSOR(val)->size > 0;
         case OBJ_MAP:
             // Maps are true if they have key-value pairs
             return ht_length(AS_MAP(val)->table) > 0;
@@ -1094,6 +1093,45 @@ bool as_bool(Value val)
  * @param val The Pi value to be converted
  * @return A string representation of the value
  */
+static void tensor_appendString(char **result, size_t *buffer_size, PiTensor *tensor, int dim, int *indices)
+{
+    if (dim == tensor->ndim)
+    {
+        // leaf: append the value
+        Value cell = NEW_NUM(tensor_get(tensor, indices));
+        char *item = as_string(cell);
+        size_t len = strlen(item);
+        *buffer_size += len;
+        *result = realloc(*result, *buffer_size + 1);
+        strcat(*result, item);
+        free(item);
+        return;
+    }
+
+    // append "["
+    *buffer_size += 1;
+    *result = realloc(*result, *buffer_size + 1);
+    strcat(*result, "[");
+
+    for (int i = 0; i < tensor->shape[dim]; i++)
+    {
+        if (i > 0)
+        {
+            *buffer_size += 2;
+            *result = realloc(*result, *buffer_size + 1);
+            strcat(*result, ", ");
+        }
+
+        indices[dim] = i;
+        tensor_appendString(result, buffer_size, tensor, dim + 1, indices);
+    }
+
+    // append "]"
+    *buffer_size += 1;
+    *result = realloc(*result, *buffer_size + 1);
+    strcat(*result, "]");
+}
+
 char *as_string(Value val)
 {
     switch (val.type)
@@ -1261,54 +1299,13 @@ char *as_string(Value val)
             strcat(result, ")");
             return result;
         }
-        case OBJ_MATRIX:
+        case OBJ_TENSOR:
         {
-            PiMatrix *matrix = AS_MATRIX(val);
-            size_t buffer_size = 2;
-            char *result = dup_cstring("[");
-
-            for (int i = 0; i < matrix->rows; i++)
-            {
-                if (i > 0)
-                {
-                    buffer_size += 2;
-                    result = realloc(result, buffer_size);
-                    strcat(result, ", ");
-                }
-
-                size_t row_buffer_size = 2;
-                char *row = dup_cstring("[");
-
-                for (int j = 0; j < matrix->cols; j++)
-                {
-                    if (j > 0)
-                    {
-                        row_buffer_size += 2;
-                        row = realloc(row, row_buffer_size);
-                        strcat(row, ", ");
-                    }
-
-                    Value cell = NEW_NUM(matrix_get(matrix, i, j));
-                    char *item = as_string(cell);
-                    row_buffer_size += strlen(item);
-                    row = realloc(row, row_buffer_size);
-                    strcat(row, item);
-                    free(item);
-                }
-
-                row_buffer_size++;
-                row = realloc(row, row_buffer_size);
-                strcat(row, "]");
-
-                buffer_size += strlen(row);
-                result = realloc(result, buffer_size);
-                strcat(result, row);
-                free(row);
-            }
-
-            buffer_size++;
-            result = realloc(result, buffer_size);
-            strcat(result, "]");
+            PiTensor *tensor = AS_TENSOR(val);
+            char *result = dup_cstring("");
+            size_t buffer_size = 0;
+            int indices[MAX_TENSOR_DIMS] = {0};
+            tensor_appendString(&result, &buffer_size, tensor, 0, indices);
             return result;
         }
 
@@ -1449,13 +1446,13 @@ Value copy_value(Value val)
             break;
         }
 
-        case OBJ_MATRIX:
+        case OBJ_TENSOR:
         {
-            PiMatrix *original = (PiMatrix *)obj;
-            PiMatrix *matrix = (PiMatrix *)new_matrix(original->rows, original->cols);
-            memcpy(matrix->data, original->data,
-                   sizeof(double) * (size_t)original->rows * (size_t)original->cols);
-            copy.data.object = (Object *)matrix;
+            PiTensor *original = (PiTensor *)obj;
+            PiTensor *tensor = (PiTensor *)new_tensor(original->ndim, original->shape, original->type);
+            for (int i = 0; i < original->size; i++)
+                tensor_setFlat(tensor, i, tensor_getFlat(original, i));
+            copy.data.object = (Object *)tensor;
             break;
         }
 
@@ -1518,7 +1515,7 @@ void print_value(Value val, bool is_root)
             printf("]");
             break;
         }
-        case OBJ_MATRIX:
+        case OBJ_TENSOR:
         {
             char *text = as_string(val);
             printf("%s", text);
@@ -1529,6 +1526,12 @@ void print_value(Value val, bool is_root)
         {
             PiRange *r = AS_RANGE(val);
             printf("[%f..%f:%f]", r->start, r->end, r->step);
+            break;
+        }
+        case OBJ_SLICE:
+        {
+            PiSlice *s = AS_SLICE(val);
+            printf("[%f:%f:%f]", s->start, s->stop, s->step);
             break;
         }
         case OBJ_FUN:
@@ -1574,8 +1577,8 @@ char *type_name(Value val)
             return "string";
         case OBJ_LIST:
             return "list";
-        case OBJ_MATRIX:
-            return "matrix";
+        case OBJ_TENSOR:
+            return "tensor";
         case OBJ_MAP:
         {
             PiMap *map = AS_MAP(val);
@@ -1598,6 +1601,8 @@ char *type_name(Value val)
             return "module";
         case OBJ_RANGE:
             return "range";
+        case OBJ_SLICE:
+            return "slice";
         case OBJ_FUN:
             return "function";
         case OBJ_CODE:

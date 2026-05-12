@@ -349,9 +349,9 @@ static void chart_computeBounds(PiChart *c)
             if (LIST_SIZE(items) < 2)
                 continue;
             Value *mv = (Value *)list_getAt(items, 1);
-            if (!IS_MATRIX(*mv))
+            if (!IS_TENSOR(*mv) || AS_TENSOR(*mv)->ndim != 2)
                 continue;
-            PiMatrix *M = AS_MATRIX(*mv);
+            PiTensor *M = AS_TENSOR(*mv);
             xmin = 0;
             xmax = M->cols > 0 ? M->cols : 1;
             ymin = 0;
@@ -836,9 +836,9 @@ Value pt_heatmap(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "heatmap() takes a chart as first argument");
         return NIL_VAL;
     }
-    if (argc < 2 || !IS_MATRIX(argv[1]))
+    if (argc < 2 || !IS_TENSOR(argv[1]) || AS_TENSOR(argv[1])->ndim != 2)
     {
-        vm_error(vm, "heatmap requires a matrix");
+        vm_error(vm, "heatmap requires a 2d tensor as second argument");
         return NIL_VAL;
     }
     PiChart *chart = AS_CHART(argv[0]);
@@ -977,7 +977,7 @@ Value pt_legend(vm_t *vm, int argc, Value *argv)
 static void draw_legend(DrawContext *dc, list_t *items,
                         int border_left, int border_top,
                         int border_right, int border_bottom,
-                        int has_heatmap, PiMatrix *heatmap_matrix,
+                        int has_heatmap, PiTensor *heatmap_matrix,
                         double cell_size, TTF_Font *legend_font)
 {
     if (LIST_SIZE(items) < 2)
@@ -1361,28 +1361,35 @@ static void draw_heatmap(DrawContext *dc, list_t *items,
     if (LIST_SIZE(items) < 2)
         return;
     Value *mv = (Value *)list_getAt(items, 1);
-    if (!IS_MATRIX(*mv))
+    if (!IS_TENSOR(*mv) || AS_TENSOR(*mv)->ndim != 2)
         return;
-    PiMatrix *M = AS_MATRIX(*mv);
+    PiTensor *M = AS_TENSOR(*mv);
 
     double zmin = INFINITY, zmax = -INFINITY;
+    int indices[2];
     for (int row = 0; row < M->rows; row++)
+    {
+        indices[0] = row;
         for (int col = 0; col < M->cols; col++)
         {
-            double z = matrix_get(M, row, col);
+            indices[1] = col;
+            double z = tensor_get(M, indices);
             if (z < zmin)
                 zmin = z;
             if (z > zmax)
                 zmax = z;
         }
+    }
     if (zmax <= zmin)
         zmax = zmin + 1e-9;
 
     for (int row = 0; row < M->rows; row++)
     {
+        indices[0] = row;
         for (int col = 0; col < M->cols; col++)
         {
-            double z = matrix_get(M, row, col);
+            indices[1] = col;
+            double z = tensor_get(M, indices);
             double t = (z - zmin) / (zmax - zmin);
             if (t < 0)
                 t = 0;
@@ -1467,7 +1474,7 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
 
     // detect heatmap
     int has_heatmap = 0;
-    PiMatrix *heatmap_matrix = NULL;
+    PiTensor *heatmap_matrix = NULL;
     int heatmap_rows = 0, heatmap_cols = 0;
 
     for (int si = 0; si < list_size(chart->series); si++)
@@ -1487,9 +1494,9 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
             if (LIST_SIZE(items) >= 2)
             {
                 Value *mv = (Value *)list_getAt(items, 1);
-                if (IS_MATRIX(*mv))
+                if (IS_TENSOR(*mv) && AS_TENSOR(*mv)->ndim == 2)
                 {
-                    heatmap_matrix = AS_MATRIX(*mv);
+                    heatmap_matrix = AS_TENSOR(*mv);
                     heatmap_rows = heatmap_matrix->rows;
                     heatmap_cols = heatmap_matrix->cols;
                 }

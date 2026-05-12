@@ -79,8 +79,8 @@ static const char *op_names[] = {
     [0x3f] = "IMPORT_ALL",
     [0x40] = "IMPORT_DEFAULT",
     [0x41] = "LOAD_SUPER",
-    [0x42] = "MAT_GET",
-    [0x43] = "MAT_SET",
+    [0x42] = "TENSOR_GET",
+    [0x43] = "TENSOR_SET",
     [0x44] = "LIST_FINALIZE",
     [0x45] = "CALL_SPREAD",
     [0x46] = "MAP_SET",
@@ -1392,8 +1392,8 @@ void dis(compiler_t *comp)
             case OP_CALL_FUNCTION_KW:
             case OP_CALL_SPREAD:
             case OP_PUSH_FUNCTION:
-            case OP_MAT_GET:
-            case OP_MAT_SET:
+            case OP_TENSOR_GET:
+            case OP_TENSOR_SET:
             case OP_COMP_APPEND:
             case OP_MAP_FINALIZE:
                 snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d",
@@ -1467,8 +1467,8 @@ void dis(compiler_t *comp)
             case OP_CALL_FUNCTION_KW:
             case OP_CALL_SPREAD:
             case OP_PUSH_FUNCTION:
-            case OP_MAT_GET:
-            case OP_MAT_SET:
+            case OP_TENSOR_GET:
+            case OP_TENSOR_SET:
             case OP_COMP_APPEND:
             case OP_MAP_FINALIZE:
                 snprintf(line_buf, sizeof(line_buf),

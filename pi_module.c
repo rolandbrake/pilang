@@ -183,7 +183,7 @@ static Value load_builtinNamed(vm_t *vm, const char *name);
  * Attaches the children of a built-in module to its exports map.
  *
  * A child of a built-in module is a built-in module that has a name that is a prefix of the given name.
- * For example, if the given name is "matrix", the children of the built-in module could be "matrix.sort", "matrix.reduce", etc.
+ * For example, if the given name is "tensor", the children of the built-in module could be "tensor.sort", "tensor.reduce", etc.
  *
  * @param vm The VM to use.
  * @param module The module to attach the children to.

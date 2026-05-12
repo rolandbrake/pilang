@@ -1,9 +1,9 @@
-import matrix:mat;
-import matrix.ones:make_ones;
+import tensor:ten;
+import tensor.ones:make_ones;
 
-let A = mat.ones(2, 2)
+let A = ten.ones(2, 2)
 let B = make_ones(1, 3)
 
 println(A)
 println(B)
-println(mat.is_mat(A))
+println(ten.is_matrix(B))

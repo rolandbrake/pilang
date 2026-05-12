@@ -1,18 +1,18 @@
 #ifndef PI_BUILTIN_H
 #define PI_BUILTIN_H
 
-#include "pi_math.h"       // Math functions
-#include "_pi_string.h"     // String functions
-#include "pi_io.h"         // Input/Output functions
-#include "pi_sys.h"        // System-related functions
-#include "pi_os.h"         // Operating system functions
-#include "pi_time.h"       // Time functions
-#include "pi_col.h"        // Color functions
-#include "pi_func.h"       // Function functions
-#include "matrix/matrix.h" // Matrix functions
-#include "pi_type.h"       // Type functions
-#include "pi_obj.h"        // Object functions
-#include "pi_lang.h"       // Language/runtime constants
+#include "pi_math.h"    // Math functions
+#include "_pi_string.h" // String functions
+#include "pi_io.h"      // Input/Output functions
+#include "pi_sys.h"     // System-related functions
+#include "pi_os.h"      // Operating system functions
+#include "pi_time.h"    // Time functions
+#include "pi_col.h"     // Color functions
+#include "pi_func.h"    // Function functions
+#include "pi_tensor.h"  // Tensor functions
+#include "pi_type.h"    // Type functions
+#include "pi_obj.h"     // Object functions
+#include "pi_lang.h"    // Language/runtime constants
 
 // Builtin functions struct definition
 typedef struct
@@ -29,7 +29,7 @@ typedef struct
 
 typedef struct
 {
-    const char *name;       // the builtin module name (may be dotted, e.g. "matrix.reduce")
+    const char *name;       // the builtin module name (may be dotted, e.g. "tensor.reduce")
     BuiltinFunc *functions; // array of builtin functions
     int func_count;         // number of builtin functions
     BuiltinConst *consts;   // array of builtin constants
@@ -64,13 +64,7 @@ extern BuiltinModule module_type;   // type: Type functions (e.g., type, typeof)
 extern BuiltinModule module_lang;   // lang: Runtime/language constants (e.g., operator ids)
 extern BuiltinModule module_draw;   // draw: Draw functions (e.g., canvas, run, clear, pixel, line, triangle, rect, polygon, circle, text, image, push, pop, translate, scale, rotate, alpha, on, off, poll, wait, mouse, key, open, close, title, resize, fullscreen, size, fps)
 extern BuiltinModule module_plot;   // plot: Plot functions (e.g., plot, show, scatter, bar)
-
-// Builtin matrix module
-extern BuiltinModule module_matrix;       // matrix: Matrix functions (e.g., size, zeros, ones)
-extern BuiltinModule module_matReduce;    // matrix.reduce: Matrix reduction functions (e.g., sum, mean, min, max, prod, argmax, argmin, any, all)
-extern BuiltinModule module_matlinalgs;   // matrix.linalgs: Matrix linear algebra functions (e.g., det, inv, solve, eig, qr)
-extern BuiltinModule module_matStats;     // matrix.stats: Matrix statistics functions (e.g., cov, corr)
-extern BuiltinModule module_matTransform; // matrix.transform: Matrix transformation functions (e.g., transpose, reshape)
+extern BuiltinModule module_tensor; // tensor: Tensor functions (e.g., zeros, ones, shape)
 
 // Helper macro to define a builtin module from local arrays.
 #define DEFINE_BUILTIN_MODULE(module, name, func_list, const_list) \
