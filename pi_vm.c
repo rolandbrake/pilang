@@ -3690,6 +3690,7 @@ void run(vm_t *vm)
             ((Function *)function)->need_kwargs = fun_scanSlot(body, (uint8_t)(numParams + 1));
             ((Function *)function)->constants = vm->constants;
             ((Function *)function)->names = vm->names;
+            ((Function *)function)->instrs = vm->instrs;
             ((Function *)function)->globals = vm->globals;
 
             // Push the new function onto the stack
@@ -3742,6 +3743,7 @@ void run(vm_t *vm)
             ((Function *)fun_obj)->need_kwargs = fun_scanSlot(body, (uint8_t)(numParams + 1));
             ((Function *)fun_obj)->constants = vm->constants;
             ((Function *)fun_obj)->names = vm->names;
+            ((Function *)fun_obj)->instrs = vm->instrs;
             ((Function *)fun_obj)->globals = vm->globals;
 
             // Push the new closure onto the stack

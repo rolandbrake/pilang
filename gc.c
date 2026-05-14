@@ -404,6 +404,8 @@ void free_object(Object *obj)
             list_free(module->constants);
         if (module->names)
             list_free(module->names);
+        if (module->instrs)
+            ht_free(module->instrs);
         break;
     }
 

@@ -28,6 +28,7 @@ typedef struct ObjModule
     PiMap *exports;
     list_t *constants;
     list_t *names;
+    table_t *instrs;
     table_t *globals;
 
 } ObjModule; // pilang modules

@@ -380,6 +380,7 @@ Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin, b
     // Initialize the constants and names tables
     module->constants = NULL;
     module->names = NULL;
+    module->instrs = NULL;
     module->globals = NULL;
 
     // Create a new map to store the module's exports
@@ -597,8 +598,10 @@ Value load_module(vm_t *vm, const char *name)
     // Preserve module constants/names for functions created in this module.
     module->constants = comp->constants;
     module->names = comp->names;
+    module->instrs = comp->instrs;
     comp->constants = NULL;
     comp->names = NULL;
+    comp->instrs = NULL;
 
     free_parser(parser);
     free_compiler(comp);
