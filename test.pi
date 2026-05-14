@@ -1,23 +1,4 @@
-class Box {
-    constructor(values) {
-        this.values = values
-    }
+import modules.{List}
 
-    get_item(index) {
-        return this.values[index]
-    }
-
-    set_item(index, value) {
-        this.values[index] = value
-    }
-
-    slice(start, end, step) {
-        return this.values[start:end:step]
-    }
-}
-
-box = Box([10, 20, 30, 40, 50])
-
-println(type(box))  // Output: int
-
-println(box[1:4:2]) // Output: [20, 40]
+let nums = [1, 2, 3]
+println(List(nums).format())

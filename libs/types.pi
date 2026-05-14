@@ -1,0 +1,1453 @@
+// ==========================================
+// Lang Module - Standard Wrapper Classes
+// ==========================================
+// This module provides wrapper classes for common data structures and types.
+// It includes Iterator, List, Tuple, String, Number, Boolean, Map, Set, Range, Stack, and Queue.
+// These classes offer convenient methods for manipulation, transformation, and iteration.
+// The language used in this module includes built-in functions like `str`, `number`, `upper`, `lower`,
+// `trim`, `split`, `replace`, `contains`, `startswith`, `endswith`, `abs`, `floor`, `ceil`, `round`,
+// `sqrt`, `keys`, `values`, `entries`, `delete`, `sort`, `copy`, `range`, and operators like `#` for length,
+// `in` for containment, `^` for exponentiation, `!!` for boolean coercion, and `nil` for no value.
+
+
+// --------------------------------------------------
+// Iterator
+// --------------------------------------------------
+// An iterator provides a way to traverse a sequence one element at a time.
+// It is constructed with a `nextFn` that returns the next value or `nil` when the iteration is complete.
+// Methods like map, filter, reduce, each, and collect consume the iterator and return either a List or a value.
+
+class Iterator {
+
+    // Creates a new Iterator instance.
+    // param: nextFn - A function that returns the next value in the sequence, or `nil` when done.
+    constructor(nextFn) {
+        this.nextFn = nextFn
+    }
+
+    // Returns the next value from the iterator by calling the stored `nextFn`.
+    // return:s The next value, or `nil` if iteration is finished.
+    next() {
+        return this.nextFn()
+    }
+
+    // Applies a mapping function to each element of the iterator and collects the results into a List.
+    // Note: This consumes the entire iterator.
+    // param: fn - Mapping function that takes a value and returns a transformed value.
+    // return:s A new List containing the results of applying `fn` to each element.
+    map(fn) {
+
+        let result = []
+
+        while true {
+
+            let value = this.next()
+
+            if value == nil
+                break
+
+            result += fn(value)
+        }
+
+        return List(result)
+    }
+
+    // Filters elements of the iterator using a predicate function and collects those that pass into a List.
+    // Note: This consumes the entire iterator.
+    // param: fn - Predicate function that returns a truthy value to keep the element, falsy to discard it.
+    // return:s A new List containing only the elements for which `fn` returned truthy.
+    filter(fn) {
+
+        let result = []
+
+        while true {
+
+            let value = this.next()
+
+            if value == nil
+                break
+
+            if fn(value)
+                result += value
+        }
+
+        return List(result)
+    }
+
+    // Reduces the iterator to a single accumulated value by applying a combining function.
+    // Note: This consumes the entire iterator.
+    // param: fn - Combining function that takes the current accumulator and the next value, and returns the new accumulator.
+    // param: initial - The initial value of the accumulator.
+    // return:s The final accumulated value after processing all elements.
+    reduce(fn, initial) {
+
+        let acc = initial
+
+        while true {
+
+            let value = this.next()
+
+            if value == nil
+                break
+
+            acc = fn(acc, value)
+        }
+
+        return acc
+    }
+
+    // Executes a side-effect function for each element of the iterator.
+    // Note: This consumes the entire iterator.
+    // param: fn - Function that takes a value and performs some action (e.g., printing).
+    // return:s The iterator instance itself (for chaining, though already consumed).
+    each(fn) {
+
+        while true {
+
+            let value = this.next()
+
+            if value == nil
+                break
+
+            fn(value)
+        }
+
+        return this
+    }
+
+    // Collects all remaining elements of the iterator into a new List.
+    // Note: This consumes the entire iterator.
+    // return:s A new List containing all elements that have not yet been consumed.
+    collect() {
+
+        let result = []
+
+        while true {
+
+            let value = this.next()
+
+            if value == nil
+                break
+
+            result += value
+        }
+
+        return List(result)
+    }
+}
+
+
+// --------------------------------------------------
+// List
+// --------------------------------------------------
+// A dynamic array-like collection that stores an ordered sequence of elements.
+// Supports adding, removing, transforming, and querying elements.
+// Many methods return a new List or modify the list in place and return `this` for chaining.
+
+class List {
+
+    // Creates a new List instance.
+    // param: items - An optional iterable 
+    // (e.g., array, another List) whose elements are added to the new List.
+    constructor(items) {
+
+        this.items = []
+
+        if items != nil
+            for item in items
+                this.items += item
+    }
+
+    // Appends an item to the end of the list.
+    // param: item - The item to add.
+    // return:s The list instance (for chaining).
+    append(item) {
+        this.items += item
+        return this
+    }
+
+    // Prepends an item to the beginning of the list.
+    // param: item - The item to add.
+    // return:s The list instance (for chaining).
+    prepend(item) {
+        this.items = [item] + this.items
+        return this
+    }
+
+    // Inserts an item at a specific index, shifting subsequent elements to the right.
+    // param: index - The position at which to insert (0‑based).
+    // param: item - The item to insert.
+    // return:s The list instance (for chaining).
+    insert(index, item) {
+        this.items[index:index] = [item]
+        return this
+    }
+
+    // Removes the first occurrence of the given item from the list.
+    // param: item - The item to remove.
+    // return:s The list instance (for chaining).
+    remove(item) {
+
+        let result = []
+
+        for value in this.items
+            if value != item
+                result += value
+
+        this.items = result
+
+        return this
+    }
+
+    // Removes and returns the element at the specified index.
+    // param: index - The index of the element to remove (0‑based).
+    // return:s The removed element.
+    removeAt(index) {
+
+        let value = this.items[index]
+
+        this.items[index:index+1] = []
+
+        return value
+    }
+
+    // Removes and returns the last element of the list.
+    // return:s The last element.
+    pop() {
+
+        let value = this.items[-1]
+
+        this.items = this.items[:-1]
+
+        return value
+    }
+
+    // Removes and returns the first element of the list.
+    // return:s The first element.
+    shift() {
+
+        let value = this.items[0]
+
+        this.items = this.items[1:]
+
+        return value
+    }
+
+    // Removes all elements from the list, making it empty.
+    // return:s The list instance (for chaining).
+    clear() {
+        this.items = []
+        return this
+    }
+
+    // Checks whether the list contains a specific item.
+    // param: item - The item to search for.
+    // return:s `true` if the item exists, otherwise `false`.
+    contains(item) {
+        return item in this.items
+    }
+
+    // Returns the index of the first occurrence of the given item.
+    // param: item - The item to find.
+    // return:s The zero‑based index, or -1 if not found.
+    indexOf(item) {
+
+        for i in range(#this.items)
+            if this.items[i] == item
+                return i
+
+        return -1
+    }
+
+    // Returns the index of the last occurrence of the given item.
+    // param: item - The item to find.
+    // return:s The zero‑based index from the start, or -1 if not found.
+    lastIndexOf(item) {
+
+        for i in range(#this.items - 1, -1, -1)
+            if this.items[i] == item
+                return i
+
+        return -1
+    }
+
+    // Reverses the order of elements in place.
+    // return:s The list instance (for chaining).
+    reverse() {
+
+        let result = []
+
+        for i in range(#this.items - 1, -1, -1)
+            result += this.items[i]
+
+        this.items = result
+
+        return this
+    }
+
+    // Returns a new List that is the reverse of the current list.
+    // return:s A new List with elements in reverse order.
+    reversed() {
+
+        let result = []
+
+        for i in range(#this.items - 1, -1, -1)
+            result += this.items[i]
+
+        return List(result)
+    }
+
+    // Sorts the list in place using an optional comparison function.
+    // param: fn - A comparison function that takes two arguments (a, b) and returns a negative number if a < b, zero if equal, positive if a > b. If omitted, the default order is used.
+    // return:s The list instance (for chaining).
+    sort(fn) {
+        sort(this.items, fn)
+        return this
+    }
+
+    // Returns a new sorted List without modifying the original.
+    // param: fn - Same as `sort` method.
+    // return:s A new List containing the sorted elements.
+    sorted(fn) {
+
+        let result = copy(this.items)
+
+        sort(result, fn)
+
+        return List(result)
+    }
+
+    // Applies a transformation function to each element and returns a new List with the results.
+    // param: fn - Mapping function that takes an element and returns a transformed value.
+    // return:s A new List containing the transformed elements.
+    map(fn) {
+
+        let result = []
+
+        for item in this.items
+            result += fn(item)
+
+        return List(result)
+    }
+
+    // Filters the list using a predicate function and returns a new List of elements that pass the test.
+    // param: fn - Predicate function that returns a truthy value to keep the element.
+    // return:s A new List containing the filtered elements.
+    filter(fn) {
+
+        let result = []
+
+        for item in this.items
+            if fn(item)
+                result += item
+
+        return List(result)
+    }
+
+    // Reduces the list to a single value by iteratively applying a combining function.
+    // param: fn - Combining function (accumulator, current) -> new accumulator.
+    // param: initial - Starting accumulator value.
+    // return:s The final accumulated value.
+    reduce(fn, initial) {
+
+        let acc = initial
+
+        for item in this.items
+            acc = fn(acc, item)
+
+        return acc
+    }
+
+    // Executes a side-effect function for each element in the list.
+    // param: fn - Function that takes an element and performs an action.
+    // return:s The list instance (for chaining).
+    each(fn) {
+
+        for item in this.items
+            fn(item)
+
+        return this
+    }
+
+    // Checks if at least one element satisfies the predicate.
+    // param: fn - Predicate function.
+    // return:s `true` if any element makes `fn` return truthy, otherwise `false`.
+    any(fn) {
+
+        for item in this.items
+            if fn(item)
+                return true
+
+        return false
+    }
+
+    // Checks if all elements satisfy the predicate.
+    // param: fn - Predicate function.
+    // return:s `true` if every element makes `fn` return truthy, otherwise `false`.
+    all(fn) {
+
+        for item in this.items
+            if !fn(item)
+                return false
+
+        return true
+    }
+
+    // Returns the first element that satisfies the predicate.
+    // param: fn - Predicate function.
+    // return:s The first matching element, or `nil` if none found.
+    find(fn) {
+
+        for item in this.items
+            if fn(item)
+                return item
+
+        return nil
+    }
+
+    // Returns the index of the first element that satisfies the predicate.
+    // param: fn - Predicate function.
+    // return:s The index of the first matching element, or -1 if none found.
+    findIndex(fn) {
+
+        for i in range(#this.items)
+            if fn(this.items[i])
+                return i
+
+        return -1
+    }
+
+    // Extracts a portion of the list into a new List, optionally stepping through indices.
+    // param: start - Start index (inclusive). Defaults to 0.
+    // param: end - End index (exclusive). Defaults to the length.
+    // param: step - Step increment between indices. Defaults to 1.
+    // return:s A new List containing the sliced elements.
+    slice(start, end, step) {
+
+        let result = []
+
+        for i in range(start, end, step)
+            result += this.items[i]
+
+        return List(result)
+    }
+
+    // Concatenates this list with another list, returning a new List.
+    // param: other - Another List instance.
+    // return:s A new List containing the elements of this list followed by the elements of `other`.
+    concat(other) {
+        return List(this.items + other.items)
+    }
+
+    // Creates a shallow copy of the list.
+    // return:s A new List with the same elements.
+    copy() {
+        return List(copy(this.items))
+    }
+
+    // Returns a new List with duplicate elements removed (first occurrence kept).
+    // return:s A new List containing only unique elements.
+    unique() {
+
+        let result = []
+
+        for item in this.items
+            if !(item in result)
+                result += item
+
+        return List(result)
+    }
+
+    // Flattens a nested list by one level (if an element is a list, its elements are added individually).
+    // Note: The check `typeof(item) == "list"` may work for built-in arrays; custom List objects are not detected.
+    // return:s A new List with one level of nesting removed.
+    flatten() {
+
+        let result = []
+
+        for item in this.items {
+
+            if typeof(item) == "list"
+                result += item
+            else
+                result += item
+        }
+
+        return List(result)
+    }
+
+    // Joins all elements into a single string, using a separator between elements.
+    // param: separator - The string to place between each element.
+    // return:s A concatenated string representation of the list.
+    join(separator) {
+
+        let result = ""
+
+        for i in range(#this.items) {
+
+            result += as_string(this.items[i])
+
+            if i < #this.items - 1
+                result += separator
+        }
+
+        return result
+    }
+
+    // Returns the first element of the list.
+    // return:s The element at index 0.
+    first() {
+        return this.items[0]
+    }
+
+    // Returns the last element of the list.
+    // return:s The element at index -1.
+    last() {
+        return this.items[-1]
+    }
+
+    // Checks whether the list is empty.
+    // return:s `true` if the list has no elements, otherwise `false`.
+    isEmpty() {
+        return #this.items == 0
+    }
+
+    // Returns the number of elements in the list.
+    // return:s The length of the list.
+    length() {
+        return #this.items
+    }
+
+    // Retrieves the element at a given index.
+    // param: index - Zero‑based index.
+    // return:s The element at that index.
+    get(index) {
+        return this.items[index]
+    }
+
+    // Sets the element at a given index to a new value.
+    // param: index - Zero‑based index.
+    // param: value - The new value.
+    // return:s The list instance (for chaining).
+    set(index, value) {
+        this.items[index] = value
+        return this
+    }
+
+    // Creates an Iterator for this list, allowing sequential traversal.
+    // return:s A new Iterator that yields elements from index 0 up to `length-1`.
+    iterator() {
+
+        let i = 0
+        let data = this.items
+
+        return Iterator(() -> {
+
+            if i >= #data
+                return nil
+
+            let value = data[i]
+
+            i += 1
+
+            return value
+        })
+    }
+
+    // Computes the sum of all numeric elements in the list.
+    // Assumes all elements are numbers.
+    // return:s The total sum.
+    sum() {
+
+        let total = 0
+
+        for item in this.items
+            total += item
+
+        return total
+    }
+
+    // Computes the arithmetic mean of all numeric elements in the list.
+    // Assumes all elements are numbers and the list is not empty.
+    // return:s The average value.
+    avg() {
+        return this.sum() / #this.items
+    }
+
+    // Finds the minimum numeric element in the list.
+    // Assumes the list is non‑empty and elements are comparable with `<`.
+    // return:s The smallest element.
+    min() {
+
+        let value = this.items[0]
+
+        for item in this.items
+            if item < value
+                value = item
+
+        return value
+    }
+
+    // Finds the maximum numeric element in the list.
+    // Assumes the list is non‑empty and elements are comparable with `>`.
+    // return:s The largest element.
+    max() {
+
+        let value = this.items[0]
+
+        for item in this.items
+            if item > value
+                value = item
+
+        return value
+    }
+
+    // Returns a string representation of the list, e.g., "[1, 2, 3]".
+    // return:s Formatted string.
+    format() {
+        let res = "[";
+        for i in range(#this.items) {
+            res += this.items[i]
+            if i < #this.items - 1 {
+                res += ", ";
+            }
+        }
+        return res + "]";
+    }
+}
+
+
+// --------------------------------------------------
+// Tuple
+// --------------------------------------------------
+// An immutable ordered sequence. Once created, its elements cannot be changed.
+// Provides access, searching, slicing, and iteration.
+
+class Tuple {
+
+    // Creates a new Tuple instance.
+    // param: items - An iterable whose elements are copied into the tuple.
+    constructor(items) {
+        this.items = copy(items)
+    }
+
+    // Retrieves the element at the given index (read‑only).
+    // param: index - Zero‑based index.
+    // return:s The element at that index.
+    get(index) {
+        return this.items[index]
+    }
+
+    // Checks whether the tuple contains a specific value.
+    // param: item - The value to look for.
+    // return:s `true` if found, otherwise `false`.
+    contains(item) {
+        return item in this.items
+    }
+
+    // Returns the index of the first occurrence of the given value.
+    // param: item - The value to find.
+    // return:s Zero‑based index, or -1 if not found.
+    indexOf(item) {
+
+        for i in range(#this.items)
+            if this.items[i] == item
+                return i
+
+        return -1
+    }
+
+    // Extracts a portion of the tuple into a new Tuple.
+    // param: start - Start index (inclusive). Defaults to 0.
+    // param: end - End index (exclusive). Defaults to the length.
+    // param: step - Step increment between indices. Defaults to 1.
+    // return:s A new Tuple containing the sliced elements.
+    slice(start, end, step) {
+
+        let result = []
+
+        for i in range(start, end, step)
+            result += this.items[i]
+
+        return Tuple(result)
+    }
+
+    // Returns the first element of the tuple.
+    // return:s The element at index 0.
+    first() {
+        return this.items[0]
+    }
+
+    // Returns the last element of the tuple.
+    // return:s The element at index -1.
+    last() {
+        return this.items[-1]
+    }
+
+    // Returns the number of elements in the tuple.
+    // return:s The length.
+    length() {
+        return #this.items
+    }
+
+    // Creates an Iterator for this tuple.
+    // return:s A new Iterator that yields elements in order.
+    iterator() {
+
+        let i = 0
+        let data = this.items
+
+        return Iterator(() -> {
+
+            if i >= #data
+                return nil
+
+            let value = data[i]
+
+            i += 1
+
+            return value
+        })
+    }
+
+    // Returns a string representation of the tuple, e.g., "(1, 2, 3)".
+    // return:s Formatted string.
+    format() {
+
+        let result = "("
+
+        for item in this.items
+            result += as_string(item) + ", "
+
+        if #this.items > 0
+            result = result[:-2]
+
+        result += ")"
+
+        return result
+    }
+}
+
+
+// --------------------------------------------------
+// String
+// --------------------------------------------------
+// Wrapper for primitive string values, providing common string manipulation methods.
+// Most methods return a new String instance, leaving the original unchanged.
+
+class String {
+
+    // Creates a new String wrapper.
+    // param: value - A primitive string or any value that can be converted to string via `as_string()`.
+    constructor(value) {
+        this.value = as_string(value)
+    }
+
+    // Returns the length of the string.
+    // return:s Number of characters.
+    length() {
+        return #this.value
+    }
+
+    // Converts the string to uppercase.
+    // return:s A new String in uppercase.
+    upper() {
+        return String(upper(this.value))
+    }
+
+    // Converts the string to lowercase.
+    // return:s A new String in lowercase.
+    lower() {
+        return String(lower(this.value))
+    }
+
+    // Removes leading and trailing whitespace.
+    // return:s A new trimmed String.
+    trim() {
+        return String(trim(this.value))
+    }
+
+    // Splits the string by a separator into a List of substrings.
+    // param: separator - The delimiter string.
+    // return:s A List of substrings.
+    split(separator) {
+        return List(split(this.value, separator))
+    }
+
+    // Replaces all occurrences of `old` with `new`.
+    // param: old - The substring to replace.
+    // param: new - The replacement substring.
+    // return:s A new String with replacements.
+    replace(old, new) {
+        return String(replace(this.value, old, new))
+    }
+
+    // Checks if the string contains a given substring.
+    // param: text - The substring to search for.
+    // return:s `true` if found, otherwise `false`.
+    contains(text) {
+        return contains(this.value, text)
+    }
+
+    // Checks if the string starts with a given prefix.
+    // param: prefix - The prefix to test.
+    // return:s `true` if it starts with `prefix`, otherwise `false`.
+    startsWith(prefix) {
+        return startswith(this.value, prefix)
+    }
+
+    // Checks if the string ends with a given suffix.
+    // param: suffix - The suffix to test.
+    // return:s `true` if it ends with `suffix`, otherwise `false`.
+    endsWith(suffix) {
+        return endswith(this.value, suffix)
+    }
+
+    // Extracts a substring from `start` (inclusive) to `end` (exclusive).
+    // param: start - Start index (default 0).
+    // param: end - End index (default length).
+    // return:s A new String containing the extracted portion.
+    substring(start, end) {
+        return String(this.value[start:end])
+    }
+
+    // Returns the character at a specific index.
+    // param: index - Zero‑based position.
+    // return:s The character as a string.
+    charAt(index) {
+        return this.value[index]
+    }
+
+    // Reverses the string.
+    // return:s A new String with characters in reverse order.
+    reverse() {
+        return String(this.value[::-1])
+    }
+
+    // Repeats the string a given number of times.
+    // param: count - Number of repetitions.
+    // return:s A new String consisting of the original repeated `count` times.
+    repeat(count) {
+
+        let result = ""
+
+        for i in range(count)
+            result += this.value
+
+        return String(result)
+    }
+
+    // Checks if the string is empty (length 0).
+    // return:s `true` if empty, otherwise `false`.
+    isEmpty() {
+        return #this.value == 0
+    }
+
+    // Converts the string to a number. If conversion fails, the behavior depends on the built‑in `number()`.
+    // return:s The numeric value, or possibly `nil` or a default.
+    toNumber() {
+        return number(this.value)
+    }
+
+    // Creates an Iterator that yields each character of the string one by one.
+    // return:s A new Iterator producing single‑character strings.
+    iterator() {
+
+        let i = 0
+        let data = this.value
+
+        return Iterator(() -> {
+
+            if i >= #data
+                return nil
+
+            let value = data[i]
+
+            i += 1
+
+            return value
+        })
+    }
+
+    // Returns the underlying primitive string.
+    // return:s The string value.
+    format() {
+        return this.value
+    }
+}
+
+
+// --------------------------------------------------
+// Number
+// --------------------------------------------------
+// Wrapper for numeric primitives, providing mathematical operations.
+// Methods return new Number instances or primitive values as appropriate.
+
+class Number {
+
+    // Creates a new Number wrapper.
+    // param: value - A numeric primitive.
+    constructor(value) {
+        this.value = value
+    }
+
+    // Returns the absolute value.
+    // return:s A new Number representing the absolute value.
+    abs() {
+        return Number(abs(this.value))
+    }
+
+    // Returns the floor (largest integer ≤ the value).
+    // return:s A new Number representing the floor.
+    floor() {
+        return Number(floor(this.value))
+    }
+
+    // Returns the ceiling (smallest integer ≥ the value).
+    // return:s A new Number representing the ceiling.
+    ceil() {
+        return Number(ceil(this.value))
+    }
+
+    // Rounds to the nearest integer (standard rounding, .5 rounds up).
+    // return:s A new Number representing the rounded value.
+    round() {
+        return Number(round(this.value))
+    }
+
+    // Returns the square root.
+    // return:s A new Number representing the square root.
+    sqrt() {
+        return Number(sqrt(this.value))
+    }
+
+    // Raises the number to a given power.
+    // param: n - The exponent.
+    // return:s A new Number representing `value ^ n`.
+    pow(n) {
+        return Number(this.value ^ n)
+    }
+
+    // Clamps the number between a minimum and maximum value (inclusive).
+    // param: minv - Lower bound.
+    // param: maxv - Upper bound.
+    // return:s A new Number clamped to the range [minv, maxv].
+    clamp(minv, maxv) {
+
+        if this.value < minv
+            return Number(minv)
+
+        if this.value > maxv
+            return Number(maxv)
+
+        return Number(this.value)
+    }
+
+    // Checks if the number is an integer (no fractional part).
+    // return:s `true` if the value is an integer, otherwise `false`.
+    isInteger() {
+        return this.value % 1 == 0
+    }
+
+    // Returns the primitive number as a string.
+    // return:s String representation.
+    format() {
+        return as_string(this.value)
+    }
+}
+
+
+// --------------------------------------------------
+// Boolean
+// --------------------------------------------------
+// Wrapper for boolean primitives (true/false). Provides toggling and formatting.
+
+class Boolean {
+
+    // Creates a new Boolean wrapper.
+    // param: value - Any value; it is coerced to a boolean using `!!`.
+    constructor(value) {
+        this.value = !!value
+    }
+
+    // Toggles the boolean value (true becomes false, false becomes true).
+    // return:s The Boolean instance (for chaining).
+    toggle() {
+        this.value = !this.value
+        return this
+    }
+
+    // Returns the string representation "true" or "false".
+    // return:s "true" if the value is true, otherwise "false".
+    format() {
+
+        if this.value
+            return "true"
+
+        return "false"
+    }
+}
+
+
+// --------------------------------------------------
+// Map
+// --------------------------------------------------
+// A key‑value store (dictionary) where keys are strings (or any hashable type) and values can be any type.
+// Provides set, get, remove, and iteration over keys, values, or entries.
+
+class Map {
+
+    // Creates a new Map instance.
+    // param: entries - An optional iterable of [key, value] pairs to initialize the map.
+    constructor(entries) {
+
+        this.data = {}
+
+        if entries != nil
+            for pair in entries
+                this.data[pair[0]] = pair[1]
+    }
+
+    // Associates a key with a value.
+    // param: key - The key (will be string‑coerced? The implementation uses direct property access, so any string‑convertible key works).
+    // param: value - The value to store.
+    // return:s The Map instance (for chaining).
+    set(key, value) {
+        this.data[key] = value
+        return this
+    }
+
+    // Retrieves the value for a given key. If the key does not exist, returns a default value.
+    // param: key - The key to look up.
+    // param: defaultValue - Value returned if the key is missing (defaults to `nil` if omitted?).
+    // return:s The associated value, or the default.
+    get(key, defaultValue) {
+
+        if key in this.data
+            return this.data[key]
+
+        return defaultValue
+    }
+
+    // Removes a key and its associated value from the map.
+    // param: key - The key to delete.
+    // return:s The Map instance (for chaining).
+    remove(key) {
+        remove(this.data, key)
+        return this
+    }
+
+    // Checks whether a key exists in the map.
+    // param: key - The key to check.
+    // return:s `true` if the key exists, otherwise `false`.
+    has(key) {
+        return key in this.data
+    }
+
+    // Removes all key‑value pairs from the map.
+    // return:s The Map instance (for chaining).
+    clear() {
+        this.data = {}
+        return this
+    }
+
+    // Returns a List of all keys in the map.
+    // return:s A List containing the keys.
+    keys() {
+        return List(keys(this.data))
+    }
+
+    // Returns a List of all values in the map.
+    // return:s A List containing the values.
+    values() {
+        return List(values(this.data))
+    }
+
+    // Returns a List of [key, value] pairs for each entry in the map.
+    // return:s A List of two‑element Lists (or Tuples?).
+    entries() {
+        return List(entries(this.data))
+    }
+
+    // Merges another map into this one, overwriting existing keys.
+    // param: other - Another Map instance.
+    // return:s The Map instance (for chaining).
+    merge(other) {
+
+        for entry in other.entries()
+            this.data[entry[0]] = entry[1]
+
+        return this
+    }
+
+    // Checks if the map is empty (no keys).
+    // return:s `true` if the map has no entries, otherwise `false`.
+    isEmpty() {
+        return #keys(this.data) == 0
+    }
+
+    // Returns the number of key‑value pairs in the map.
+    // return:s The size of the map.
+    length() {
+        return #keys(this.data)
+    }
+
+    // Returns a string representation of the map, e.g., "{a: 1, b: 2}".
+    // return:s Formatted string.
+    format() {
+
+        let result = "{"
+
+        for entry in entries(this.data)
+            result += as_string(entry[0]) + ": " + as_string(entry[1]) + ", "
+
+        if this.length() > 0
+            result = result[:-2]
+
+        result += "}"
+
+        return result
+    }
+}
+
+
+// --------------------------------------------------
+// Set
+// --------------------------------------------------
+// A collection of unique elements (no duplicates). Supports add, remove, and set operations (union, intersection, difference).
+
+class Set {
+
+    // Creates a new Set instance.
+    // param: items - An optional iterable whose elements are added to the set (duplicates ignored).
+    constructor(items) {
+
+        this.items = []
+
+        if items != nil
+            for item in items
+                this.add(item)
+    }
+
+    // Adds an element to the set if it is not already present.
+    // param: item - The element to add.
+    // return:s The Set instance (for chaining).
+    add(item) {
+
+        if !(item in this.items)
+            this.items += item
+
+        return this
+    }
+
+    // Removes the specified element from the set (if present).
+    // param: item - The element to remove.
+    // return:s The Set instance (for chaining).
+    remove(item) {
+
+        let result = []
+
+        for value in this.items
+            if value != item
+                result += value
+
+        this.items = result
+
+        return this
+    }
+
+    // Checks whether the set contains a given element.
+    // param: item - The element to check.
+    // return:s `true` if present, otherwise `false`.
+    contains(item) {
+        return item in this.items
+    }
+
+    // Returns a new Set that is the union of this set and another set (all elements from both).
+    // param: other - Another Set instance.
+    // return:s A new Set containing elements from both sets.
+    union(other) {
+
+        let result = Set(this.items)
+
+        for item in other.items
+            result.add(item)
+
+        return result
+    }
+
+    // Returns a new Set that is the intersection of this set and another set (elements present in both).
+    // param: other - Another Set instance.
+    // return:s A new Set containing only common elements.
+    intersection(other) {
+
+        let result = Set([])
+
+        for item in this.items
+            if other.contains(item)
+                result.add(item)
+
+        return result
+    }
+
+    // Returns a new Set that is the difference of this set and another set (elements in this set but not in the other).
+    // param: other - Another Set instance.
+    // return:s A new Set containing elements unique to this set.
+    difference(other) {
+
+        let result = Set([])
+
+        for item in this.items
+            if !other.contains(item)
+                result.add(item)
+
+        return result
+    }
+
+    // Removes all elements from the set.
+    // return:s The Set instance (for chaining).
+    clear() {
+        this.items = []
+        return this
+    }
+
+    // Converts the set to a List (order may be arbitrary).
+    // return:s A new List containing the set's elements.
+    toList() {
+        return List(this.items)
+    }
+
+    // Checks if the set is empty.
+    // return:s `true` if empty, otherwise `false`.
+    isEmpty() {
+        return #this.items == 0
+    }
+
+    // Returns the number of elements in the set.
+    // return:s The size.
+    length() {
+        return #this.items
+    }
+
+    // Creates an Iterator for the set.
+    // return:s A new Iterator that yields elements in the internal array order.
+    iterator() {
+
+        let i = 0
+        let data = this.items
+
+        return Iterator(() -> {
+
+            if i >= #data
+                return nil
+
+            let value = data[i]
+
+            i += 1
+
+            return value
+        })
+    }
+
+    // Returns a string representation, e.g., "Set([1, 2, 3])".
+    // return:s Formatted string.
+    format() {
+        return "Set(" + as_string(this.items) + ")"
+    }
+}
+
+
+// --------------------------------------------------
+// Range
+// --------------------------------------------------
+// Represents a sequence of numbers with a start, end (exclusive), and step.
+// Does not store all values; instead, it generates them on the fly via an iterator.
+
+class Range {
+
+    // Creates a new Range instance.
+    // param: start - The first value (inclusive).
+    // param: end - The bound where iteration stops (exclusive).
+    // param: step - The increment or decrement between values (positive for upward, negative for downward).
+    constructor(start, end, step) {
+
+        this.start = start
+        this.end = end
+        this.step = step
+    }
+
+    // Collects all values in the range into a List.
+    // return:s A List containing every number in the range.
+    collect() {
+
+        let result = []
+
+        for i in range(this.start, this.end, this.step)
+            result += i
+
+        return List(result)
+    }
+
+    // Creates an Iterator for the range.
+    // return:s A new Iterator that yields successive numbers according to start, end, and step.
+    iterator() {
+
+        let current = this.start
+        let end = this.end
+        let step = this.step
+
+        return Iterator(() -> {
+
+            if step > 0 && current >= end
+                return nil
+
+            if step < 0 && current <= end
+                return nil
+
+            let value = current
+
+            current += step
+
+            return value
+        })
+    }
+
+    // Returns a string representation, e.g., "Range(0, 10, 1)".
+    // return:s Formatted string.
+    format() {
+
+        return "Range(" +
+            as_string(this.start) + ", " +
+            as_string(this.end) + ", " +
+            as_string(this.step) + ")"
+    }
+}
+
+
+// --------------------------------------------------
+// Stack
+// --------------------------------------------------
+// Last‑In‑First‑Out (LIFO) data structure. Elements are added with `push` and removed with `pop`.
+// Underlying storage is a List, with operations performed at the end.
+
+class Stack {
+
+    // Creates a new empty Stack.
+    constructor() {
+        this.items = []
+    }
+
+    // Adds an item to the top of the stack.
+    // param: item - The item to push.
+    // return:s The Stack instance (for chaining).
+    push(item) {
+        this.items += item
+        return this
+    }
+
+    // Removes and returns the top item of the stack.
+    // return:s The popped item.
+    pop() {
+
+        let value = this.items[-1]
+        this.items = this.items[:-1]
+
+        return value
+    }
+
+    // Returns the top item of the stack without removing it.
+    // return:s The top item.
+    peek() {
+        return this.items[-1]
+    }
+
+    // Removes all items from the stack.
+    // return:s The Stack instance (for chaining).
+    clear() {
+        this.items = []
+        return this
+    }
+
+    // Checks whether the stack is empty.
+    // return:s `true` if empty, otherwise `false`.
+    isEmpty() {
+        return #this.items == 0
+    }
+
+    // Returns the number of items in the stack.
+    // return:s The size.
+    length() {
+        return #this.items
+    }
+
+    // Returns a string representation, e.g., "Stack([1, 2, 3])".
+    // return:s Formatted string.
+    format() {
+        return "Stack(" + as_string(this.items) + ")"
+    }
+}
+
+
+// --------------------------------------------------
+// Queue
+// --------------------------------------------------
+// First‑In‑First‑Out (FIFO) data structure. Elements are added with `enqueue` and removed with `dequeue`.
+// Underlying storage is a List; `dequeue` removes from the front.
+
+class Queue {
+
+    // Creates a new empty Queue.
+    constructor() {
+        this.items = []
+    }
+
+    // Adds an item to the back of the queue.
+    // param: item - The item to enqueue.
+    // return:s The Queue instance (for chaining).
+    enqueue(item) {
+        this.items += item
+        return this
+    }
+
+    // Removes and returns the front item of the queue.
+    // return:s The dequeued item.
+    dequeue() {
+
+        let value = this.items[0]
+
+        this.items = this.items[1:]
+
+        return value
+    }
+
+    // Returns the front item of the queue without removing it.
+    // return:s The front item.
+    peek() {
+        return this.items[0]
+    }
+
+    // Removes all items from the queue.
+    // return:s The Queue instance (for chaining).
+    clear() {
+        this.items = []
+        return this
+    }
+
+    // Checks whether the queue is empty.
+    // return:s `true` if empty, otherwise `false`.
+    isEmpty() {
+        return #this.items == 0
+    }
+
+    // Returns the number of items in the queue.
+    // return:s The size.
+    length() {
+        return #this.items
+    }
+
+    // Returns a string representation, e.g., "Queue([1, 2, 3])".
+    // return:s Formatted string.
+    format() {
+        return "Queue(" + as_string(this.items) + ")"
+    }
+}

@@ -1,0 +1,303 @@
+// Use case: testing the Lang module (wrapper classes for standard types)
+
+import types
+
+// ----------------------------------------------
+// Test Iterator
+// ----------------------------------------------
+println("=== Iterator ===")
+// Create a manual iterator that yields 1, 2, 3
+let i = 0
+let it = types.Iterator(() -> {
+    i += 1
+    if i > 3
+        return nil
+    return i
+})
+
+// map
+let mapped = it.map(x -> x * 10)
+println("map (1,2,3) *10 -> " + mapped.format())  // Expected: [10, 20, 30]
+
+// filter (recreate iterator because previous one is exhausted)
+i = 0
+it = types.Iterator(() -> {
+    i += 1
+    if i > 5
+        return nil
+    return i
+})
+let filtered = it.filter(x -> x % 2 == 0)
+println("filter even from 1..5 -> " + filtered.format())  // Expected: [2, 4]
+
+// reduce
+i = 0
+it = types.Iterator(() -> {
+    i += 1
+    if i > 4
+        return nil
+    return i
+})
+let sum = it.reduce((acc, x) -> acc + x, 0)
+println("reduce sum 1..4 -> " + as_string(sum))  // Expected: 10
+
+// each & collect
+i = 0
+it = types.Iterator(() -> {
+    i += 1
+    if i > 3
+        return nil
+    return i
+})
+let side = []
+it.each(x -> side += x * 2)
+println("each side effect -> " + as_string(side))  // Expected: [2,4,6]
+
+i = 0
+it = types.Iterator(() -> {
+    i += 1
+    if i > 3
+        return nil
+    return i
+})
+let collected = it.collect()
+println("collect -> " + collected.format())  // Expected: [1,2,3]
+
+// ----------------------------------------------
+// Test List
+// ----------------------------------------------
+println("\n=== List ===")
+let lst = types.List([5, 2, 8, 2, 9])
+lst.append(10).prepend(0)
+println("after append/prepend -> " + lst.format())  // [0,5,2,8,2,9,10]
+
+lst.insert(3, 99)
+println("insert at index 3 -> " + lst.format())     // [0,5,2,99,8,2,9,10]
+
+lst.remove(2)
+println("remove first 2 -> " + lst.format())        // [0,5,99,8,2,9,10]
+
+let popped = lst.pop()
+let shifted = lst.shift()
+println("pop -> " + as_string(popped) + ", shift -> " + as_string(shifted) + ", list -> " + lst.format())
+
+println("contains 99? " + as_string(lst.contains(99)))   // true
+println("index of 8 -> " + as_string(lst.indexOf(8)))     // 3 (after removals)
+
+let rev = lst.reversed()
+println("reversed copy -> " + rev.format())
+lst.reverse()
+println("reverse in place -> " + lst.format())
+
+let sortedCopy = lst.sorted((a,b) -> a - b)
+println("sorted copy -> " + sortedCopy.format())
+lst.sort((a,b) -> a - b)
+println("sort in place -> " + lst.format())
+
+let mappedList = lst.map(x -> x * 2)
+println("map *2 -> " + mappedList.format())
+
+let evenList = lst.filter(x -> x % 2 == 0)
+println("filter even -> " + evenList.format())
+
+let reduced = lst.reduce((acc,x) -> acc + x, 0)
+println("sum -> " + as_string(reduced))
+
+let anyGt10 = lst.any(x -> x > 10)
+let allPos = lst.all(x -> x > 0)
+println("any >10? " + as_string(anyGt10) + ", all >0? " + as_string(allPos))
+
+let found = lst.find(x -> x > 6)
+println("find >6 -> " + as_string(found))
+
+let sliced = lst.slice(1, 4, 1)
+println("slice [1:4] -> " + sliced.format())
+
+let merged = lst.concat(types.List([100,200]))
+println("concat -> " + merged.format())
+
+let unique = lst.unique()
+println("unique -> " + unique.format())
+
+let nested = types.List([1, [2,3], 4])
+let flat = nested.flatten()
+println("flatten -> " + flat.format())
+
+let joined = lst.join(" - ")
+println("join -> " + joined)
+
+println("first/last -> " + as_string(lst.first()) + ", " + as_string(lst.last()))
+println("isEmpty? " + as_string(lst.isEmpty()) + ", length = " + as_string(lst.length()))
+
+lst.set(2, 777)
+println("set index 2 = 777 -> " + lst.format())
+println("get index 2 -> " + as_string(lst.get(2)))
+
+let iter = lst.iterator()
+let collectedFromIter = iter.collect()
+println("iterator collect -> " + collectedFromIter.format())
+
+println("sum/avg/min/max -> " + as_string(lst.sum()) + ", " + as_string(lst.avg()) + ", " + as_string(lst.min()) + ", " + as_string(lst.max()))
+
+// ----------------------------------------------
+// Test Tuple
+// ----------------------------------------------
+println("\n=== Tuple ===")
+let tup = types.Tuple([10, 20, 30, 20])
+println("tuple = " + tup.format())
+println("get index 2 -> " + as_string(tup.get(2)))
+println("contains 20? " + as_string(tup.contains(20)))
+println("index of 20 -> " + as_string(tup.indexOf(20)))
+let sliceTup = tup.slice(1, 3, 1)
+println("slice [1:3] -> " + sliceTup.format())
+println("first/last -> " + as_string(tup.first()) + ", " + as_string(tup.last()))
+println("length -> " + as_string(tup.length()))
+
+let tupIter = tup.iterator()
+let tupCollected = tupIter.collect()
+println("iterator collect from tuple -> " + tupCollected.format())
+
+// ----------------------------------------------
+// Test String
+// ----------------------------------------------
+println("\n=== String ===")
+let s = types.String("  Hello World!  ")
+println("original: '" + s.format() + "'")
+println("upper: " + s.upper().format())
+println("lower: " + s.lower().format())
+println("trim: '" + s.trim().format() + "'")
+let parts = s.trim().split(" ")
+println("split by space -> " + parts.format())
+println("replace 'World' with 'Lang' -> " + s.replace("World", "Lang").format())
+println("contains 'Hello'? " + as_string(s.contains("Hello")))
+println("startsWith '  He'? " + as_string(s.startsWith("  He")))
+println("endsWith '!  '? " + as_string(s.endsWith("!  ")))
+println("substring 2..7 -> '" + s.substring(2,7).format() + "'")
+println("charAt 5 -> '" + s.charAt(5) + "'")
+println("reverse -> " + s.reverse().format())
+println("repeat 2 times -> " + s.trim().repeat(2).format())
+println("isEmpty? " + as_string(s.isEmpty()))
+let numStr = types.String("3.14")
+println("toNumber -> " + numStr.toNumber())
+
+let strIter = s.iterator()
+let strChars = strIter.collect()
+println("iterator over chars -> " + strChars.format())
+
+// ----------------------------------------------
+// Test Number
+// ----------------------------------------------
+println("\n=== Number ===")
+let n = types.Number(-5.7)
+println("value = " + n.format())
+println("abs -> " + n.abs().format())
+println("floor -> " + n.floor().format())
+println("ceil -> " + n.ceil().format())
+println("round -> " + n.round().format())
+println("sqrt(9) = " + types.Number(9).sqrt().format())
+println("2^3 = " + types.Number(2).pow(3).format())
+println("clamp -5.7 between -3 and 10 -> " + n.clamp(-3, 10).format())
+println("isInteger? " + as_string(n.isInteger()) + " (for 3.0: " + as_string(types.Number(3.0).isInteger()) + ")")
+
+// ----------------------------------------------
+// Test Boolean
+// ----------------------------------------------
+println("\n=== Boolean ===")
+let b = types.Boolean(true)
+println("initial = " + b.format())
+b.toggle()
+println("after toggle = " + b.format())
+b.toggle()
+println("toggle again = " + b.format())
+
+let falsy = types.Boolean(nil)
+println("Boolean(nil) = " + falsy.format())
+
+// ----------------------------------------------
+// Test Map
+// ----------------------------------------------
+println("\n=== Map ===")
+let m = types.Map([["a", 1], ["b", 2]])
+m.set("c", 3)
+println("after set: " + m.format())
+println("get 'b' -> " + as_string(m.get("b")))
+println("get 'x' default 99 -> " + as_string(m.get("x", 99)))
+m.remove("a")
+println("after remove 'a' -> " + m.format())
+println("has 'c'? " + as_string(m.has("c")))
+println("keys -> " + m.keys().format())
+println("values -> " + m.values().format())
+println("entries -> " + m.entries().format())
+let m2 = types.Map([["d", 4], ["c", 100]])
+m.merge(m2)
+println("after merge with {d:4, c:100} -> " + m.format())
+println("length = " + as_string(m.length()))
+m.clear()
+println("after clear, isEmpty? " + as_string(m.isEmpty()))
+
+// ----------------------------------------------
+// Test Set
+// ----------------------------------------------
+println("\n=== Set ===")
+let set1 = types.Set([1,2,3,2,1])
+set1.add(4).add(2)
+println("set1 = " + set1.format())
+set1.remove(2)
+println("after remove(2) -> " + set1.format())
+println("contains 3? " + as_string(set1.contains(3)))
+let set2 = types.Set([3,4,5])
+println("set2 = " + set2.format())
+println("union -> " + set1.union(set2).format())
+println("intersection -> " + set1.intersection(set2).format())
+println("difference (set1 - set2) -> " + set1.difference(set2).format())
+set1.clear()
+println("after clear, isEmpty? " + as_string(set1.isEmpty()) + ", length = " + as_string(set1.length()))
+let set3 = types.Set([10,20])
+println("toList from set3 -> " + set3.toList().format())
+
+let setIter = set3.iterator()
+println("iterator collect -> " + setIter.collect().format())
+
+// ----------------------------------------------
+// Test Range
+// ----------------------------------------------
+println("\n=== Range ===")
+let r = types.Range(0, 10, 2)
+println("range = " + r.format())
+println("collect -> " + r.collect().format())
+let rIter = r.iterator()
+let collectedRange = rIter.collect()
+println("iterator collect -> " + collectedRange.format())
+
+let rNeg = types.Range(5, 0, -1)
+println("negative step range -> " + rNeg.collect().format())
+
+// ----------------------------------------------
+// Test Stack
+// ----------------------------------------------
+println("\n=== Stack ===")
+let st = types.Stack()
+st.push(10).push(20).push(30)
+println("after pushes -> " + st.format())
+println("pop -> " + as_string(st.pop()))
+println("peek -> " + as_string(st.peek()))
+println("after pop, stack -> " + st.format())
+println("length = " + as_string(st.length()) + ", isEmpty? " + as_string(st.isEmpty()))
+st.clear()
+println("after clear -> " + st.format())
+
+// ----------------------------------------------
+// Test Queue
+// ----------------------------------------------
+println("\n=== Queue ===")
+let q = types.Queue()
+q.enqueue("a").enqueue("b").enqueue("c")
+println("after enqueues -> " + q.format())
+println("dequeue -> " + q.dequeue())
+println("peek -> " + q.peek())
+println("after dequeue, queue -> " + q.format())
+println("length = " + as_string(q.length()) + ", isEmpty? " + as_string(q.isEmpty()))
+q.clear()
+println("after clear -> " + q.format())
+
+println("\n=== All tests completed ===")

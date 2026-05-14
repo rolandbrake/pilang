@@ -31,3 +31,20 @@ assert(l[-1:-5:-1] == [4, 3, 2, 1], "slice -1:-5:-1 == [4, 3, 2, 1]")  // [4, 3,
 assert(l[2:2] == [], "slice 2:2 == []")       // []
 assert(l[3:1] == [], "slice 3:1 == []")       // []
 assert(l[1:3:-1] == [], "slice 1:3:-1 == []")    // []
+
+// Slice assignment
+l = [1, 2, 3, 4]
+l[1:3] = [8, 9]
+assert(l == [1, 8, 9, 4], "slice assignment should replace the selected range")
+
+l[1:3] = [5, 6, 7]
+assert(l == [1, 5, 6, 7, 4], "slice assignment should grow the list")
+
+l[1:4] = [8]
+assert(l == [1, 8, 4], "slice assignment should shrink the list")
+
+l[3:1] = [9]
+assert(l == [1, 8, 4, 9], "empty forward slice assignment should insert at the start bound")
+
+l[0:4:2] = [7, 6]
+assert(l == [7, 8, 6, 9], "stepped slice assignment should replace matching positions")

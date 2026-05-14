@@ -3,11 +3,11 @@ class Box {
         this.values = values
     }
 
-    get_item(index) {
+    getItem(index) {
         return this.values[index]
     }
 
-    set_item(index, value) {
+    setItem(index, value) {
         this.values[index] = value
     }
 

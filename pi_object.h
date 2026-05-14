@@ -377,6 +377,7 @@ bool iter_hasNext(Object *col);
 Value iter_next(Object *col);
 bool is_iterable(Object *obj);
 int get_index(int index, int length);
+int slice_index(int index, int length, int step);
 Value get_slice(Object *sequence, double start, double end, double step);
 
 #endif

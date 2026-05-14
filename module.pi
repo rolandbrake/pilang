@@ -1,0 +1,11 @@
+class List {
+    constructor(items) {
+        this.items = items
+    }
+
+    format () {
+        return "[" + join(", ", this.items) + "]"
+    }
+}
+
+

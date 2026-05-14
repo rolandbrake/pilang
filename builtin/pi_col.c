@@ -305,6 +305,14 @@ Value pi_remove(vm_t *vm, int argc, Value *argv)
 
         return removed_val;
     }
+    else if (IS_MAP(collection))
+    {
+        PiMap *map = AS_MAP(collection);
+        char *key = as_string(argv[1]);
+        ht_delete(map->table, key);
+        free(key);
+        return collection;
+    }
     else if (IS_SET(collection))
     {
         PiSet *set = AS_SET(collection);
@@ -338,8 +346,8 @@ Value pi_slice(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[slice] step cannot be zero.");
 
     return NEW_OBJ(add_obj(vm, new_slice(as_number(start),
-                                             as_number(end),
-                                             as_number(step))));
+                                         as_number(end),
+                                         as_number(step))));
 }
 
 Value pi_len(vm_t *vm, int argc, Value *argv)

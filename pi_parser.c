@@ -3179,7 +3179,7 @@ static void exp_expr(parser_t *parser)
 }
 
 /**
- * unary_expr -> ("+" | "-" | "!" | "~" | "#" | "++" | "--" | "typeof")? member_expr
+ * unary_expr -> ("+" | "-" | "!" | "~" | "#" | "typeof")* ("++" | "--")? member_expr
  * An unary expression is a single value that can be either a primary (e.g.
  * a number, a string) or a single-expression expression (e.g. a variable, a
  * function call). The value of the unary expression is the value of the
@@ -3203,14 +3203,12 @@ static void unary_expr(parser_t *parser)
             return;
         }
 
-        // Pre-increment / Pre-decrement or other unary ops
-        // Save the variable name for pre-increment/decrement
-        current = parser->current;
-        member_expr(parser);
-        set_pos(parser, op_token);
-
         if (op == TK_INCR || op == TK_DECR)
         {
+            current = parser->current;
+            member_expr(parser);
+            set_pos(parser, op_token);
+
             token_t target = previous(parser);
 
             if (target.type == TK_NUM || target.type == TK_STR || target.type == TK_TRUE ||
@@ -3257,6 +3255,8 @@ static void unary_expr(parser_t *parser)
             default:
                 break;
             }
+            unary_expr(parser);
+            set_pos(parser, op_token);
             if (type != -1)
                 emit_8u(parser->comp, OP_UNARY, unary_ops[type], type);
         }
@@ -3434,11 +3434,6 @@ static void member_expr(parser_t *parser)
                 consume(parser, TK_RBRACKET, "Expect ']' after index");
                 bool is_chained_access = parser->is_store && parser->force_store &&
                                          has_accessContinuation(parser, previous(parser));
-
-                /* slice_expr already emitted OP_PUSH_SLICE — nothing more to emit,
-                       but assignment to a slice is illegal.                            */
-                if (is_slice && !is_chained_access && is_assign(parser))
-                    p_error("Cannot assign to a slice", peek(parser).line, peek(parser).column);
 
                 // Always emit GET_ITEM or SET_ITEM – the slice object is already on the stack
                 bool assign = !is_chained_access && is_assign(parser);

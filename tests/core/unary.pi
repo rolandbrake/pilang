@@ -1,0 +1,11 @@
+let value = true
+
+assert(!value == false, "single logical not should work")
+assert(!!value == true, "double logical not should work")
+assert(!!!value == false, "triple logical not should work")
+
+let n = 4
+assert(- -n == 4, "repeated unary minus should preserve numeric sign")
+assert(+ -n == -4, "mixed unary signs should compose")
+
+assert(typeof !!value == "boolean", "typeof should accept nested unary expressions")

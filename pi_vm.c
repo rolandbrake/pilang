@@ -57,6 +57,110 @@ static ObjModule *vm_currentModule(vm_t *vm)
     return AS_MODULE(*module_val);
 }
 
+static void list_refreshNumericFlag(PiList *list)
+{
+    bool numeric = true;
+    for (int i = 0; i < LIST_SIZE(list->items); i++)
+    {
+        if (!IS_NUM(*(Value *)list_getAt(list->items, i)))
+        {
+            numeric = false;
+            break;
+        }
+    }
+    list->is_numeric = numeric;
+}
+
+static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
+{
+    if (!IS_LIST(value) && !IS_TUPLE(value))
+        vm_error(vm, "List slice assignment requires a list or tuple.");
+
+    list_t *items = target->items;
+    list_t *source = IS_LIST(value) ? AS_LIST(value)->items : AS_TUPLE(value)->items;
+    int size = LIST_SIZE(items);
+    int step = (int)slice->step;
+
+    if (step == 0)
+        vm_error(vm, "Slice step cannot be zero.");
+
+    int start;
+    int end;
+    if (isinf(slice->start))
+        start = step > 0 ? 0 : size - 1;
+    else
+        start = slice_index((int)slice->start, size, step);
+
+    if (isinf(slice->stop))
+        end = step > 0 ? size : -1;
+    else
+        end = slice_index((int)slice->stop, size, step);
+
+    int source_count = LIST_SIZE(source);
+    Value *snapshot = NULL;
+    if (source_count > 0)
+    {
+        snapshot = malloc(sizeof(Value) * source_count);
+        if (!snapshot)
+            vm_error(vm, "Memory allocation failed during slice assignment.");
+        for (int i = 0; i < source_count; i++)
+            snapshot[i] = *(Value *)list_getAt(source, i);
+    }
+
+    if (step == 1)
+    {
+        int delete_count = end > start ? end - start : 0;
+        int new_size = size - delete_count + source_count;
+
+        if (new_size > items->capacity)
+        {
+            int new_capacity = items->capacity;
+            while (new_capacity < new_size)
+                new_capacity = new_capacity < 1024 ? new_capacity * 2 : new_capacity + new_capacity / 4 + 256;
+            list_expand(items, new_capacity);
+        }
+
+        void *insert_at = (byte *)items->data + start * items->i_size;
+        void *tail_from = (byte *)items->data + (start + delete_count) * items->i_size;
+        void *tail_to = (byte *)items->data + (start + source_count) * items->i_size;
+        memmove(tail_to, tail_from, (size - start - delete_count) * items->i_size);
+
+        if (source_count > 0)
+            memcpy(insert_at, snapshot, source_count * items->i_size);
+        items->size = new_size;
+    }
+    else
+    {
+        int target_count = 0;
+        if (step > 0)
+        {
+            for (int current = start; current < end; current += step)
+                target_count++;
+        }
+        else
+        {
+            for (int current = start; current > end; current += step)
+                target_count++;
+        }
+
+        if (target_count != source_count)
+        {
+            free(snapshot);
+            vm_error(vm, "Extended slice assignment requires matching lengths.");
+        }
+
+        int current = start;
+        for (int i = 0; i < source_count; i++)
+        {
+            list_set(items, current, &snapshot[i]);
+            current += step;
+        }
+    }
+
+    free(snapshot);
+    list_refreshNumericFlag(target);
+}
+
 static bool set_equals(PiSet *left, PiSet *right)
 {
     if (left->table->size != right->table->size)
@@ -2945,6 +3049,12 @@ void run(vm_t *vm)
             uint8_t op = code[pc++];
             Value operand = pop_stack(vm);
 
+            if (op == 7)
+            {
+                push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(strdup(type_name(operand))))));
+                break;
+            }
+
             // Fast path: plain number (most common case)
             // ops 0,1,3,5,6 are purely numeric - zero overload check, zero coercion
             if (is_numeric(operand))
@@ -3739,7 +3849,7 @@ void run(vm_t *vm)
             case OBJ_MAP:
             {
                 PiMap *map = AS_MAP(container);
-                if (!IS_STRING(index) && try_callMethodArgs(vm, container, "get_item", 1, &index, &method_result))
+                if (!IS_STRING(index) && try_callMethodArgs(vm, container, "getItem", 1, &index, &method_result))
                 {
                     push_stack(vm, method_result);
                     break;
@@ -3995,10 +4105,18 @@ void run(vm_t *vm)
             }
             case OBJ_LIST:
             {
-                list_t *list = as_list(container);
-                int _index = get_index(as_number(index), list_size(list));
+                PiList *pi_list = AS_LIST(container);
+                if (IS_SLICE(index))
+                {
+                    list_setSlice(vm, pi_list, AS_SLICE(index), value);
+                    break;
+                }
 
+                list_t *list = pi_list->items;
+                int _index = get_index(as_number(index), list_size(list));
                 list_set(list, _index, &value);
+                if (!IS_NUM(value))
+                    pi_list->is_numeric = false;
                 break;
             }
 
@@ -4006,7 +4124,7 @@ void run(vm_t *vm)
             {
                 PiMap *map = AS_MAP(container);
                 Value args[2] = {index, value};
-                if (!IS_STRING(index) && try_callMethodArgs(vm, container, "set_item", 2, args, &method_result))
+                if (!IS_STRING(index) && try_callMethodArgs(vm, container, "setItem", 2, args, &method_result))
                     break;
 
                 if (map->is_instance)
