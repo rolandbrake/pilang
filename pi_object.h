@@ -230,6 +230,7 @@ typedef struct PiMap
     table_t *table;
     char *intrinsic_name;
     bool locked;
+    bool bracket_access;
     bool is_instance;
     Object *super_instance;
 

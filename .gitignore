@@ -38,6 +38,9 @@ bin/
 emsdk/
 docs/
 micrograd/
+editors/
+website/
+ML/
 
 
 # Emscripten cache

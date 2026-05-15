@@ -275,11 +275,10 @@ Value pi_remove(vm_t *vm, int argc, Value *argv)
     Value collection = argv[0];
     Value _index = argv[1];
 
-    int index = as_number(_index);
-
     // Handle list removal
     if (IS_LIST(collection))
     {
+        int index = as_number(_index);
         list_t *list = AS_CLIST(collection);
         return *(Value *)list_remove(list, index); // Assumes list_removeAt returns a pointer to Value
     }
@@ -287,6 +286,7 @@ Value pi_remove(vm_t *vm, int argc, Value *argv)
     // Handle string character removal
     else if (IS_STRING(collection))
     {
+        int index = as_number(_index);
         PiString *str = AS_STRING(collection);
 
         index = get_index(index, str->length);
@@ -676,22 +676,144 @@ Value _pi_set(vm_t *vm, int argc, Value *argv)
                 free(key);
             }
         }
-        // else if (IS_TUPLE(iterable))
-        // {
-        //     PiTuple *tuple = AS_TUPLE(iterable);
-        //     for (int i = 0; i < tuple->items->size; i++)
-        //     {
-        //         Value *item = (Value *)list_getAt(tuple->items, i);
-        //         char *key = as_string(*item);
-        //         ht_set(table, key, &NIL_VAL());
-        //         free(key);
-        //     }
-        // }
+        else if (IS_TUPLE(iterable))
+        {
+            PiTuple *tuple = AS_TUPLE(iterable);
+            for (int i = 0; i < tuple->items->size; i++)
+            {
+                Value *item = (Value *)list_getAt(tuple->items, i);
+                char *key = as_string(*item);
+                Value nil = NEW_NIL();
+                ht_set(table, key, &nil);
+                free(key);
+            }
+        }
         else
             vm_error(vm, "[set] argument must be a list or set.");
     }
 
     return NEW_OBJ(new_set(table));
+}
+
+Value pi_copy(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1)
+        vm_error(vm, "[copy] expects one argument.");
+
+    Value value = argv[0];
+
+    if (!IS_OBJ(value))
+        return value;
+
+    switch (OBJ_TYPE(value))
+    {
+    case OBJ_STRING:
+        return NEW_OBJ(add_obj(vm, new_pistring(strdup(AS_STRING(value)->chars))));
+
+    case OBJ_LIST:
+    {
+        PiList *original = AS_LIST(value);
+        list_t *items = list_create(sizeof(Value));
+        for (int i = 0; i < LIST_SIZE(original->items); i++)
+        {
+            Value item = *(Value *)list_getAt(original->items, i);
+            Value copied = pi_copy(vm, 1, &item);
+            list_add(items, &copied);
+        }
+
+        PiList *copy = (PiList *)add_obj(vm, new_list(items));
+        copy->is_numeric = original->is_numeric;
+        copy->is_matrix = original->is_matrix;
+        copy->rows = original->rows;
+        copy->cols = original->cols;
+        return NEW_OBJ((Object *)copy);
+    }
+
+    case OBJ_TUPLE:
+    {
+        PiTuple *original = AS_TUPLE(value);
+        list_t *items = list_create(sizeof(Value));
+        for (int i = 0; i < LIST_SIZE(original->items); i++)
+        {
+            Value item = *(Value *)list_getAt(original->items, i);
+            Value copied = pi_copy(vm, 1, &item);
+            list_add(items, &copied);
+        }
+
+        return NEW_OBJ(add_obj(vm, new_tuple(items)));
+    }
+
+    case OBJ_MAP:
+    {
+        PiMap *original = AS_MAP(value);
+        table_t *table = ht_create(sizeof(Value));
+        Object *obj = add_obj(vm, new_map(table, original->is_instance));
+        PiMap *copy = (PiMap *)obj;
+
+        copy->proto = original->proto;
+        copy->super_instance = original->super_instance;
+        copy->locked = original->locked;
+        copy->bracket_access = original->bracket_access;
+        if (original->intrinsic_name)
+            copy->intrinsic_name = strdup(original->intrinsic_name);
+
+        char **keys = ht_keys(original->table);
+        int size = ht_length(original->table);
+        for (int i = 0; i < size; i++)
+        {
+            Value *item = (Value *)ht_get(original->table, keys[i]);
+            if (!item)
+                continue;
+
+            Value copied = pi_copy(vm, 1, item);
+            ht_put(copy->table, keys[i], &copied);
+        }
+
+        return NEW_OBJ(obj);
+    }
+
+    case OBJ_SET:
+    {
+        table_t *table = ht_create(sizeof(Value));
+        ht_iter it = ht_iterator(AS_SET(value)->table);
+
+        while (ht_next(&it))
+        {
+            Value *item = (Value *)it.value;
+            if (!item)
+                continue;
+
+            Value copied = pi_copy(vm, 1, item);
+            ht_put(table, it.key, &copied);
+        }
+
+        return NEW_OBJ(add_obj(vm, new_set(table)));
+    }
+
+    case OBJ_TENSOR:
+    {
+        PiTensor *original = AS_TENSOR(value);
+        PiTensor *copy = (PiTensor *)add_obj(vm, new_tensor(original->ndim, original->shape, original->type));
+        for (int i = 0; i < original->size; i++)
+            tensor_setFlat(copy, i, tensor_getFlat(original, i));
+        return NEW_OBJ((Object *)copy);
+    }
+
+    case OBJ_RANGE:
+    {
+        PiRange *range = AS_RANGE(value);
+        return NEW_OBJ(add_obj(vm, new_range(range->start, range->end, range->step)));
+    }
+
+    case OBJ_SLICE:
+    {
+        PiSlice *slice = AS_SLICE(value);
+        return NEW_OBJ(add_obj(vm, new_slice(slice->start, slice->stop, slice->step)));
+    }
+
+    default:
+        return value;
+    }
 }
 
 /**

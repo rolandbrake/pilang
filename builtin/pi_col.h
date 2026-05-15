@@ -63,6 +63,8 @@ Value pi_issuperset(vm_t *vm, int argc, Value *argv);
 // Checks if two sets are disjoint.
 Value pi_isdisjoint(vm_t *vm, int argc, Value *argv);
 
+Value pi_copy(vm_t *vm, int argc, Value *argv);
+
 // Sorts the elements of a list in ascending order.
 Value cl_sort(vm_t *vm, int argc, Value *argv);
 

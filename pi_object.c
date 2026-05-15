@@ -267,6 +267,7 @@ Object *new_map(table_t *table, bool is_instance)
     map->table = table;
     map->intrinsic_name = NULL;
     map->locked = false;
+    map->bracket_access = true;
 
     // Initialize the iterator for the object
     map->it = ht_iterator(table);

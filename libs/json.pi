@@ -1,11 +1,26 @@
-// JSON module for Pilang
-// Provides JSON parsing and stringification in pure Pilang.
-// import col.{contains}
+// JSON module for Pilang.
+//
+// Public API:
+// - parse(text), loads(text)
+// - stringify(value, indent = nil), dumps(value, indent = nil)
+//
+// parse()/loads() convert JSON text into Pilang values:
+// - JSON object -> map
+// - JSON array -> list
+// - string/number/boolean/null -> string/number/boolean/nil
+//
+// stringify()/dumps() convert Pilang values back to JSON text. Passing an
+// indent string, such as "  ", enables pretty printed output.
+//
+// Implementation note: this module uses concat() for string construction
+// because plain `+` may coerce numeric-looking strings.
 
+// True when a character is JSON whitespace.
 fun _json_isWhitespace(ch) {
     return contains(" \t\n\r", ch);
 }
 
+// Advances over whitespace and returns the next non-space position.
 fun _json_skip(text, pos) {
     while (pos < len(text) && _json_isWhitespace(text[pos])) {
         pos = pos + 1;
@@ -13,11 +28,12 @@ fun _json_skip(text, pos) {
     return pos;
 }
 
+// Converts one hexadecimal digit to its numeric value.
 fun _json_hexValue(ch) {
     if (contains("0123456789", ch))
         return as_num(ch);
 
-    lowerChar = lower(ch);
+    let lowerChar = lower(ch);
     if (lowerChar == "a")
         return 10;
     if (lowerChar == "b")
@@ -33,15 +49,17 @@ fun _json_hexValue(ch) {
     return nil;
 }
 
+// Parses the four hex digits following a JSON \u escape.
+// Returns [character, next_position], or ["", original_position] on failure.
 fun _json_parseUnicode(text, pos) {
-    code = 0;
+    let code = 0;
 
     for i in range(0, 4) {
         if (pos + i >= len(text))
             return ["", pos];
 
-        hexChar = lower(text[pos + i]);
-        digit = _json_hexValue(hexChar);
+        let hexChar = lower(text[pos + i]);
+        let digit = _json_hexValue(hexChar);
         if (digit == nil)
             return ["", pos];
 
@@ -51,50 +69,52 @@ fun _json_parseUnicode(text, pos) {
     return [char(code), pos + 4];
 }
 
+// Parses a JSON string starting at `pos`.
+// Returns [string_value, next_position], or [nil, position] on failure.
 fun _json_parseString(text, pos) {
-    result = "";
-    if (pos >= len(text) || text[pos] != '"')
+    let result = "";
+    if (pos >= len(text) || text[pos] != char(34))
         return [nil, pos];
 
     pos = pos + 1;
     while (pos < len(text)) {
-        ch = text[pos];
-        if (ch == '"') {
+        let ch = text[pos];
+        if (ch == char(34)) {
             return [result, pos + 1];
         }
 
-        if (ch == "\\") {
+        if (ch == char(92)) {
             pos = pos + 1;
             if (pos >= len(text))
                 break;
 
-            esc = text[pos];
-            if (esc == '"')
-                result = result + '"';
-            elif (esc == "\\")
-                result = result + "\\";
+            let esc = text[pos];
+            if (esc == char(34))
+                result = concat(result, char(34));
+            elif (esc == char(92))
+                result = concat(result, char(92));
             elif (esc == "/")
-                result = result + "/";
+                result = concat(result, "/");
             elif (esc == "b")
-                result = result + "\b";
+                result = concat(result, char(8));
             elif (esc == "f")
-                result = result + "\f";
+                result = concat(result, char(12));
             elif (esc == "n")
-                result = result + "\n";
+                result = concat(result, "\n");
             elif (esc == "r")
-                result = result + "\r";
+                result = concat(result, "\r");
             elif (esc == "t")
-                result = result + "\t";
+                result = concat(result, "\t");
             elif (esc == "u") {
-                unicode = _json_parseUnicode(text, pos + 1);
+                let unicode = _json_parseUnicode(text, pos + 1);
                 if (unicode[0] == "")
                     return [nil, pos];
-                result = result + unicode[0];
+                result = concat(result, unicode[0]);
                 pos = unicode[1] - 1;
             } else
-                result = result + esc;
+                result = concat(result, esc);
         } else {
-            result = result + ch;
+            result = concat(result, ch);
         }
 
         pos = pos + 1;
@@ -103,8 +123,9 @@ fun _json_parseString(text, pos) {
     return [nil, pos];
 }
 
+// Parses a JSON number and returns [number_value, next_position].
 fun _json_parseNumber(text, pos) {
-    start = pos;
+    let start = pos;
 
     if (pos < len(text) && text[pos] == '-')
         pos = pos + 1;
@@ -126,11 +147,12 @@ fun _json_parseNumber(text, pos) {
             pos = pos + 1;
     }
 
-    numberText = _json_trim(_json_substr(text, start, pos));
-    number = as_num(numberText);
+    let numberText = _json_trim(_json_substr(text, start, pos));
+    let number = as_num(numberText);
     return [number, pos];
 }
 
+// Parses true, false, or null.
 fun _json_parseLiteral(text, pos) {
     if (len(text) - pos >= 4 && _json_substr(text, pos, pos + 4) == "true")
         return [true, pos + 4];
@@ -141,12 +163,13 @@ fun _json_parseLiteral(text, pos) {
     return [nil, pos];
 }
 
+// Dispatches to the correct parser for the next JSON value.
 fun _json_parseValue(text, pos) {
     pos = _json_skip(text, pos);
     if (pos >= len(text))
         return [nil, pos];
 
-    ch = text[pos];
+    let ch = text[pos];
     if (ch == '{')
         return _json_parseObject(text, pos);
     if (ch == '[')
@@ -159,8 +182,9 @@ fun _json_parseValue(text, pos) {
     return _json_parseLiteral(text, pos);
 }
 
+// Parses a JSON array into a Pilang list.
 fun _json_parseArray(text, pos) {
-    arr = [];
+    let arr = [];
     pos = pos + 1;
     pos = _json_skip(text, pos);
 
@@ -168,7 +192,7 @@ fun _json_parseArray(text, pos) {
         return [arr, pos + 1];
 
     while (pos < len(text)) {
-        item = _json_parseValue(text, pos);
+        let item = _json_parseValue(text, pos);
         if (item[0] == nil && item[1] == pos)
             return [nil, pos];
 
@@ -188,8 +212,9 @@ fun _json_parseArray(text, pos) {
     return [nil, pos];
 }
 
+// Parses a JSON object into a Pilang map.
 fun _json_parseObject(text, pos) {
-    obj = {};
+    let obj = {};
     pos = pos + 1;
     pos = _json_skip(text, pos);
 
@@ -197,17 +222,17 @@ fun _json_parseObject(text, pos) {
         return [obj, pos + 1];
 
     while (pos < len(text)) {
-        keyValue = _json_parseString(text, pos);
+        let keyValue = _json_parseString(text, pos);
         if (keyValue[0] == nil)
             return [nil, pos];
 
-        key = keyValue[0];
+        let key = keyValue[0];
         pos = _json_skip(text, keyValue[1]);
         if (pos >= len(text) || text[pos] != ':')
             return [nil, pos];
 
         pos = pos + 1;
-        valuePair = _json_parseValue(text, pos);
+        let valuePair = _json_parseValue(text, pos);
         if (valuePair[0] == nil && valuePair[1] == pos)
             return [nil, pos];
 
@@ -227,6 +252,7 @@ fun _json_parseObject(text, pos) {
     return [nil, pos];
 }
 
+// Safe substring helper used by the parser.
 fun _json_substr(text, start, end) {
     if (start < 0)
         start = 0;
@@ -235,86 +261,92 @@ fun _json_substr(text, start, end) {
     if (end > len(text))
         end = len(text);
 
-    result = "";
-    i = start;
+    let result = "";
+    let i = start;
     while (i < end) {
-        result = result + text[i];
+        result = concat(result, text[i]);
         i = i + 1;
     }
     return result;
 }
 
+// Trims JSON whitespace from both ends of a string.
 fun _json_trim(text) {
-    start = 0;
+    let start = 0;
     while (start < len(text) && _json_isWhitespace(text[start]))
         start = start + 1;
 
-    end = len(text);
+    let end = len(text);
     while (end > start && _json_isWhitespace(text[end - 1]))
         end = end - 1;
 
     return _json_substr(text, start, end);
 }
 
+// Parses an entire JSON document. Returns nil for invalid input.
 fun parse(text) {
     if (text == nil)
         return nil;
 
-    pos = _json_skip(text, 0);
-    valuePair = _json_parseValue(text, pos);
-    endPos = _json_skip(text, valuePair[1]);
+    let pos = _json_skip(text, 0);
+    let valuePair = _json_parseValue(text, pos);
+    let endPos = _json_skip(text, valuePair[1]);
     if (valuePair[0] == nil || endPos != len(text))
         return nil;
 
     return valuePair[0];
 }
 
+// Quotes and escapes a string according to JSON rules.
 fun _json_quoteString(value) {
-    escaped = "";
-    i = 0;
+    let escaped = "";
+    let i = 0;
     while (i < len(value)) {
-        ch = value[i];
-        if (ch == '"')
-            escaped = escaped + "\\\"";
-        elif (ch == "\\")
-            escaped = escaped + "\\\\";
-        elif (ch == "\b")
-            escaped = escaped + "\\b";
-        elif (ch == "\f")
-            escaped = escaped + "\\f";
+        let ch = value[i];
+        if (ch == char(34))
+            escaped = concat(concat(escaped, char(92)), char(34));
+        elif (ch == char(92))
+            escaped = concat(concat(escaped, char(92)), char(92));
+        elif (ch == char(8))
+            escaped = concat(concat(escaped, char(92)), "b");
+        elif (ch == char(12))
+            escaped = concat(concat(escaped, char(92)), "f");
         elif (ch == "\n")
-            escaped = escaped + "\\n";
+            escaped = concat(concat(escaped, char(92)), "n");
         elif (ch == "\r")
-            escaped = escaped + "\\r";
+            escaped = concat(concat(escaped, char(92)), "r");
         elif (ch == "\t")
-            escaped = escaped + "\\t";
+            escaped = concat(concat(escaped, char(92)), "t");
         else
-            escaped = escaped + ch;
+            escaped = concat(escaped, ch);
         i = i + 1;
     }
-    return '"' + escaped + '"';
+    return concat(concat(char(34), escaped), char(34));
 }
 
+// Joins pre-rendered JSON fragments.
 fun _json_join(parts, sep) {
-    result = "";
+    let result = "";
     for i in range(0, len(parts)) {
         if (i > 0)
-            result = result + sep;
-        result = result + parts[i];
+            result = concat(result, sep);
+        result = concat(result, parts[i]);
     }
     return result;
 }
 
+// Builds indentation for pretty-printed JSON.
 fun _json_indent(depth, indent) {
-    result = "";
-    i = 0;
+    let result = "";
+    let i = 0;
     while (i < depth) {
-        result = result + indent;
+        result = concat(result, indent);
         i = i + 1;
     }
     return result;
 }
 
+// Recursive JSON renderer. `indent == nil` means compact output.
 fun _json_stringify(value, indent, depth) {
     if (value == nil)
         return "null";
@@ -330,56 +362,59 @@ fun _json_stringify(value, indent, depth) {
         if (len(value) == 0)
             return "[]";
 
-        items = [];
+        let items = [];
         for item in value {
             items += _json_stringify(item, indent, depth + 1);
         }
 
         if (indent == nil)
-            return "[" + _json_join(items, ",") + "]";
+            return concat(concat("[", _json_join(items, ",")), "]");
 
-        padded = [];
+        let padded = [];
         for item in items {
-            padded += _json_indent(depth + 1, indent) + item;
+            padded += concat(_json_indent(depth + 1, indent), item);
         }
 
-        return "[\n" + _json_join(padded, ",\n") + "\n" + _json_indent(depth, indent) + "]";
+        return concat(concat(concat(concat("[\n", _json_join(padded, ",\n")), "\n"), _json_indent(depth, indent)), "]");
     }
     if (is_map(value)) {
         if (len(value) == 0)
             return "{}";
 
-        pairs = [];
+        let pairs = [];
         for key in value {
-            entry = _json_quoteString(as_string(key)) + ":";
+            let entry = concat(_json_quoteString(as_string(key)), ":");
             if (indent != nil)
-                entry = entry + " ";
-            entry = entry + _json_stringify(value[key], indent, depth + 1);
+                entry = concat(entry, " ");
+            entry = concat(entry, _json_stringify(value[key], indent, depth + 1));
             pairs += entry;
         }
 
         if (indent == nil)
-            return "{" + _json_join(pairs, ",") + "}";
+            return concat(concat("{", _json_join(pairs, ",")), "}");
 
-        padded = [];
+        let padded = [];
         for entry in pairs {
-            padded += _json_indent(depth + 1, indent) + entry;
+            padded += concat(_json_indent(depth + 1, indent), entry);
         }
 
-        return "{\n" + _json_join(padded, ",\n") + "\n" + _json_indent(depth, indent) + "}";
+        return concat(concat(concat(concat("{\n", _json_join(padded, ",\n")), "\n"), _json_indent(depth, indent)), "}");
     }
 
     return _json_quoteString(as_string(value));
 }
 
+// Serializes a Pilang value to JSON text.
 fun stringify(value, indent = nil) {
     return _json_stringify(value, indent, 0);
 }
 
+// Alias for parse(), matching common JSON library naming.
 fun loads(text) {
     return parse(text);
 }
 
+// Alias for stringify(), matching common JSON library naming.
 fun dumps(value, indent = nil) {
     return stringify(value, indent);
 }

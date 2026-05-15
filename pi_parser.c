@@ -165,7 +165,7 @@ static void emit_boundMethodCall(parser_t *parser, const char *receiver, const c
 
     int method_index = store_const(parser->comp, NEW_OBJ(new_pistring((char *)method)));
     emit_16u(parser->comp, OP_LOAD_CONST, (char *)method, method_index);
-    emit(parser->comp, OP_GET_ITEM);
+    emit(parser->comp, OP_GET_MEMBER);
 }
 
 /**
@@ -1830,6 +1830,13 @@ static void class_decl(parser_t *parser)
     emit_16u(parser->comp, OP_LOAD_CONST, "true", lock_index);
     emit_8u(parser->comp, OP_CALL_FUNCTION, "lock", 2);
     emit(parser->comp, OP_POP);
+
+    emit_boundMethodCall(parser, "Object", "bracketAccess", 2);
+    load_variable(parser->comp, class_name);
+    int bracket_index = store_const(parser->comp, NEW_BOOL(false));
+    emit_16u(parser->comp, OP_LOAD_CONST, "false", bracket_index);
+    emit_8u(parser->comp, OP_CALL_FUNCTION, "bracketAccess", 2);
+    emit(parser->comp, OP_POP);
 }
 /**
  * func_decl -> "fun" IDENT "(" param_list ")" block
@@ -3390,9 +3397,9 @@ static void member_expr(parser_t *parser)
                                      has_accessContinuation(parser, name);
 
             if (!is_chained_access && is_assign(parser))
-                emit(parser->comp, OP_SET_ITEM); // Emit bytecode to set the property value
+                emit(parser->comp, OP_SET_MEMBER); // Emit bytecode to set the property value
             else
-                emit(parser->comp, OP_GET_ITEM); // Emit bytecode to get the property value
+                emit(parser->comp, OP_GET_MEMBER); // Emit bytecode to get the property value
         }
 
 
@@ -3453,7 +3460,7 @@ static void member_expr(parser_t *parser)
             {
                 int ctor_index = store_const(parser->comp, NEW_OBJ(new_pistring("constructor")));
                 emit_16u(parser->comp, OP_LOAD_CONST, "constructor", ctor_index);
-                emit(parser->comp, OP_GET_ITEM);
+                emit(parser->comp, OP_GET_MEMBER);
             }
 
             if (!check(parser, TK_RPAREN))

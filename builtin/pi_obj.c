@@ -169,6 +169,7 @@ Value pi_clone(vm_t *vm, int argc, Value *argv)
     map->proto = original->proto;
     map->super_instance = original->super_instance;
     map->locked = original->locked;
+    map->bracket_access = original->bracket_access;
     if (original->intrinsic_name)
         map->intrinsic_name = strdup(original->intrinsic_name);
 
@@ -438,6 +439,29 @@ Value pi_lock(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[lock] expects obj.lock(value) or Object.lock(obj, value).");
 
     map->locked = locked;
+    return NEW_OBJ((Object *)map);
+}
+
+Value pi_bracketAccess(vm_t *vm, int argc, Value *argv)
+{
+    PiMap *map;
+    bool enabled = true;
+
+    if (argc >= 3 && IS_MAP(argv[1]))
+    {
+        map = AS_MAP(argv[1]);
+        enabled = as_bool(argv[2]);
+    }
+    else if (argc >= 1 && IS_MAP(argv[0]))
+    {
+        map = AS_MAP(argv[0]);
+        if (argc >= 2)
+            enabled = as_bool(argv[1]);
+    }
+    else
+        vm_error(vm, "[bracketAccess] expects obj.bracketAccess(value) or Object.bracketAccess(obj, value).");
+
+    map->bracket_access = enabled;
     return NEW_OBJ((Object *)map);
 }
 

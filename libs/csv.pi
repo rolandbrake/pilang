@@ -1,27 +1,93 @@
-// CSV helper library for Pilang
-// Provides lightweight parsing and stringification of CSV text.
-// import string.{replace, split}
-// import col.{contains}
+// CSV helper library for Pilang.
+//
+// Public API:
+// - parse(csv, delimiter = ",", header = true)
+// - stringify(rows, delimiter = ",")
+//
+// parse() returns a list of maps when `header` is true:
+//   csv.parse("name,score\nAda,10") -> [{name: "Ada", score: "10"}]
+//
+// parse() returns raw rows when `header` is false:
+//   csv.parse("Ada,10", ",", false) -> [["Ada", "10"]]
+//
+// stringify() accepts either a list of maps or a list of row lists.
+// This module keeps fields as text and supports quoted commas, newlines,
+// and doubled quotes inside quoted fields.
 
+// Splits normalized CSV text into physical lines. Quoted multiline fields are
+// not currently merged here, so this parser is intended for lightweight CSV.
+fun _csv_splitLines(text) {
+    let lines = [];
+    let start = 0;
+    let i = 0;
+
+    while (i < len(text)) {
+        if (text[i] == char(10)) {
+            lines += text[start:i];
+            start = i + 1;
+        }
+        i = i + 1;
+    }
+
+    lines += text[start:];
+    return lines;
+}
+
+// Converts CRLF and CR newlines to LF without using string.replace, because
+// generic string `+` can coerce numeric-looking fragments in this runtime.
+fun _csv_normalizeNewlines(text) {
+    let result = "";
+    let i = 0;
+
+    while (i < len(text)) {
+        if (text[i] == char(13)) {
+            if (i + 1 < len(text) && text[i + 1] == char(10))
+                i = i + 1;
+            result = concat(result, char(10));
+        } else {
+            result = concat(result, text[i]);
+        }
+        i = i + 1;
+    }
+
+    return result;
+}
+
+// Doubles quotes inside a field before wrapping it in CSV quotes.
+fun _csv_escapeQuotes(text) {
+    let result = "";
+
+    for ch in text {
+        if (ch == '"')
+            result = concat(result, '""');
+        else
+            result = concat(result, ch);
+    }
+
+    return result;
+}
+
+// Parses one CSV line into a list of field strings. Handles quoted fields and
+// escaped quotes represented as two quotes.
 fun _csv_parseLine(line, delimiter = ",") {
-    fields = [];
-    field = "";
-    inQuotes = false;
-    i = 0;
+    let fields = [];
+    let field = "";
+    let inQuotes = false;
+    let i = 0;
 
     while (i < len(line)) {
-        ch = line[i];
+        let ch = line[i];
 
         if (inQuotes) {
             if (ch == '"') {
                 if (i + 1 < len(line) && line[i + 1] == '"') {
-                    field = field + '"';
+                    field = concat(field, '"');
                     i = i + 1;
                 } else {
                     inQuotes = false;
                 }
             } else {
-                field = field + ch;
+                field = concat(field, ch);
             }
         } else {
             if (ch == '"') {
@@ -30,7 +96,7 @@ fun _csv_parseLine(line, delimiter = ",") {
                 fields += field;
                 field = "";
             } else {
-                field = field + ch;
+                field = concat(field, ch);
             }
         }
 
@@ -41,26 +107,31 @@ fun _csv_parseLine(line, delimiter = ",") {
     return fields;
 }
 
+// Converts one field to a CSV-safe string. Fields containing delimiter,
+// newlines, carriage returns, or quotes are quoted.
 fun _csv_escape(value, delimiter = ",") {
     if (value == nil)
         value = "";
 
-    text = as_string(value);
-    text = replace(text, '"', '""');
+    let text = as_string(value);
+    text = _csv_escapeQuotes(text);
 
     if (contains(text, delimiter) || contains(text, "\n") || contains(text, "\r") || contains(text, '"')) {
-        return '"' + text + '"';
+        return concat('"', text, '"');
     }
 
     return text;
 }
 
+// Parses CSV text.
+//
+// If header is true, the first row becomes map keys and the remaining rows are
+// returned as records. If header is false, returns the raw list of rows.
 fun parse(csv, delimiter = ",", header = true) {
-    text = replace(csv, "\r\n", "\n");
-    text = replace(text, "\r", "\n");
+    let text = _csv_normalizeNewlines(csv);
 
-    rows = [];
-    for line in split(text, "\n") {
+    let rows = [];
+    for line in _csv_splitLines(text) {
         if (len(trim(line)) == 0)
             continue;
         rows += _csv_parseLine(line, delimiter);
@@ -72,16 +143,16 @@ fun parse(csv, delimiter = ",", header = true) {
     if (!header)
         return rows;
 
-    headers = rows[0];
-    result = [];
+    let headers = rows[0];
+    let result = [];
 
     for i in range(1, len(rows)) {
-        row = rows[i];
-        record = {};
+        let row = rows[i];
+        let record = {};
 
         for j in range(0, len(headers)) {
-            key = headers[j];
-            value = "";
+            let key = headers[j];
+            let value = "";
             if (j < len(row))
                 value = row[j];
             record[key] = value;
@@ -93,27 +164,29 @@ fun parse(csv, delimiter = ",", header = true) {
     return result;
 }
 
+// Serializes rows to CSV text. For map rows, keys from the first map define
+// both the header order and value order for all subsequent rows.
 fun stringify(rows, delimiter = ",") {
     if (len(rows) == 0)
         return "";
 
-    first = rows[0];
-    lines = [];
+    let first = rows[0];
+    let lines = [];
 
     if (is_map(first)) {
-        headers = [];
+        let headers = [];
         for key in first {
             headers += key;
         }
 
-        headerFields = [];
+        let headerFields = [];
         for key in headers {
             headerFields += _csv_escape(key, delimiter);
         }
         lines += _csv_join(headerFields, delimiter);
 
         for row in rows {
-            values = [];
+            let values = [];
             for key in headers {
                 values += _csv_escape(row[key], delimiter);
             }
@@ -121,7 +194,7 @@ fun stringify(rows, delimiter = ",") {
         }
     } else {
         for row in rows {
-            fields = [];
+            let fields = [];
             for cell in row {
                 fields += _csv_escape(cell, delimiter);
             }
@@ -132,12 +205,13 @@ fun stringify(rows, delimiter = ",") {
     return _csv_join(lines, "\n");
 }
 
+// Joins already-escaped fields with a delimiter.
 fun _csv_join(fields, delimiter) {
-    text = "";
+    let text = "";
     for i in range(0, len(fields)) {
         if (i > 0)
-            text = text + delimiter;
-        text = text + fields[i];
+        text = concat(text, delimiter);
+        text = concat(text, fields[i]);
     }
     return text;
 }

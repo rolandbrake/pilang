@@ -18,6 +18,7 @@ Value pi_type(vm_t *vm, int argc, Value *argv);
 Value pi_name(vm_t *vm, int argc, Value *argv);
 Value pi_setName(vm_t *vm, int argc, Value *argv);
 Value pi_lock(vm_t *vm, int argc, Value *argv);
+Value pi_bracketAccess(vm_t *vm, int argc, Value *argv);
 Value pi_get(vm_t *vm, int argc, Value *argv);
 Value pi_set(vm_t *vm, int argc, Value *argv);
 Value pi_has(vm_t *vm, int argc, Value *argv);

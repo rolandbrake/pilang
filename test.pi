@@ -1,4 +1,1 @@
-import module.{List}
-
-let nums = [1, 2, 3]
-println(List(nums).format())
+println("Hello from Pi-Lang!")

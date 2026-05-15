@@ -1199,6 +1199,7 @@ static PiMap *create_objectProto(vm_t *vm)
     Value name_fn = *new_native("name", pi_name);
     Value set_name_fn = *new_native("setName", pi_setName);
     Value lock_fn = *new_native("lock", pi_lock);
+    Value bracket_access_fn = *new_native("bracketAccess", pi_bracketAccess);
 
     Value get_fn = *new_native("get", pi_get);
     Value set_fn = *new_native("set", pi_set);
@@ -1223,6 +1224,7 @@ static PiMap *create_objectProto(vm_t *vm)
     ht_put(proto->table, "name", &name_fn);
     ht_put(proto->table, "setName", &set_name_fn);
     ht_put(proto->table, "lock", &lock_fn);
+    ht_put(proto->table, "bracketAccess", &bracket_access_fn);
     ht_put(proto->table, "get", &get_fn);
     ht_put(proto->table, "set", &set_fn);
     ht_put(proto->table, "has", &has_fn);
@@ -1538,6 +1540,7 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value k
     Object *instance = new_map(table, true);
 
     ((PiMap *)instance)->proto = map;
+    ((PiMap *)instance)->bracket_access = map->bracket_access;
 
     // Push the new instance onto the VM stack
     // vm->stack[vm->sp] = NEW_OBJ(instance);
@@ -3804,7 +3807,9 @@ void run(vm_t *vm)
         }
 
         case OP_GET_ITEM:
+        case OP_GET_MEMBER:
         {
+            bool bracket_access = (OpCode)op == OP_GET_ITEM;
             Value index = pop_stack(vm);     // Get the index from the stack
             Value container = pop_stack(vm); // Get the container from the stack
             Value method_result;
@@ -3857,6 +3862,9 @@ void run(vm_t *vm)
                     break;
                 }
 
+                if (bracket_access && IS_STRING(index) && !map->bracket_access)
+                    vm_error(vm, "Bracket member access is disabled for this object.");
+
                 PiMap *owner = map_owner(map, index);
                 Value item = owner ? map_get(owner, index) : NEW_NIL();
 
@@ -3900,11 +3908,6 @@ void run(vm_t *vm)
                     char *path = module->path ? module->path : "";
                     item = NEW_OBJ(add_obj(vm, new_pistring(strdup(path))));
                 }
-                // else if (strcmp(property, "builtin") == 0)
-                //     item = NEW_BOOL(module->builtin);
-
-                // else if (strcmp(property, "state") == 0)
-                //     item = NEW_NUM(module->state);
 
                 else if (strcmp(property, "exports") == 0)
                     item = NEW_OBJ((Object *)module->exports);
@@ -4072,7 +4075,9 @@ void run(vm_t *vm)
         }
 
         case OP_SET_ITEM:
+        case OP_SET_MEMBER:
         {
+            bool bracket_access = (OpCode)op == OP_SET_ITEM;
             Value index = pop_stack(vm);     // The index/key
             Value container = pop_stack(vm); // The container (list/map)
             Value value = pop_stack(vm);     // The value to set
@@ -4128,6 +4133,9 @@ void run(vm_t *vm)
                 Value args[2] = {index, value};
                 if (!IS_STRING(index) && try_callMethodArgs(vm, container, "setItem", 2, args, &method_result))
                     break;
+
+                if (bracket_access && IS_STRING(index) && !map->bracket_access)
+                    vm_error(vm, "Bracket member access is disabled for this object.");
 
                 if (map->is_instance)
                 {

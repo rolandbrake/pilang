@@ -87,6 +87,10 @@ static const char *op_names[] = {
     [0x47] = "MAP_EXTEND",
     [0x48] = "MAP_FINALIZE",
     [0x49] = "COMP_APPEND",
+    [0x4a] = "PUSH_SET",
+    [0x4b] = "PUSH_TUPLE",
+    [0x4c] = "GET_MEMBER",
+    [0x4d] = "SET_MEMBER",
 };
 
 /**

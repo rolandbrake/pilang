@@ -31,7 +31,6 @@ static BuiltinConst lang_const[] = {
     {"OP_LE", NEW_NUM(205)},
 };
 
-static BuiltinFunc lang_funcs[] = {
-};
+static BuiltinFunc lang_funcs[] = {};
 
 DEFINE_BUILTIN_MODULE(module_lang, "lang", lang_funcs, lang_const);

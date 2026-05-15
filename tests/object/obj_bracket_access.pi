@@ -1,0 +1,29 @@
+class List {
+    constructor(items) {
+        this.items = items
+    }
+
+    format() {
+        return "list"
+    }
+}
+
+assert(List.format() == "list", "class members should remain accessible with dot syntax")
+
+Object.bracketAccess(List, true)
+assert(List["format"]() == "list", "Object.bracketAccess should enable bracket member access")
+
+Object.bracketAccess(List, false)
+
+MapLike = {
+    value: 41,
+    inc() {
+        return 42
+    }
+}
+
+assert(MapLike["value"] == 41, "object literals should keep bracket member access by default")
+MapLike.bracketAccess(false)
+assert(MapLike.value == 41, "dot access should work when bracket member access is disabled")
+MapLike.bracketAccess(true)
+assert(MapLike["inc"]() == 42, "object literals should be able to re-enable bracket member access")

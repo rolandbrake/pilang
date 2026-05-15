@@ -7,28 +7,38 @@
 // The language used in this module includes built-in functions like `str`, `number`, `upper`, `lower`,
 // `trim`, `split`, `replace`, `contains`, `startswith`, `endswith`, `abs`, `floor`, `ceil`, `round`,
 // `sqrt`, `keys`, `values`, `entries`, `delete`, `sort`, `copy`, `range`, and operators like `#` for length,
-// `in` for containment, `^` for exponentiation, `!!` for boolean coercion, and `nil` for no value.
+// `in` for containment, `**` for exponentiation, `!!` for boolean coercion, and `nil` for no value.
 
 
 // --------------------------------------------------
 // Iterator
 // --------------------------------------------------
 // An iterator provides a way to traverse a sequence one element at a time.
-// It is constructed with a `nextFn` that returns the next value or `nil` when the iteration is complete.
+// It is constructed with a list of values and yields one value at a time.
 // Methods like map, filter, reduce, each, and collect consume the iterator and return either a List or a value.
+
+import col.{sort}
+import string.{replace:str_replace}
+import math.{floor:math_floor, ceil:math_ceil, sqrt:math_sqrt}
 
 class Iterator {
 
     // Creates a new Iterator instance.
-    // param: nextFn - A function that returns the next value in the sequence, or `nil` when done.
-    constructor(nextFn) {
-        this.nextFn = nextFn
+    // param: items - A list of values yielded one at a time.
+    constructor(items) {
+        this._items = items
+        this._index = 0
     }
 
-    // Returns the next value from the iterator by calling the stored `nextFn`.
+    // Returns the next value from the iterator.
     // return:s The next value, or `nil` if iteration is finished.
     next() {
-        return this.nextFn()
+        if this._index >= #this._items
+            return nil
+
+        let value = this._items[this._index]
+        this._index += 1
+        return value
     }
 
     // Applies a mapping function to each element of the iterator and collects the results into a List.
@@ -151,18 +161,18 @@ class List {
     // (e.g., array, another List) whose elements are added to the new List.
     constructor(items) {
 
-        this.items = []
+        this._items = []
 
         if items != nil
             for item in items
-                this.items += item
+                this._items += item
     }
 
     // Appends an item to the end of the list.
     // param: item - The item to add.
     // return:s The list instance (for chaining).
     append(item) {
-        this.items += item
+        this._items += item
         return this
     }
 
@@ -170,7 +180,10 @@ class List {
     // param: item - The item to add.
     // return:s The list instance (for chaining).
     prepend(item) {
-        this.items = [item] + this.items
+        let items = this._items
+        this._items = [item]
+        for item in items
+            this._items += item
         return this
     }
 
@@ -179,7 +192,7 @@ class List {
     // param: item - The item to insert.
     // return:s The list instance (for chaining).
     insert(index, item) {
-        this.items[index:index] = [item]
+        this._items[index:index] = [item]
         return this
     }
 
@@ -189,12 +202,16 @@ class List {
     remove(item) {
 
         let result = []
+        let removed = false
 
-        for value in this.items
-            if value != item
+        for value in this._items {
+            if !removed && value == item
+                removed = true
+            else
                 result += value
+        }
 
-        this.items = result
+        this._items = result
 
         return this
     }
@@ -204,9 +221,9 @@ class List {
     // return:s The removed element.
     removeAt(index) {
 
-        let value = this.items[index]
+        let value = this._items[index]
 
-        this.items[index:index+1] = []
+        this._items[index:index+1] = []
 
         return value
     }
@@ -215,9 +232,9 @@ class List {
     // return:s The last element.
     pop() {
 
-        let value = this.items[-1]
+        let value = this._items[-1]
 
-        this.items = this.items[:-1]
+        this._items = this._items[:-1]
 
         return value
     }
@@ -226,9 +243,9 @@ class List {
     // return:s The first element.
     shift() {
 
-        let value = this.items[0]
+        let value = this._items[0]
 
-        this.items = this.items[1:]
+        this._items = this._items[1:]
 
         return value
     }
@@ -236,7 +253,7 @@ class List {
     // Removes all elements from the list, making it empty.
     // return:s The list instance (for chaining).
     clear() {
-        this.items = []
+        this._items = []
         return this
     }
 
@@ -244,7 +261,7 @@ class List {
     // param: item - The item to search for.
     // return:s `true` if the item exists, otherwise `false`.
     contains(item) {
-        return item in this.items
+        return item in this._items
     }
 
     // Returns the index of the first occurrence of the given item.
@@ -252,8 +269,8 @@ class List {
     // return:s The zero‑based index, or -1 if not found.
     indexOf(item) {
 
-        for i in range(#this.items)
-            if this.items[i] == item
+        for i in range(#this._items)
+            if this._items[i] == item
                 return i
 
         return -1
@@ -264,8 +281,8 @@ class List {
     // return:s The zero‑based index from the start, or -1 if not found.
     lastIndexOf(item) {
 
-        for i in range(#this.items - 1, -1, -1)
-            if this.items[i] == item
+        for i in range(#this._items - 1, -1, -1)
+            if this._items[i] == item
                 return i
 
         return -1
@@ -277,10 +294,10 @@ class List {
 
         let result = []
 
-        for i in range(#this.items - 1, -1, -1)
-            result += this.items[i]
+        for i in range(#this._items - 1, -1, -1)
+            result += this._items[i]
 
-        this.items = result
+        this._items = result
 
         return this
     }
@@ -291,8 +308,8 @@ class List {
 
         let result = []
 
-        for i in range(#this.items - 1, -1, -1)
-            result += this.items[i]
+        for i in range(#this._items - 1, -1, -1)
+            result += this._items[i]
 
         return List(result)
     }
@@ -301,7 +318,7 @@ class List {
     // param: fn - A comparison function that takes two arguments (a, b) and returns a negative number if a < b, zero if equal, positive if a > b. If omitted, the default order is used.
     // return:s The list instance (for chaining).
     sort(fn) {
-        sort(this.items, fn)
+        sort(this._items, fn)
         return this
     }
 
@@ -310,7 +327,7 @@ class List {
     // return:s A new List containing the sorted elements.
     sorted(fn) {
 
-        let result = copy(this.items)
+        let result = copy(this._items)
 
         sort(result, fn)
 
@@ -324,7 +341,7 @@ class List {
 
         let result = []
 
-        for item in this.items
+        for item in this._items
             result += fn(item)
 
         return List(result)
@@ -337,7 +354,7 @@ class List {
 
         let result = []
 
-        for item in this.items
+        for item in this._items
             if fn(item)
                 result += item
 
@@ -352,7 +369,7 @@ class List {
 
         let acc = initial
 
-        for item in this.items
+        for item in this._items
             acc = fn(acc, item)
 
         return acc
@@ -363,7 +380,7 @@ class List {
     // return:s The list instance (for chaining).
     each(fn) {
 
-        for item in this.items
+        for item in this._items
             fn(item)
 
         return this
@@ -374,7 +391,7 @@ class List {
     // return:s `true` if any element makes `fn` return truthy, otherwise `false`.
     any(fn) {
 
-        for item in this.items
+        for item in this._items
             if fn(item)
                 return true
 
@@ -386,7 +403,7 @@ class List {
     // return:s `true` if every element makes `fn` return truthy, otherwise `false`.
     all(fn) {
 
-        for item in this.items
+        for item in this._items
             if !fn(item)
                 return false
 
@@ -398,7 +415,7 @@ class List {
     // return:s The first matching element, or `nil` if none found.
     find(fn) {
 
-        for item in this.items
+        for item in this._items
             if fn(item)
                 return item
 
@@ -410,8 +427,8 @@ class List {
     // return:s The index of the first matching element, or -1 if none found.
     findIndex(fn) {
 
-        for i in range(#this.items)
-            if fn(this.items[i])
+        for i in range(#this._items)
+            if fn(this._items[i])
                 return i
 
         return -1
@@ -427,7 +444,7 @@ class List {
         let result = []
 
         for i in range(start, end, step)
-            result += this.items[i]
+            result += this._items[i]
 
         return List(result)
     }
@@ -436,13 +453,18 @@ class List {
     // param: other - Another List instance.
     // return:s A new List containing the elements of this list followed by the elements of `other`.
     concat(other) {
-        return List(this.items + other.items)
+        let result = copy(this._items)
+
+        for item in other._items
+            result += item
+
+        return List(result)
     }
 
     // Creates a shallow copy of the list.
     // return:s A new List with the same elements.
     copy() {
-        return List(copy(this.items))
+        return List(copy(this._items))
     }
 
     // Returns a new List with duplicate elements removed (first occurrence kept).
@@ -451,7 +473,7 @@ class List {
 
         let result = []
 
-        for item in this.items
+        for item in this._items
             if !(item in result)
                 result += item
 
@@ -465,12 +487,14 @@ class List {
 
         let result = []
 
-        for item in this.items {
+        for item in this._items {
 
-            if typeof(item) == "list"
+            if typeof(item) == "list" {
+                for value in item
+                    result += value
+            } else {
                 result += item
-            else
-                result += item
+            }
         }
 
         return List(result)
@@ -483,11 +507,11 @@ class List {
 
         let result = ""
 
-        for i in range(#this.items) {
+        for i in range(#this._items) {
 
-            result += as_string(this.items[i])
+            result += as_string(this._items[i])
 
-            if i < #this.items - 1
+            if i < #this._items - 1
                 result += separator
         }
 
@@ -497,32 +521,32 @@ class List {
     // Returns the first element of the list.
     // return:s The element at index 0.
     first() {
-        return this.items[0]
+        return this._items[0]
     }
 
     // Returns the last element of the list.
     // return:s The element at index -1.
     last() {
-        return this.items[-1]
+        return this._items[-1]
     }
 
     // Checks whether the list is empty.
     // return:s `true` if the list has no elements, otherwise `false`.
     isEmpty() {
-        return #this.items == 0
+        return #this._items == 0
     }
 
     // Returns the number of elements in the list.
     // return:s The length of the list.
     length() {
-        return #this.items
+        return #this._items
     }
 
     // Retrieves the element at a given index.
     // param: index - Zero‑based index.
     // return:s The element at that index.
     get(index) {
-        return this.items[index]
+        return this._items[index]
     }
 
     // Sets the element at a given index to a new value.
@@ -530,28 +554,14 @@ class List {
     // param: value - The new value.
     // return:s The list instance (for chaining).
     set(index, value) {
-        this.items[index] = value
+        this._items[index] = value
         return this
     }
 
     // Creates an Iterator for this list, allowing sequential traversal.
     // return:s A new Iterator that yields elements from index 0 up to `length-1`.
     iterator() {
-
-        let i = 0
-        let data = this.items
-
-        return Iterator(() -> {
-
-            if i >= #data
-                return nil
-
-            let value = data[i]
-
-            i += 1
-
-            return value
-        })
+        return Iterator(this._items)
     }
 
     // Computes the sum of all numeric elements in the list.
@@ -561,8 +571,9 @@ class List {
 
         let total = 0
 
-        for item in this.items
+        for item in this._items {            
             total += item
+        }
 
         return total
     }
@@ -571,7 +582,7 @@ class List {
     // Assumes all elements are numbers and the list is not empty.
     // return:s The average value.
     avg() {
-        return this.sum() / #this.items
+        return this.sum() / #this._items
     }
 
     // Finds the minimum numeric element in the list.
@@ -579,9 +590,9 @@ class List {
     // return:s The smallest element.
     min() {
 
-        let value = this.items[0]
+        let value = this._items[0]
 
-        for item in this.items
+        for item in this._items
             if item < value
                 value = item
 
@@ -593,9 +604,9 @@ class List {
     // return:s The largest element.
     max() {
 
-        let value = this.items[0]
+        let value = this._items[0]
 
-        for item in this.items
+        for item in this._items
             if item > value
                 value = item
 
@@ -606,9 +617,9 @@ class List {
     // return:s Formatted string.
     format() {
         let res = "[";
-        for i in range(#this.items) {
-            res += this.items[i]
-            if i < #this.items - 1 {
+        for i in range(#this._items) {
+            res += this._items[i]
+            if i < #this._items - 1 {
                 res += ", ";
             }
         }
@@ -628,21 +639,21 @@ class Tuple {
     // Creates a new Tuple instance.
     // param: items - An iterable whose elements are copied into the tuple.
     constructor(items) {
-        this.items = copy(items)
+        this._items = copy(items)
     }
 
     // Retrieves the element at the given index (read‑only).
     // param: index - Zero‑based index.
     // return:s The element at that index.
     get(index) {
-        return this.items[index]
+        return this._items[index]
     }
 
     // Checks whether the tuple contains a specific value.
     // param: item - The value to look for.
     // return:s `true` if found, otherwise `false`.
     contains(item) {
-        return item in this.items
+        return item in this._items
     }
 
     // Returns the index of the first occurrence of the given value.
@@ -650,8 +661,8 @@ class Tuple {
     // return:s Zero‑based index, or -1 if not found.
     indexOf(item) {
 
-        for i in range(#this.items)
-            if this.items[i] == item
+        for i in range(#this._items)
+            if this._items[i] == item
                 return i
 
         return -1
@@ -667,7 +678,7 @@ class Tuple {
         let result = []
 
         for i in range(start, end, step)
-            result += this.items[i]
+            result += this._items[i]
 
         return Tuple(result)
     }
@@ -675,39 +686,25 @@ class Tuple {
     // Returns the first element of the tuple.
     // return:s The element at index 0.
     first() {
-        return this.items[0]
+        return this._items[0]
     }
 
     // Returns the last element of the tuple.
     // return:s The element at index -1.
     last() {
-        return this.items[-1]
+        return this._items[-1]
     }
 
     // Returns the number of elements in the tuple.
     // return:s The length.
     length() {
-        return #this.items
+        return #this._items
     }
 
     // Creates an Iterator for this tuple.
     // return:s A new Iterator that yields elements in order.
     iterator() {
-
-        let i = 0
-        let data = this.items
-
-        return Iterator(() -> {
-
-            if i >= #data
-                return nil
-
-            let value = data[i]
-
-            i += 1
-
-            return value
-        })
+        return Iterator(this._items)
     }
 
     // Returns a string representation of the tuple, e.g., "(1, 2, 3)".
@@ -716,10 +713,10 @@ class Tuple {
 
         let result = "("
 
-        for item in this.items
+        for item in this._items
             result += as_string(item) + ", "
 
-        if #this.items > 0
+        if #this._items > 0
             result = result[:-2]
 
         result += ")"
@@ -740,38 +737,62 @@ class String {
     // Creates a new String wrapper.
     // param: value - A primitive string or any value that can be converted to string via `as_string()`.
     constructor(value) {
-        this.value = as_string(value)
+        this._value = as_string(value)
     }
 
     // Returns the length of the string.
     // return:s Number of characters.
     length() {
-        return #this.value
+        return #this._value
     }
 
     // Converts the string to uppercase.
     // return:s A new String in uppercase.
     upper() {
-        return String(upper(this.value))
+        return String(upper(this._value))
     }
 
     // Converts the string to lowercase.
     // return:s A new String in lowercase.
     lower() {
-        return String(lower(this.value))
+        return String(lower(this._value))
     }
 
     // Removes leading and trailing whitespace.
     // return:s A new trimmed String.
     trim() {
-        return String(trim(this.value))
+        return String(trim(this._value))
     }
 
     // Splits the string by a separator into a List of substrings.
     // param: separator - The delimiter string.
     // return:s A List of substrings.
     split(separator) {
-        return List(split(this.value, separator))
+        let result = []
+
+        if #separator == 0 {
+            for i in range(#this._value)
+                result += this._value[i]
+
+            return List(result)
+        }
+
+        let start = 0
+        let i = 0
+
+        while i <= #this._value - #separator {
+            if this._value[i:i + #separator] == separator {
+                result += this._value[start:i]
+                i += #separator
+                start = i
+            } else {
+                i += 1
+            }
+        }
+
+        result += this._value[start:]
+
+        return List(result)
     }
 
     // Replaces all occurrences of `old` with `new`.
@@ -779,28 +800,31 @@ class String {
     // param: new - The replacement substring.
     // return:s A new String with replacements.
     replace(old, new) {
-        return String(replace(this.value, old, new))
+        return String(str_replace(this._value, old, new))
     }
 
     // Checks if the string contains a given substring.
     // param: text - The substring to search for.
     // return:s `true` if found, otherwise `false`.
     contains(text) {
-        return contains(this.value, text)
+        return contains(this._value, text)
     }
 
     // Checks if the string starts with a given prefix.
     // param: prefix - The prefix to test.
     // return:s `true` if it starts with `prefix`, otherwise `false`.
     startsWith(prefix) {
-        return startswith(this.value, prefix)
+        return this._value[:#prefix] == prefix
     }
 
     // Checks if the string ends with a given suffix.
     // param: suffix - The suffix to test.
     // return:s `true` if it ends with `suffix`, otherwise `false`.
     endsWith(suffix) {
-        return endswith(this.value, suffix)
+        if #suffix == 0
+            return true
+
+        return this._value[#this._value - #suffix:] == suffix
     }
 
     // Extracts a substring from `start` (inclusive) to `end` (exclusive).
@@ -808,20 +832,20 @@ class String {
     // param: end - End index (default length).
     // return:s A new String containing the extracted portion.
     substring(start, end) {
-        return String(this.value[start:end])
+        return String(this._value[start:end])
     }
 
     // Returns the character at a specific index.
     // param: index - Zero‑based position.
     // return:s The character as a string.
     charAt(index) {
-        return this.value[index]
+        return this._value[index]
     }
 
     // Reverses the string.
     // return:s A new String with characters in reverse order.
     reverse() {
-        return String(this.value[::-1])
+        return String(this._value[::-1])
     }
 
     // Repeats the string a given number of times.
@@ -832,7 +856,7 @@ class String {
         let result = ""
 
         for i in range(count)
-            result += this.value
+            result += this._value
 
         return String(result)
     }
@@ -840,39 +864,30 @@ class String {
     // Checks if the string is empty (length 0).
     // return:s `true` if empty, otherwise `false`.
     isEmpty() {
-        return #this.value == 0
+        return #this._value == 0
     }
 
     // Converts the string to a number. If conversion fails, the behavior depends on the built‑in `number()`.
     // return:s The numeric value, or possibly `nil` or a default.
     toNumber() {
-        return number(this.value)
+        return as_num(this._value)
     }
 
     // Creates an Iterator that yields each character of the string one by one.
     // return:s A new Iterator producing single‑character strings.
     iterator() {
+        let chars = []
 
-        let i = 0
-        let data = this.value
+        for i in range(#this._value)
+            chars += this._value[i]
 
-        return Iterator(() -> {
-
-            if i >= #data
-                return nil
-
-            let value = data[i]
-
-            i += 1
-
-            return value
-        })
+        return Iterator(chars)
     }
 
     // Returns the underlying primitive string.
     // return:s The string value.
     format() {
-        return this.value
+        return this._value
     }
 }
 
@@ -888,44 +903,44 @@ class Number {
     // Creates a new Number wrapper.
     // param: value - A numeric primitive.
     constructor(value) {
-        this.value = value
+        this._value = value
     }
 
     // Returns the absolute value.
     // return:s A new Number representing the absolute value.
     abs() {
-        return Number(abs(this.value))
+        return Number(abs(this._value))
     }
 
     // Returns the floor (largest integer ≤ the value).
     // return:s A new Number representing the floor.
     floor() {
-        return Number(floor(this.value))
+        return Number(math_floor(this._value))
     }
 
     // Returns the ceiling (smallest integer ≥ the value).
     // return:s A new Number representing the ceiling.
     ceil() {
-        return Number(ceil(this.value))
+        return Number(math_ceil(this._value))
     }
 
     // Rounds to the nearest integer (standard rounding, .5 rounds up).
     // return:s A new Number representing the rounded value.
     round() {
-        return Number(round(this.value))
+        return Number(math_floor(this._value + 0.5))
     }
 
     // Returns the square root.
     // return:s A new Number representing the square root.
     sqrt() {
-        return Number(sqrt(this.value))
+        return Number(math_sqrt(this._value))
     }
 
     // Raises the number to a given power.
     // param: n - The exponent.
     // return:s A new Number representing `value ^ n`.
     pow(n) {
-        return Number(this.value ^ n)
+        return Number(this._value ** n)
     }
 
     // Clamps the number between a minimum and maximum value (inclusive).
@@ -934,25 +949,25 @@ class Number {
     // return:s A new Number clamped to the range [minv, maxv].
     clamp(minv, maxv) {
 
-        if this.value < minv
+        if this._value < minv
             return Number(minv)
 
-        if this.value > maxv
+        if this._value > maxv
             return Number(maxv)
 
-        return Number(this.value)
+        return Number(this._value)
     }
 
     // Checks if the number is an integer (no fractional part).
     // return:s `true` if the value is an integer, otherwise `false`.
     isInteger() {
-        return this.value % 1 == 0
+        return this._value % 1 == 0
     }
 
     // Returns the primitive number as a string.
     // return:s String representation.
     format() {
-        return as_string(this.value)
+        return as_string(this._value)
     }
 }
 
@@ -967,13 +982,13 @@ class Boolean {
     // Creates a new Boolean wrapper.
     // param: value - Any value; it is coerced to a boolean using `!!`.
     constructor(value) {
-        this.value = !!value
+        this._value = !!value
     }
 
     // Toggles the boolean value (true becomes false, false becomes true).
     // return:s The Boolean instance (for chaining).
     toggle() {
-        this.value = !this.value
+        this._value = !this._value
         return this
     }
 
@@ -981,7 +996,7 @@ class Boolean {
     // return:s "true" if the value is true, otherwise "false".
     format() {
 
-        if this.value
+        if this._value
             return "true"
 
         return "false"
@@ -1001,11 +1016,11 @@ class Map {
     // param: entries - An optional iterable of [key, value] pairs to initialize the map.
     constructor(entries) {
 
-        this.data = {}
+        this._data = {}
 
         if entries != nil
             for pair in entries
-                this.data[pair[0]] = pair[1]
+                this._data[pair[0]] = pair[1]
     }
 
     // Associates a key with a value.
@@ -1013,7 +1028,7 @@ class Map {
     // param: value - The value to store.
     // return:s The Map instance (for chaining).
     set(key, value) {
-        this.data[key] = value
+        this._data[key] = value
         return this
     }
 
@@ -1023,8 +1038,8 @@ class Map {
     // return:s The associated value, or the default.
     get(key, defaultValue) {
 
-        if key in this.data
-            return this.data[key]
+        if key in this._data
+            return this._data[key]
 
         return defaultValue
     }
@@ -1033,7 +1048,7 @@ class Map {
     // param: key - The key to delete.
     // return:s The Map instance (for chaining).
     remove(key) {
-        remove(this.data, key)
+        remove(this._data, key)
         return this
     }
 
@@ -1041,32 +1056,37 @@ class Map {
     // param: key - The key to check.
     // return:s `true` if the key exists, otherwise `false`.
     has(key) {
-        return key in this.data
+        return key in this._data
     }
 
     // Removes all key‑value pairs from the map.
     // return:s The Map instance (for chaining).
     clear() {
-        this.data = {}
+        this._data = {}
         return this
     }
 
     // Returns a List of all keys in the map.
     // return:s A List containing the keys.
     keys() {
-        return List(keys(this.data))
+        return List(keys(this._data))
     }
 
     // Returns a List of all values in the map.
     // return:s A List containing the values.
     values() {
-        return List(values(this.data))
+        return List(values(this._data))
     }
 
     // Returns a List of [key, value] pairs for each entry in the map.
     // return:s A List of two‑element Lists (or Tuples?).
     entries() {
-        return List(entries(this.data))
+        let result = []
+
+        for key in keys(this._data)
+            result += [key, this._data[key]]
+
+        return List(result)
     }
 
     // Merges another map into this one, overwriting existing keys.
@@ -1074,8 +1094,8 @@ class Map {
     // return:s The Map instance (for chaining).
     merge(other) {
 
-        for entry in other.entries()
-            this.data[entry[0]] = entry[1]
+        for entry in other.entries()._items
+            this._data[entry[0]] = entry[1]
 
         return this
     }
@@ -1083,13 +1103,13 @@ class Map {
     // Checks if the map is empty (no keys).
     // return:s `true` if the map has no entries, otherwise `false`.
     isEmpty() {
-        return #keys(this.data) == 0
+        return #keys(this._data) == 0
     }
 
     // Returns the number of key‑value pairs in the map.
     // return:s The size of the map.
     length() {
-        return #keys(this.data)
+        return #keys(this._data)
     }
 
     // Returns a string representation of the map, e.g., "{a: 1, b: 2}".
@@ -1098,7 +1118,7 @@ class Map {
 
         let result = "{"
 
-        for entry in entries(this.data)
+        for entry in this.entries()._items
             result += as_string(entry[0]) + ": " + as_string(entry[1]) + ", "
 
         if this.length() > 0
@@ -1122,7 +1142,7 @@ class Set {
     // param: items - An optional iterable whose elements are added to the set (duplicates ignored).
     constructor(items) {
 
-        this.items = []
+        this._items = []
 
         if items != nil
             for item in items
@@ -1134,8 +1154,8 @@ class Set {
     // return:s The Set instance (for chaining).
     add(item) {
 
-        if !(item in this.items)
-            this.items += item
+        if !(item in this._items)
+            this._items += item
 
         return this
     }
@@ -1147,11 +1167,11 @@ class Set {
 
         let result = []
 
-        for value in this.items
+        for value in this._items
             if value != item
                 result += value
 
-        this.items = result
+        this._items = result
 
         return this
     }
@@ -1160,7 +1180,7 @@ class Set {
     // param: item - The element to check.
     // return:s `true` if present, otherwise `false`.
     contains(item) {
-        return item in this.items
+        return item in this._items
     }
 
     // Returns a new Set that is the union of this set and another set (all elements from both).
@@ -1168,9 +1188,9 @@ class Set {
     // return:s A new Set containing elements from both sets.
     union(other) {
 
-        let result = Set(this.items)
+        let result = Set(this._items)
 
-        for item in other.items
+        for item in other._items
             result.add(item)
 
         return result
@@ -1183,7 +1203,7 @@ class Set {
 
         let result = Set([])
 
-        for item in this.items
+        for item in this._items
             if other.contains(item)
                 result.add(item)
 
@@ -1197,7 +1217,7 @@ class Set {
 
         let result = Set([])
 
-        for item in this.items
+        for item in this._items
             if !other.contains(item)
                 result.add(item)
 
@@ -1207,52 +1227,38 @@ class Set {
     // Removes all elements from the set.
     // return:s The Set instance (for chaining).
     clear() {
-        this.items = []
+        this._items = []
         return this
     }
 
     // Converts the set to a List (order may be arbitrary).
     // return:s A new List containing the set's elements.
     toList() {
-        return List(this.items)
+        return List(this._items)
     }
 
     // Checks if the set is empty.
     // return:s `true` if empty, otherwise `false`.
     isEmpty() {
-        return #this.items == 0
+        return #this._items == 0
     }
 
     // Returns the number of elements in the set.
     // return:s The size.
     length() {
-        return #this.items
+        return #this._items
     }
 
     // Creates an Iterator for the set.
     // return:s A new Iterator that yields elements in the internal array order.
     iterator() {
-
-        let i = 0
-        let data = this.items
-
-        return Iterator(() -> {
-
-            if i >= #data
-                return nil
-
-            let value = data[i]
-
-            i += 1
-
-            return value
-        })
+        return Iterator(this._items)
     }
 
     // Returns a string representation, e.g., "Set([1, 2, 3])".
     // return:s Formatted string.
     format() {
-        return "Set(" + as_string(this.items) + ")"
+        return "Set(" + as_string(this._items) + ")"
     }
 }
 
@@ -1271,9 +1277,9 @@ class Range {
     // param: step - The increment or decrement between values (positive for upward, negative for downward).
     constructor(start, end, step) {
 
-        this.start = start
-        this.end = end
-        this.step = step
+        this._start = start
+        this._end = end
+        this._step = step
     }
 
     // Collects all values in the range into a List.
@@ -1282,7 +1288,7 @@ class Range {
 
         let result = []
 
-        for i in range(this.start, this.end, this.step)
+        for i in range(this._start, this._end, this._step)
             result += i
 
         return List(result)
@@ -1291,25 +1297,7 @@ class Range {
     // Creates an Iterator for the range.
     // return:s A new Iterator that yields successive numbers according to start, end, and step.
     iterator() {
-
-        let current = this.start
-        let end = this.end
-        let step = this.step
-
-        return Iterator(() -> {
-
-            if step > 0 && current >= end
-                return nil
-
-            if step < 0 && current <= end
-                return nil
-
-            let value = current
-
-            current += step
-
-            return value
-        })
+        return Iterator(this.collect()._items)
     }
 
     // Returns a string representation, e.g., "Range(0, 10, 1)".
@@ -1317,9 +1305,9 @@ class Range {
     format() {
 
         return "Range(" +
-            as_string(this.start) + ", " +
-            as_string(this.end) + ", " +
-            as_string(this.step) + ")"
+            as_string(this._start) + ", " +
+            as_string(this._end) + ", " +
+            as_string(this._step) + ")"
     }
 }
 
@@ -1334,14 +1322,14 @@ class Stack {
 
     // Creates a new empty Stack.
     constructor() {
-        this.items = []
+        this._items = []
     }
 
     // Adds an item to the top of the stack.
     // param: item - The item to push.
     // return:s The Stack instance (for chaining).
     push(item) {
-        this.items += item
+        this._items += item
         return this
     }
 
@@ -1349,8 +1337,8 @@ class Stack {
     // return:s The popped item.
     pop() {
 
-        let value = this.items[-1]
-        this.items = this.items[:-1]
+        let value = this._items[-1]
+        this._items = this._items[:-1]
 
         return value
     }
@@ -1358,32 +1346,32 @@ class Stack {
     // Returns the top item of the stack without removing it.
     // return:s The top item.
     peek() {
-        return this.items[-1]
+        return this._items[-1]
     }
 
     // Removes all items from the stack.
     // return:s The Stack instance (for chaining).
     clear() {
-        this.items = []
+        this._items = []
         return this
     }
 
     // Checks whether the stack is empty.
     // return:s `true` if empty, otherwise `false`.
     isEmpty() {
-        return #this.items == 0
+        return #this._items == 0
     }
 
     // Returns the number of items in the stack.
     // return:s The size.
     length() {
-        return #this.items
+        return #this._items
     }
 
     // Returns a string representation, e.g., "Stack([1, 2, 3])".
     // return:s Formatted string.
     format() {
-        return "Stack(" + as_string(this.items) + ")"
+        return "Stack(" + as_string(this._items) + ")"
     }
 }
 
@@ -1398,14 +1386,14 @@ class Queue {
 
     // Creates a new empty Queue.
     constructor() {
-        this.items = []
+        this._items = []
     }
 
     // Adds an item to the back of the queue.
     // param: item - The item to enqueue.
     // return:s The Queue instance (for chaining).
     enqueue(item) {
-        this.items += item
+        this._items += item
         return this
     }
 
@@ -1413,9 +1401,9 @@ class Queue {
     // return:s The dequeued item.
     dequeue() {
 
-        let value = this.items[0]
+        let value = this._items[0]
 
-        this.items = this.items[1:]
+        this._items = this._items[1:]
 
         return value
     }
@@ -1423,31 +1411,31 @@ class Queue {
     // Returns the front item of the queue without removing it.
     // return:s The front item.
     peek() {
-        return this.items[0]
+        return this._items[0]
     }
 
     // Removes all items from the queue.
     // return:s The Queue instance (for chaining).
     clear() {
-        this.items = []
+        this._items = []
         return this
     }
 
     // Checks whether the queue is empty.
     // return:s `true` if empty, otherwise `false`.
     isEmpty() {
-        return #this.items == 0
+        return #this._items == 0
     }
 
     // Returns the number of items in the queue.
     // return:s The size.
     length() {
-        return #this.items
+        return #this._items
     }
 
     // Returns a string representation, e.g., "Queue([1, 2, 3])".
     // return:s Formatted string.
     format() {
-        return "Queue(" + as_string(this.items) + ")"
+        return "Queue(" + as_string(this._items) + ")"
     }
 }

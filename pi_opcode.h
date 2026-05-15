@@ -66,6 +66,8 @@ typedef enum
     OP_COMP_APPEND = 0x49,
     OP_PUSH_SET = 0x4a,
     OP_PUSH_TUPLE = 0x4b,
+    OP_GET_MEMBER = 0x4c,
+    OP_SET_MEMBER = 0x4d,
 
 } OpCode;
 
