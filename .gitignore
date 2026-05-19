@@ -22,6 +22,10 @@
 *.out
 *.wasm
 
+# web files
+*.js
+*.html
+
 
 # Debug files
 *.log
@@ -36,7 +40,7 @@ build/
 dist/
 bin/
 emsdk/
-docs/
+# docs/
 micrograd/
 editors/
 website/
@@ -58,8 +62,7 @@ emscripten_cache/
 
 #site
 
-piscript-site/
-
+website/
 #formatter and minifiers
 # JS/
 

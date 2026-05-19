@@ -210,6 +210,9 @@ Value pi_insert(vm_t *vm, int argc, Value *argv)
     Value _index = argv[1];
     Value value = argv[2];
 
+    if (!IS_NUM(_index))
+        vm_error(vm, "[insert] index must be a number.");
+
     int index = as_number(_index);
 
     if (IS_LIST(collection))
@@ -274,6 +277,9 @@ Value pi_remove(vm_t *vm, int argc, Value *argv)
 
     Value collection = argv[0];
     Value _index = argv[1];
+
+    if ((IS_LIST(collection) || IS_STRING(collection)) && !IS_NUM(_index))
+        vm_error(vm, "[remove] index must be a number.");
 
     // Handle list removal
     if (IS_LIST(collection))
@@ -356,6 +362,9 @@ Value pi_len(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[len] expects at least one argument.");
 
     Value arg = argv[0];
+    if (!IS_OBJ(arg))
+        vm_error(vm, "[len] argument must be a list, string, map, set, tuple, or tensor.");
+
     switch (OBJ_TYPE(arg))
     {
     case OBJ_LIST:
@@ -397,7 +406,7 @@ Value pi_range(vm_t *vm, int argc, Value *argv)
         start = AS_NUM(argv[0]);
         end = AS_NUM(argv[1]);
     }
-    else if (argc == 3)
+    else if (argc >= 3)
     {
         // range(start, end, step)
         if (!IS_NUM(argv[0]) || !IS_NUM(argv[1]) || !IS_NUM(argv[2]))
@@ -414,6 +423,35 @@ Value pi_range(vm_t *vm, int argc, Value *argv)
 
     Object *range_obj = new_range(start, end, step);
     return NEW_OBJ(range_obj);
+}
+
+Value pi_peek(vm_t *vm, int argc, Value *argv)
+{
+    if (argc == 0)
+        vm_error(vm, "[peek] expects at least one argument.");
+
+    Value arg = argv[0];
+
+    if (IS_LIST(arg))
+    {
+        list_t *list = AS_CLIST(arg);
+        if (list->size == 0)
+            vm_error(vm, "[peek] Cannot peek from an empty list.");
+        return *(Value *)list_getAt(list, list->size - 1);
+    }
+    else if (IS_STRING(arg))
+    {
+        PiString *str = (PiString *)AS_OBJ(arg);
+        int len = str->length;
+        if (len == 0)
+            vm_error(vm, "[peek] Cannot peek from an empty string.");
+
+        char ch[2] = {str->chars[len - 1], '\0'};
+        return NEW_OBJ(new_pistring(strdup(ch)));
+    }
+
+    vm_error(vm, "[peek] Argument must be a list or a string.");
+    return NEW_NIL();
 }
 
 /**
@@ -492,7 +530,7 @@ Value pi_intersection(vm_t *vm, int argc, Value *argv)
  */
 Value pi_difference(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2)
+    if (argc < 2)
         vm_error(vm, "[difference] expects two sets.");
 
     if (!IS_SET(argv[0]) || !IS_SET(argv[1]))
@@ -520,7 +558,7 @@ Value pi_difference(vm_t *vm, int argc, Value *argv)
  */
 Value pi_symmetricDiff(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2)
+    if (argc < 2)
         vm_error(vm, "[s_diff] expects two sets.");
 
     if (!IS_SET(argv[0]) || !IS_SET(argv[1]))
@@ -561,7 +599,7 @@ Value pi_symmetricDiff(vm_t *vm, int argc, Value *argv)
  */
 Value pi_issubset(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2)
+    if (argc < 2)
         vm_error(vm, "[issubset] expects two sets.");
 
     if (!IS_SET(argv[0]) || !IS_SET(argv[1]))
@@ -585,7 +623,7 @@ Value pi_issubset(vm_t *vm, int argc, Value *argv)
  */
 Value pi_issuperset(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2)
+    if (argc < 2)
         vm_error(vm, "[issuperset] expects two sets.");
 
     if (!IS_SET(argv[0]) || !IS_SET(argv[1]))
@@ -609,7 +647,7 @@ Value pi_issuperset(vm_t *vm, int argc, Value *argv)
  */
 Value pi_isdisjoint(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2)
+    if (argc < 2)
         vm_error(vm, "[isdisjoint] expects two sets.");
 
     if (!IS_SET(argv[0]) || !IS_SET(argv[1]))
@@ -671,7 +709,7 @@ Value _pi_set(vm_t *vm, int argc, Value *argv)
             {
                 char ch[2] = {str->chars[i], '\0'};
                 char *key = strdup(ch);
-                Value value = NEW_OBJ(new_pistring(strdup(ch)));
+                Value value = NEW_OBJ(add_obj(vm, new_pistring(strdup(ch))));
                 ht_put(table, key, &value);
                 free(key);
             }
@@ -683,13 +721,12 @@ Value _pi_set(vm_t *vm, int argc, Value *argv)
             {
                 Value *item = (Value *)list_getAt(tuple->items, i);
                 char *key = as_string(*item);
-                Value nil = NEW_NIL();
-                ht_set(table, key, &nil);
+                ht_put(table, key, item);
                 free(key);
             }
         }
         else
-            vm_error(vm, "[set] argument must be a list or set.");
+            vm_error(vm, "[set] argument must be a list, set, string, or tuple.");
     }
 
     return NEW_OBJ(new_set(table));
@@ -1399,6 +1436,9 @@ Value cl_repeat(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[repeat] expects two arguments: a collection and a repeat count.");
 
     Value collection = argv[0];
+    if (!IS_NUM(argv[1]))
+        vm_error(vm, "[repeat] repeat count must be a number.");
+
     int times = (int)as_number(argv[1]);
     if (times < 0)
         times = 0;
@@ -1645,7 +1685,10 @@ Value cl_zip(vm_t *vm, int argc, Value *argv)
 
 Value cl_isIterable(vm_t *vm, int argc, Value *argv)
 {
-    return is_iterable(AS_OBJ(argv[0])) ? NEW_BOOL(true) : NEW_BOOL(false);
+    if (argc < 1)
+        vm_error(vm, "[is_iterable] expects at least one argument.");
+
+    return NEW_BOOL(IS_OBJ(argv[0]) && is_iterable(AS_OBJ(argv[0])));
 }
 
 // Module definition

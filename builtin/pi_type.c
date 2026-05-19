@@ -96,7 +96,7 @@ Value pi_asBool(vm_t *vm, int argc, Value *argv)
 
 Value tp_is(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2)
+    if (argc < 2)
         vm_error(vm, "[is] expects two arguments: a value and a type string.");
 
     if (!IS_STRING(argv[1]))

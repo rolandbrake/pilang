@@ -110,8 +110,8 @@ static int inferred_arity(Function *fn)
  */
 Value _pi_map(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2 || !IS_LIST(argv[0]) || !IS_FUN(argv[1]))
-        vm_error(vm, "map(fn, list): expects a function and a list");
+    if (argc < 2 || !IS_LIST(argv[0]) || !IS_FUN(argv[1]))
+        vm_error(vm, "map(list, fn): expects a list and a function");
 
     PiList *input = AS_LIST(argv[0]);
     Function *fn = AS_FUN(argv[1]);
@@ -155,8 +155,8 @@ Value _pi_map(vm_t *vm, int argc, Value *argv)
  */
 Value pi_filter(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2 || !IS_LIST(argv[0]) || !IS_FUN(argv[1]))
-        vm_error(vm, "filter(fn, list): expects a function and a list");
+    if (argc < 2 || !IS_LIST(argv[0]) || !IS_FUN(argv[1]))
+        vm_error(vm, "filter(list, fn): expects a list and a function");
 
     PiList *input = AS_LIST(argv[0]);
     Function *fn = AS_FUN(argv[1]);
@@ -189,15 +189,15 @@ Value pi_filter(vm_t *vm, int argc, Value *argv)
 Value pi_reduce(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_LIST(argv[0]) || !IS_FUN(argv[1]))
-        vm_error(vm, "reduce(fn, list, [initial]): expects a function, a list, and optional initial value");
+        vm_error(vm, "reduce(list, fn, [initial]): expects a list, a function, and optional initial value");
 
     PiList *input = AS_LIST(argv[0]);
     Function *fn = AS_FUN(argv[1]);
     if (argc < 3 && input->items->size == 0)
-        vm_error(vm, "reduce(fn, list): cannot reduce an empty list without an initial value");
+        vm_error(vm, "reduce(list, fn): cannot reduce an empty list without an initial value");
 
-    Value acc = (argc == 3) ? argv[2] : *(Value *)list_getAt(input->items, 0);
-    int start = (argc == 3) ? 0 : 1;
+    Value acc = (argc >= 3) ? argv[2] : *(Value *)list_getAt(input->items, 0);
+    int start = (argc >= 3) ? 0 : 1;
 
     int size = input->items->size;
     for (int i = start; i < size; i++)
@@ -219,7 +219,7 @@ Value pi_reduce(vm_t *vm, int argc, Value *argv)
  */
 Value pi_find(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2 || !IS_FUN(argv[1]))
+    if (argc < 2 || !IS_FUN(argv[1]))
         vm_error(vm, "[find] expects two arguments: a function and a collection.");
 
     Value collection = argv[0];
@@ -393,11 +393,13 @@ static Value fn_curryCall(vm_t *vm, int argc, Value *argv)
 
 Value fn_curry(vm_t *vm, int argc, Value *argv)
 {
-    if (argc < 1 || argc > 2)
+    if (argc < 1)
         vm_error(vm, "curry(fn, [arity]): expects a function and optional arity");
 
     Function *fn = require_fun(vm, argv[0], "curry");
-    int arity = (argc == 2) ? (int)as_number(argv[1]) : inferred_arity(fn);
+    if (argc >= 2 && !IS_NUM(argv[1]))
+        vm_error(vm, "curry(fn, [arity]): arity must be a number");
+    int arity = (argc >= 2) ? (int)as_number(argv[1]) : inferred_arity(fn);
     if (arity <= 0)
         vm_error(vm, "curry(fn, [arity]): arity must be positive");
 
@@ -446,7 +448,7 @@ static Value fn_spreadCall(vm_t *vm, int argc, Value *argv)
     PiMap *state = current_stateMap(vm, "spread");
     Value fn_value = state_get(vm, state, "fn", NEW_NIL());
 
-    if (argc != 1 || !IS_LIST(argv[0]))
+    if (argc < 1 || !IS_LIST(argv[0]))
         vm_error(vm, "spread(fn): returned function expects a single list argument");
 
     PiList *items = AS_LIST(argv[0]);
@@ -462,7 +464,7 @@ static Value fn_spreadCall(vm_t *vm, int argc, Value *argv)
 
 Value fn_spread(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1)
+    if (argc < 1)
         vm_error(vm, "spread(fn): expects exactly one function");
 
     require_fun(vm, argv[0], "spread");
@@ -482,7 +484,7 @@ static Value fn_unspreadCall(vm_t *vm, int argc, Value *argv)
 
 Value fn_unspread(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1)
+    if (argc < 1)
         vm_error(vm, "unspread(fn): expects exactly one function");
 
     require_fun(vm, argv[0], "unspread");
@@ -519,16 +521,16 @@ static Value fn_memoizeCall(vm_t *vm, int argc, Value *argv)
 
 Value fn_memoize(vm_t *vm, int argc, Value *argv)
 {
-    if (argc < 1 || argc > 2)
+    if (argc < 1)
         vm_error(vm, "memoize(fn, [key_fn]): expects a function and optional key function");
 
     require_fun(vm, argv[0], "memoize");
-    if (argc == 2)
+    if (argc >= 2)
         require_fun(vm, argv[1], "memoize");
 
     PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
     state_set(state, "fn", argv[0]);
-    state_set(state, "key_fn", argc == 2 ? argv[1] : NEW_NIL());
+    state_set(state, "key_fn", argc >= 2 ? argv[1] : NEW_NIL());
     state_set(state, "cache", NEW_OBJ(add_obj(vm, new_map(ht_create(sizeof(Value)), false))));
     return make_nativeWrapper(vm, "memoize", fn_memoizeCall, (Object *)state);
 }
@@ -548,7 +550,7 @@ static Value fn_onceCall(vm_t *vm, int argc, Value *argv)
 
 Value fn_once(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1)
+    if (argc < 1)
         vm_error(vm, "once(fn): expects exactly one function");
 
     require_fun(vm, argv[0], "once");
@@ -578,7 +580,7 @@ static Value fn_throttleCall(vm_t *vm, int argc, Value *argv)
 
 Value fn_throttle(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2 || !IS_NUM(argv[0]))
+    if (argc < 2 || !IS_NUM(argv[0]))
         vm_error(vm, "throttle(ms, fn): expects a number and a function");
 
     require_fun(vm, argv[1], "throttle");
@@ -610,7 +612,7 @@ static Value fn_debounceCall(vm_t *vm, int argc, Value *argv)
 
 Value fn_debounce(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2 || !IS_NUM(argv[0]))
+    if (argc < 2 || !IS_NUM(argv[0]))
         vm_error(vm, "debounce(ms, fn): expects a number and a function");
 
     require_fun(vm, argv[1], "debounce");
@@ -625,9 +627,8 @@ Value fn_debounce(vm_t *vm, int argc, Value *argv)
 
 static Value fn_thunkCall(vm_t *vm, int argc, Value *argv)
 {
+    (void)argc;
     (void)argv;
-    if (argc != 0)
-        vm_error(vm, "thunk(fn, ...args): returned function expects no arguments");
 
     PiMap *state = current_stateMap(vm, "thunk");
     Value fn_value = state_get(vm, state, "fn", NEW_NIL());
@@ -658,9 +659,8 @@ Value fn_thunk(vm_t *vm, int argc, Value *argv)
 
 static Value fn_iterateCall(vm_t *vm, int argc, Value *argv)
 {
+    (void)argc;
     (void)argv;
-    if (argc != 0)
-        vm_error(vm, "iterate(seed, fn): returned generator expects no arguments");
 
     PiMap *state = current_stateMap(vm, "iterate");
     Value current = state_get(vm, state, "current", NEW_NIL());
@@ -672,7 +672,7 @@ static Value fn_iterateCall(vm_t *vm, int argc, Value *argv)
 
 Value fn_iterate(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2)
+    if (argc < 2)
         vm_error(vm, "iterate(seed, fn): expects a seed value and a function");
 
     require_fun(vm, argv[1], "iterate");
@@ -685,7 +685,7 @@ Value fn_iterate(vm_t *vm, int argc, Value *argv)
 
 Value fn_apply(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2 || !IS_FUN(argv[0]) || !IS_LIST(argv[1]))
+    if (argc < 2 || !IS_FUN(argv[0]) || !IS_LIST(argv[1]))
         vm_error(vm, "apply(fn, args): expects a function and a list");
 
     PiList *items = AS_LIST(argv[1]);

@@ -11,7 +11,7 @@
  */
 Value pi_mean(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1)
+    if (argc < 1)
         vm_error(vm, "[mean] expects exactly one argument: a list of numeric values.");
 
     Value arg = argv[0];

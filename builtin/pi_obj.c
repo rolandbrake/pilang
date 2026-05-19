@@ -265,15 +265,23 @@ Value pi_extends(vm_t *vm, int argc, Value *argv)
     PiMap *parent = NULL;
     PiMap *child = NULL;
 
-    if (argc == 2 && IS_MAP(argv[0]) && IS_MAP(argv[1]))
-    {
-        child = AS_MAP(argv[0]);
-        parent = AS_MAP(argv[1]);
-    }
-    else if (argc == 3 && IS_MAP(argv[1]) && IS_MAP(argv[2]))
+    if (argc >= 3 && IS_MAP(argv[1]) && IS_MAP(argv[2]))
     {
         parent = AS_MAP(argv[1]);
         child = AS_MAP(argv[2]);
+    }
+    else if (argc >= 2 && IS_MAP(argv[0]) && IS_MAP(argv[1]))
+    {
+        if (AS_MAP(argv[0]) == vm->object_proto)
+        {
+            parent = AS_MAP(argv[0]);
+            child = AS_MAP(argv[1]);
+        }
+        else
+        {
+            child = AS_MAP(argv[0]);
+            parent = AS_MAP(argv[1]);
+        }
     }
     else
         vm_error(vm, "[extends] expects either child.extends(parent) or Object.extends(parent, child).");
@@ -293,7 +301,7 @@ Value pi_equals(vm_t *vm, int argc, Value *argv)
     if (argc == 2)
         return NEW_BOOL(value_equals(argv[0], argv[1]));
 
-    if (argc == 3)
+    if (argc >= 3)
         return NEW_BOOL(value_equals(argv[1], argv[2]));
 
     vm_error(vm, "[equals] expects either obj.equals(other) or Object.equals(left, right).");
@@ -310,7 +318,7 @@ Value pi_ident(vm_t *vm, int argc, Value *argv)
         left = argv[0];
         right = argv[1];
     }
-    else if (argc == 3)
+    else if (argc >= 3)
     {
         left = argv[1];
         right = argv[2];
@@ -334,7 +342,7 @@ Value pi_compare(vm_t *vm, int argc, Value *argv)
         left = argv[0];
         right = argv[1];
     }
-    else if (argc == 3)
+    else if (argc >= 3)
     {
         left = argv[1];
         right = argv[2];
@@ -351,7 +359,7 @@ Value pi_type(vm_t *vm, int argc, Value *argv)
 
     if (argc == 1)
         target = argv[0];
-    else if (argc == 2)
+    else if (argc >= 2)
         target = argv[1];
     else
         vm_error(vm, "[type] expects either obj.type() or Object.type(value).");
@@ -369,16 +377,16 @@ Value pi_name(vm_t *vm, int argc, Value *argv)
 {
     PiMap *map;
 
-    if (argc == 1 && IS_MAP(argv[0]))
+    if (argc >= 2 && IS_MAP(argv[1]))
     {
-        map = AS_MAP(argv[0]);
+        map = AS_MAP(argv[1]);
         if (map->intrinsic_name == NULL)
             return NEW_NIL();
         return NEW_OBJ(add_obj(vm, new_pistring(strdup(map->intrinsic_name))));
     }
-    else if (argc == 2 && IS_MAP(argv[1]))
+    else if (argc >= 1 && IS_MAP(argv[0]))
     {
-        map = AS_MAP(argv[1]);
+        map = AS_MAP(argv[0]);
         if (map->intrinsic_name == NULL)
             return NEW_NIL();
         return NEW_OBJ(add_obj(vm, new_pistring(strdup(map->intrinsic_name))));
@@ -393,12 +401,12 @@ Value pi_setName(vm_t *vm, int argc, Value *argv)
     PiMap *map;
     const char *name;
 
-    if (argc == 2 && IS_MAP(argv[0]) && IS_STRING(argv[1]))
+    if (argc >= 2 && IS_MAP(argv[0]) && IS_STRING(argv[1]))
     {
         map = AS_MAP(argv[0]);
         name = AS_CSTRING(argv[1]);
     }
-    else if (argc == 3 && IS_MAP(argv[1]) && IS_STRING(argv[2]))
+    else if (argc >= 3 && IS_MAP(argv[1]) && IS_STRING(argv[2]))
     {
         map = AS_MAP(argv[1]);
         name = AS_CSTRING(argv[2]);
@@ -413,7 +421,7 @@ Value pi_setName(vm_t *vm, int argc, Value *argv)
         free(map->intrinsic_name);
     map->intrinsic_name = strdup(name);
 
-    if (argc == 2)
+    if (IS_MAP(argv[0]))
         return argv[0];
 
     return argv[1];
@@ -470,12 +478,12 @@ Value pi_get(vm_t *vm, int argc, Value *argv)
     PiMap *map;
     Value key;
 
-    if (argc == 2 && IS_MAP(argv[0]))
+    if (argc >= 2 && IS_MAP(argv[0]))
     {
         map = AS_MAP(argv[0]);
         key = argv[1];
     }
-    else if (argc == 3 && IS_MAP(argv[1]))
+    else if (argc >= 3 && IS_MAP(argv[1]))
     {
         map = AS_MAP(argv[1]);
         key = argv[2];
@@ -492,13 +500,13 @@ Value pi_set(vm_t *vm, int argc, Value *argv)
     Value key;
     Value value;
 
-    if (argc == 3 && IS_MAP(argv[0]))
+    if (argc >= 3 && IS_MAP(argv[0]))
     {
         map = AS_MAP(argv[0]);
         key = argv[1];
         value = argv[2];
     }
-    else if (argc == 4 && IS_MAP(argv[1]))
+    else if (argc >= 4 && IS_MAP(argv[1]))
     {
         map = AS_MAP(argv[1]);
         key = argv[2];
@@ -520,12 +528,12 @@ Value pi_has(vm_t *vm, int argc, Value *argv)
     PiMap *map;
     Value key;
 
-    if (argc == 2 && IS_MAP(argv[0]))
+    if (argc >= 2 && IS_MAP(argv[0]))
     {
         map = AS_MAP(argv[0]);
         key = argv[1];
     }
-    else if (argc == 3 && IS_MAP(argv[1]))
+    else if (argc >= 3 && IS_MAP(argv[1]))
     {
         map = AS_MAP(argv[1]);
         key = argv[2];
@@ -541,12 +549,12 @@ Value pi_delete(vm_t *vm, int argc, Value *argv)
     PiMap *map;
     Value key;
 
-    if (argc == 2 && IS_MAP(argv[0]))
+    if (argc >= 2 && IS_MAP(argv[0]))
     {
         map = AS_MAP(argv[0]);
         key = argv[1];
     }
-    else if (argc == 3 && IS_MAP(argv[1]))
+    else if (argc >= 3 && IS_MAP(argv[1]))
     {
         map = AS_MAP(argv[1]);
         key = argv[2];
@@ -567,7 +575,7 @@ Value pi_iterator(vm_t *vm, int argc, Value *argv)
 
     if (argc == 1)
         target = argv[0];
-    else if (argc == 2)
+    else if (argc >= 2)
         target = argv[1];
     else
         vm_error(vm, "[iterator] expects either obj.iterator() or Object.iterator(value).");
@@ -585,7 +593,7 @@ Value pi_next(vm_t *vm, int argc, Value *argv)
 
     if (argc == 1)
         target = argv[0];
-    else if (argc == 2)
+    else if (argc >= 2)
         target = argv[1];
     else
         vm_error(vm, "[next] expects either obj.next() or Object.next(value).");

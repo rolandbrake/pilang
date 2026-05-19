@@ -58,6 +58,7 @@ BuiltinFunc builtin_functions[] = {
     // Collections
     {"push", pi_push},
     {"pop", pi_pop},
+    {"peek", pi_peek},
     {"empty", pi_empty},
     {"insert", pi_insert},
     {"remove", pi_remove},

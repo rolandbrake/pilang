@@ -1,1 +1,19 @@
-println("Hello from Pi-Lang!")
+Point = {
+    x: 1,
+    y: 2
+}
+
+p = Point()
+assert(p.name() == nil, "objects should start without an intrinsic name")
+
+p.setName("player")
+assert(p.name() == "player", "name() should return the intrinsic name after setting it")
+assert(Object.name(p) == "player", "Object.name(obj) should read the intrinsic name")
+Object.setName(p, "hero")
+assert(p.name() == "hero", "Object.setName(obj, value) should update the intrinsic name")
+
+c = p.clone()
+assert(c.name() == "hero", "clone() should preserve the intrinsic name")
+
+println(p.name())
+println(c.name())

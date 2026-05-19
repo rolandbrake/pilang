@@ -150,7 +150,7 @@ double rand_num()
 Value pi_seed(vm_t *vm, int argc, Value *argv)
 {
     // Check if exactly one numeric argument is provided
-    if (argc != 1 || !is_numeric(argv[0]))
+    if (argc < 1 || !is_numeric(argv[0]))
         vm_error(vm, "[seed] expects a single numeric argument.");
 
     // Seed the RNG with the provided numeric value
@@ -1181,7 +1181,7 @@ Value mt_log10(vm_t *vm, int argc, Value *argv)
  */
 Value pi_pow(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2)
+    if (argc < 2)
         vm_error(vm, "[pow] expects exactly two arguments: base and exponent.");
 
     Value base = argv[0];
@@ -1285,12 +1285,12 @@ Value mt_linspace(vm_t *vm, int argc, Value *argv)
 
 Value mt_arange(vm_t *vm, int argc, Value *argv)
 {
-    if (argc < 2 || !is_numeric(argv[0]) || !is_numeric(argv[1]) || (argc == 3 && !is_numeric(argv[2])))
+    if (argc < 2 || !is_numeric(argv[0]) || !is_numeric(argv[1]) || (argc >= 3 && !is_numeric(argv[2])))
         vm_error(vm, "[arange] expects 2 or 3 numeric arguments: start, end, and optional step.");
 
     double start = as_number(argv[0]);
     double end = as_number(argv[1]);
-    double step = (argc == 3) ? as_number(argv[2]) : 1.0;
+    double step = (argc >= 3) ? as_number(argv[2]) : 1.0;
 
     if (step <= 0)
         vm_error(vm, "[arange] step must be a positive number.");

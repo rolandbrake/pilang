@@ -77,8 +77,8 @@ Value pi_assert(vm_t *vm, int argc, Value *argv)
  */
 Value pi_zen(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 0)
-        vm_error(vm, "[zen] expects no arguments.");
+    (void)argc;
+    (void)argv;
 
     return NEW_OBJ(new_pistring(strdup(
         " -------------------\n"
@@ -167,7 +167,7 @@ Value sy_path(vm_t *vm, int argc, Value *argv)
 
 Value sy_env(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1)
+    if (argc < 1)
         vm_error(vm, "[env] expects one argument.");
     char *key = as_string(argv[0]);
     char *value = getenv(key);

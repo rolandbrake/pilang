@@ -30,7 +30,7 @@
 
 Value fs_read(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || OBJ_TYPE(argv[0]) != OBJ_FILE)
+    if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
         vm_error(vm, "[read] expects a single file handler as argument.");
 
     ObjFile *file = AS_FILE(argv[0]);
@@ -48,7 +48,7 @@ Value fs_read(vm_t *vm, int argc, Value *argv)
 
     while (!feof(file->fp))
     {
-        if (length + buffer_size > capacity)
+        if (length + buffer_size + 1 > capacity)
         {
             capacity *= 2;
             char *new_content = realloc(content, capacity);
@@ -71,8 +71,7 @@ Value fs_read(vm_t *vm, int argc, Value *argv)
 
     content[length] = '\0';
 
-    Value result = NEW_OBJ(new_pistring(strdup(content)));
-    free(content); // assuming new_pistring makes a copy
+    Value result = NEW_OBJ(new_pistring(content));
     return result;
 }
 
@@ -86,7 +85,7 @@ Value fs_read(vm_t *vm, int argc, Value *argv)
  */
 Value fs_readlines(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || OBJ_TYPE(argv[0]) != OBJ_FILE)
+    if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
         vm_error(vm, "[readlines] expects a single file handler as argument.");
 
     ObjFile *file = AS_FILE(argv[0]);
@@ -104,7 +103,7 @@ Value fs_readlines(vm_t *vm, int argc, Value *argv)
 
     while (!feof(file->fp))
     {
-        if (length + buffer_size > capacity)
+        if (length + buffer_size + 1 > capacity)
         {
             capacity *= 2;
             char *new_content = realloc(content, capacity);
@@ -127,8 +126,7 @@ Value fs_readlines(vm_t *vm, int argc, Value *argv)
 
     content[length] = '\0';
 
-    Value result = NEW_OBJ(new_pistring(strdup(content)));
-    free(content); // assuming new_pistring makes a copy
+    Value result = NEW_OBJ(new_pistring(content));
     return result;
 }
 
@@ -190,7 +188,7 @@ Value fs_open(vm_t *vm, int argc, Value *argv)
 Value fs_seek(vm_t *vm, int argc, Value *argv)
 {
 
-    if (argc != 2 || OBJ_TYPE(argv[0]) != OBJ_FILE)
+    if (argc < 2 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
         vm_error(vm, "[seek] expects a file handler and a number as arguments.");
 
     ObjFile *file = AS_FILE(argv[0]);
@@ -219,7 +217,7 @@ Value fs_seek(vm_t *vm, int argc, Value *argv)
 Value fs_write(vm_t *vm, int argc, Value *argv)
 {
 
-    if (argc != 2 || OBJ_TYPE(argv[0]) != OBJ_FILE)
+    if (argc < 2 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
         vm_error(vm, "[write] expects a file handler and a string as arguments.");
 
     if (!IS_STRING(argv[1]))
@@ -243,7 +241,7 @@ Value fs_write(vm_t *vm, int argc, Value *argv)
 Value fs_append(vm_t *vm, int argc, Value *argv)
 {
 
-    if (argc != 2 || OBJ_TYPE(argv[0]) != OBJ_FILE)
+    if (argc < 2 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
         vm_error(vm, "[append] expects a file handler and a string as arguments.");
 
     if (!IS_STRING(argv[1]))
@@ -275,7 +273,7 @@ Value fs_append(vm_t *vm, int argc, Value *argv)
 Value fs_close(vm_t *vm, int argc, Value *argv)
 {
 
-    if (argc != 1 || OBJ_TYPE(argv[0]) != OBJ_FILE)
+    if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
         vm_error(vm, "[close] expects a file handler as argument.");
 
     ObjFile *file = AS_FILE(argv[0]);
@@ -297,7 +295,7 @@ Value fs_close(vm_t *vm, int argc, Value *argv)
  */
 Value fs_exists(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[exists] expects a string path as argument.");
 
     const char *path = AS_CSTRING(argv[0]);
@@ -323,7 +321,7 @@ Value fs_exists(vm_t *vm, int argc, Value *argv)
  */
 Value fs_isfile(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[isfile] expects a string path as argument.");
 
     struct stat st;
@@ -344,7 +342,7 @@ Value fs_isfile(vm_t *vm, int argc, Value *argv)
  */
 Value fs_isdir(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[isdir] expects a string path as argument.");
 
     struct stat st;
@@ -365,7 +363,7 @@ Value fs_isdir(vm_t *vm, int argc, Value *argv)
  */
 Value fs_size(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[size] expects a string path as argument.");
 
     struct stat st;
@@ -386,7 +384,7 @@ Value fs_size(vm_t *vm, int argc, Value *argv)
  */
 Value fs_abspath(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[abspath] expects a string path as argument.");
 
     const char *path = AS_CSTRING(argv[0]);
@@ -420,7 +418,7 @@ Value fs_abspath(vm_t *vm, int argc, Value *argv)
  */
 Value fs_basename(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[basename] expects a string.");
 
     const char *path = AS_CSTRING(argv[0]);
@@ -452,7 +450,7 @@ Value fs_basename(vm_t *vm, int argc, Value *argv)
  */
 Value fs_dirname(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[dirname] expects a string as argument.");
 
     // Duplicate the path to avoid modifying the original string
@@ -491,7 +489,7 @@ Value fs_dirname(vm_t *vm, int argc, Value *argv)
  */
 Value fs_ext(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[ext] expects a string.");
 
     const char *path = AS_CSTRING(argv[0]);
@@ -516,7 +514,7 @@ Value fs_ext(vm_t *vm, int argc, Value *argv)
 Value fs_join(vm_t *vm, int argc, Value *argv)
 {
     // Check argument count and types
-    if (argc != 2 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]))
+    if (argc < 2 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]))
         vm_error(vm, "[join] expects two strings.");
 
     // Get the path strings
@@ -553,7 +551,7 @@ Value fs_join(vm_t *vm, int argc, Value *argv)
 Value fs_mkdir(vm_t *vm, int argc, Value *argv)
 {
     // Check argument count and type
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[mkdir] expects a string path.");
 
     // Get the path string
@@ -590,7 +588,7 @@ Value fs_mkdir(vm_t *vm, int argc, Value *argv)
 Value fs_rmdir(vm_t *vm, int argc, Value *argv)
 {
     // Check argument count and type
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[rmdir] expects a string path as argument.");
 
     // Get the path string
@@ -618,7 +616,7 @@ Value fs_rmdir(vm_t *vm, int argc, Value *argv)
 Value fs_listdir(vm_t *vm, int argc, Value *argv)
 {
     // Check argument count and types
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[listdir] expects a path.");
 
     // Open the directory
@@ -676,7 +674,7 @@ Value fs_cwd(vm_t *vm, int argc, Value *argv)
 Value fs_chdir(vm_t *vm, int argc, Value *argv)
 {
     // Check argument count and types
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[chdir] expects a path.");
 
     // Change the current working directory
@@ -698,7 +696,7 @@ Value fs_chdir(vm_t *vm, int argc, Value *argv)
 Value fs_copy(vm_t *vm, int argc, Value *argv)
 {
     // Check argument count and types
-    if (argc != 2 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]))
+    if (argc < 2 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]))
         vm_error(vm, "[copy] expects src and dst.");
 
     // Open source and destination files
@@ -739,7 +737,7 @@ Value fs_copy(vm_t *vm, int argc, Value *argv)
 Value fs_move(vm_t *vm, int argc, Value *argv)
 {
     // Check argument count and types
-    if (argc != 2 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]))
+    if (argc < 2 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]))
         vm_error(vm, "[move] expects src and dst.");
 
     // Rename the file or directory
@@ -761,7 +759,7 @@ Value fs_move(vm_t *vm, int argc, Value *argv)
 Value fs_delete(vm_t *vm, int argc, Value *argv)
 {
     // Check argument count and types
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[delete] expects a path.");
 
     // Delete the file or directory

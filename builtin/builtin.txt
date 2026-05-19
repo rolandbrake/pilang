@@ -1,226 +1,432 @@
----------------------------
-Audio Processing Functions:
----------------------------
-audio
-sound
-play
-stop
+Pi-Lang Builtins
+================
 
-----------------------------------
-Collection Manipulation Functions:
-----------------------------------
+Global Constants
+----------------
+INF
+NAN
 
-pop
-push
-peek
-empty
-sort
-insert (add element at specified index)
-remove (remove element from provided index)
-unshift
-append (append elements to the end of the collection)
-find (find an element inside a collection return the index)
-contains
-index_of
-len 
-range
+Global Time
+-----------
+sleep
+time
 
-----------------------------------
-Map/Object Manipulation Functions:
-----------------------------------
+Global Input/Output
+-------------------
+println
+print
+printf
+log
+input
 
-keys
-vals    
-
-
----------------------------------
-Functional Programming Functions:
----------------------------------
-
-map (map a lambda function to a list of element, return the result)
-reduce 
-fill
-join    
-reverse
-slice
-filter
-clone
-cont
-
------------------------
-Input/Output FUnctions:
------------------------
-
-println(str1, str2, ...)
-print(str1, str2, ...)
-printf(format, val1, val2, ...) //e.g printf("Hello, World!{0}\n", 3);
-text(x, y, txt, color) // draw text on screen
-key(key_name, once) 
-input(discr) // input value from standard input
-
-------------------------------
-Matrix Manipulation Functions:
-------------------------------
-
-zeros
-ones
-eye
-mult
-dot
-cross
-rand_m
-is_mat (return true if the given argument is a matrix)
-size
-
------------------------
-Mathematical Functions:
------------------------
-these functions can take one numerical value or a list of numerical values
-(floor ceil round sqrt sin cos tan asin acos atan deg rad exp log2 log10 pow abs) 
-floor
-ceil
-round
-rand (generate random number between 0 and 1)
-rand_n(size) (return a list of random numbers of size [size])
-rand_i(min, max) (generate a random integer number between min and max)
-sqrt
-sin
-cos
-tan
-asin
-acos
-atan
-deg
-rad
-sum(list) (sum of a list of numbers)
-exp
-log2
-log10
-pow        
+Global Math
+-----------
 abs
-mean
-avg
-var
-dev
-median
-std
-mode
-max(list)
-min(list)
+min
+max
+pow
+round
+seed
+rand
+rand_n
 
----------------------------
-Screen Rendering Functions:
----------------------------
-
-pixel
-line
-draw
-clear
-circ
-rect
-poly
-sprite
-color (return the color of specified pixels)
-
-
-------------------------------
-String Manipulation Functions:
-------------------------------
-
+Global String
+-------------
 char
 ord
 trim
 upper
 lower
-replace
-split
-join
 
-is_upper
-is_lower
-is_digit
-is_numeric
-is_alpha
-is_alnum
+Global System
+-------------
+error
+assert
+zen
 
-
----------------
-Time Functions:
----------------
-
-sleep
-time
-
----------------
-Type Functions:
----------------
-
+Global Type
+-----------
 type
-
-is_list
-is_map
 is_num
 is_str
 is_bool
-is_inf  
-
-as_list
+is_list
+is_map
 as_num
-as_str
+as_string
 as_bool
 
-
------------------
-System Functions:
------------------
-fps
-error
-cursor
-mouse
-
-
-
---------------
-File Handling:
---------------
-open
-read
-write
-seek
-close
-
----------------------
-3D Graphics Rendering
----------------------
-
-load3d
-proj3d
-rot3d
-scale3d
-tran3d
-
-
+Global Collections
 ------------------
-IMAGE Manipulation
+push
+pop
+peek
+empty
+insert
+remove
+slice
+len
+tuple
+contains
+index
+count
+concat
+repeat
+range
+copy
+set
+union
+intersection
+difference
+symmetric_diff
+issubset
+issuperset
+isdisjoint
+
+Global Functional
+-----------------
+map
+filter
+reduce
+find
+
+Global Object
+-------------
+clone
+values
+keys
+
+Object Prototype Methods
+------------------------
+format
+valueOf
+hash
+clone
+extends
+equals
+ident
+compare
+type
+name
+setName
+lock
+bracketAccess
+get
+set
+has
+delete
+iterator
+next
+
+sys Module Constants
+--------------------
+sys.EXIT_SUCCESS
+sys.EXIT_FAILURE
+
+sys Module Methods
 ------------------
-image
-crop
-resize
-flip
-rend2d
-scale2d
-tran2d
-rot2d
-copy2d
+sys.argv
+sys.exit
+sys.platform
+sys.version
+sys.path
+sys.env
+sys.gc
+sys.mem
+sys.pid
 
+math Module Constants
+---------------------
+math.PI
+math.E
+math.TAU
+math.PHI
+
+math Module Methods
+-------------------
+math.floor
+math.ceil
+math.sqrt
+math.sin
+math.cos
+math.tan
+math.asin
+math.acos
+math.atan
+math.deg
+math.rad
+math.sum
+math.exp
+math.log2
+math.log10
+math.logE
+math.linspace
+math.arange
+
+stats Module Methods
+--------------------
+stats.mean
+stats.avg
+stats.var
+stats.dev
+stats.median
+stats.mode
+
+string Module Methods
+---------------------
+string.replace
+string.is_upper
+string.is_lower
+string.is_digit
+string.is_numeric
+string.is_alpha
+string.is_alnum
+string.split
+
+io Module Methods
 -----------------
-Builtin Constants
+io.format
+io.readline
+io.prompt
+
+fs Module Methods
 -----------------
-PI
-E
-WIDTH
-HEIGHT
-KEYS
+fs.open
+fs.read
+fs.readlines
+fs.seek
+fs.write
+fs.append
+fs.close
+fs.exists
+fs.isdir
+fs.isfile
+fs.size
+fs.abspath
+fs.basename
+fs.dirname
+fs.ext
+fs.join
+fs.listdir
+fs.mkdir
+fs.rmdir
+fs.cwd
+fs.chdir
+fs.copy
+fs.move
+fs.delete
 
+col Module Methods
+------------------
+col.peek
+col.sort
+col.unshift
+col.append
+col.contains
+col.indexOf
+col.reverse
+col.shuffle
+col.copy
+col.zip
+col.is_iterable
+col.add
+col.clear
 
+func Module Methods
+-------------------
+func.compose
+func.pipe
+func.juxt
+func.curry
+func.partial
+func.spread
+func.unspread
+func.memoize
+func.once
+func.throttle
+func.debounce
+func.thunk
+func.iterate
+func.apply
+func.noop
 
+time Module Methods
+-------------------
+time.now
+time.utc
+time.unix
+time.millis
+time.clock
+time.parse
+time.of
+time.format
+time.iso
+time.timer
+time.interval
+
+type Module Methods
+-------------------
+type.is
+type.of
+type.size
+type.nil
+type.int
+type.float
+type.string
+type.bool
+type.list
+type.bytes
+
+lang Module Constants
+---------------------
+lang.OP_ADD
+lang.OP_SUB
+lang.OP_MUL
+lang.OP_DIV
+lang.OP_MOD
+lang.OP_LAND
+lang.OP_LOR
+lang.OP_POW
+lang.OP_BAND
+lang.OP_BOR
+lang.OP_BXOR
+lang.OP_SHL
+lang.OP_SHR
+lang.OP_USHR
+lang.OP_DOT
+lang.OP_IS
+lang.OP_POS
+lang.OP_NEG
+lang.OP_BNOT
+lang.OP_EQ
+lang.OP_NE
+lang.OP_GT
+lang.OP_LT
+lang.OP_GE
+lang.OP_LE
+
+os Module Methods
+-----------------
+os.run
+os.spawn
+os.which
+os.signal
+os.kill
+os.hostname
+os.cpus
+os.ram
+os.user
+
+draw Module Methods
+-------------------
+draw.canvas
+draw.run
+draw.clear
+draw.pixel
+draw.line
+draw.triangle
+draw.rect
+draw.polygon
+draw.circle
+draw.present
+draw.on_frame
+draw.on
+draw.off
+draw.poll
+draw.wait
+draw.text
+draw.image
+draw.is_running
+draw.close
+draw.push
+draw.pop
+draw.translate
+draw.scale
+draw.rotate
+draw.alpha
+
+plot Module Methods
+-------------------
+plot.chart
+plot.func
+plot.scatter
+plot.bar
+plot.line
+plot.hist
+plot.step
+plot.heatmap
+plot.show
+plot.title
+plot.xlabel
+plot.ylabel
+plot.tick
+plot.grid
+plot.axes
+plot.legend
+
+tensor Module Methods
+---------------------
+tensor.zeros
+tensor.ones
+tensor.eye
+tensor.rand
+tensor.randn
+tensor.randint
+tensor.from
+tensor.fill
+tensor.shape
+tensor.ndim
+tensor.size
+tensor.reshape
+tensor.slice
+tensor.concat
+tensor.transpose
+tensor.flatten
+tensor.expand_dims
+tensor.squeeze
+tensor.is_tensor
+tensor.is_matrix
+tensor.is_vector
+tensor.is_scalar
+tensor.add
+tensor.sub
+tensor.mult
+tensor.div
+tensor.exp
+tensor.log
+tensor.sqrt
+tensor.abs
+tensor.clip
+tensor.sign
+tensor.apply
+tensor.matmult
+tensor.dot
+tensor.cross
+tensor.solve
+tensor.inv
+tensor.det
+tensor.svd
+tensor.eig
+tensor.norm
+tensor.rank
+tensor.trace
+tensor.pinv
+tensor.sum
+tensor.mean
+tensor.min
+tensor.max
+tensor.prod
+tensor.argmax
+tensor.argmin
+tensor.any
+tensor.all
+tensor.reduce
+tensor.var
+tensor.std
+tensor.median
+tensor.percentile
+tensor.mode
+tensor.covariance
+tensor.correlation
+tensor.zscore
+tensor.shuffle

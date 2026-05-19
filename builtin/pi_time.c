@@ -230,7 +230,7 @@ static char *replace_millisToken(const char *format, int millis)
 Value pi_sleep(vm_t *vm, int argc, Value *argv)
 {
     (void)vm;
-    if (argc != 1 || !IS_NUM(argv[0]))
+    if (argc < 1 || !IS_NUM(argv[0]))
         vm_error(vm, "[sleep] expects a single millisecond number.");
 
     double ms = AS_NUM(argv[0]);
@@ -255,9 +255,8 @@ Value _pi_time(vm_t *vm, int argc, Value *argv)
 
 Value tm_now(vm_t *vm, int argc, Value *argv)
 {
+    (void)argc;
     (void)argv;
-    if (argc != 0)
-        vm_error(vm, "[time.now] expects no arguments.");
 
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -268,9 +267,8 @@ Value tm_now(vm_t *vm, int argc, Value *argv)
 
 Value tm_utc(vm_t *vm, int argc, Value *argv)
 {
+    (void)argc;
     (void)argv;
-    if (argc != 0)
-        vm_error(vm, "[time.utc] expects no arguments.");
 
     struct timeval tv;
     gettimeofday(&tv, NULL);
@@ -282,27 +280,24 @@ Value tm_utc(vm_t *vm, int argc, Value *argv)
 Value tm_unix(vm_t *vm, int argc, Value *argv)
 {
     (void)vm;
+    (void)argc;
     (void)argv;
-    if (argc != 0)
-        vm_error(vm, "[time.unix] expects no arguments.");
     return NEW_NUM((double)time(NULL));
 }
 
 Value tm_millis(vm_t *vm, int argc, Value *argv)
 {
     (void)vm;
+    (void)argc;
     (void)argv;
-    if (argc != 0)
-        vm_error(vm, "[time.millis] expects no arguments.");
     return NEW_NUM(now_millis());
 }
 
 Value tm_clock(vm_t *vm, int argc, Value *argv)
 {
     (void)vm;
+    (void)argc;
     (void)argv;
-    if (argc != 0)
-        vm_error(vm, "[time.clock] expects no arguments.");
 
 #ifdef _WIN32
     LARGE_INTEGER freq;
@@ -319,7 +314,7 @@ Value tm_clock(vm_t *vm, int argc, Value *argv)
 
 Value tm_parse(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]))
+    if (argc < 2 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]))
         vm_error(vm, "[time.parse] expects (string, format).");
 
     struct tm tm_value;
@@ -333,8 +328,12 @@ Value tm_parse(vm_t *vm, int argc, Value *argv)
 
 Value tm_of(vm_t *vm, int argc, Value *argv)
 {
-    if (argc < 3 || argc > 6)
+    if (argc < 3)
         vm_error(vm, "[time.of] expects year, month, day, and optional hour, minute, second.");
+
+    for (int i = 0; i < argc && i < 6; i++)
+        if (!IS_NUM(argv[i]))
+            vm_error(vm, "[time.of] date parts must be numbers.");
 
     struct tm tm_value;
     memset(&tm_value, 0, sizeof(struct tm));
@@ -352,7 +351,7 @@ Value tm_of(vm_t *vm, int argc, Value *argv)
 
 Value tm_format(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2 || !IS_STRING(argv[1]))
+    if (argc < 2 || !IS_STRING(argv[1]))
         vm_error(vm, "[time.format] expects (time, format).");
 
     PiMap *time_map = require_timeMap(vm, argv[0], "format");
@@ -373,7 +372,7 @@ Value tm_format(vm_t *vm, int argc, Value *argv)
 
 Value tm_iso(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1)
+    if (argc < 1)
         vm_error(vm, "[time.iso] expects a single Time argument.");
 
     PiMap *time_map = require_timeMap(vm, argv[0], "iso");
@@ -400,7 +399,7 @@ static Value new_timerObject(vm_t *vm, double ms, bool repeating, int ticks)
 
 Value tm_timer(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2 || !IS_NUM(argv[0]) || !IS_FUN(argv[1]))
+    if (argc < 2 || !IS_NUM(argv[0]) || !IS_FUN(argv[1]))
         vm_error(vm, "[time.timer] expects (ms, callback).");
 
     Value sleep_args[1] = {argv[0]};
@@ -411,7 +410,7 @@ Value tm_timer(vm_t *vm, int argc, Value *argv)
 
 Value tm_interval(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2 || !IS_NUM(argv[0]) || !IS_FUN(argv[1]))
+    if (argc < 2 || !IS_NUM(argv[0]) || !IS_FUN(argv[1]))
         vm_error(vm, "[time.interval] expects (ms, callback).");
 
     double ms = as_number(argv[0]);

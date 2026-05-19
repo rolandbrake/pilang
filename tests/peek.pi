@@ -1,0 +1,7 @@
+items = [1, 2, 3]
+assert(peek(items) == 3, "peek should return last list item")
+assert(len(items) == 3, "peek should not remove list item")
+
+text = "abc"
+assert(peek(text) == "c", "peek should return last string character")
+assert(text == "abc", "peek should not remove string character")

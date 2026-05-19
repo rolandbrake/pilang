@@ -302,7 +302,7 @@ static Value run_processPosix(vm_t *vm, const char *command, bool wait)
 
 Value os_run(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[os.run] expects a single command string.");
 
 #ifdef _WIN32
@@ -314,7 +314,7 @@ Value os_run(vm_t *vm, int argc, Value *argv)
 
 Value os_spawn(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[os.spawn] expects a single command string.");
 
 #ifdef _WIN32
@@ -334,7 +334,7 @@ Value os_spawn(vm_t *vm, int argc, Value *argv)
  */
 Value os_which(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[os.which] expects a single executable name string.");
 
     const char *name = AS_CSTRING(argv[0]);
@@ -375,7 +375,7 @@ Value os_which(vm_t *vm, int argc, Value *argv)
 
 Value os_signal(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 2 || !IS_NUM(argv[0]))
+    if (argc < 2 || !IS_NUM(argv[0]))
         vm_error(vm, "[os.signal] expects (signal_number, action_string).");
 
     if (!IS_STRING(argv[1]))
@@ -400,11 +400,11 @@ Value os_signal(vm_t *vm, int argc, Value *argv)
 
 Value os_kill(vm_t *vm, int argc, Value *argv)
 {
-    if (argc < 1 || argc > 2 || !IS_NUM(argv[0]))
+    if (argc < 1 || !IS_NUM(argv[0]) || (argc >= 2 && !IS_NUM(argv[1])))
         vm_error(vm, "[os.kill] expects (pid, [signal]).");
 
     int pid = (int)as_number(argv[0]);
-    int sig = (argc == 2) ? (int)as_number(argv[1]) : SIGTERM;
+    int sig = (argc >= 2) ? (int)as_number(argv[1]) : SIGTERM;
 
 #ifdef _WIN32
     HANDLE proc = OpenProcess(PROCESS_TERMINATE, FALSE, (DWORD)pid);
@@ -421,9 +421,8 @@ Value os_kill(vm_t *vm, int argc, Value *argv)
 
 Value os_hostname(vm_t *vm, int argc, Value *argv)
 {
+    (void)argc;
     (void)argv;
-    if (argc != 0)
-        vm_error(vm, "[os.hostname] expects no arguments.");
 
 #ifdef _WIN32
     char buffer[MAX_COMPUTERNAME_LENGTH + 1];
@@ -443,9 +442,8 @@ Value os_hostname(vm_t *vm, int argc, Value *argv)
 Value os_cpus(vm_t *vm, int argc, Value *argv)
 {
     (void)vm;
+    (void)argc;
     (void)argv;
-    if (argc != 0)
-        vm_error(vm, "[os.cpus] expects no arguments.");
 
 #ifdef _WIN32
     SYSTEM_INFO info;
@@ -460,9 +458,8 @@ Value os_cpus(vm_t *vm, int argc, Value *argv)
 Value os_ram(vm_t *vm, int argc, Value *argv)
 {
     (void)vm;
+    (void)argc;
     (void)argv;
-    if (argc != 0)
-        vm_error(vm, "[os.ram] expects no arguments.");
 
 #ifdef _WIN32
     MEMORYSTATUSEX status;
@@ -487,9 +484,8 @@ Value os_ram(vm_t *vm, int argc, Value *argv)
 
 Value os_user(vm_t *vm, int argc, Value *argv)
 {
+    (void)argc;
     (void)argv;
-    if (argc != 0)
-        vm_error(vm, "[os.user] expects no arguments.");
 
 #ifdef _WIN32
     char buffer[UNLEN + 1];

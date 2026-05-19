@@ -282,7 +282,7 @@ Value pi_log(vm_t *vm, int argc, Value *argv)
  */
 Value pi_input(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 1 || !IS_STRING(argv[0]))
+    if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[input] expects a single string argument as a prompt.");
 
     PiString *prompt = AS_STRING(argv[0]);
@@ -310,8 +310,8 @@ Value io_format(vm_t *vm, int argc, Value *argv)
 
 Value io_readline(vm_t *vm, int argc, Value *argv)
 {
-    if (argc != 0)
-        vm_error(vm, "[readline] expects no arguments.");
+    (void)argc;
+    (void)argv;
 
     char buffer[BUFFER_SIZE];
     if (!fgets(buffer, BUFFER_SIZE, stdin))

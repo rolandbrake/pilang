@@ -143,8 +143,15 @@ Value st_replace(vm_t *vm, int argc, Value *argv)
     if (old_sub->length == 0)
         vm_error(vm, "[replace] 'old' string must not be empty.");
 
-    // Estimate maximum length needed
-    size_t new_len_estimate = source->length * 2 + 1;
+    size_t count = 0;
+    const char *scan = src;
+    while ((scan = strstr(scan, old_str)) != NULL)
+    {
+        count++;
+        scan += old_sub->length;
+    }
+
+    size_t new_len_estimate = source->length + count * new_sub->length - count * old_sub->length + 1;
     char *result = malloc(new_len_estimate);
     if (!result)
         vm_error(vm, "[replace] Memory allocation failed.");
@@ -368,15 +375,29 @@ Value st_split(vm_t *vm, int argc, Value *argv)
     if (len == 0)
         return NEW_OBJ(new_list(result));
 
-    char *token = strtok((char *)str, delim);
+    if (delim[0] == '\0')
+    {
+        for (size_t i = 0; i < len; i++)
+        {
+            char ch[2] = {str[i], '\0'};
+            Value item = NEW_OBJ(new_pistring(strdup(ch)));
+            list_add(result, &item);
+        }
+        return NEW_OBJ(new_list(result));
+    }
 
-    int i = 0;
+    char *copy = strdup(str);
+    if (!copy)
+        vm_error(vm, "[split] Memory allocation failed.");
+
+    char *token = strtok(copy, delim);
     while (token != NULL)
     {
-        list_add(result, &NEW_OBJ(new_pistring(token)));
+        Value item = NEW_OBJ(new_pistring(strdup(token)));
+        list_add(result, &item);
         token = strtok(NULL, delim);
-        i++;
     }
+    free(copy);
 
     return NEW_OBJ(new_list(result));
 }
