@@ -21,8 +21,10 @@ println(round(3.6))     // 4
 ## Random Numbers
 
 - `seed(value)`: sets the random seed
-- `rand()`: returns a random number
-- `rand_n(limit)`: returns a random number constrained by `limit`
+- `rand()`: returns a random float in `[0.0, 1.0)`
+- `rand(max)`: returns a random integer from `0` through `max`
+- `rand(min, max)`: returns a random integer from `min` through `max`
+- `rand_n(size)`: returns a list containing `size` random floats
 
 ```pilang
 seed(123)

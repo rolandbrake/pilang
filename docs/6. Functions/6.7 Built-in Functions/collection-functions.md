@@ -5,9 +5,9 @@ iterable values.
 
 ## Stack-Like List Helpers
 
-- `push(list, value)`: adds `value` to the end of a list and returns the updated list
-- `pop(list)`: removes and returns the last item
-- `peek(list)`: returns the last item without removing it
+- `push(collection, value, ...)`: appends values to a list, or single-character strings to a string, and returns the new length
+- `pop(collection)`: removes and returns the last item from a list or the last character from a string
+- `peek(collection)`: returns the last item or character without removing it
 - `empty(collection)`: returns whether the collection is empty
 
 ```pilang
@@ -21,21 +21,23 @@ println(items)       // [1, 2]
 
 ## Inserting and Removing
 
-- `insert(collection, index, value)`: inserts a value at an index
-- `remove(collection, value_or_index)`: removes an item, depending on the collection type
-- `slice(collection, start, end)`: returns a portion of the collection
+- `insert(collection, index, value)`: inserts a value into a list or string and returns the collection
+- `remove(collection, index_or_key)`: removes and returns a list item or string character; for maps, removes a key and returns the map
+- `slice(start, end, step = 1)`: creates a slice descriptor for bracket slicing
 
 ```pilang
 let values = [10, 30]
 insert(values, 1, 20)
 println(values) // [10, 20, 30]
+
+println(values[slice(0, 2)]) // [10, 20]
 ```
 
 ## Size and Search
 
 - `len(value)`: returns the length or size of a value
 - `contains(collection, value)`: returns whether `value` is present
-- `index(collection, value)`: returns the index of `value`
+- `index(collection, value)`: returns the index of `value`, or `-1` when it is not found
 - `count(collection, value)`: counts matching values
 
 ```pilang
@@ -49,7 +51,7 @@ println(count(letters, "a"))    // 2
 ## Combining and Repeating
 
 - `concat(a, b)`: combines compatible collections
-- `repeat(value, amount)`: repeats a string, list, tuple, or compatible value
+- `repeat(value, amount)`: repeats a string, list, or tuple
 - `copy(value)`: returns a copied value
 
 ```pilang
@@ -59,9 +61,9 @@ println(repeat("ha", 3))    // hahaha
 
 ## Constructors
 
-- `range(start, end)`: creates a range
-- `tuple(value)`: converts a compatible value to a tuple
-- `set(value)`: creates a set from an iterable value
+- `range(end)`, `range(start, end)`, `range(start, end, step)`: creates a range
+- `tuple()`, `tuple(value)`, `tuple(a, b, ...)`: creates a tuple or converts a list, tuple, or string to a tuple
+- `set(value = nil)`: creates a set from an iterable value
 
 ```pilang
 let unique = set([1, 1, 2, 3])
@@ -85,4 +87,29 @@ let b = set([3, 4])
 println(union(a, b))
 println(intersection(a, b))
 println(difference(a, b))
+```
+
+## `col` Module Helpers
+
+The `col` module exports additional collection helpers:
+
+- `col.sort(list)`: sorts a numeric or string list in place and returns `nil`
+- `col.unshift(collection, value, ...)`: prepends values to a list or string and returns the new length
+- `col.append(collection, value, ...)`: appends values to a list or string and returns the new length
+- `col.reverse(collection)`: returns a reversed copy of a list or string
+- `col.shuffle(list)`: shuffles a list in place and returns it
+- `col.copy(collection)`: copies a list, string, or set
+- `col.zip(a, b, ...)`: returns a list of grouped items from lists or strings
+- `col.is_iterable(value)`: returns whether a value is iterable
+- `col.add(set, value, ...)`: adds values or iterable contents to a set and returns it
+- `col.clear(collection)`: clears a list, string, or set and returns it
+
+```pilang
+import col
+
+let values = [3, 1, 2]
+col.sort(values)
+println(values) // [1, 2, 3]
+
+println(col.zip(["x", "y"], [1, 2])) // [["x", 1], ["y", 2]]
 ```

@@ -38,7 +38,7 @@ let both = f.juxt(x -> x + 1, x -> x * 2)
 println(both(5)) // [6, 10]
 ```
 
-## `func.curry(fn)`
+## `func.curry(fn, arity = inferred)`
 
 Returns a curried wrapper. Arguments can be supplied gradually until the wrapped
 function has enough arguments.
@@ -118,24 +118,24 @@ println(init()) // 1
 println(init()) // 1
 ```
 
-## `func.throttle(fn, ms)`
+## `func.throttle(ms, fn)`
 
 Returns a wrapper that only calls `fn` when at least `ms` milliseconds have passed
 since the last call. Calls made too soon return the previous result.
 
 ```pilang
-let limited = f.throttle(() -> time(), 1000)
+let limited = f.throttle(1000, () -> time())
 println(limited())
 println(limited())
 ```
 
-## `func.debounce(fn, ms)`
+## `func.debounce(ms, fn)`
 
 Returns a wrapper that delays useful execution until the debounce window has
 passed. This is useful for event-style flows.
 
 ```pilang
-let debounced = f.debounce(() -> "saved", 250)
+let debounced = f.debounce(250, () -> "saved")
 println(debounced())
 ```
 

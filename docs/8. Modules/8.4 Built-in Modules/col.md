@@ -19,11 +19,12 @@ println(col.peek("abc"))     // c
 
 ## `col.sort(collection)`
 
-Returns a sorted copy of a list. Values should be comparable, usually numbers or
-strings.
+Sorts a numeric or string list in place and returns `nil`.
 
 ```pilang
-println(col.sort([3, 1, 2])) // [1, 2, 3]
+let values = [3, 1, 2]
+col.sort(values)
+println(values) // [1, 2, 3]
 ```
 
 ## `col.unshift(collection, value, ...)`
@@ -131,10 +132,10 @@ println(col.is_iterable([1, 2])) // true
 println(col.is_iterable(10))     // false
 ```
 
-## `col.add(collection, value)`
+## `col.add(set, value, ...)`
 
-Adds a value to a collection. For sets, this inserts the value if it is not
-already present.
+Adds values to a set and returns it. If an added value is iterable, its contents
+are added.
 
 ```pilang
 let names = set(["Ada"])

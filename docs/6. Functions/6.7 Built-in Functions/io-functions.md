@@ -27,7 +27,7 @@ printf("%s scored %d\n", name, score)
 
 ## Input
 
-- `input(prompt = "")`: reads a line from standard input
+- `input(prompt)`: prints a prompt string and reads a line from standard input
 
 ```pilang
 let name = input("Name: ")

@@ -73,6 +73,25 @@ Show available commands:
 .\pi.exe help
 ```
 
+## Build From Source
+
+The repository includes a Makefile for native and browser builds. On Windows with MinGW available, use `mingw32-make` from the repository root:
+
+```powershell
+mingw32-make release
+```
+
+Common targets:
+
+- `mingw32-make release`: build the optimized native executable, `pi.exe`.
+- `mingw32-make debug`: build a debug native executable with `DEBUG_BUILD` enabled.
+- `mingw32-make web`: build the Emscripten/WebAssembly output, `pilang.html`, `pilang.js`, and `pilang.wasm`.
+- `mingw32-make run`: build and run the native executable.
+- `mingw32-make test`: build the native executable and run `python tools/tests.py`.
+- `mingw32-make clean`: remove generated build outputs.
+
+The native build expects MinGW GCC and the SDL2 development libraries used by the project. The browser build expects Emscripten's `emcc`.
+
 ## Project Layout
 
 - `pi_*.c`, `pi_*.h`: core compiler, parser, VM, values, objects, modules, and runtime internals.

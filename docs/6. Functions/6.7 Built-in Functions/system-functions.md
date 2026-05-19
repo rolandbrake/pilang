@@ -19,8 +19,9 @@ fun require_positive(n) {
 
 ## `assert`
 
-`assert(condition, message = nil)` checks that a condition is truthy. If the
-condition is falsey, execution stops with an assertion error.
+`assert(condition, message)` checks that a condition is truthy. If the condition
+is falsey, execution stops with an assertion error. The message argument is
+required.
 
 ```pilang
 let items = [1, 2, 3]
