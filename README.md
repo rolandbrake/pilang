@@ -42,7 +42,7 @@ The project includes a native interpreter, a WebAssembly/browser build, document
 ```pilang
 import math:m
 
-fn area(radius) {
+fun area(radius) {
     return m.PI * radius ** 2
 }
 
@@ -87,7 +87,7 @@ Common targets:
 - `mingw32-make debug`: build a debug native executable with `DEBUG_BUILD` enabled.
 - `mingw32-make web`: build the Emscripten/WebAssembly output, `pilang.html`, `pilang.js`, and `pilang.wasm`.
 - `mingw32-make run`: build and run the native executable.
-- `mingw32-make test`: build the native executable and run `python tools/tests.py`.
+- `mingw32-make test`: build the native executable and run `python tools/run_tests.py`.
 - `mingw32-make clean`: remove generated build outputs.
 
 The native build expects MinGW GCC and the SDL2 development libraries used by the project. The browser build expects Emscripten's `emcc`.
@@ -120,7 +120,7 @@ Start with the [documentation index](docs/README.md), then explore:
 Run the test suite with:
 
 ```bash
-python tools/tests.py
+python tools/run_tests.py
 ```
 
 Tests cover core language behavior, tensors, modules, object/class behavior, runtime types, built-ins, and larger example programs.

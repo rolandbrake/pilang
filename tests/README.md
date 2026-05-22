@@ -16,5 +16,5 @@ Conventions:
 Run the suite with:
 
 ```bash
-python tools/tests.py
+python tools/run_tests.py
 ```

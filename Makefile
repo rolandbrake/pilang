@@ -119,7 +119,7 @@ run: release
 	./$(TARGET)
 
 test: release
-	python tools/tests.py
+	python tools/run_tests.py
 
 clean:
 	$(CLEAN)
