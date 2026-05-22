@@ -10,7 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 TEST_DIR = BASE_DIR / "tests"
 
 if sys.platform.startswith("win"):
-    PI_COMMAND = BASE_DIR / "pi.exe"
+    PI_COMMAND = BASE_DIR / "pilang.exe"
 else:
     PI_COMMAND = BASE_DIR / "pi"
 
@@ -116,7 +116,7 @@ def ensure_binary():
         return True
 
     print(f"{RED}Interpreter not found:{RESET} {PI_COMMAND}")
-    print("Build `pi.exe` first, then rerun the test suite.")
+    print("Build `pilang.exe` first, then rerun the test suite.")
     return False
 
 

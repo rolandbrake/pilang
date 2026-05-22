@@ -34,7 +34,7 @@ The project includes a native interpreter, a WebAssembly/browser build, document
 - **Module system**: import built-in modules, local modules, aliases, exported symbols, and private module members.
 - **Standard library coverage**: math, statistics, strings, I/O, filesystem, OS, system info, time, drawing, plotting, collections, functional helpers, types, language constants, and tensors.
 - **Numerical tools**: dense tensor operations, broadcasting, indexing, reductions, transforms, statistics, linear algebra helpers, and matrix operations.
-- **Native and web targets**: run `.pi` files locally with `pi.exe`, or try the browser playground through the hosted site.
+- **Native and web targets**: run `.pi` files locally with `pilang.exe`, or try the browser playground through the hosted site.
 - **Developer-friendly repo**: documentation, examples, tests, and VS Code syntax extension files are included.
 
 ## Quick Example
@@ -58,19 +58,19 @@ for r in radii {
 From the repository root on Windows:
 
 ```powershell
-.\pi.exe run test.pi
+.\pilang.exe run test.pi
 ```
 
 You can also use the shorthand form:
 
 ```powershell
-.\pi.exe test.pi
+.\pilang.exe test.pi
 ```
 
 Show available commands:
 
 ```powershell
-.\pi.exe help
+.\pilang.exe help
 ```
 
 ## Build From Source
@@ -83,7 +83,7 @@ mingw32-make release
 
 Common targets:
 
-- `mingw32-make release`: build the optimized native executable, `pi.exe`.
+- `mingw32-make release`: build the optimized native executable, `pilang.exe`.
 - `mingw32-make debug`: build a debug native executable with `DEBUG_BUILD` enabled.
 - `mingw32-make web`: build the Emscripten/WebAssembly output, `pilang.html`, `pilang.js`, and `pilang.wasm`.
 - `mingw32-make run`: build and run the native executable.

@@ -1,5 +1,5 @@
 // Interactive demo: builtin plot (scatter, line, labels) + draw.run.
-// Run from repo root:  pi.exe examples/draw_plot_demo.pi
+// Run from repo root:  pilang.exe examples/draw_plot_demo.pi
 // Close the SDL window to exit (draw.run runs the event loop).
 
 import draw

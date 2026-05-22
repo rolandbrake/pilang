@@ -1,5 +1,5 @@
 // Draw module use-case that touches the full exported API.
-// Run from repo root: pi.exe tests/builtin/draw.pi
+// Run from repo root: pilang.exe tests/builtin/draw.pi
 // The window closes itself after a couple of frames.
 
 import draw
