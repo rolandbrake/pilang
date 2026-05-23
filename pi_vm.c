@@ -3,6 +3,9 @@
 #include <time.h>
 #include <unistd.h>
 #include <string.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 #include "pi_vm.h"
 
@@ -19,6 +22,7 @@
 
 #define GC_MIN_THRESHOLD 4096
 #define GC_MAX_THRESHOLD (1024 * 1024 * 8)
+#define BROWSER_YIELD_STEPS 50000
 
 static PiMap *create_objectProto(vm_t *vm);
 static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value kw_args);
@@ -1901,6 +1905,9 @@ void run(vm_t *vm)
 {
     int length = vm->code->size;
     int pc = vm->pc;
+#ifdef __EMSCRIPTEN__
+    int browser_steps = 0;
+#endif
 
     uint8_t op;
     uint16_t index;
@@ -4492,6 +4499,13 @@ void run(vm_t *vm)
         }
 
 #ifdef __EMSCRIPTEN__
+        if (++browser_steps >= BROWSER_YIELD_STEPS)
+        {
+            vm->pc = pc;
+            browser_steps = 0;
+            emscripten_sleep(0);
+        }
+
         // Allocation-driven threshold to avoid collecting on instruction-heavy loops.
         if (vm->counter >= vm->next_gc)
         {

@@ -91,11 +91,12 @@ DEBUG_LDLIBS ?= \
 
 EMCC_FLAGS ?= \
 	-s ASYNCIFY \
+	-s ASYNCIFY_STACK_SIZE=65536 \
 	-s ALLOW_MEMORY_GROWTH \
 	-s MODULARIZE=1 \
 	-s EXPORT_NAME=createMyModule \
 	-s EXPORT_ES6=1 \
-	-s EXPORTED_FUNCTIONS='["_main","_set_source","_stop_execution"]' \
+	-s EXPORTED_FUNCTIONS='["_main","_set_source","_execute_source","_disassemble_source","_stop_execution","_pause_execution","_resume_execution"]' \
 	-s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' \
 	-Os \
 	-s FULL_ES3=1 \

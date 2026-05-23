@@ -29,6 +29,7 @@ char *source = NULL;
 
 bool paused = false;
 bool browser_hadError = false;
+bool browser_isExecuting = false;
 
 static void browser_notifyFinished(bool ok)
 {
@@ -47,6 +48,13 @@ static void browser_reportError(const char *message, int line, int column)
         if (typeof onExecutionError == 'function')
             onExecutionError(message, $1, $2);
     }, message, line, column);
+}
+
+static void browser_printExecutionTime(void)
+{
+    clock_t end_time = clock();
+    double time_taken = ((double)(end_time - start_time)) * 1000.0 / CLOCKS_PER_SEC;
+    printf("Execution Time: %.4f ms\n", time_taken);
 }
 
 static void browser_errorHandler(const char *message, int line, int column)
@@ -85,6 +93,7 @@ static int browser_prepareExecution(void)
 {
     browser_cleanupExecution();
     browser_hadError = false;
+    browser_isExecuting = false;
     paused = false;
 
     init_scanner(source ? source : "");
@@ -108,13 +117,12 @@ void main_loop()
 
     if (vm && vm->running)
     {
-        run(vm);
+        while (vm->running && !paused)
+            run(vm);
 
         if (!vm->running && !paused)
         {
-            clock_t end_time = clock();
-            double time_taken = ((double)(end_time - start_time)) * 1000.0 / CLOCKS_PER_SEC;
-            printf("Execution Time: %.4f ms\n", time_taken);
+            browser_printExecutionTime();
             browser_notifyFinished(!browser_hadError);
         }
     }
@@ -134,12 +142,13 @@ void stop_execution(void)
 
     if (!vm)
         return;
-    printf("Stopping execution from [c]\n");
     vm->running = false;
     paused = false;
-    clock_t end_time = clock();
-    double time_taken = ((double)(end_time - start_time)) * 1000.0 / CLOCKS_PER_SEC;
-    printf("Execution Time: %.4f ms\n", time_taken);
+
+    if (browser_isExecuting)
+        return;
+
+    browser_printExecutionTime();
     browser_notifyFinished(!browser_hadError);
 }
 
@@ -156,8 +165,19 @@ void resume_execution(void)
 {
     if (vm)
     {
+        browser_isExecuting = true;
         vm->running = true;
         paused = false;
+
+        while (vm->running && !paused)
+            run(vm);
+
+        browser_isExecuting = false;
+        if (!vm->running && !paused)
+        {
+            browser_printExecutionTime();
+            browser_notifyFinished(!browser_hadError);
+        }
     }
 }
 
@@ -170,21 +190,27 @@ int execute_source(void)
         return 1;
 
     start_time = clock();
+    browser_isExecuting = true;
 
 #ifdef DEBUG_BUILD
     dis(browser_comp);
 #endif
 
-    if (vm)
+    while (vm && vm->running && !paused)
         run(vm);
+
+    if (paused)
+    {
+        browser_isExecuting = false;
+        return 0;
+    }
 
     if (!browser_hadError)
     {
-        clock_t end_time = clock();
-        double time_taken = ((double)(end_time - start_time)) * 1000.0 / CLOCKS_PER_SEC;
-        printf("Execution Time: %.4f ms\n", time_taken);
+        browser_printExecutionTime();
     }
 
+    browser_isExecuting = false;
     browser_notifyFinished(!browser_hadError);
     return browser_hadError ? 1 : 0;
 }
