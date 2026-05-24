@@ -30,6 +30,24 @@ char *source = NULL;
 bool paused = false;
 bool browser_hadError = false;
 bool browser_isExecuting = false;
+bool browser_initialized = false;
+
+static void browser_errorHandler(const char *message, int line, int column);
+
+static void browser_initRuntime(void)
+{
+    if (browser_initialized)
+        return;
+
+    pi_cli_argc = 0;
+    pi_cli_argv = NULL;
+    set_errorHandler(browser_errorHandler);
+
+    if (!source)
+        source = strdup("");
+
+    browser_initialized = true;
+}
 
 static void browser_notifyFinished(bool ok)
 {
@@ -44,7 +62,7 @@ static void browser_reportError(const char *message, int line, int column)
     EM_ASM({
         const message = UTF8ToString($0);
         if (typeof console !== 'undefined' && console.error)
-            console.error(message + ($1 >= 0 ? ` (line ${$1})` : ''));
+            console.error(message + ($1 >= 0 ? ` (line ${$1})` : ""));
         if (typeof onExecutionError == 'function')
             onExecutionError(message, $1, $2);
     }, message, line, column);
@@ -91,6 +109,7 @@ static void browser_cleanupExecution(void)
 
 static int browser_prepareExecution(void)
 {
+    browser_initRuntime();
     browser_cleanupExecution();
     browser_hadError = false;
     browser_isExecuting = false;
@@ -131,6 +150,7 @@ void main_loop()
 EMSCRIPTEN_KEEPALIVE
 void set_source(const char *_source)
 {
+    browser_initRuntime();
     if (source)
         free(source);
     source = _source ? strdup(_source) : strdup("");
@@ -139,6 +159,7 @@ void set_source(const char *_source)
 EMSCRIPTEN_KEEPALIVE
 void stop_execution(void)
 {
+    browser_initRuntime();
 
     if (!vm)
         return;
@@ -155,6 +176,10 @@ void stop_execution(void)
 EMSCRIPTEN_KEEPALIVE
 void pause_execution(void)
 {
+    browser_initRuntime();
+    if (!vm)
+        return;
+
     vm->running = false;
 
     paused = true;
@@ -163,6 +188,7 @@ void pause_execution(void)
 EMSCRIPTEN_KEEPALIVE
 void resume_execution(void)
 {
+    browser_initRuntime();
     if (vm)
     {
         browser_isExecuting = true;
@@ -231,10 +257,7 @@ int main(int argc, char *argv[])
     pi_cli_argc = argc;
     pi_cli_argv = argv;
 
-    set_errorHandler(browser_errorHandler);
-
-    if (!source)
-        source = strdup("");
+    browser_initRuntime();
     return 0;
 }
 

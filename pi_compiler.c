@@ -207,7 +207,36 @@ static void free_loop(loop_t *loop);
  */
 static context_t *current_context(compiler_t *comp)
 {
-    return (context_t *)top(comp->contexts);
+    context_t **context = (context_t **)top(comp->contexts);
+    return context ? *context : NULL;
+}
+
+static context_t *context_at(compiler_t *comp, int depth)
+{
+    context_t **context = (context_t **)stack_getAt(comp->contexts, depth);
+    return context ? *context : NULL;
+}
+
+static context_t *pop_context(compiler_t *comp)
+{
+    context_t **context = (context_t **)pop(comp->contexts);
+    context_t *result = context ? *context : NULL;
+    free(context);
+    return result;
+}
+
+static loop_t *current_loop(compiler_t *comp)
+{
+    loop_t **loop = (loop_t **)top(comp->loops);
+    return loop ? *loop : NULL;
+}
+
+static loop_t *pop_loop_context(compiler_t *comp)
+{
+    loop_t **loop = (loop_t **)pop(comp->loops);
+    loop_t *result = loop ? *loop : NULL;
+    free(loop);
+    return result;
 }
 
 /**
@@ -274,8 +303,8 @@ compiler_t *init_compiler()
 
     // Initialize stack_t members
     comp->locals = stack_create(sizeof(local_t));
-    comp->contexts = stack_create(sizeof(context_t));
-    comp->loops = stack_create(sizeof(loop_t));
+    comp->contexts = stack_create(sizeof(context_t *));
+    comp->loops = stack_create(sizeof(loop_t *));
     comp->objects = stack_create(sizeof(String));
     comp->name = "";
 
@@ -290,7 +319,7 @@ compiler_t *init_compiler()
     comp->is_repl = false;
     comp->source_name = NULL;
 
-    push(comp->contexts, comp->current);
+    push(comp->contexts, &comp->current);
 
     return comp;
 }
@@ -626,7 +655,7 @@ int resolve_local(compiler_t *comp, int depth, char *name)
 {
     int index = -1;
     local_t *local;
-    context_t *context = stack_getAt(comp->contexts, depth);
+    context_t *context = context_at(comp, depth);
     // Iterate through the stack of local variables in reverse order
     for (int i = stack_size(context->locals) - 1; i >= 0; i--)
     {
@@ -691,7 +720,7 @@ int resolve_upvalue(compiler_t *comp, int depth, char *name)
 int add_upvalue(compiler_t *comp, int depth, int index, bool is_local)
 {
     // Get the context at the given depth
-    context_t *current = stack_getAt(comp->contexts, depth);
+    context_t *current = context_at(comp, depth);
 
     // Check if the upvalue already exists in the context's upvalue list
     int size = list_size(current->upvalues);
@@ -939,7 +968,7 @@ void push_loop(compiler_t *comp, int address, bool is_for)
     loop->breaks = stack_create(sizeof(int)); // Create a stack to hold break addresses
     loop->is_for = is_for;                    // Indicate if the loop is a for-loop
 
-    push(comp->loops, loop); // Push the new loop onto the stack
+    push(comp->loops, &loop); // Push the new loop onto the stack
 }
 
 /**
@@ -951,7 +980,7 @@ void push_loop(compiler_t *comp, int address, bool is_for)
  */
 void pop_loop(compiler_t *comp, int address)
 {
-    loop_t *loop = (loop_t *)pop(comp->loops); // Pop the current loop from the stack
+    loop_t *loop = pop_loop_context(comp);     // Pop the current loop from the stack
     stack_t *breaks = loop->breaks;            // Get the stack of break addresses
 
     int16_t offset = address - comp->code->size; // Calculate the offset to the continue address
@@ -982,7 +1011,7 @@ void push_break(compiler_t *comp, int address)
      * Push the address onto the stack of break addresses
      * for the current loop.
      */
-    PUSH_INT(((loop_t *)top(comp->loops))->breaks, address);
+    PUSH_INT(current_loop(comp)->breaks, address);
 }
 
 /**
@@ -993,7 +1022,7 @@ void push_break(compiler_t *comp, int address)
  */
 int get_continue(compiler_t *comp)
 {
-    return ((loop_t *)top(comp->loops))->_continue;
+    return current_loop(comp)->_continue;
 }
 /**
  * Checks if the current loop is a for-loop.
@@ -1003,7 +1032,7 @@ int get_continue(compiler_t *comp)
  */
 bool is_forLoop(compiler_t *comp)
 {
-    return ((loop_t *)top(comp->loops))->is_for; // Check if the current loop is a for-loop
+    return current_loop(comp)->is_for; // Check if the current loop is a for-loop
 }
 
 /**
@@ -1029,7 +1058,7 @@ bool in_loop(compiler_t *comp)
 int loop_depth(compiler_t *comp)
 {
     // Return the depth of the loop at the top of the loops stack
-    return ((loop_t *)top(comp->loops))->depth;
+    return current_loop(comp)->depth;
 }
 
 /**
@@ -1045,12 +1074,12 @@ void push_function(compiler_t *comp, char *name)
     if (!comp->is_lookUp)
     {
         // Store the current context depth and push a new context
-        ((context_t *)top(comp->contexts))->depth = comp->current->depth;
+        current_context(comp)->depth = comp->current->depth;
         context_t *context = create_context(true, list_create(sizeof(uint8_t)), name);
-        push(comp->contexts, context);
+        push(comp->contexts, &context);
 
         // Update the current context to the new one
-        comp->current = (context_t *)top(comp->contexts);
+        comp->current = current_context(comp);
         comp->code = comp->current->code;
         comp->locals = comp->current->locals;
     }
@@ -1080,12 +1109,12 @@ void pop_function(compiler_t *comp, int params)
         ObjCode *code = (ObjCode *)new_code(comp->code);
         int c_index = store_const(comp, NEW_OBJ(code));
 
-        context_t *context = (context_t *)pop(comp->contexts);
+        context_t *context = pop_context(comp);
 
         code->param_names = context->param_names;
         context->param_names = NULL;
 
-        comp->current = (context_t *)top(comp->contexts);
+        comp->current = current_context(comp);
         comp->code = comp->current->code;
         comp->locals = comp->current->locals;
 
@@ -1342,7 +1371,7 @@ void dis(compiler_t *comp)
     // Ensure global scope instructions are in the hash table
     if (stack_size(comp->contexts) > 0)
     {
-        context_t *global_ctx = (context_t *)stack_getAt(comp->contexts, 0);
+        context_t *global_ctx = context_at(comp, 0);
         ht_put(comp->instrs, "<global>", global_ctx->instrs);
     }
 
@@ -1687,7 +1716,7 @@ void free_compiler(compiler_t *comp)
     // Free the contexts stack and their contents
     while (!is_empty(comp->contexts))
     {
-        context_t *context = (context_t *)pop(comp->contexts);
+        context_t *context = pop_context(comp);
         free_context(context);
     }
     stack_free(comp->contexts);
@@ -1695,7 +1724,7 @@ void free_compiler(compiler_t *comp)
     // Free the loops stack and their contents
     while (!is_empty(comp->loops))
     {
-        loop_t *loop = (loop_t *)pop(comp->loops);
+        loop_t *loop = pop_loop_context(comp);
         free_loop(loop);
     }
     stack_free(comp->loops);
@@ -1731,14 +1760,14 @@ void reset_compiler(compiler_t *comp)
 
     while (!is_empty(comp->contexts))
     {
-        context_t *context = (context_t *)pop(comp->contexts);
+        context_t *context = pop_context(comp);
         free_context(context);
     }
     stack_free(comp->contexts);
 
     while (!is_empty(comp->loops))
     {
-        loop_t *loop = (loop_t *)pop(comp->loops);
+        loop_t *loop = pop_loop_context(comp);
         free_loop(loop);
     }
     stack_free(comp->loops);
@@ -1755,8 +1784,8 @@ void reset_compiler(compiler_t *comp)
     comp->declared_globals = ht_create(sizeof(bool));
 
     comp->locals = stack_create(sizeof(local_t));
-    comp->contexts = stack_create(sizeof(context_t));
-    comp->loops = stack_create(sizeof(loop_t));
+    comp->contexts = stack_create(sizeof(context_t *));
+    comp->loops = stack_create(sizeof(loop_t *));
     comp->objects = stack_create(sizeof(String));
     comp->name = "";
 
@@ -1769,5 +1798,5 @@ void reset_compiler(compiler_t *comp)
     comp->is_repl = false;
     comp->source_name = NULL;
 
-    push(comp->contexts, comp->current);
+    push(comp->contexts, &comp->current);
 }
