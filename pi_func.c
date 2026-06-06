@@ -216,20 +216,14 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     size_t aux_base = vm->bp + local_count;
     vm->sp = aux_base;
 
-    // Set function parameters and arguments
-    Value *param_vals = NULL;
-    if (param_count > 0)
-    {
-        param_vals = malloc(sizeof(Value) * param_count);
-        for (size_t i = 0; i < param_count; i++)
-        {
-            Value _default = *(Value *)list_getAt(function->params, i);
-            param_vals[i] = _default;
-        }
-    }
+    size_t param_base = vm->bp + arg_offset;
+
+    // Set function parameters and arguments directly in their stack slots.
+    for (size_t i = 0; i < param_count; i++)
+        vm->stack[param_base + i] = *(Value *)list_getAt(function->params, i);
 
     if (param_this && param_count > 0)
-        param_vals[0] = instance;
+        vm->stack[param_base] = instance;
 
     // Positional arguments
     size_t positional_count = argc;
@@ -240,11 +234,11 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         size_t slot = i + param_offset;
         if (slot < param_count)
         {
-            param_vals[slot] = argv[i];
+            vm->stack[param_base + slot] = argv[i];
         }
     }
 
-    if (IS_MAP(kw_args) && function->param_names && param_vals)
+    if (IS_MAP(kw_args) && function->param_names)
     {
         PiMap *kw_map = AS_MAP(kw_args);
         int name_count = list_size(function->param_names);
@@ -263,15 +257,9 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
             if (slot < positional_count + param_offset)
                 vm_error(vm, "Function argument got multiple values.");
 
-            param_vals[slot] = *kw_value;
+            vm->stack[param_base + slot] = *kw_value;
         }
     }
-
-    for (size_t i = 0; i < param_count; i++)
-        vm->stack[vm->bp + arg_offset + i] = param_vals[i];
-
-    if (param_vals)
-        free(param_vals);
 
     if (function->need_args)
     {

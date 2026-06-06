@@ -299,6 +299,7 @@ void sweep(vm_t *vm)
 
     Object *obj = vm->objects;
     Object *prev = NULL;
+    int live_count = 0;
 
     while (obj != NULL)
     {
@@ -322,10 +323,13 @@ void sweep(vm_t *vm)
             obj->is_marked = false; // Reset the mark for the next GC cycle
             obj->in_gcList = true;  // Ensure it remains in the GC list
             prev = obj;             // Move prev to current object
+            live_count++;
         }
 
         obj = next; // Move to the next object in the list
     }
+
+    vm->obj_count = live_count;
 }
 
 /**

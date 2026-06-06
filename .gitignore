@@ -16,6 +16,9 @@
 # Compiled Static libraries
 *.lib
 *.a
+
+
+# compressed files
 *.rar
 
 # Executables

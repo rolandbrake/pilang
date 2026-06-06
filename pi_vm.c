@@ -28,68 +28,137 @@ static PiMap *create_objectProto(vm_t *vm);
 static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value kw_args);
 static Value bind(vm_t *vm, Function *function, Object *instance);
 
+/**
+ * Return a newly allocated string containing only the directory portion
+ * of a filesystem path.
+ *
+ * Examples:
+ *   "/home/user/file.pi" -> "/home/user"
+ *   "C:\\temp\\file.pi"  -> "C:\\temp"
+ *   "file.pi"            -> "."
+ *   NULL                 -> "."
+ *
+ * The caller owns the returned string and must free it.
+ */
 static char *copy_dirName(const char *path)
 {
+    /* Invalid or empty path -> current directory. */
     if (!path || path[0] == '\0')
         return strdup(".");
 
+    /* Work on a writable copy. */
     char *dir = strdup(path);
     int len = (int)strlen(dir);
 
+    /*
+     * Walk backwards until we find a directory separator.
+     * Supports both Unix ('/') and Windows ('\\') paths.
+     */
     while (len > 0 && dir[len - 1] != '/' && dir[len - 1] != '\\')
         len--;
 
+    /*
+     * No separator found, therefore the path contains only a file name.
+     * Return "." to represent the current directory.
+     */
     if (len == 0)
     {
         free(dir);
         return strdup(".");
     }
 
+    /*
+     * Replace the separator with a null terminator,
+     * leaving only the directory portion.
+     */
     dir[len - 1] = '\0';
     return dir;
 }
 
+/**
+ * Return the module currently executing in the VM.
+ *
+ * The runtime stores the active module in the global variable "module".
+ * If no valid module is available, NULL is returned.
+ */
 static ObjModule *vm_currentModule(vm_t *vm)
 {
+    /* VM or global namespace unavailable. */
     if (!vm || !vm->globals)
         return NULL;
 
+    /* Retrieve global "module" binding. */
     Value *module_val = ht_get(vm->globals, "module");
+
+    /* Ensure the binding exists and contains a module object. */
     if (!module_val || !IS_MODULE(*module_val))
         return NULL;
 
     return AS_MODULE(*module_val);
 }
 
+/**
+ * Recalculate whether every element in the list is numeric.
+ *
+ * Some list operations maintain an optimization flag
+ * (list->is_numeric) that allows fast numeric operations.
+ * Since mutations may invalidate the flag, we rescan the list.
+ */
 static void list_refreshNumericFlag(PiList *list)
 {
     bool numeric = true;
+
     for (int i = 0; i < LIST_SIZE(list->items); i++)
     {
+        /* Any non-number disables the optimization. */
         if (!IS_NUM(*(Value *)list_getAt(list->items, i)))
         {
             numeric = false;
             break;
         }
     }
+
     list->is_numeric = numeric;
 }
 
+/**
+ * Assign values into a list slice.
+ *
+ * Supports:
+ *   list[a:b]     = sequence
+ *   list[a:b:c]   = sequence
+ *
+ * Rules:
+ *   - RHS must be a list or tuple.
+ *   - Step 1 slices may grow or shrink the target list.
+ *   - Extended slices (step != 1) require matching lengths.
+ *
+ * The implementation snapshots the source sequence first so
+ * self-assignment scenarios remain safe.
+ */
 static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
 {
     if (!IS_LIST(value) && !IS_TUPLE(value))
         vm_error(vm, "List slice assignment requires a list or tuple.");
 
     list_t *items = target->items;
-    list_t *source = IS_LIST(value) ? AS_LIST(value)->items : AS_TUPLE(value)->items;
+    list_t *source = IS_LIST(value)
+                         ? AS_LIST(value)->items
+                         : AS_TUPLE(value)->items;
+
     int size = LIST_SIZE(items);
     int step = (int)slice->step;
 
     if (step == 0)
         vm_error(vm, "Slice step cannot be zero.");
 
+    /*
+     * Convert slice boundaries into concrete list indices.
+     * Infinite start/stop values represent omitted bounds.
+     */
     int start;
     int end;
+
     if (isinf(slice->start))
         start = step > 0 ? 0 : size - 1;
     else
@@ -100,42 +169,85 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
     else
         end = slice_index((int)slice->stop, size, step);
 
+    /*
+     * Copy source values into a temporary buffer.
+     * This prevents corruption if source and target refer
+     * to the same underlying list.
+     */
     int source_count = LIST_SIZE(source);
     Value *snapshot = NULL;
+
     if (source_count > 0)
     {
         snapshot = malloc(sizeof(Value) * source_count);
+
         if (!snapshot)
             vm_error(vm, "Memory allocation failed during slice assignment.");
+
         for (int i = 0; i < source_count; i++)
             snapshot[i] = *(Value *)list_getAt(source, i);
     }
 
+    /*
+     * Simple slice assignment:
+     *
+     *     list[a:b] = values
+     *
+     * Elements may be inserted or removed, changing the
+     * overall length of the list.
+     */
     if (step == 1)
     {
         int delete_count = end > start ? end - start : 0;
         int new_size = size - delete_count + source_count;
 
+        /* Ensure enough capacity before moving memory. */
         if (new_size > items->capacity)
         {
             int new_capacity = items->capacity;
+
             while (new_capacity < new_size)
-                new_capacity = new_capacity < 1024 ? new_capacity * 2 : new_capacity + new_capacity / 4 + 256;
+            {
+                new_capacity = new_capacity < 1024
+                                   ? new_capacity * 2
+                                   : new_capacity + new_capacity / 4 + 256;
+            }
+
             list_expand(items, new_capacity);
         }
 
+        /*
+         * Shift the tail portion of the list to create
+         * or remove space for replacement values.
+         */
         void *insert_at = (byte *)items->data + start * items->i_size;
-        void *tail_from = (byte *)items->data + (start + delete_count) * items->i_size;
-        void *tail_to = (byte *)items->data + (start + source_count) * items->i_size;
-        memmove(tail_to, tail_from, (size - start - delete_count) * items->i_size);
+        void *tail_from =
+            (byte *)items->data + (start + delete_count) * items->i_size;
+        void *tail_to =
+            (byte *)items->data + (start + source_count) * items->i_size;
 
+        memmove(
+            tail_to,
+            tail_from,
+            (size - start - delete_count) * items->i_size);
+
+        /* Copy replacement values into the gap. */
         if (source_count > 0)
             memcpy(insert_at, snapshot, source_count * items->i_size);
+
         items->size = new_size;
     }
     else
     {
+        /*
+         * Extended slice assignment:
+         *
+         *     list[a:b:c] = values
+         *
+         * Length must match exactly because positions are fixed.
+         */
         int target_count = 0;
+
         if (step > 0)
         {
             for (int current = start; current < end; current += step)
@@ -150,10 +262,13 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
         if (target_count != source_count)
         {
             free(snapshot);
-            vm_error(vm, "Extended slice assignment requires matching lengths.");
+            vm_error(vm,
+                     "Extended slice assignment requires matching lengths.");
         }
 
+        /* Replace each selected element individually. */
         int current = start;
+
         for (int i = 0; i < source_count; i++)
         {
             list_set(items, current, &snapshot[i]);
@@ -162,67 +277,111 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
     }
 
     free(snapshot);
+
+    /* Recompute numeric optimization state. */
     list_refreshNumericFlag(target);
 }
 
+/**
+ * Determine whether two sets contain exactly the same elements.
+ *
+ * Since hash tables store unique keys, equality is:
+ *   - same number of entries
+ *   - every key in left exists in right
+ */
 static bool set_equals(PiSet *left, PiSet *right)
 {
     if (left->table->size != right->table->size)
         return false;
 
     ht_iter it = ht_iterator(left->table);
+
     while (ht_next(&it))
     {
         if (ht_get(right->table, it.key) == NULL)
             return false;
     }
+
     return true;
 }
 
+/**
+ * Return true if every element in 'left' exists in 'right'.
+ *
+ * Implements mathematical subset semantics:
+ *     left ⊆ right
+ */
 static bool set_isSubset(PiSet *left, PiSet *right)
 {
     ht_iter it = ht_iterator(left->table);
+
     while (ht_next(&it))
     {
         if (ht_get(right->table, it.key) == NULL)
             return false;
     }
+
     return true;
 }
 
+/**
+ * Perform a binary set operation and return a new set.
+ *
+ * Supported operations:
+ *   8  -> intersection
+ *   9  -> union
+ *   10 -> symmetric difference
+ *
+ * The original sets are never modified.
+ */
 static Object *set_ops(vm_t *vm, PiSet *left, PiSet *right, int op)
 {
     table_t *table = ht_create(sizeof(Value));
 
-    if (op == 9) // union
+    if (op == 9) /* union */
     {
+        /*
+         * Copy all elements from left, then add any
+         * elements from right not already present.
+         */
         ht_iter it = ht_iterator(left->table);
+
         while (ht_next(&it))
             ht_put(table, it.key, it.value);
 
         ht_iter other = ht_iterator(right->table);
+
         while (ht_next(&other))
         {
             if (ht_get(table, other.key) == NULL)
                 ht_put(table, other.key, other.value);
         }
     }
-    else if (op == 8) // intersection
+    else if (op == 8) /* intersection */
     {
+        /*
+         * Keep only elements that exist in both sets.
+         */
         ht_iter it = ht_iterator(left->table);
+
         while (ht_next(&it))
         {
             if (ht_get(right->table, it.key) != NULL)
                 ht_put(table, it.key, it.value);
         }
     }
-    else if (op == 10) // symmetric difference
+    else if (op == 10) /* symmetric difference */
     {
+        /*
+         * Elements present in exactly one set.
+         */
         ht_iter it = ht_iterator(left->table);
+
         while (ht_next(&it))
             ht_put(table, it.key, it.value);
 
         ht_iter other = ht_iterator(right->table);
+
         while (ht_next(&other))
         {
             if (ht_get(table, other.key) != NULL)
@@ -235,6 +394,13 @@ static Object *set_ops(vm_t *vm, PiSet *left, PiSet *right, int op)
     return new_set(table);
 }
 
+/**
+ * Return a new set containing:
+ *
+ *     left - right
+ *
+ * All elements present in left but absent from right.
+ */
 static Object *set_difference(vm_t *vm, PiSet *left, PiSet *right)
 {
     table_t *table = ht_create(sizeof(Value));
@@ -245,38 +411,74 @@ static Object *set_difference(vm_t *vm, PiSet *left, PiSet *right)
         if (ht_get(right->table, it.key) == NULL)
             ht_put(table, it.key, it.value);
     }
+
     return new_set(table);
 }
 
+/**
+ * Return a human-readable label for the currently executing module.
+ *
+ * Preference order:
+ *   1. Full module path
+ *   2. Module name
+ *   3. NULL if unavailable
+ *
+ * Useful for diagnostics and stack traces.
+ */
 static const char *vm_moduleLabel(vm_t *vm)
 {
     ObjModule *module = vm_currentModule(vm);
+
     if (!module)
         return NULL;
 
     if (module->path && module->path[0] != '\0')
         return module->path;
+
     if (module->name && module->name[0] != '\0')
         return module->name;
+
     return NULL;
 }
 
+/**
+ * Locate the instruction metadata corresponding to the VM's
+ * current program counter.
+ *
+ * Instruction records are stored per scope/function and
+ * contain source-level information (offset, line number, etc.).
+ *
+ * The algorithm returns the last instruction whose bytecode
+ * offset does not exceed the current PC.
+ */
 static instr_t *vm_currentInstr(vm_t *vm)
 {
     if (!vm || !vm->instrs)
         return NULL;
 
+    /*
+     * Determine the active scope name.
+     * Global code is stored under "<global>".
+     */
     char *scope_name = "<global>";
+
     if (vm->function && IS_FUN(NEW_OBJ(vm->function)))
     {
         Function *fn = (Function *)vm->function;
+
         if (fn->name && fn->name[0] != '\0')
             scope_name = fn->name;
     }
 
+    /*
+     * Retrieve instruction metadata for the active scope.
+     * Fallback to global scope if necessary.
+     */
     list_t *instrs = ht_get(vm->instrs, scope_name);
+
     if (!instrs && strcmp(scope_name, "<global>") != 0)
         instrs = ht_get(vm->instrs, "<global>");
+
     if (!instrs)
         return NULL;
 
@@ -284,11 +486,17 @@ static instr_t *vm_currentInstr(vm_t *vm)
     instr_t *instr = NULL;
     int target_offset = vm->pc;
 
+    /*
+     * Find the instruction whose offset is the closest
+     * one less than or equal to the current program counter.
+     */
     for (int i = 0; i < size; i++)
     {
         instr_t *cur = (instr_t *)list_getAt(instrs, i);
+
         if (cur->offset > target_offset)
             break;
+
         instr = cur;
     }
 
@@ -465,6 +673,7 @@ inline Object *add_obj(vm_t *vm, Object *obj)
     obj->next = vm->objects;
     vm->objects = obj;
     vm->counter++; // Track new allocations (GC trigger is allocation-driven).
+    vm->obj_count++;
 
     return obj;
 }
@@ -479,6 +688,7 @@ inline Object *add_obj(vm_t *vm, Object *obj)
  * @param vm The virtual machine instance.
  * @return The number of objects in the object list.
  */
+#ifdef DEBUG
 static inline int count_objs(vm_t *vm)
 {
     int count = 0;
@@ -494,6 +704,7 @@ static inline int count_objs(vm_t *vm)
     }
     return count;
 }
+#endif
 
 /**
  * Reports a virtual machine error with a specified message.
@@ -1241,6 +1452,19 @@ static PiMap *create_objectProto(vm_t *vm)
     return proto;
 }
 
+static PiMap *map_ownerByKey(PiMap *map, const char *key)
+{
+    while (map != NULL)
+    {
+        if (ht_get(map->table, key) != NULL)
+            return map;
+
+        map = map->proto;
+    }
+
+    return NULL;
+}
+
 /**
  * Calls a method on an object without any arguments.
  *
@@ -1260,12 +1484,12 @@ static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
     if (!IS_MAP(receiver) || !AS_MAP(receiver)->is_instance)
         return receiver;
 
-    Value key = NEW_OBJ(new_pistring(strdup(name)));
-    PiMap *owner = map_owner(AS_MAP(receiver), key);
+    PiMap *owner = map_ownerByKey(AS_MAP(receiver), name);
     if (owner == NULL)
         return receiver;
 
-    Value method = map_get(owner, key);
+    Value *method_ptr = ht_get(owner->table, name);
+    Value method = method_ptr ? *method_ptr : NEW_NIL();
     if (!IS_FUN(method))
         return receiver;
 
@@ -1303,12 +1527,12 @@ static bool try_callMethodOneArg(vm_t *vm, Value receiver, const char *name, Val
     if (!IS_MAP(receiver) || !AS_MAP(receiver)->is_instance)
         return false;
 
-    Value key = NEW_OBJ(new_pistring(strdup(name)));
-    PiMap *owner = map_owner(AS_MAP(receiver), key);
+    PiMap *owner = map_ownerByKey(AS_MAP(receiver), name);
     if (owner == NULL)
         return false;
 
-    Value method = map_get(owner, key);
+    Value *method_ptr = ht_get(owner->table, name);
+    Value method = method_ptr ? *method_ptr : NEW_NIL();
     if (!IS_FUN(method))
         return false;
 
@@ -1340,12 +1564,12 @@ static bool try_callMethodArgs(vm_t *vm, Value receiver, const char *name, int a
     if (!IS_MAP(receiver) || !AS_MAP(receiver)->is_instance)
         return false;
 
-    Value key = NEW_OBJ(new_pistring(strdup(name)));
-    PiMap *owner = map_owner(AS_MAP(receiver), key);
+    PiMap *owner = map_ownerByKey(AS_MAP(receiver), name);
     if (owner == NULL)
         return false;
 
-    Value method = map_get(owner, key);
+    Value *method_ptr = ht_get(owner->table, name);
+    Value method = method_ptr ? *method_ptr : NEW_NIL();
     if (!IS_FUN(method))
         return false;
 
@@ -1381,12 +1605,12 @@ static bool try_callCompute(vm_t *vm, Value receiver, int op, bool has_other, Va
         return false;
 
     // Compute method is used to perform operations on the object
-    Value key = NEW_OBJ(new_pistring(strdup("compute")));
-    PiMap *owner = map_owner(AS_MAP(receiver), key);
+    PiMap *owner = map_ownerByKey(AS_MAP(receiver), "compute");
     if (owner == NULL)
         return false;
 
-    Value method = map_get(owner, key);
+    Value *method_ptr = ht_get(owner->table, "compute");
+    Value method = method_ptr ? *method_ptr : NEW_NIL();
     if (!IS_FUN(method))
         return false;
 
@@ -3199,14 +3423,12 @@ void run(vm_t *vm)
             // Read the number of arguments from the bytecode
             uint8_t num_args = code[pc++];
 
-            // Allocate memory for the arguments
+            // Copy arguments before changing the stack; callees reuse these slots.
             Value args[num_args];
 
-            // Pop the arguments off the VM's stack in reverse order.
             for (int i = num_args - 1; i >= 0; i--)
                 args[i] = pop_stack(vm);
 
-            // Pop the function (callee) from the stack.
             Value callee = pop_stack(vm);
 
             if (IS_FUN(callee))
@@ -3530,9 +3752,8 @@ void run(vm_t *vm)
                 Value element = vm->stack[vm->sp + i];
                 if (IS_OBJ(element))
                     add_obj(vm, AS_OBJ(element));
-                // For set, value is ignored, key is the element itself
                 char *key_str = as_string(element);
-                ht_put(table, key_str, &NEW_NIL());
+                ht_put(table, key_str, &element);
                 free(key_str);
             }
 
@@ -4515,9 +4736,9 @@ void run(vm_t *vm)
 #else
         if (vm->counter >= vm->next_gc)
         {
-            int before = count_objs(vm);
+            int before = vm->obj_count;
             run_gc(vm);
-            int after = count_objs(vm);
+            int after = vm->obj_count;
             int collected = before - after;
 
             vm->counter = 0;
@@ -4536,10 +4757,12 @@ void run(vm_t *vm)
                 vm->next_gc = GC_MAX_THRESHOLD;
 
 #ifdef DEBUG
+            int checked = count_objs(vm);
             printf("[DEBUG] SP: %d\n", vm->sp);
             printf("[GC] Running garbage collection...\n");
             printf("[GC] Before: %d objects in memory\n", before);
             printf("[GC] After: %d objects in memory\n", after);
+            printf("[GC] Checked live objects: %d\n", checked);
             printf("[GC] Collected: %d, Next threshold: %d\n", collected, vm->next_gc);
 #endif
         }

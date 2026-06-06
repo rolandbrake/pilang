@@ -62,6 +62,179 @@ static void append_char(char *buffer, int *offset, char c)
     buffer[*offset] = '\0';
 }
 
+static char *display_string(vm_t *vm, Value value);
+
+typedef struct
+{
+    char *data;
+    size_t length;
+    size_t capacity;
+} DisplayBuilder;
+
+static void builder_init(DisplayBuilder *builder, const char *initial)
+{
+    size_t len = strlen(initial);
+    builder->capacity = len < 32 ? 32 : len + 1;
+    builder->length = len;
+    builder->data = malloc(builder->capacity);
+
+    if (!builder->data)
+        error("[display] Memory allocation failed.");
+
+    memcpy(builder->data, initial, len + 1);
+}
+
+static void builder_append(DisplayBuilder *builder, const char *text)
+{
+    size_t len = strlen(text);
+    size_t needed = builder->length + len + 1;
+
+    if (needed > builder->capacity)
+    {
+        size_t capacity = builder->capacity;
+
+        while (capacity < needed)
+            capacity *= 2;
+
+        char *data = realloc(builder->data, capacity);
+        if (!data)
+            error("[display] Memory allocation failed.");
+
+        builder->data = data;
+        builder->capacity = capacity;
+    }
+
+    memcpy(builder->data + builder->length, text, len + 1);
+    builder->length += len;
+}
+
+static char *builder_finish(DisplayBuilder *builder)
+{
+    return builder->data;
+}
+
+static char *display_mapString(vm_t *vm, PiMap *map)
+{
+    int size = ht_length(map->table);
+    if (size == 0)
+        return strdup("{}");
+
+    DisplayBuilder builder;
+    builder_init(&builder, "{");
+
+    for (int i = 0; i < size; i++)
+    {
+        char *key = map->table->_keys[i];
+        Value *stored = (Value *)ht_get(map->table, key);
+        char *value = stored ? display_string(vm, *stored) : strdup("nil");
+
+        if (i > 0)
+            builder_append(&builder, ", ");
+
+        builder_append(&builder, key);
+        builder_append(&builder, ": ");
+        builder_append(&builder, value);
+        free(value);
+    }
+
+    builder_append(&builder, "}");
+    return builder_finish(&builder);
+}
+
+static char *display_listString(vm_t *vm, PiList *list)
+{
+    DisplayBuilder builder;
+    builder_init(&builder, "[");
+
+    for (int i = 0; i < list->items->size; i++)
+    {
+        Value item = *(Value *)list_getAt(list->items, i);
+        char *text = display_string(vm, item);
+
+        if (i > 0)
+            builder_append(&builder, ", ");
+
+        builder_append(&builder, text);
+        free(text);
+    }
+
+    builder_append(&builder, "]");
+    return builder_finish(&builder);
+}
+
+static char *display_tupleString(vm_t *vm, PiTuple *tuple)
+{
+    int size = LIST_SIZE(tuple->items);
+    DisplayBuilder builder;
+    builder_init(&builder, "(");
+
+    for (int i = 0; i < size; i++)
+    {
+        Value item = *(Value *)list_getAt(tuple->items, i);
+        char *text = display_string(vm, item);
+
+        if (i > 0)
+            builder_append(&builder, ", ");
+
+        builder_append(&builder, text);
+        free(text);
+    }
+
+    if (size == 1)
+        builder_append(&builder, ",");
+
+    builder_append(&builder, ")");
+    return builder_finish(&builder);
+}
+
+static char *display_setString(vm_t *vm, PiSet *set)
+{
+    int size = ht_length(set->table);
+    if (size == 0)
+        return strdup("{}");
+
+    DisplayBuilder builder;
+    builder_init(&builder, "{");
+
+    for (int i = 0; i < size; i++)
+    {
+        char *key = set->table->_keys[i];
+        Value *stored = (Value *)ht_get(set->table, key);
+        char *text = stored ? display_string(vm, *stored) : strdup(key);
+
+        if (i > 0)
+            builder_append(&builder, ", ");
+
+        builder_append(&builder, text);
+        free(text);
+    }
+
+    builder_append(&builder, "}");
+    return builder_finish(&builder);
+}
+
+static char *display_string(vm_t *vm, Value value)
+{
+    if (IS_MAP(value) && AS_MAP(value)->is_instance)
+    {
+        Value formatted = vm_callMethodNoArgs(vm, value, "format");
+        if (!(IS_MAP(formatted) && AS_MAP(formatted) == AS_MAP(value)))
+            return display_string(vm, formatted);
+    }
+
+    if (IS_LIST(value))
+        return display_listString(vm, AS_LIST(value));
+    if (IS_MAP(value))
+        return display_mapString(vm, AS_MAP(value));
+    if (IS_SET(value))
+        return display_setString(vm, AS_SET(value));
+    if (IS_TUPLE(value))
+        return display_tupleString(vm, AS_TUPLE(value));
+
+    char *text = as_string(value);
+    return text ? text : strdup("<unknown>");
+}
+
 static void format_text(vm_t *vm, int argc, Value *argv, char *out)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
@@ -109,9 +282,7 @@ static void format_text(vm_t *vm, int argc, Value *argv, char *out)
             if ((index + 1) >= argc)
                 vm_errorf(vm, "[format] placeholder {%d} is out of range.", index);
 
-            char *arg_text = as_string(argv[index + 1]);
-            if (!arg_text)
-                arg_text = strdup("<unknown>");
+            char *arg_text = display_string(vm, argv[index + 1]);
 
             append(out, &offset, arg_text);
             free(arg_text);
@@ -152,21 +323,7 @@ Value pi_print(vm_t *vm, int argc, Value *argv)
         if (i > 0)
             putchar(' ');
 
-        if (IS_MAP(argv[i]))
-        {
-            Value formatted = vm_callMethodNoArgs(vm, argv[i], "format");
-            if (!(IS_MAP(formatted) && AS_MAP(formatted) == AS_MAP(argv[i])))
-            {
-                text = as_string(formatted);
-            }
-            else
-                text = as_string(argv[i]);
-        }
-        else
-            text = as_string(argv[i]);
-
-        if (!text)
-            text = strdup("<unknown>");
+        text = display_string(vm, argv[i]);
 
         fputs(text, stdout);
         free(text);
