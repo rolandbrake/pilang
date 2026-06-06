@@ -340,6 +340,7 @@ PiString *copy_pistring(char *chars, int length);
 
 Object *new_list(list_t *items);
 Object *new_tensor(int ndim, int *shape, TN_TYPE type);
+Object *new_tensorUninit(int ndim, int *shape, TN_TYPE type);
 double tensor_get(PiTensor *tensor, int *indices);
 void tensor_set(PiTensor *tensor, int *indices, double value);
 double tensor_getFlat(PiTensor *tensor, int index);

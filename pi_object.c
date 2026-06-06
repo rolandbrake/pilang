@@ -1,5 +1,6 @@
 #include <math.h>
 #include <string.h>
+#include <limits.h>
 #include "pi_object.h"
 #include "common.h"
 
@@ -8,6 +9,8 @@
 static Object *create_obj(size_t size, o_type type)
 {
     Object *obj = (Object *)malloc(size);
+    if (!obj)
+        error("[create_obj] Memory allocation failed.");
     obj->type = type;
     obj->is_marked = false;
     obj->in_gcList = false;
@@ -142,7 +145,7 @@ static int tensor_elemSize(TN_TYPE type)
     return sizeof(double);
 }
 
-Object *new_tensor(int ndim, int *shape, TN_TYPE type)
+static Object *new_tensorWithInit(int ndim, int *shape, TN_TYPE type, bool zero_initialize)
 {
     PiTensor *tensor = CREATE_OBJ(PiTensor, OBJ_TENSOR);
     tensor->type = type;
@@ -151,30 +154,62 @@ Object *new_tensor(int ndim, int *shape, TN_TYPE type)
     tensor->current = 0;
     tensor->rows = ndim > 0 ? shape[0] : 0;
     tensor->cols = ndim > 1 ? shape[1] : 1;
+
+    if (ndim < 0 || ndim > MAX_TENSOR_DIMS)
+        error("[new_tensor] Invalid tensor rank.");
+
     tensor->shape = malloc(sizeof(int) * (size_t)ndim);
     tensor->strides = malloc(sizeof(int) * (size_t)ndim);
 
     if (!tensor->shape || !tensor->strides)
         error("[new_tensor] Memory allocation failed.");
 
+    size_t elem_count = 1;
     for (int i = 0; i < ndim; i++)
     {
+        if (shape[i] < 0)
+            error("[new_tensor] Tensor shape dimensions must be non-negative.");
+        if (shape[i] != 0 && elem_count > (size_t)INT_MAX / (size_t)shape[i])
+            error("[new_tensor] Tensor is too large: element count exceeds runtime limit.");
         tensor->shape[i] = shape[i];
-        tensor->size *= shape[i];
+        elem_count *= (size_t)shape[i];
     }
+    tensor->size = (int)elem_count;
 
-    int stride = 1;
+    size_t stride = 1;
     for (int i = ndim - 1; i >= 0; i--)
     {
-        tensor->strides[i] = stride;
-        stride *= shape[i];
+        if (stride > (size_t)INT_MAX)
+            error("[new_tensor] Tensor strides exceed runtime limit.");
+        tensor->strides[i] = (int)stride;
+        stride *= (size_t)shape[i];
     }
 
-    tensor->data.f64 = calloc((size_t)tensor->size, (size_t)tensor_elemSize(type));
-    if (!tensor->data.f64)
+    size_t elem_size = (size_t)tensor_elemSize(type);
+    if (elem_count != 0 && elem_size > SIZE_MAX / elem_count)
+        error("[new_tensor] Tensor data allocation size overflow.");
+
+    if (elem_count == 0)
+        tensor->data.f64 = NULL;
+    else if (zero_initialize)
+        tensor->data.f64 = calloc(elem_count, elem_size);
+    else
+        tensor->data.f64 = malloc(elem_count * elem_size);
+
+    if (elem_count != 0 && !tensor->data.f64)
         error("[new_tensor] Data allocation failed.");
 
     return (Object *)tensor;
+}
+
+Object *new_tensor(int ndim, int *shape, TN_TYPE type)
+{
+    return new_tensorWithInit(ndim, shape, type, true);
+}
+
+Object *new_tensorUninit(int ndim, int *shape, TN_TYPE type)
+{
+    return new_tensorWithInit(ndim, shape, type, false);
 }
 
 static int tensor_offset(PiTensor *tensor, int *indices)

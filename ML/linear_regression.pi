@@ -144,8 +144,8 @@ alpha = 0.004
 
 println("(w,b) found by gradient descent:", w_final, b_final)
 println("initial w,b:", w_init, b_init)
+println(format("final w, b: {0}, {1}", w_final, b_final))
 println("cost at end:", compute_cost(x_train, y_train, w_final, b_final))
-
 
 
 

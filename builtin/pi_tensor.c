@@ -5,6 +5,7 @@
 #include "../pi_object.h"
 #include <stdlib.h>
 #include <math.h>
+#include <limits.h>
 
 static int double_cmp(const void *a, const void *b)
 {
@@ -29,8 +30,8 @@ static int tn_shapeFromArgs(vm_t *vm, int argc, Value *argv, int **out_shape)
         for (int i = 0; i < ndim; i++)
         {
             Value dim = *(Value *)list_getAt(shape_list->items, i);
-            if (!IS_NUM(dim) || AS_NUM(dim) < 0)
-                vm_error(vm, "tensor shape dimensions must be non-negative numbers.");
+            if (!IS_NUM(dim) || AS_NUM(dim) < 0 || floor(AS_NUM(dim)) != AS_NUM(dim) || AS_NUM(dim) > INT_MAX)
+                vm_error(vm, "tensor shape dimensions must be non-negative integer numbers.");
             shape[i] = (int)AS_NUM(dim);
         }
         *out_shape = shape;
@@ -46,8 +47,8 @@ static int tn_shapeFromArgs(vm_t *vm, int argc, Value *argv, int **out_shape)
 
     for (int i = 0; i < argc; i++)
     {
-        if (!IS_NUM(argv[i]) || AS_NUM(argv[i]) < 0)
-            vm_error(vm, "tensor shape dimensions must be non-negative numbers.");
+        if (!IS_NUM(argv[i]) || AS_NUM(argv[i]) < 0 || floor(AS_NUM(argv[i])) != AS_NUM(argv[i]) || AS_NUM(argv[i]) > INT_MAX)
+            vm_error(vm, "tensor shape dimensions must be non-negative integer numbers.");
         shape[i] = (int)AS_NUM(argv[i]);
     }
 
@@ -59,11 +60,21 @@ static Value tn_makeFilled(vm_t *vm, int argc, Value *argv, double fill, bool ra
 {
     int *shape = NULL;
     int ndim = tn_shapeFromArgs(vm, argc, argv, &shape);
-    PiTensor *tensor = (PiTensor *)add_obj(vm, new_tensor(ndim, shape, TN_FLOAT64));
+    PiTensor *tensor = (PiTensor *)add_obj(vm, randomize || fill != 0.0
+                                                   ? new_tensorUninit(ndim, shape, TN_FLOAT64)
+                                                   : new_tensor(ndim, shape, TN_FLOAT64));
     free(shape);
 
-    for (int i = 0; i < tensor->size; i++)
-        tensor_setFlat(tensor, i, randomize ? rand() / (double)RAND_MAX : fill);
+    if (randomize)
+    {
+        for (int i = 0; i < tensor->size; i++)
+            tensor->data.f64[i] = rand() / (double)RAND_MAX;
+    }
+    else if (fill != 0.0)
+    {
+        for (int i = 0; i < tensor->size; i++)
+            tensor->data.f64[i] = fill;
+    }
 
     return NEW_OBJ(tensor);
 }
@@ -170,7 +181,7 @@ Value tn_from(vm_t *vm, int argc, Value *argv)
     if (!infer_shape(argv[0], 0, shape, &ndim) || ndim <= 0)
         vm_error(vm, "tensor.from expects a rectangular numeric nested list.");
 
-    PiTensor *tensor = (PiTensor *)add_obj(vm, new_tensor(ndim, shape, TN_FLOAT64));
+    PiTensor *tensor = (PiTensor *)add_obj(vm, new_tensorUninit(ndim, shape, TN_FLOAT64));
     int cursor = 0;
     flatten_tensor(argv[0], tensor, &cursor);
     return NEW_OBJ(tensor);
@@ -276,9 +287,9 @@ Value tn_randn(vm_t *vm, int argc, Value *argv)
         double mag = sqrt(-2.0 * log(u1));
         double z0 = mag * cos(2.0 * PI * u2);
         double z1 = mag * sin(2.0 * PI * u2);
-        tensor_setFlat(tensor, i, z0);
+        tensor->data.f64[i] = z0;
         if (i + 1 < tensor->size)
-            tensor_setFlat(tensor, i + 1, z1);
+            tensor->data.f64[i + 1] = z1;
     }
 
     return NEW_OBJ(tensor);
@@ -351,12 +362,12 @@ Value tn_randint(vm_t *vm, int argc, Value *argv)
     if (high <= low)
         vm_error(vm, "randint: high must be greater than low");
 
-    PiTensor *tensor = (PiTensor *)add_obj(vm, new_tensor(ndim, shape, TN_FLOAT64));
+    PiTensor *tensor = (PiTensor *)add_obj(vm, new_tensorUninit(ndim, shape, TN_FLOAT64));
     free(shape);
 
     int range = high - low;
     for (int i = 0; i < tensor->size; i++)
-        tensor_setFlat(tensor, i, (double)(low + rand() % range));
+        tensor->data.f64[i] = (double)(low + rand() % range);
 
     return NEW_OBJ(tensor);
 }
