@@ -49,7 +49,7 @@ fun area(radius) {
 radii = [2, 4, 8]
 
 for r in radii {
-    println("radius = " + as_string(r) + ", area = " + as_string(area(r)))
+    println("radius = " + r + ", area = " + area(r))
 }
 ```
 

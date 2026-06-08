@@ -1,4 +1,1 @@
-import tensor:ten
-
-m = ten.rand(200, 300)
-// println(m)
+println("Hello, from PiLang!");

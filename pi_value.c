@@ -1093,43 +1093,67 @@ bool as_bool(Value val)
  * @param val The Pi value to be converted
  * @return A string representation of the value
  */
+static void append_text(char **result, size_t *buffer_size, const char *text)
+{
+    size_t len = strlen(text);
+    *result = realloc(*result, *buffer_size + len + 1);
+    if (!*result)
+        error("[as_string] Memory allocation failed.");
+    memcpy(*result + *buffer_size, text, len + 1);
+    *buffer_size += len;
+}
+
+static bool tensor_shouldSummarizeDim(PiTensor *tensor, int dim)
+{
+    return tensor->shape[dim] > 10;
+}
+
+static bool tensor_shouldPrintIndex(PiTensor *tensor, int dim, int index)
+{
+    if (!tensor_shouldSummarizeDim(tensor, dim))
+        return true;
+    return index < 3 || index >= tensor->shape[dim] - 3;
+}
+
 static void tensor_appendString(char **result, size_t *buffer_size, PiTensor *tensor, int dim, int *indices)
 {
     if (dim == tensor->ndim)
     {
-        // leaf: append the value
         Value cell = NEW_NUM(tensor_get(tensor, indices));
         char *item = as_string(cell);
-        size_t len = strlen(item);
-        *buffer_size += len;
-        *result = realloc(*result, *buffer_size + 1);
-        strcat(*result, item);
+        append_text(result, buffer_size, item);
         free(item);
         return;
     }
 
-    // append "["
-    *buffer_size += 1;
-    *result = realloc(*result, *buffer_size + 1);
-    strcat(*result, "[");
+    append_text(result, buffer_size, "[");
 
+    bool wrote_item = false;
+    bool wrote_ellipsis = false;
     for (int i = 0; i < tensor->shape[dim]; i++)
     {
-        if (i > 0)
+        if (!tensor_shouldPrintIndex(tensor, dim, i))
         {
-            *buffer_size += 2;
-            *result = realloc(*result, *buffer_size + 1);
-            strcat(*result, ", ");
+            if (!wrote_ellipsis)
+            {
+                if (wrote_item)
+                    append_text(result, buffer_size, ", ");
+                append_text(result, buffer_size, "...");
+                wrote_item = true;
+                wrote_ellipsis = true;
+            }
+            continue;
         }
+
+        if (wrote_item)
+            append_text(result, buffer_size, ", ");
 
         indices[dim] = i;
         tensor_appendString(result, buffer_size, tensor, dim + 1, indices);
+        wrote_item = true;
     }
 
-    // append "]"
-    *buffer_size += 1;
-    *result = realloc(*result, *buffer_size + 1);
-    strcat(*result, "]");
+    append_text(result, buffer_size, "]");
 }
 
 char *as_string(Value val)
