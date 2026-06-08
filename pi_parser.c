@@ -1,4 +1,4 @@
-#include <stdarg.h>
+﻿#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -1532,6 +1532,7 @@ static void variable(parser_t *parser)
     // Parse the variable name
     token_t token = consume(parser, TK_ID, "Expect variable name");
     char *name = token_value(token);
+    bool reserved_local_function = false;
 
     // parser->comp->name = strdup(name); // Store the variable name;
 
@@ -1540,13 +1541,30 @@ static void variable(parser_t *parser)
     {
         char *prev_fun = parser->fun_name;    // Store the pending function name
         char *prev_obj = parser->object_name; // Store the pending object name
+        bool function_literal = is_functionLiteral(parser, parser->current);
 
-        if (is_functionLiteral(parser, parser->current))
+        if (function_literal && is_localScope(parser->comp))
+        {
+            emit(parser->comp, OP_PUSH_NIL);
+            add_local(parser->comp, name);
+            reserved_local_function = true;
+        }
+
+        if (function_literal)
             parser->fun_name = name;
         if (is_objectLiteral(parser, parser->current))
             parser->object_name = name;
 
-        assignment(parser, true);
+        if (reserved_local_function)
+        {
+            cond_expr(parser);
+            store_variable(parser->comp, name);
+        }
+        else
+        {
+            assignment(parser, true);
+        }
+
         parser->fun_name = prev_fun;
         parser->object_name = prev_obj;
     }
@@ -1555,7 +1573,8 @@ static void variable(parser_t *parser)
         emit(parser->comp, OP_PUSH_NIL);
 
     // Store the variable
-    add_variable(parser->comp, name);
+    if (!reserved_local_function)
+        add_variable(parser->comp, name);
 }
 
 /**

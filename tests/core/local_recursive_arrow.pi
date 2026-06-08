@@ -1,0 +1,13 @@
+fun run() {
+    let fact = (n) -> {
+        if n <= 1 {
+            return 1
+        }
+
+        return n * fact(n - 1)
+    }
+
+    return fact(5)
+}
+
+assert(run() == 120, "local recursive arrow should capture its own binding")
