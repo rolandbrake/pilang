@@ -303,6 +303,8 @@ Object *new_map(table_t *table, bool is_instance)
     map->intrinsic_name = NULL;
     map->locked = false;
     map->bracket_access = true;
+    map->has_compute = false;
+    map->has_rcompute = false;
 
     // Initialize the iterator for the object
     map->it = ht_iterator(table);
@@ -491,6 +493,14 @@ void map_set(PiMap *map, Value key, Value value)
     // If the key does not exist in the table, add it
     if (!updated && !owner->locked)
         ht_put(owner->table, key_str, &value);
+
+    if (IS_FUN(value))
+    {
+        if (strcmp(key_str, "compute") == 0)
+            owner->has_compute = true;
+        else if (strcmp(key_str, "rcompute") == 0)
+            owner->has_rcompute = true;
+    }
 
     free(key_str);
 }

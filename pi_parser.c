@@ -1696,6 +1696,7 @@ static void emit_spreadMapLiteral(parser_t *parser)
                 }
             }
 
+            parser->is_return = false;
             pop_function(parser->comp, size);
             consume(parser, TK_RBRACE, "Expect '}' after function body.");
         }
@@ -4054,6 +4055,7 @@ static void primary(parser_t *parser)
                             }
                         }
 
+                        parser->is_return = false;
                         pop_function(parser->comp, param_size);
                         consume(parser, TK_RBRACE, "Expect '}' after function body.");
                     }
@@ -4184,6 +4186,7 @@ static void primary(parser_t *parser)
         }
 
         pop_function(comp, size); // Pop the function from the stack
+        parser->is_return = false;
         parser->object_member = method_value;
 
         consume(parser, TK_RBRACE, "Expect '}' after function body.");

@@ -1022,6 +1022,11 @@ static void finalize_mapLiteral(vm_t *vm, PiMap *map)
         fn->is_method = true;
         fn->owner = (Object *)map;
 
+        if (strcmp(keys[i], "compute") == 0)
+            map->has_compute = true;
+        else if (strcmp(keys[i], "rcompute") == 0)
+            map->has_rcompute = true;
+
         has_methods = true;
     }
 
@@ -1060,6 +1065,13 @@ static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
             add_obj(vm, AS_OBJ(*item));
 
         ht_put(target->table, keys[i], item);
+        if (IS_FUN(*item))
+        {
+            if (strcmp(keys[i], "compute") == 0)
+                target->has_compute = true;
+            else if (strcmp(keys[i], "rcompute") == 0)
+                target->has_rcompute = true;
+        }
     }
 }
 
@@ -1599,17 +1611,16 @@ static bool try_callMethodArgs(vm_t *vm, Value receiver, const char *name, int a
  * @param result If the method call is successful, the result of the method call.
  * @return true if the method call is successful, false otherwise.
  */
-static bool try_callCompute(vm_t *vm, Value receiver, int op, bool has_other, Value other, Value *result)
+static bool try_callComputeMethod(vm_t *vm, Value receiver, const char *name, int op, bool has_other, Value other, Value *result)
 {
     if (!IS_MAP(receiver) || !AS_MAP(receiver)->is_instance)
         return false;
 
-    // Compute method is used to perform operations on the object
-    PiMap *owner = map_ownerByKey(AS_MAP(receiver), "compute");
+    PiMap *owner = map_ownerByKey(AS_MAP(receiver), name);
     if (owner == NULL)
         return false;
 
-    Value *method_ptr = ht_get(owner->table, "compute");
+    Value *method_ptr = ht_get(owner->table, name);
     Value method = method_ptr ? *method_ptr : NEW_NIL();
     if (!IS_FUN(method))
         return false;
@@ -1630,6 +1641,16 @@ static bool try_callCompute(vm_t *vm, Value receiver, int op, bool has_other, Va
         add_obj(vm, AS_OBJ(*result));
 
     return true;
+}
+
+static bool try_callCompute(vm_t *vm, Value receiver, int op, bool has_other, Value other, Value *result)
+{
+    return try_callComputeMethod(vm, receiver, "compute", op, has_other, other, result);
+}
+
+static bool try_callReflectedCompute(vm_t *vm, Value receiver, int op, Value other, Value *result)
+{
+    return try_callComputeMethod(vm, receiver, "rcompute", op, true, other, result);
 }
 
 /**
@@ -1769,6 +1790,8 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value k
 
     ((PiMap *)instance)->proto = map;
     ((PiMap *)instance)->bracket_access = map->bracket_access;
+    ((PiMap *)instance)->has_compute = map->has_compute;
+    ((PiMap *)instance)->has_rcompute = map->has_rcompute;
 
     // Push the new instance onto the VM stack
     // vm->stack[vm->sp] = NEW_OBJ(instance);
@@ -2648,14 +2671,24 @@ void run(vm_t *vm)
 
         LABEL_BINARY:
 
-            // Overload check - only for maps, only when flag is set
-            // Moved before the switch but guarded by has_compute so non-map types
-            // pay zero cost. ops 5,6 (&&,||) and 15 (is) are never overloadable.
+            // Overload check - only for flagged instances. Numeric primitives
+            // have already exited through the fast path above.
             if (op != 5 && op != 6 && op != 15 &&
-                IS_MAP(left))
+                IS_MAP(left) && AS_MAP(left)->has_compute)
             {
                 Value computed = NEW_NIL();
                 if (try_callCompute(vm, left, op, true, right, &computed))
+                {
+                    push_stack(vm, computed);
+                    break;
+                }
+            }
+
+            if (op != 5 && op != 6 && op != 15 &&
+                IS_MAP(right) && AS_MAP(right)->has_rcompute)
+            {
+                Value computed = NEW_NIL();
+                if (try_callReflectedCompute(vm, right, op, left, &computed))
                 {
                     push_stack(vm, computed);
                     break;
@@ -3835,6 +3868,8 @@ void run(vm_t *vm)
             numElements |= code[pc++];
             // create a new hashtable
             table_t *table = ht_create(sizeof(Value));
+            bool has_compute = false;
+            bool has_rcompute = false;
 
             // Adjust the stack pointer to the first element of the map
             int _sp = vm->sp - (numElements * 2);
@@ -3846,12 +3881,22 @@ void run(vm_t *vm)
 
                 char *key = AS_CSTRING(vm->stack[i + 1]);
                 ht_put(table, key, &value);
+                if (IS_FUN(value))
+                {
+                    if (strcmp(key, "compute") == 0)
+                        has_compute = true;
+                    else if (strcmp(key, "rcompute") == 0)
+                        has_rcompute = true;
+                }
             }
 
             vm->sp = _sp;
 
             // Push the new map onto the stack
             Object *map = add_obj(vm, new_map(table, false));
+            PiMap *pimap = (PiMap *)map;
+            pimap->has_compute = has_compute;
+            pimap->has_rcompute = has_rcompute;
             push_stack(vm, NEW_OBJ(map));
 
             break;
@@ -3868,6 +3913,13 @@ void run(vm_t *vm)
 
             PiMap *map = AS_MAP(peek_stack(vm));
             ht_put(map->table, AS_CSTRING(key), &value);
+            if (IS_FUN(value))
+            {
+                if (strcmp(AS_CSTRING(key), "compute") == 0)
+                    map->has_compute = true;
+                else if (strcmp(AS_CSTRING(key), "rcompute") == 0)
+                    map->has_rcompute = true;
+            }
             break;
         }
 

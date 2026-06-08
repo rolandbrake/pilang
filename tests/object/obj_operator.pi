@@ -63,6 +63,57 @@ let Box = {
         error("unsupported operator: " + op)
     },
 
+    rcompute: fun(op, other) {
+        let handled = false
+        let result = nil
+
+        if (op == lang.OP_ADD) {
+            if (!is_num(other)) {
+                error("other + box expects a number")
+            }
+            result = other + value
+            handled = true
+        }
+
+        if (op == lang.OP_SUB) {
+            if (!is_num(other)) {
+                error("other - box expects a number")
+            }
+            result = other - value
+            handled = true
+        }
+
+        if (op == lang.OP_MUL) {
+            if (!is_num(other)) {
+                error("other * box expects a number")
+            }
+            result = other * value
+            handled = true
+        }
+
+        if (op == lang.OP_DIV) {
+            if (!is_num(other)) {
+                error("other / box expects a number")
+            }
+            result = other / value
+            handled = true
+        }
+
+        if (op == lang.OP_MOD) {
+            if (!is_num(other)) {
+                error("other % box expects a number")
+            }
+            result = other % value
+            handled = true
+        }
+
+        if (!handled) {
+            error("unsupported reflected operator: " + op)
+        }
+
+        return result
+    },
+
     format: fun() {
         return "Box(" + value + ")"
     },
@@ -83,6 +134,12 @@ assert(box * 4 == 40, "operator * should dispatch to compute(OP_MUL, other)")
 assert(box / 2 == 5, "operator / should dispatch to compute(OP_DIV, other)")
 assert(box % 3 == 1, "operator % should dispatch to compute(OP_MOD, other)")
 assert(box ^ 3 == (10 ^ 3), "operator ^ should dispatch to compute(OP_BXOR, other)")
+assert(5 + box == 15, "right-side operator + should dispatch to rcompute(OP_ADD, left)")
+assert(20 - box == 10, "right-side operator - should dispatch to rcompute(OP_SUB, left)")
+assert(2 * box == 20, "right-side operator * should dispatch to rcompute(OP_MUL, left)")
+assert(100 / box == 10, "right-side operator / should dispatch to rcompute(OP_DIV, left)")
+assert(13 % box == 3, "right-side operator % should dispatch to rcompute(OP_MOD, left)")
+assert(1 + 1 == 2, "primitive arithmetic should keep working")
 assert(+box == 10, "unary + should dispatch to compute(OP_POS)")
 assert(-box == -10, "unary - should dispatch to compute(OP_NEG)")
 assert(~box == ~10, "unary ~ should dispatch to compute(OP_BNOT)")

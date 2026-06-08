@@ -788,9 +788,14 @@ Value pi_copy(vm_t *vm, int argc, Value *argv)
         PiMap *copy = (PiMap *)obj;
 
         copy->proto = original->proto;
+        
         copy->super_instance = original->super_instance;
         copy->locked = original->locked;
         copy->bracket_access = original->bracket_access;
+
+        copy->has_compute = original->has_compute;
+        copy->has_rcompute = original->has_rcompute;
+        
         if (original->intrinsic_name)
             copy->intrinsic_name = strdup(original->intrinsic_name);
 

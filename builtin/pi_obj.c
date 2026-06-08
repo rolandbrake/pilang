@@ -293,6 +293,8 @@ Value pi_extends(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[extends] child must be a map literal or prototype, not an instance.");
 
     child->proto = parent;
+    child->has_compute = child->has_compute || parent->has_compute;
+    child->has_rcompute = child->has_rcompute || parent->has_rcompute;
     return NEW_OBJ((Object *)child);
 }
 
