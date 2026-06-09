@@ -1,8 +1,7 @@
 import tensor.{from, ones}
 
 let v = from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
-assert(as_string(v) == "[1, 2, 3, ..., 10, 11, 12]", "large tensor vectors should summarize middle elements")
+assert(str(v) == "[1, 2, 3, ..., 10, 11, 12]", "large tensor vectors should summarize middle elements")
 
 let m = ones(12, 12)
-assert(as_string(m) == "[[1, 1, 1, ..., 1, 1, 1], [1, 1, 1, ..., 1, 1, 1], [1, 1, 1, ..., 1, 1, 1], ..., [1, 1, 1, ..., 1, 1, 1], [1, 1, 1, ..., 1, 1, 1], [1, 1, 1, ..., 1, 1, 1]]", "large tensor matrices should summarize rows and columns")
-
+assert(str(m) == "[[1, 1, 1, ..., 1, 1, 1], [1, 1, 1, ..., 1, 1, 1], [1, 1, 1, ..., 1, 1, 1], ..., [1, 1, 1, ..., 1, 1, 1], [1, 1, 1, ..., 1, 1, 1], [1, 1, 1, ..., 1, 1, 1]]", "large tensor matrices should summarize rows and columns")

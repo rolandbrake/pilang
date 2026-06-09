@@ -20,20 +20,20 @@ println(is_list([1]))   // true
 
 ## Conversion
 
-- `as_num(value)`: converts a compatible value to a number
-- `as_string(value)`: converts a value to a string
-- `as_bool(value)`: converts a value to a boolean using Pilang truthiness
+- `num(value)`: converts a compatible value to a number
+- `str(value)`: converts a value to a string
+- `bool(value)`: converts a value to a boolean using Pilang truthiness
 
 ```pilang
-println(as_num("42"))      // 42
-println(as_string(42))     // "42"
-println(as_bool(""))       // false
-println(as_bool([1, 2]))   // true
+println(num("42"))    // 42
+println(str(42))      // "42"
+println(bool(""))     // false
+println(bool([1, 2])) // true
 ```
 
 ## Truthiness
 
-`as_bool` follows the same truthiness rules used by `if`, `while`, `&&`, `||`,
+`bool` follows the same truthiness rules used by `if`, `while`, `&&`, `||`,
 and `!`.
 
 Falsey values include:

@@ -52,9 +52,9 @@ is_str
 is_bool
 is_list
 is_map
-as_num
-as_string
-as_bool
+num
+str
+bool
 
 Global Collections
 ------------------

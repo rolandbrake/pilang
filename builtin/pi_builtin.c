@@ -51,9 +51,9 @@ BuiltinFunc builtin_functions[] = {
     {"is_bool", pi_isBool},
     {"is_list", pi_isList},
     {"is_map", pi_isMap},
-    {"as_num", pi_asNum},
-    {"as_string", pi_asStr},
-    {"as_bool", pi_asBool},
+    {"num", pi_num},
+    {"str", pi_str},
+    {"bool", pi_bool},
 
     // Collections
     {"push", pi_push},

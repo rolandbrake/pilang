@@ -65,31 +65,31 @@ Value pi_isMap(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(IS_MAP(argv[0]));
 }
 
-Value pi_asNum(vm_t *vm, int argc, Value *argv)
+Value pi_num(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
-        vm_error(vm, "[as_num] expects one argument.");
+        vm_error(vm, "[num] expects one argument.");
 
     if (is_numeric(argv[0]))
         return NEW_NUM(as_number(argv[0]));
     else
-        vm_error(vm, "[as_num] argument is not numeric.");
+        vm_error(vm, "[num] argument is not numeric.");
 
     return NEW_NIL();
 }
 
-Value pi_asStr(vm_t *vm, int argc, Value *argv)
+Value pi_str(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
-        vm_error(vm, "[as_str] expects one argument.");
+        vm_error(vm, "[str] expects one argument.");
 
     return NEW_OBJ(new_pistring(strdup(as_string(argv[0]))));
 }
 
-Value pi_asBool(vm_t *vm, int argc, Value *argv)
+Value pi_bool(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
-        vm_error(vm, "[as_bool] expects one argument.");
+        vm_error(vm, "[bool] expects one argument.");
 
     return NEW_BOOL(as_bool(argv[0]));
 }
