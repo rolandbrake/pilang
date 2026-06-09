@@ -784,8 +784,11 @@ void add_variable(compiler_t *comp, char *name)
     else
     {
         // Check if the global variable already exists
-        if (ht_get(comp->declared_globals, name) != NULL || is_builtin(comp, name))
+        if (ht_get(comp->declared_globals, name) != NULL)
             p_errorf(comp->current_line, comp->current_col, "Name already exists [%s]", name);
+        if (is_builtin(comp, name))
+            p_errorf(comp->current_line, comp->current_col,
+                     "Name already exists [%s]; this name is reserved by a builtin.", name);
 
         bool yes = true;
         ht_put(comp->declared_globals, name, &yes);
