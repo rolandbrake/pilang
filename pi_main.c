@@ -53,8 +53,7 @@ static void browser_notifyFinished(bool ok)
 {
     EM_ASM({
         if (typeof onExecutionFinished == 'function')
-            onExecutionFinished(!!$0);
-    }, ok ? 1 : 0);
+            onExecutionFinished(!!$0); }, ok ? 1 : 0);
 }
 
 static void browser_reportError(const char *message, int line, int column)
@@ -64,8 +63,7 @@ static void browser_reportError(const char *message, int line, int column)
         if (typeof console !== 'undefined' && console.error)
             console.error(message + ($1 >= 0 ? ` (line ${$1})` : ""));
         if (typeof onExecutionError == 'function')
-            onExecutionError(message, $1, $2);
-    }, message, line, column);
+            onExecutionError(message, $1, $2); }, message, line, column);
 }
 
 static void browser_printExecutionTime(void)
@@ -207,8 +205,6 @@ void resume_execution(void)
     }
 }
 
-
-
 EMSCRIPTEN_KEEPALIVE
 int execute_source(void)
 {
@@ -290,11 +286,13 @@ static void print_usage(const char *program)
 {
     printf("Pilangv0.0.1\n");
     printf("Usage:\n");
-    printf("  %s run <file>     Run the specified Pilangfile\n", program);
-    printf("  %s <file>         Shorthand for 'run <file>'\n", program);
-    printf("  %s help           Display this help message\n", program);
-    printf("  %s min <file>     Minimize the specified Pilangfile (coming soon)\n", program);
-    printf("  %s fmt <file>     Format the specified Pilangfile (coming soon)\n", program);
+    printf("  %s run <file> [args...]       Run the specified Pilang file\n", program);
+    printf("  %s <file> [args...]           Shorthand for 'run <file>'\n", program);
+    printf("  %s dis <file>                 Print bytecode for the specified Pilang file\n", program);
+    printf("  %s dis -o <output> <file>     Write bytecode to a file\n", program);
+    printf("  %s fmt <file>                 Format a file in place using utils/PiCli.js\n", program);
+    printf("  %s min <file>                 Minimize a file in place using utils/PiCli.js\n", program);
+    printf("  %s help                       Display this help message\n", program);
 }
 
 char *read_file(const char *filename)
@@ -392,6 +390,129 @@ static int run_file(const char *filename)
     return status;
 }
 
+static int disassemble_file(const char *filename, const char *output_filename)
+{
+    char *source = read_file(filename);
+    if (!source)
+        return 1;
+
+    init_scanner(source);
+    token_t *tokens = scan();
+
+    compiler_t *comp = init_compiler();
+    comp->source_name = strdup(filename);
+    parser_t *parser = init_parser(comp, tokens, MODE_FILE);
+    parse(parser);
+
+    FILE *output = NULL;
+    if (output_filename)
+    {
+        output = fopen(output_filename, "wb");
+        if (!output)
+        {
+            fprintf(stderr, "Could not open output file '%s': %s\n", output_filename, strerror(errno));
+            free_parser(parser);
+            free_compiler(comp);
+            free(source);
+            return 1;
+        }
+        dis_setOutput(output);
+    }
+
+    dis(comp);
+
+    if (output)
+    {
+        dis_setOutput(NULL);
+        fclose(output);
+    }
+
+    free_parser(parser);
+    free_compiler(comp);
+    free(source);
+    return 0;
+}
+
+static bool file_exists(const char *filename)
+{
+    FILE *file = fopen(filename, "rb");
+    if (!file)
+        return false;
+    fclose(file);
+    return true;
+}
+
+static char *quote_arg(const char *arg)
+{
+    size_t extra = 2;
+    for (const char *p = arg; *p; p++)
+        if (*p == '"')
+            extra++;
+
+    size_t len = strlen(arg);
+    char *quoted = malloc(len + extra + 1);
+    if (!quoted)
+        return NULL;
+
+    char *out = quoted;
+    *out++ = '"';
+    for (const char *p = arg; *p; p++)
+    {
+        if (*p == '"')
+            *out++ = '\\';
+        *out++ = *p;
+    }
+    *out++ = '"';
+    *out = '\0';
+    return quoted;
+}
+
+static int run_utilsTool(const char *mode, const char *filename)
+{
+    const char *tool = "utils/PiCli.js";
+    if (!file_exists(tool))
+    {
+        fprintf(stderr, "Missing %s. Cannot run '%s'.\n", tool, mode);
+        return 1;
+    }
+
+    char *quoted_tool = quote_arg(tool);
+    char *quoted_mode = quote_arg(mode);
+    char *quoted_file = quote_arg(filename);
+
+    if (!quoted_tool || !quoted_mode || !quoted_file)
+    {
+        fprintf(stderr, "Out of memory while preparing %s command.\n", mode);
+        free(quoted_tool);
+        free(quoted_mode);
+        free(quoted_file);
+        return 1;
+    }
+
+    size_t command_len = strlen("node ") + strlen(quoted_tool) + 1 + strlen(quoted_mode) + 1 + strlen(quoted_file) + 1;
+    char *command = malloc(command_len);
+    if (!command)
+    {
+        fprintf(stderr, "Out of memory while preparing %s command.\n", mode);
+        free(quoted_tool);
+        free(quoted_mode);
+        free(quoted_file);
+        return 1;
+    }
+
+    snprintf(command, command_len, "node %s %s %s", quoted_tool, quoted_mode, quoted_file);
+    int status = system(command);
+
+    free(command);
+    free(quoted_tool);
+    free(quoted_mode);
+    free(quoted_file);
+
+    if (status != 0)
+        fprintf(stderr, "Command '%s' failed. Make sure Node.js and the utils formatter/minifier modules are available.\n", mode);
+    return status == 0 ? 0 : 1;
+}
+
 int main(int argc, char *argv[])
 {
     pi_cli_argc = 0;
@@ -399,7 +520,6 @@ int main(int argc, char *argv[])
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0)
         error("SDL_Init failed: %s", SDL_GetError());
-    
 
     if (TTF_Init() != 0)
         error("TTF_Init failed: %s", TTF_GetError());
@@ -436,6 +556,34 @@ int main(int argc, char *argv[])
         return run_file(argv[2]);
     }
 
+    if (strcmp(command, "dis") == 0)
+    {
+        const char *input = NULL;
+        const char *output = NULL;
+
+        if (argc == 3)
+        {
+            input = argv[2];
+        }
+        else if (argc == 5 && strcmp(argv[2], "-o") == 0)
+        {
+            output = argv[3];
+            input = argv[4];
+        }
+        else if (argc == 5 && strcmp(argv[3], "-o") == 0)
+        {
+            input = argv[2];
+            output = argv[4];
+        }
+        else
+        {
+            fprintf(stderr, "Usage: %s dis <file>\n       %s dis -o <output> <file>\n", argv[0], argv[0]);
+            return 1;
+        }
+
+        return disassemble_file(input, output);
+    }
+
     if (strcmp(command, "min") == 0 || strcmp(command, "fmt") == 0)
     {
         if (argc != 3)
@@ -443,8 +591,7 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Usage: %s %s <file>\n", argv[0], command);
             return 1;
         }
-        printf("Command '%s' on file '%s' is not yet implemented.\n", command, argv[2]);
-        return 0;
+        return run_utilsTool(command, argv[2]);
     }
 
     // Shorthand: allow `pi <file>` as equivalent to `pi run <file>`.

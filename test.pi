@@ -1,2 +1,1 @@
-import col.{join}
-println("[" + join([str(i) : i in range(10) : i % 2 == 0], ", ") + "]")
+println("Hello, from pilang!")

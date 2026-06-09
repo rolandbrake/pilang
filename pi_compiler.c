@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <math.h>
+#include <ctype.h>
 #ifdef __EMSCRIPTEN__
 #include <emscripten/emscripten.h>
 #endif
@@ -18,19 +19,47 @@
 
 #include "builtin/pi_builtin.h"
 
+static FILE *dis_output = NULL;
+
 #ifdef __EMSCRIPTEN__
 static void dis_emit(const char *text)
 {
     EM_ASM({ console.log(UTF8ToString($0)); }, text);
 }
 #else
+static void dis_emitPlain(FILE *file, const char *text)
+{
+    const char *p = text;
+    while (*p)
+    {
+        if (*p == '\033' && p[1] == '[')
+        {
+            p += 2;
+            while (*p && !isalpha((unsigned char)*p))
+                p++;
+            if (*p)
+                p++;
+            continue;
+        }
+        fputc(*p++, file);
+    }
+}
+
 static void dis_emit(const char *text)
 {
-    printf("%s", text);
+    if (dis_output)
+        dis_emitPlain(dis_output, text);
+    else
+        printf("%s", text);
 }
 #endif
 
 static const char *error_source = NULL;
+
+void dis_setOutput(FILE *file)
+{
+    dis_output = file;
+}
 
 static const char *op_names[] = {
     [0x4] = "RETURN_VALUE",
@@ -1538,7 +1567,7 @@ void dis(compiler_t *comp)
                 line += 2;
                 pc += 2;
 
-                printf("%s", line_buf);
+                dis_emit(line_buf);
                 continue;
             }
 

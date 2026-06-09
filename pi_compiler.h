@@ -179,6 +179,7 @@ void p_errorf(int line, int column, const char *format, ...);
 
 // Debugging and memory management functions
 void dis(compiler_t *comp);
+void dis_setOutput(FILE *file);
 void free_compiler(compiler_t *comp);
 
 // Prints the list of currently active local variables (for debugging)

@@ -28,6 +28,7 @@
 
 # web files
 *.js
+!utils/*.js
 *.html
 
 
