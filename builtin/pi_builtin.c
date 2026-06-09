@@ -109,6 +109,7 @@ BuiltinModule *builtin_modules[] = {
     &module_func,
     &module_time,
     &module_type,
+    &module_random,
     &module_lang,
 #ifndef __EMSCRIPTEN__
     &module_os,

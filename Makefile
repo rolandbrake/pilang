@@ -43,6 +43,7 @@ COMMON_BUILTIN_SRCS := \
 	builtin/pi_func.c \
 	builtin/pi_tensor.c \
 	builtin/pi_type.c \
+	builtin/pi_random.c \
 	builtin/pi_lang.c \
 	builtin/pi_obj.c \
 	builtin/pi_builtin.c

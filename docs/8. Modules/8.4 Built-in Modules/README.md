@@ -20,6 +20,7 @@ import sys.{EXIT_SUCCESS}
 - [math](math.md): math constants and numeric helpers
 - [os](os.md): operating-system helpers
 - [plot](plot.md): charts and plotting
+- [random](random.md): random numbers, choices, and shuffling
 - [stats](stats.md): statistics helpers
 - [string](string.md): string utilities
 - [sys](sys.md): process and runtime information

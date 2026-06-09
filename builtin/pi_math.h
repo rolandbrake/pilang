@@ -1,8 +1,12 @@
 #ifndef PI_MATH_H
 #define PI_MATH_H
 
+#include <stdint.h>
 #include "../pi_vm.h"
 #include "../pi_value.h"
+
+void rng_seed(uint32_t seed);
+double rand_num(void);
 
 // Returns the absolute value of a number or each element in a list.
 Value pi_abs(vm_t *vm, int argc, Value *argv);
