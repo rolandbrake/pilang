@@ -1,3 +1,2 @@
 import col.{join}
-let values = [str(i) : i in range(10)]
-println(join(values, ", "))
+println("[" + join([str(i) : i in range(10) : i % 2 == 0], ", ") + "]")

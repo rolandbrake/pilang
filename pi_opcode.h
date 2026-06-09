@@ -68,6 +68,8 @@ typedef enum
     OP_PUSH_TUPLE = 0x4b,
     OP_GET_MEMBER = 0x4c,
     OP_SET_MEMBER = 0x4d,
+    OP_COMP_BEGIN = 0x4e,
+    OP_COMP_END = 0x4f,
 
 } OpCode;
 
@@ -124,6 +126,7 @@ static inline int operand_count(uint8_t op)
     case OP_TENSOR_SET:
     case OP_CALL_SPREAD:
     case OP_COMP_APPEND:
+    case OP_COMP_BEGIN:
     case OP_MAP_FINALIZE:
         return 1;
 

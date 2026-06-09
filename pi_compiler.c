@@ -91,6 +91,8 @@ static const char *op_names[] = {
     [0x4b] = "PUSH_TUPLE",
     [0x4c] = "GET_MEMBER",
     [0x4d] = "SET_MEMBER",
+    [0x4e] = "COMP_BEGIN",
+    [0x4f] = "COMP_END",
 };
 
 /**
@@ -1430,6 +1432,7 @@ void dis(compiler_t *comp)
             case OP_PUSH_FUNCTION:
             case OP_TENSOR_GET:
             case OP_TENSOR_SET:
+            case OP_COMP_BEGIN:
             case OP_COMP_APPEND:
             case OP_MAP_FINALIZE:
                 snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d",
@@ -1468,6 +1471,7 @@ void dis(compiler_t *comp)
             case OP_LIST_APPEND:
             case OP_LIST_EXTEND:
             case OP_LIST_FINALIZE:
+            case OP_COMP_END:
             case OP_MAP_SET:
             case OP_MAP_EXTEND:
                 snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s",
@@ -1505,6 +1509,7 @@ void dis(compiler_t *comp)
             case OP_PUSH_FUNCTION:
             case OP_TENSOR_GET:
             case OP_TENSOR_SET:
+            case OP_COMP_BEGIN:
             case OP_COMP_APPEND:
             case OP_MAP_FINALIZE:
                 snprintf(line_buf, sizeof(line_buf),
@@ -1552,6 +1557,7 @@ void dis(compiler_t *comp)
             case OP_LIST_APPEND:
             case OP_LIST_EXTEND:
             case OP_LIST_FINALIZE:
+            case OP_COMP_END:
             case OP_MAP_SET:
             case OP_MAP_EXTEND:
                 snprintf(line_buf, sizeof(line_buf),

@@ -1,11 +1,14 @@
 let evens = [x * 2 : x in 0..5]
 let pairs = [[x ** 2, y ** 2] : x in 0..10, y in 0..10 : x % 2 == 0, y % 2 == 0]
+let list_items = [[1], [2]]
 
 assert(evens == [0, 2, 4, 6, 8], "list comprehensions should map a single iterator into a list")
 assert(#pairs == 25, "nested list comprehensions should emit one value per iterator combination that passes filters")
 assert(pairs[0] == [0, 0], "list comprehensions should keep the first matching nested result")
 assert(pairs[1] == [0, 4], "inner iterators should vary fastest inside comprehensions")
 assert(pairs[24] == [64, 64], "filters should keep the final matching nested result")
+assert(len([x : x in 0..3]) == 3, "list comprehensions should work directly as function-call arguments")
+assert([[x] : x in list_items] == [[[1]], [[2]]], "list comprehensions should append to the accumulator when iterator values are lists")
 
 println(evens)
 println(#pairs)

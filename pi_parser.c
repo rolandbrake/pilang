@@ -797,7 +797,7 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
  * @param conds The array of condition expressions.
  * @param cond_count The number of condition expressions.
  * @param iter_index The index of the current iterator expression.
- * @param acc_slot The slot in the local variable table where the resulting list is stored.
+ * @param acc_slot The local slot for the comprehension result list.
  */
 static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
                                comp_iter_t *iters, int iter_count,
@@ -889,22 +889,18 @@ static void emit_listComprehension(parser_t *parser)
         p_errorf(token.line, token.column, "List comprehension requires at least one iterator.");
     }
 
-    // Create a hidden variable name for the list comprehension result
+    // Create local metadata for the result list so iterator locals keep their
+    // normal relative slots inside the comprehension.
     char hidden_name[32];
     snprintf(hidden_name, sizeof(hidden_name), "<comp_%d>", comp.result.start);
-
-    // Emit an instruction to push a new list onto the stack
-    emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
-    // Add a new local variable to the scope with the hidden variable name
     add_local(parser->comp, hidden_name);
     int acc_slot = get_local(parser->comp, hidden_name);
+    emit_8u(parser->comp, OP_COMP_BEGIN, "<comp>", acc_slot);
 
     // Recursively emit bytecode for the loop
     emit_listCompLoops(parser, &comp, iters, iter_count, conds, cond_count, 0, acc_slot);
 
-    // Emit an instruction to finalize the list
-    emit(parser->comp, OP_LIST_FINALIZE);
-    // Remove the local variable from the scope
+    emit(parser->comp, OP_COMP_END);
     remove_locals(parser->comp, 1);
     // Set the position of the parser to the end of the list comprehension
     parser->current = comp.end_index;

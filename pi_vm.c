@@ -539,6 +539,7 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
                new_native(builtin_functions[i].name, builtin_functions[i].func));
 
     vm->iter_sp = -1;
+    vm->comp_sp = 0;
     vm->frame_sp = 0;
 
     vm->running = true;
@@ -633,6 +634,7 @@ void vm_reset(vm_t *vm, compiler_t *comp)
     // persistence of global state between script executions in the shell.
 
     vm->iter_sp = -1;
+    vm->comp_sp = 0;
     vm->frame_sp = 0;
 
     vm->running = true;
@@ -873,6 +875,18 @@ static inline Value peek_stack(vm_t *vm)
         vm_error(vm, "Stack underflow: Attempted to peek at an empty stack");
 
     return vm->stack[vm->sp - 1];
+}
+
+static inline int resolve_localSlot(vm_t *vm, int local)
+{
+    if (vm->comp_sp > 0)
+    {
+        int top = vm->comp_sp - 1;
+        if (vm->bp == vm->comp_bps[top] && local >= vm->comp_local_bases[top])
+            return vm->comp_bases[top] + (local - vm->comp_local_bases[top]);
+    }
+
+    return vm->bp + local;
 }
 
 /**
@@ -2226,7 +2240,7 @@ void run(vm_t *vm)
         case OP_LOAD_LOCAL:
         {
             op = code[pc++];
-            Value value = vm->stack[vm->bp + op];
+            Value value = vm->stack[resolve_localSlot(vm, op)];
             push_stack(vm, value);
             break;
         }
@@ -2249,7 +2263,7 @@ void run(vm_t *vm)
         case OP_STORE_LOCAL:
         {
             op = code[pc++];
-            int slot = vm->bp + op;
+            int slot = resolve_localSlot(vm, op);
             vm->stack[slot] = pop_stack(vm);
 
             // Ensure the stack pointer reserves space for locals.
@@ -3830,13 +3844,55 @@ void run(vm_t *vm)
 
         case OP_COMP_APPEND:
         {
-            int slot = vm->bp + code[pc++];
+            int local = code[pc++];
             Value value = pop_stack(vm);
+            int slot = resolve_localSlot(vm, local);
+            if (slot < vm->bp || slot >= vm->sp)
+                vm_error(vm, "List append local expects a list target.");
+
             Value target = vm->stack[slot];
             if (!IS_LIST(target))
                 vm_error(vm, "List append local expects a list target.");
 
             list_add(AS_LIST(target)->items, &value);
+            break;
+        }
+
+        case OP_COMP_BEGIN:
+        {
+            int local_base = code[pc++];
+            if (vm->comp_sp >= STACK_MAX)
+                vm_error(vm, "Too many nested list comprehensions.");
+
+            list_t *list = list_create(sizeof(Value));
+            Object *l_obj = add_obj(vm, new_list(list));
+            PiList *plist = (PiList *)l_obj;
+            plist->is_numeric = true;
+            plist->is_matrix = false;
+            plist->rows = 0;
+            plist->cols = 0;
+            push_stack(vm, NEW_OBJ(l_obj));
+
+            int top = vm->comp_sp++;
+            vm->comp_bases[top] = vm->sp - 1;
+            vm->comp_local_bases[top] = local_base;
+            vm->comp_bps[top] = vm->bp;
+            break;
+        }
+
+        case OP_COMP_END:
+        {
+            if (vm->comp_sp <= 0)
+                vm_error(vm, "List comprehension end without a matching begin.");
+            if (!IS_LIST(peek_stack(vm)))
+                vm_error(vm, "List comprehension end expects a list accumulator.");
+
+            int top = vm->comp_sp - 1;
+            if (vm->comp_bases[top] != vm->sp - 1)
+                vm_error(vm, "List comprehension stack is unbalanced.");
+
+            refresh_listMeta(AS_LIST(peek_stack(vm)));
+            vm->comp_sp--;
             break;
         }
 
