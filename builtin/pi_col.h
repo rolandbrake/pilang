@@ -64,6 +64,7 @@ Value pi_issuperset(vm_t *vm, int argc, Value *argv);
 Value pi_isdisjoint(vm_t *vm, int argc, Value *argv);
 
 Value pi_copy(vm_t *vm, int argc, Value *argv);
+Value pi_join(vm_t *vm, int argc, Value *argv);
 
 // Sorts the elements of a list in ascending order.
 Value cl_sort(vm_t *vm, int argc, Value *argv);
@@ -97,6 +98,7 @@ Value cl_copy(vm_t *vm, int argc, Value *argv);
 
 // used to combine multiple iterables into a single iterable
 Value cl_zip(vm_t *vm, int argc, Value *argv);
+Value cl_join(vm_t *vm, int argc, Value *argv);
 
 Value cl_isIterable(vm_t *vm, int argc, Value *argv);
 

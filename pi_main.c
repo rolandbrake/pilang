@@ -276,7 +276,6 @@ int main(int argc, char *argv[])
 #include "pi_compiler.h"
 #include "pi_vm.h"
 #include "common.h"
-#include "pi_min.h"
 
 // Add SDL includes
 #include <SDL2/SDL.h>

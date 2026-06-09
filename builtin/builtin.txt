@@ -74,6 +74,7 @@ concat
 repeat
 range
 copy
+join
 set
 union
 intersection
@@ -228,6 +229,7 @@ col.reverse
 col.shuffle
 col.copy
 col.zip
+col.join
 col.is_iterable
 col.add
 col.clear

@@ -72,6 +72,7 @@ BuiltinFunc builtin_functions[] = {
     {"repeat", cl_repeat},
     {"range", pi_range},
     {"copy", pi_copy},
+    {"join", pi_join},
 
     // set operations
     {"set", _pi_set},

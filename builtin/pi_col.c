@@ -1688,6 +1688,78 @@ Value cl_zip(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_list(zippedItems));
 }
 
+Value cl_join(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1 || argc > 2)
+        vm_error(vm, "[join] expects a list, tuple, or string, and an optional separator.");
+
+    Value collection = argv[0];
+    const char *separator = "";
+    if (argc == 2)
+    {
+        if (!IS_STRING(argv[1]))
+            vm_error(vm, "[join] separator must be a string.");
+        separator = AS_CSTRING(argv[1]);
+    }
+
+    if (IS_STRING(collection))
+        return collection;
+
+    if (!IS_LIST(collection) && !IS_TUPLE(collection))
+        vm_error(vm, "[join] first argument must be a list, tuple, or string.");
+
+    list_t *items = IS_LIST(collection) ? AS_LIST(collection)->items : AS_TUPLE(collection)->items;
+    int size = LIST_SIZE(items);
+    size_t sep_len = strlen(separator);
+    size_t result_len = 0;
+    char **parts = NULL;
+
+    if (size > 0)
+    {
+        parts = malloc(sizeof(char *) * size);
+        if (!parts)
+            vm_error(vm, "Memory allocation failed.");
+    }
+
+    for (int i = 0; i < size; i++)
+    {
+        Value item = *(Value *)list_getAt(items, i);
+        parts[i] = as_string(item);
+        result_len += strlen(parts[i]);
+        if (i > 0)
+            result_len += sep_len;
+    }
+
+    char *result = malloc(result_len + 1);
+    if (!result)
+        vm_error(vm, "Memory allocation failed.");
+
+    char *cursor = result;
+    for (int i = 0; i < size; i++)
+    {
+        if (i > 0 && sep_len > 0)
+        {
+            memcpy(cursor, separator, sep_len);
+            cursor += sep_len;
+        }
+
+        size_t part_len = strlen(parts[i]);
+        memcpy(cursor, parts[i], part_len);
+        cursor += part_len;
+        free(parts[i]);
+    }
+
+    free(parts);
+    *cursor = '\0';
+
+    return NEW_OBJ(add_obj(vm, new_pistring(result)));
+}
+
+Value pi_join(vm_t *vm, int argc, Value *argv)
+{
+    return cl_join(vm, argc, argv);
+}
+
 Value cl_isIterable(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1)
@@ -1708,6 +1780,7 @@ static BuiltinFunc col_functions[] = {
     {"shuffle", cl_shuffle},
     {"copy", cl_copy},
     {"zip", cl_zip},
+    {"join", cl_join},
     {"is_iterable", cl_isIterable},
     {"add", cl_add},
     {"clear", cl_clear},

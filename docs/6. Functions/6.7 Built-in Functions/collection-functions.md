@@ -53,10 +53,12 @@ println(count(letters, "a"))    // 2
 - `concat(a, b)`: combines compatible collections
 - `repeat(value, amount)`: repeats a string, list, or tuple
 - `copy(value)`: returns a copied value
+- `join(collection, separator = "")`: joins a list or tuple into a string
 
 ```pilang
 println(concat([1, 2], [3])) // [1, 2, 3]
 println(repeat("ha", 3))    // hahaha
+println(join(["pi", "lang"], "-")) // pi-lang
 ```
 
 ## Constructors
@@ -100,6 +102,7 @@ The `col` module exports additional collection helpers:
 - `col.shuffle(list)`: shuffles a list in place and returns it
 - `col.copy(collection)`: copies a list, string, or set
 - `col.zip(a, b, ...)`: returns a list of grouped items from lists or strings
+- `col.join(collection, separator = "")`: joins a list or tuple into a string
 - `col.is_iterable(value)`: returns whether a value is iterable
 - `col.add(set, value, ...)`: adds values or iterable contents to a set and returns it
 - `col.clear(collection)`: clears a list, string, or set and returns it
@@ -112,4 +115,5 @@ col.sort(values)
 println(values) // [1, 2, 3]
 
 println(col.zip(["x", "y"], [1, 2])) // [["x", 1], ["y", 2]]
+println(col.join(["x", "y"], ""))    // xy
 ```

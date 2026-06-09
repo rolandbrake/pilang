@@ -123,6 +123,16 @@ println(col.zip([1, 2], ["a", "b"])) // [[1, "a"], [2, "b"]]
 println(col.zip("ab", [1, 2]))       // [["a", 1], ["b", 2]]
 ```
 
+## `col.join(collection, separator = "")`
+
+Converts each item in a list or tuple to text and joins the items with an
+optional separator. Passing a string returns the string unchanged.
+
+```pilang
+println(col.join(["pi", "lang"], "-")) // pi-lang
+println(col.join([1, 2, 3], ", "))     // 1, 2, 3
+```
+
 ## `col.is_iterable(value)`
 
 Returns whether a value is iterable.
