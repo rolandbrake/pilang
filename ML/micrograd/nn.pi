@@ -1,0 +1,168 @@
+import engine.{Value}
+import col.{join}
+import random.{uniform, rand}
+
+// Base class for all trainable neural network components
+class Module {
+
+    // Reset gradients of all parameters to zero
+    // Typically called before a new backward pass
+    zero_grad() {
+        for p in this.parameters()
+            p.grad = 0
+    }
+
+    // Returns all trainable parameters in the module
+    // Subclasses override this method
+    parameters() {
+        return []
+    }
+}
+
+
+// Represents a single artificial neuron
+class Neuron: Module {
+
+    // nin = number of inputs
+    // nonlin = whether to apply ReLU activation
+    constructor(nin, nonlin = true) {
+
+        // Initialize weights randomly between -1 and 1
+        this.w = [Value(uniform(-1, 1)) : _ in range(nin)]
+
+        // Bias term starts at zero
+        this.b = Value(0)
+
+        // Whether this neuron uses ReLU activation
+        this.nonlin = nonlin
+    }
+
+    // Forward pass through the neuron
+    call(x) {        
+
+        // Compute weighted sum of inputs
+        let act = Value(0)
+
+        for i in range(len(this.w)) {
+            act += this.w[i] * x[i]
+        }
+
+        // Add bias
+        act += this.b        
+
+        // Apply activation if enabled
+        return this.nonlin ? act.relu() : act                
+    }
+
+    // Return all trainable parameters
+    parameters() {
+        return [...this.w, this.b]
+    }
+
+    // Human-readable representation
+    format() {
+        return (this.nonlin ? 'ReLU' : 'Linear') +
+               "Neuron(" + str(#this.w) + ")"
+    }
+}
+
+
+// A layer containing multiple neurons
+class Layer: Module {
+
+    // nin = number of inputs per neuron
+    // nout = number of neurons in the layer
+    constructor(nin, nout, nonlin = true) {
+
+        // Create nout neurons
+        this.neurons = [
+            Neuron(nin, nonlin)
+            : _ in range(nout)
+        ]
+    }
+
+    // Forward pass through every neuron
+    call(x) {
+
+        // Collect outputs from all neurons
+        let out = [n(x) : n in this.neurons]
+
+        // Return scalar directly when only one neuron exists
+        return len(out) == 1 ? out[0] : out
+    }
+
+    // Gather parameters from every neuron
+    parameters() {
+        return [
+            p
+            : n in this.neurons,
+              p in n.parameters()
+        ]
+    }
+
+    // Human-readable layer description
+    format() {
+        return "Layer of [" +
+               join([str(n) : n in this.neurons], ', ') +
+               "]"
+    }
+}
+
+
+// Multi-Layer Perceptron (feed-forward neural network)
+class MLP: Module {
+
+    // nin = input size
+    // nouts = list of layer output sizes
+    // Example:
+    // MLP(3, [4, 4, 1])
+    // Creates:
+    // 3 -> 4 -> 4 -> 1
+    constructor(nin, nouts) {
+
+        // Build list of layer sizes
+        let sz = [nin, ...nouts]
+     
+
+        // Create layers
+        // Hidden layers use ReLU
+        // Final layer is linear
+        this.layers = [
+            Layer(
+                sz[i],
+                sz[i + 1],
+                i != len(nouts) - 1
+            )
+            : i in range(len(nouts))
+        ]
+    }
+
+    // Forward pass through the entire network
+    call(x) {
+
+        // Feed output of each layer into the next
+        for layer in this.layers
+            x = layer(x)
+
+        return x
+    }
+
+    // Collect parameters from all layers
+    parameters() {
+        return [
+            p
+            : layer in this.layers,
+              p in layer.parameters()
+        ]
+    }
+
+    // Human-readable network description
+    format() {
+        return "MLP of [" +
+               join(
+                   [str(layer) : layer in this.layers],
+                   ', '
+               ) +
+               "]"
+    }
+}

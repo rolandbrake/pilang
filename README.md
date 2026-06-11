@@ -20,24 +20,21 @@
 
 ## Overview
 
-Pilang is a real-world scripting language with a compact C implementation, a bytecode virtual machine, modular architecture, standard library support, and operating system integration. It is designed to be easy to embed, pleasant to script with, and practical for experiments that need more than a tiny expression language.
+Pilang is a small, expressive scripting language with a compact C implementation, a bytecode virtual machine, modules, objects, tensors, and a practical standard library. It aims to feel light enough for quick scripts, but capable enough for experiments, teaching tools, numerical code, and embeddable application logic.
 
-The project includes a native interpreter, a WebAssembly/browser build, documentation, editor assets, built-in modules, reusable libraries, and a growing test suite.
+The language mixes familiar Python-like readability with features that are fun to compose: list comprehensions, slices, ranges, spread syntax, tuples, sets, closures, classes, callable objects, operator hooks, and native tensor helpers. The repository includes a native interpreter, a WebAssembly/browser build, documentation, editor assets, built-in modules, reusable libraries, ML examples, and a growing test suite.
 
-## Feature Highlights
+## Why Pilang
 
-- **Small C runtime**: interpreter, compiler, bytecode VM, call frames, values, objects, modules, and garbage-collected heap objects.
-- **Modern scripting syntax**: variables, constants, expressions, assignment operators, slices, ranges, destructuring, comprehensions, and control flow.
-- **Rich data model**: numbers, strings, booleans, nil, lists, maps, tuples, sets, objects, classes, and tensors.
-- **Functions that compose**: named functions, anonymous functions, arrow functions, closures, recursion, higher-order helpers, and functional utilities.
-- **Object-oriented programming**: classes, constructors, methods, inheritance, callable objects, bracket access, static behavior, and magic/operator methods.
-- **Module system**: import built-in modules, local modules, aliases, exported symbols, and private module members.
-- **Standard library coverage**: math, statistics, strings, I/O, filesystem, OS, system info, time, drawing, plotting, collections, functional helpers, types, language constants, and tensors.
-- **Numerical tools**: dense tensor operations, broadcasting, indexing, reductions, transforms, statistics, linear algebra helpers, and matrix operations.
-- **Native and web targets**: run `.pi` files locally with `pilang.exe`, or try the browser playground through the hosted site.
-- **Developer-friendly repo**: documentation, examples, tests, and VS Code syntax extension files are included.
+- **Readable scripts with sharp edges where they help**: `let`, `fun`, `class`, ranges, slices, `#` length, `in`, ternaries, spread syntax, destructuring, and comprehensions.
+- **Collections are first-class**: lists, maps, tuples, and sets have literal syntax and work naturally with loops, membership checks, copying, slicing, and collection helpers.
+- **Functions are flexible**: named functions, anonymous functions, arrow functions, closures, recursion, defaults, named arguments, and higher-order helpers are all part of the language.
+- **Objects are dynamic but structured**: classes, constructors, inheritance, methods, callable objects, bracket access, static behavior, and operator/magic methods let you choose between plain maps and richer objects.
+- **Numerical work is built in**: tensor constructors, indexing, transforms, reductions, broadcasting-style helpers, statistics, and linear algebra functions live in the standard modules.
+- **Made to travel**: the same language can run as a native executable or as a WebAssembly/browser build.
+- **Small enough to study**: the compiler, VM, object model, module system, and garbage collector live in C source files that are approachable for language/runtime hacking.
 
-## Quick Example
+## Quick Taste
 
 ```pilang
 import math:m
@@ -51,6 +48,145 @@ radii = [2, 4, 8]
 for r in radii {
     println("radius = " + r + ", area = " + area(r))
 }
+```
+
+## Language Tour
+
+### Expressive Collections
+
+```pilang
+scores = [91, 72, 88, 91, 64, 72]
+
+unique = {91, 72, 88, 64}
+curved = [min(score + 5, 100) : score in scores]
+honors = []
+
+for score in curved
+    if score >= 90
+        honors += score
+
+println("unique scores: " + unique)
+println("honors: " + honors)
+println("top three-ish: " + curved[0:3])
+```
+
+### Functions and Closures
+
+```pilang
+fun make_counter(start = 0) {
+    let value = start
+
+    return () -> {
+        value += 1
+        return value
+    }
+}
+
+next_id = make_counter(100)
+println(next_id()) // 101
+println(next_id()) // 102
+```
+
+### Classes, Inheritance, and Callable Objects
+
+```pilang
+class Model {
+    parameters() {
+        return []
+    }
+}
+
+class Linear: Model {
+    constructor(w, b) {
+        this.w = w
+        this.b = b
+    }
+
+    call(x) {
+        return this.w * x + this.b
+    }
+
+    parameters() {
+        return [this.w, this.b]
+    }
+
+    format() {
+        return "Linear(w=" + this.w + ", b=" + this.b + ")"
+    }
+}
+
+model = Linear(2, 1)
+println(model(10))      // callable object
+println(model.parameters())
+```
+
+### Operator Hooks
+
+Objects can participate in operators by defining compute methods, which makes domain objects feel native without changing the VM for every new type.
+
+```pilang
+import lang
+
+class Vec2 {
+    constructor(x, y) {
+        this.x = x
+        this.y = y
+    }
+
+    compute(op, other) {
+        if op == lang.OP_ADD
+            return Vec2(this.x + other.x, this.y + other.y)
+    }
+
+    format() {
+        return "Vec2(" + this.x + ", " + this.y + ")"
+    }
+}
+
+println(Vec2(2, 3) + Vec2(4, 1))
+```
+
+### Tensors for Numerical Code
+
+```pilang
+import tensor:t
+
+x = t.from([[1, 2], [3, 4]])
+w = t.eye(2, 2)
+
+println(t.shape(x))
+println(t.matmult(x, w))
+println(t.mean(x))
+```
+
+### Tiny ML Experiments
+
+The `ML/` directory contains linear regression, logistic regression, and a small scalar autograd/neural-network experiment inspired by micrograd.
+
+```pilang
+import nn.{MLP}
+import engine.{Value}
+
+xs = [
+    [2.0, 3.0, -1.0],
+    [3.0, -1.0, 0.5],
+    [0.5, 1.0, 1.0],
+    [1.0, 1.0, -1.0],
+]
+
+ys = [1.0, -1.0, -1.0, 1.0]
+model = MLP(3, [4, 4, 1])
+
+ypred = [model(x) : x in xs]
+loss = Value(0)
+
+for i in range(len(ypred)) {
+    diff = ypred[i] - ys[i]
+    loss += diff * diff
+}
+
+loss.backward()
+println(loss)
 ```
 
 ## Run Pilang
@@ -86,20 +222,20 @@ pilang min test.pi
 
 ## Build From Source
 
-The repository includes a Makefile for native and browser builds. On Windows with MinGW available, use `mingw32-make` from the repository root:
+The repository includes a Makefile for native and browser builds. On Windows with MinGW available, use `make` from the repository root. Some MinGW installs expose this as `mingw32-make`.
 
 ```powershell
-mingw32-make release
+make release
 ```
 
 Common targets:
 
-- `mingw32-make release`: build the optimized native executable, `pilang.exe`.
-- `mingw32-make debug`: build a debug native executable with `DEBUG_BUILD` enabled.
-- `mingw32-make web`: build the Emscripten/WebAssembly output, `pilang.html`, `pilang.js`, and `pilang.wasm`.
-- `mingw32-make run`: build and run the native executable.
-- `mingw32-make test`: build the native executable and run `python tools/run_tests.py`.
-- `mingw32-make clean`: remove generated build outputs.
+- `make release`: build the optimized native executable, `release/pilang.exe`.
+- `make debug`: build a debug native executable with `DEBUG_BUILD` enabled at `release/pilang.exe`.
+- `make web`: build the Emscripten/WebAssembly output in `release/`.
+- `make run`: build and run the native executable.
+- `make test`: build the native executable and run `python tools/run_tests.py`.
+- `make clean`: remove generated build outputs.
 
 The native build expects MinGW GCC and the SDL2 development libraries used by the project. The browser build expects Emscripten's `emcc`.
 
@@ -108,11 +244,10 @@ The native build expects MinGW GCC and the SDL2 development libraries used by th
 - `pi_*.c`, `pi_*.h`: core compiler, parser, VM, values, objects, modules, and runtime internals.
 - `builtin/`: built-in native modules.
 - `libs/`: Pilang libraries written in `.pi`.
+- `ML/`: numerical and machine-learning experiments written in Pilang.
+- `release/`: local build outputs.
 - `docs/`: language documentation and reference material.
 - `tests/`: examples and regression tests grouped by language area.
-- `website/`: hosted website and browser playground source.
-- `editors/`: editor integration files.
-- `imgs/`: project images and README assets.
 
 ## Documentation
 

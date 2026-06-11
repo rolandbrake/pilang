@@ -1,21 +1,26 @@
 CC = gcc
 EMCC = emcc
+RELEASE_DIR ?= release
 
 ifeq ($(OS),Windows_NT)
 EXEEXT := .exe
-CLEAN = powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue '$(TARGET)', 'pi', 'pilang.html', 'pilang.js', 'pilang.wasm'"
+MKDIR = powershell -NoProfile -Command "New-Item -ItemType Directory -Force '$(RELEASE_DIR)' | Out-Null"
+CLEAN = powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue '$(TARGET)', '$(WEB_TARGET)', '$(WEB_JS)', '$(WEB_WASM)'"
 else
 EXEEXT :=
-CLEAN = rm -f $(TARGET) pi pilang.html pilang.js pilang.wasm
+MKDIR = mkdir -p $(RELEASE_DIR)
+CLEAN = rm -f $(TARGET) $(WEB_TARGET) $(WEB_JS) $(WEB_WASM)
 endif
 
-TARGET ?= pi$(EXEEXT)
+TARGET ?= $(RELEASE_DIR)/pilang$(EXEEXT)
+WEB_TARGET ?= $(RELEASE_DIR)/pilang.html
+WEB_JS ?= $(RELEASE_DIR)/pilang.js
+WEB_WASM ?= $(RELEASE_DIR)/pilang.wasm
 
 CORE_SRCS := \
 	pi_main.c \
 	pi_token.c \
 	pi_lex.c \
-	pi_min.c \
 	pi_list.c \
 	pi_stack.c \
 	pi_table.c \
@@ -108,14 +113,17 @@ EMCC_FLAGS ?= \
 
 all: release
 
-debug:
+$(RELEASE_DIR):
+	$(MKDIR)
+
+debug: $(RELEASE_DIR)
 	$(CC) $(DEBUG_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(DEBUG_LDLIBS)
 
-release:
+release: $(RELEASE_DIR)
 	$(CC) $(RELEASE_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(NATIVE_LDLIBS)
 
-web:
-	$(EMCC) $(EMCC_FLAGS) -o pilang.html $(WEB_SRCS)
+web: $(RELEASE_DIR)
+	$(EMCC) $(EMCC_FLAGS) -o $(WEB_TARGET) $(WEB_SRCS)
 
 run: release
 	./$(TARGET)
