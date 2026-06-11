@@ -58,28 +58,28 @@ for r in radii {
 From the repository root on Windows:
 
 ```powershell
-.\pilang.exe run test.pi
+pilang run test.pi
 ```
 
 You can also use the shorthand form:
 
 ```powershell
-.\pilang.exe test.pi
+pilang test.pi
 ```
 
 Show available commands:
 
 ```powershell
-.\pilang.exe help
+pilang help
 ```
 
 Developer helpers:
 
 ```powershell
-.\pilang.exe dis test.pi
-.\pilang.exe dis -o bytecode.txt test.pi
-.\pilang.exe fmt test.pi
-.\pilang.exe min test.pi
+pilang dis test.pi
+pilang dis -o bytecode.txt test.pi
+pilang fmt test.pi
+pilang min test.pi
 ```
 
 `fmt` and `min` rewrite the target file in place and use the JavaScript utilities in `utils/`, so Node.js and the formatter/minifier modules must be available.

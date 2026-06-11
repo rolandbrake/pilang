@@ -3,6 +3,74 @@
 #include "pi_func.h"
 #include "pi_module.h"
 
+static Object **mark_stack = NULL; // Stack of objects to mark during the mark phase
+
+static int stack_count = 0; // Current stack count of objects to mark
+static int stack_capacity = 0; // Initial capacity of the mark stack
+
+static bool stack_tracing = false; // Flag to indicate if we are currently tracing the mark stack
+
+static void mark_references(Object *obj);
+
+/**
+ * @brief Pushes an object onto the GC mark stack.
+ *
+ * If the object is not already marked, mark it and grow the stack if
+ * necessary. The object will be processed later by `trace_stack` to mark
+ * its referents.
+ *
+ * @param obj The object to enqueue for marking.
+ */
+static void push_stack(Object *obj)
+{
+    if (obj == NULL || obj->is_marked)
+        return;
+
+    obj->is_marked = true;
+
+    if (stack_count >= stack_capacity)
+    {
+        int old_capacity = stack_capacity;
+        stack_capacity = old_capacity < 8 ? 8 : old_capacity * 2;
+        mark_stack = reallocate(mark_stack,
+                                sizeof(Object *) * (size_t)old_capacity,
+                                sizeof(Object *) * (size_t)stack_capacity);
+    }
+
+    mark_stack[stack_count++] = obj;
+}
+
+/**
+ * @brief Processes the GC mark stack and marks all reachable objects.
+ *
+ * This function repeatedly pops objects from the mark stack and visits their
+ * referenced objects via `mark_references`. It ensures the entire reachable
+ * object graph from the current roots is marked.
+ */
+static void trace_stack(void)
+{
+    stack_tracing = true;
+
+    while (stack_count > 0)
+    {
+        Object *obj = mark_stack[--stack_count];
+        mark_references(obj);
+    }
+
+    stack_tracing = false;
+}
+
+/**
+ * @brief Marks the transitive references of an object.
+ *
+ * This function scans the object fields and recursively marks any objects
+ * referenced by this object. It is called from `trace_stack` after an object
+ * has been marked and popped from the mark stack.
+ *
+ * @param obj The object whose referenced objects should be marked.
+ */
+static void mark_references(Object *obj)
+{
 /**
  * @brief Marks all values in a list as reachable.
  *
@@ -136,9 +204,16 @@ void mark_value(Value val)
  */
 void mark_object(Object *obj)
 {
-    if (obj == NULL || obj->is_marked)
+    push_stack(obj);
+
+    if (!stack_tracing)
+        trace_stack();
+}
+
+static void mark_references(Object *obj)
+{
+    if (obj == NULL)
         return;
-    obj->is_marked = true;
 
     // Recursively mark any referenced objects based on the object type.
     switch (obj->type)
@@ -567,7 +642,7 @@ void run_gc(vm_t *vm)
  *
  * @param vm The virtual machine instance.
  */
-static void print_object_chain(vm_t *vm)
+static void print_objectChain(vm_t *vm)
 {
     printf("\n[DEBUG] Object Chain:\n");
     Object *obj = vm->objects;

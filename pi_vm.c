@@ -1379,6 +1379,7 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
     ((Function *)fn)->instrs = function->instrs;
     ((Function *)fn)->globals = function->globals;
     ((Function *)fn)->param_names = function->param_names;
+    ((Function *)fn)->owns_params = false;
     ((Function *)fn)->upvalues = function->upvalues;
     ((Function *)fn)->upvalue_count = function->upvalue_count;
     ((Function *)fn)->need_args = function->need_args;
@@ -3604,6 +3605,9 @@ void run(vm_t *vm)
             iter_reset(iter);
 
             // Push the iterator onto the iterator stack
+            if (vm->iter_sp + 1 >= STACK_MAX)
+                vm_error(vm, "[iter] Iterator stack overflow.");
+
             vm->iters[++vm->iter_sp] = iter; // Push a pointer to the iterator
             break;
         }

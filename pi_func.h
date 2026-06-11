@@ -17,6 +17,7 @@ typedef struct Function
     char *name;     // Function name
     list_t *params; // PiList of parameters    
     list_t *param_names; // PiList of parameter names
+    bool owns_params;
     ObjCode *body;
     list_t *constants; // Constants table for this function's bytecode
     list_t *names;     // Names table for this function's bytecode

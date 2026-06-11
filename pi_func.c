@@ -37,6 +37,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     // Handle parameters
     fn->params = params ? params : list_create(sizeof(Value));
     fn->param_names = (body && body->param_names) ? body->param_names : NULL;
+    fn->owns_params = true;
 
     // Set function body
     fn->body = body;
@@ -98,16 +99,26 @@ Value *new_native(const char *name, native_func func)
     fn->name = strdup(name); // Allocate and copy name string
 
     fn->params = NULL;
+    fn->param_names = NULL;
+    fn->owns_params = false;
+    
     fn->body = NULL;
     fn->constants = NULL;
     fn->names = NULL;
+
     fn->instrs = NULL;
+    fn->globals = NULL;
 
     fn->is_native = true;
+    fn->is_method = false;
+
     fn->need_args = false; // Native functions don't use the args slot
     fn->need_kwargs = false; // Native functions don't use the kw_args slot
+    
     fn->native = func;
 
+    fn->upvalues = NULL;
+    fn->upvalue_count = 0;
     fn->instance = NULL;
     fn->owner = NULL;
 
@@ -332,7 +343,7 @@ Value call_funcv(vm_t *vm, Function *function, size_t argc, ...)
 void free_func(Function *fn)
 {
     free(fn->name);        // Free the function name
-    if (fn->params)
+    if (fn->owns_params && fn->params)
         list_free(fn->params); // Free the parameter list
 }
 

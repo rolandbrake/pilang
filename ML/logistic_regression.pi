@@ -1,8 +1,13 @@
 import math.{log10, exp}
 
 
-// compute the softmax of a vector f(z) = exp(z) / sum(exp(z))
+// Compute the softmax of a vector:
+// softmax(z_i) = exp(z_i) / Σ_j exp(z_j)
+//
+// To improve numerical stability, the maximum value is subtracted
+// from every element before exponentiation.
 fun softmax(z) {
+    // Find the maximum element in z
     let max_z = z[0]
     for i in range(1, #z) {
         if z[i] > max_z {
@@ -10,6 +15,7 @@ fun softmax(z) {
         }
     }
 
+    // Compute exponentials and their sum
     let exp_z = []
     let sum_exp_z = 0
     for i in range(#z) {
@@ -18,6 +24,7 @@ fun softmax(z) {
         sum_exp_z += exp_i
     }
 
+    // Normalize each exponential by the total sum
     let softmax_z = []
     for i in range(#z) {
         softmax_z += exp_z[i] / sum_exp_z
@@ -27,38 +34,131 @@ fun softmax(z) {
 }
 
 
+// Compute the sigmoid activation:
+// σ(z) = 1 / (1 + exp(-z))
 fun sigmoid(z) {
     return 1 / (1 + exp(-z))
 }
+
+
+// Compute the average binary cross-entropy (logistic) cost.
+//
+// Parameters:
+//   x : input features
+//   y : target labels (0 or 1)
+//   w : model weight
+//   b : model bias
+//
+// Returns:
+//   Average cost across all training examples.
 fun compute_cost(x, y, w, b) {
     let cost = 0
     let m = #x
 
     for i in range(m) {
+        // Model prediction for example i
         let f_wb = sigmoid(w * x[i] + b)
-        let cost_i = -y[i] * log10(f_wb) - (1 - y[i]) * log10(1 - f_wb)
+
+        // Binary cross-entropy loss
+        let cost_i =
+            -y[i] * log10(f_wb) -
+            (1 - y[i]) * log10(1 - f_wb)
+
         cost += cost_i
     }
 
+    // Average cost over all examples
     cost /= m
     return cost
 }
 
+
+// Compute the gradients of the cost function with respect
+// to the model parameters w and b.
+//
+// Returns:
+//   (dj_dw, dj_db)
 fun compute_gradient(x, y, w, b) {
     let m = #x
+
+    // Accumulators for gradients
     let dj_dw = 0
     let dj_db = 0
 
     for i in range(m) {
+        // Predicted probability
         let f_wb_i = sigmoid(w * x[i] + b)
+
+        // Prediction error
         let error_i = f_wb_i - y[i]
+
+        // Accumulate partial derivatives
         dj_dw += error_i * x[i]
         dj_db += error_i
     }
 
+    // Average gradients
     dj_dw /= m
     dj_db /= m
 
     return (dj_dw, dj_db)
 }
 
+
+// Train the logistic regression model using gradient descent.
+//
+// Parameters:
+//   x         : training inputs
+//   y         : training labels
+//   w_in      : initial weight
+//   b_in      : initial bias
+//   alpha     : learning rate
+//   num_iters : number of training iterations
+//
+// Returns:
+//   (final_w, final_b, cost_history)
+fun gradient_descent(x, y, w_in, b_in, alpha, num_iters) {
+    let w = w_in
+    let b = b_in
+
+    // Store cost after each update step
+    let cost_history = []
+
+    for iter in range(num_iters) {
+        // Compute current gradients
+        let (dj_dw, dj_db) = compute_gradient(x, y, w, b)
+
+        // Update parameters
+        w -= alpha * dj_dw
+        b -= alpha * dj_db
+
+        // Track training progress
+        cost_history += compute_cost(x, y, w, b)
+    }
+
+    return (w, b, cost_history)
+}
+
+
+// Generate binary predictions from the trained model.
+//
+// For each example:
+//   p = sigmoid(wx + b)
+//
+// If p >= 0.5 -> predict class 1
+// Otherwise     predict class 0
+fun predict(x, w, b) {
+    let predictions = []
+
+    for i in range(#x) {
+        let p = sigmoid(w * x[i] + b)
+
+        if p >= 0.5 {
+            predictions += 1
+        } else {
+            predictions += 0
+        }
+    }
+
+    return predictions
+}
