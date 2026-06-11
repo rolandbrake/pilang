@@ -3,7 +3,7 @@
 #include "pi_func.h"
 #include "pi_module.h"
 
-static Object **mark_stack = NULL; // Stack of objects to mark during the mark phase
+static Object **mark_stack = NULL; // Mark stack for tracking objects to mark during GC
 
 static int stack_count = 0; // Current stack count of objects to mark
 static int stack_capacity = 0; // Initial capacity of the mark stack
@@ -12,15 +12,6 @@ static bool stack_tracing = false; // Flag to indicate if we are currently traci
 
 static void mark_references(Object *obj);
 
-/**
- * @brief Pushes an object onto the GC mark stack.
- *
- * If the object is not already marked, mark it and grow the stack if
- * necessary. The object will be processed later by `trace_stack` to mark
- * its referents.
- *
- * @param obj The object to enqueue for marking.
- */
 static void push_stack(Object *obj)
 {
     if (obj == NULL || obj->is_marked)
@@ -40,13 +31,6 @@ static void push_stack(Object *obj)
     mark_stack[stack_count++] = obj;
 }
 
-/**
- * @brief Processes the GC mark stack and marks all reachable objects.
- *
- * This function repeatedly pops objects from the mark stack and visits their
- * referenced objects via `mark_references`. It ensures the entire reachable
- * object graph from the current roots is marked.
- */
 static void trace_stack(void)
 {
     stack_tracing = true;
@@ -60,17 +44,6 @@ static void trace_stack(void)
     stack_tracing = false;
 }
 
-/**
- * @brief Marks the transitive references of an object.
- *
- * This function scans the object fields and recursively marks any objects
- * referenced by this object. It is called from `trace_stack` after an object
- * has been marked and popped from the mark stack.
- *
- * @param obj The object whose referenced objects should be marked.
- */
-static void mark_references(Object *obj)
-{
 /**
  * @brief Marks all values in a list as reachable.
  *
