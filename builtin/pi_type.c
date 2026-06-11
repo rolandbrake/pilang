@@ -83,7 +83,7 @@ Value pi_str(vm_t *vm, int argc, Value *argv)
     if (argc == 0)
         vm_error(vm, "[str] expects one argument.");
 
-    return NEW_OBJ(new_pistring(strdup(as_string(argv[0]))));
+    return NEW_OBJ(new_pistring(pi_displayString(vm, argv[0])));
 }
 
 Value pi_bool(vm_t *vm, int argc, Value *argv)
@@ -223,7 +223,7 @@ Value tp_string(vm_t *vm, int argc, Value *argv)
     if (argc == 0)
         vm_error(vm, "[string] expects one argument.");
 
-    return NEW_OBJ(new_pistring(strdup(as_string(argv[0]))));
+    return NEW_OBJ(new_pistring(pi_displayString(vm, argv[0])));
 }
 
 // Converts x to a boolean value.

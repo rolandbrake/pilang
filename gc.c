@@ -166,6 +166,8 @@ void mark_object(Object *obj)
 
         if (map->proto)
             mark_object((Object *)map->proto);
+        if (map->super_instance)
+            mark_object(map->super_instance);
 
         table_t *table = map->table;
         if (!table)
@@ -188,20 +190,8 @@ void mark_object(Object *obj)
     {
         PiSet *set = (PiSet *)obj;
 
-        table_t *table = set->table;
-        if (!table)
-            break;
-
-        for (int i = 0; i < table->capacity; i++)
-        {
-            ht_item *item = &table->items[i];
-            if (!item->key)
-                continue;
-
-            // Mark the key as it's the element
-            mark_value(*(Value *)item->key);
-            // Values are dummy, no need to mark
-        }
+        for (int i = 0; i < set_size(set); i++)
+            mark_value(set_get(set, i));
         break;
     }
 
@@ -230,6 +220,7 @@ void mark_object(Object *obj)
     {
         ObjCode *code = (ObjCode *)obj;
         mark_list(code->data); // if necessary
+        mark_list(code->param_names);
         break;
     }
 
@@ -238,16 +229,32 @@ void mark_object(Object *obj)
         Function *fn = (Function *)obj;
 
         mark_list(fn->params);
+        mark_list(fn->constants);
+        mark_list(fn->names);
 
         if (fn->body)
             mark_object((Object *)fn->body);
 
+        if (fn->globals)
+        {
+            ht_iter it = ht_iterator(fn->globals);
+            while (ht_next(&it))
+            {
+                Value *val = (Value *)it.value;
+                if (val)
+                    mark_value(*val);
+            }
+        }
+
         if (fn->upvalues)
             for (int i = 0; i < fn->upvalue_count; i++)
-                mark_object((Object *)fn->upvalues[i]);
+                if (fn->upvalues[i])
+                    mark_value(fn->upvalues[i]->value);
 
         if (fn->instance)
             mark_object(fn->instance);
+        if (fn->owner)
+            mark_object(fn->owner);
 
         break;
     }
@@ -387,9 +394,8 @@ void free_object(Object *obj)
     {
         // Free the memory allocated for the set's elements
         PiSet *set = (PiSet *)obj;
-        // Elements are stored as keys in the table, values are dummy
-        ht_free(set->table);
-        break;
+        set_free(set);
+        return;
     }
 
     case OBJ_TUPLE:
@@ -502,11 +508,26 @@ void mark_roots(vm_t *vm)
         Frame *frame = &vm->frames[i];
         if (frame->function != NULL)
             mark_object((Object *)frame->function);
+
+        mark_list(frame->constants);
+        mark_list(frame->names);
+        if (frame->globals)
+        {
+            ht_iter it = ht_iterator(frame->globals);
+            while (ht_next(&it))
+            {
+                Value *val = (Value *)it.value;
+                if (val)
+                    mark_value(*val);
+            }
+        }
     }
 
     // Current function
     if (vm->function)
         mark_object(vm->function);
+
+    mark_list(vm->names);
 
     // Open upvalues (linked list)
     UpValue *up = vm->openUpvalues;

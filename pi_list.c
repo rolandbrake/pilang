@@ -156,29 +156,25 @@ int list_size(list_t *list)
 }
 
 /**
- * @brief Creates a deep copy of the given list.
+ * @brief Creates a shallow copy of the given list.
  *
  * This function allocates a new list with the same capacity and copies each
- * element from the original list to the new list. Each element is copied
- * using `copy_value` to ensure a deep copy.
+ * element slot from the original list to the new list.
  *
  * @param list The list to be copied.
  * @return A new list containing copies of the elements from the original list.
  */
 list_t *list_copy(list_t *list)
 {
-    // Create a new list with the same capacity as the original
-    list_t *copy = _list_create(sizeof(Value), list->capacity);
+    list_t *copy = _list_create(list->i_size, list->capacity);
 
-    // Iterate over each item in the original list
     for (size_t i = 0; i < list->size; i++)
     {
-        Value *item = (Value *)list_getAt(list, i); // Get item at index i
-        Value _item = copy_value(*item);            // Create a deep copy of the item
-        list_add(copy, &_item);                     // Add the copied item to the new list
+        void *item = list_getAt(list, (int)i);
+        list_add(copy, item);
     }
 
-    return copy; // Return the newly created list copy
+    return copy;
 }
 
 /**

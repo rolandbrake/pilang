@@ -5,12 +5,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "pi_string.h"
 #include "pi_token.h"
 #include "pi_list.h"
 
 typedef struct Object Object;
+typedef struct vm_t vm_t;
 
 #define IS_NUM(val) ((val).type == VAL_NUM)
 #define IS_NAN(val) ((val).type == VAL_NUM && (val).data.number == NAN)
@@ -74,6 +76,9 @@ UpValue new_upvalue(Value value, int index);
 double as_number(Value val);
 bool as_bool(Value val);
 char *as_string(Value val);
+char *as_stringWithFormat(vm_t *vm, Value val);
+uint64_t value_hash(Value val);
+bool value_keyEquals(Value left, Value right);
 list_t *as_list(Value val);
 
 bool is_numeric(Value val);

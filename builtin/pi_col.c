@@ -182,7 +182,7 @@ Value pi_empty(vm_t *vm, int argc, Value *argv)
     else if (IS_SET(arg))
     {
         PiSet *set = AS_SET(arg);
-        return NEW_BOOL(set->table->size == 0);
+        return NEW_BOOL(set_size(set) == 0);
     }
     else
         vm_error(vm, "[empty] Argument must be a list, string, map, or set.");
@@ -322,9 +322,7 @@ Value pi_remove(vm_t *vm, int argc, Value *argv)
     else if (IS_SET(collection))
     {
         PiSet *set = AS_SET(collection);
-        char *key = as_string(argv[1]);
-        ht_delete(set->table, key);
-        free(key);
+        set_remove(set, argv[1]);
         return collection;
     }
 
@@ -374,7 +372,7 @@ Value pi_len(vm_t *vm, int argc, Value *argv)
     case OBJ_MAP:
         return NEW_NUM(AS_CMAP(arg)->size);
     case OBJ_SET:
-        return NEW_NUM(AS_SET(arg)->table->size);
+        return NEW_NUM(set_size(AS_SET(arg)));
     case OBJ_TUPLE:
         return NEW_NUM(AS_TUPLE(arg)->items->size);
     case OBJ_TENSOR:
@@ -468,20 +466,16 @@ Value pi_union(vm_t *vm, int argc, Value *argv)
             vm_error(vm, "[union] all arguments must be sets.");
     }
 
-    table_t *table = ht_create(sizeof(Value));
+    PiSet *result = (PiSet *)new_set();
 
     for (int i = 0; i < argc; i++)
     {
         PiSet *set = AS_SET(argv[i]);
-        ht_iter it = ht_iterator(set->table);
-        while (ht_next(&it))
-        {
-            Value *val = (Value *)it.value;
-            ht_set(table, it.key, val);
-        }
+        for (int j = 0; j < set_size(set); j++)
+            set_add(result, set_get(set, j));
     }
 
-    return NEW_OBJ(new_set(table));
+    return NEW_OBJ((Object *)result);
 }
 
 /**
@@ -498,31 +492,26 @@ Value pi_intersection(vm_t *vm, int argc, Value *argv)
             vm_error(vm, "[intersection] all arguments must be sets.");
     }
 
-    // Start with copy of first set
     PiSet *first = AS_SET(argv[0]);
-    table_t *table = ht_create(sizeof(Value));
-    ht_iter it = ht_iterator(first->table);
-    while (ht_next(&it))
-    {
-        Value *val = (Value *)it.value;
-        ht_set(table, it.key, val);
-    }
+    PiSet *result = (PiSet *)new_set();
 
-    // Intersect with others
-    for (int i = 1; i < argc; i++)
+    for (int i = 0; i < set_size(first); i++)
     {
-        PiSet *set = AS_SET(argv[i]);
-        ht_iter it2 = ht_iterator(table);
-        while (ht_next(&it2))
+        Value value = set_get(first, i);
+        bool present = true;
+        for (int i = 1; i < argc; i++)
         {
-            if (ht_get(set->table, it2.key) == NULL)
+            if (!set_has(AS_SET(argv[i]), value))
             {
-                ht_delete(table, it2.key);
+                present = false;
+                break;
             }
         }
+        if (present)
+            set_add(result, value);
     }
 
-    return NEW_OBJ(new_set(table));
+    return NEW_OBJ((Object *)result);
 }
 
 /**
@@ -539,18 +528,15 @@ Value pi_difference(vm_t *vm, int argc, Value *argv)
     PiSet *s1 = AS_SET(argv[0]);
     PiSet *s2 = AS_SET(argv[1]);
 
-    table_t *table = ht_create(sizeof(Value));
-    ht_iter it = ht_iterator(s1->table);
-    while (ht_next(&it))
+    PiSet *result = (PiSet *)new_set();
+    for (int i = 0; i < set_size(s1); i++)
     {
-        if (ht_get(s2->table, it.key) == NULL)
-        {
-            Value *val = (Value *)it.value;
-            ht_set(table, it.key, val);
-        }
+        Value value = set_get(s1, i);
+        if (!set_has(s2, value))
+            set_add(result, value);
     }
 
-    return NEW_OBJ(new_set(table));
+    return NEW_OBJ((Object *)result);
 }
 
 /**
@@ -567,31 +553,25 @@ Value pi_symmetricDiff(vm_t *vm, int argc, Value *argv)
     PiSet *s1 = AS_SET(argv[0]);
     PiSet *s2 = AS_SET(argv[1]);
 
-    table_t *table = ht_create(sizeof(Value));
+    PiSet *result = (PiSet *)new_set();
 
     // Elements in s1 but not s2
-    ht_iter it = ht_iterator(s1->table);
-    while (ht_next(&it))
+    for (int i = 0; i < set_size(s1); i++)
     {
-        if (ht_get(s2->table, it.key) == NULL)
-        {
-            Value *val = (Value *)it.value;
-            ht_set(table, it.key, val);
-        }
+        Value value = set_get(s1, i);
+        if (!set_has(s2, value))
+            set_add(result, value);
     }
 
     // Elements in s2 but not s1
-    it = ht_iterator(s2->table);
-    while (ht_next(&it))
+    for (int i = 0; i < set_size(s2); i++)
     {
-        if (ht_get(s1->table, it.key) == NULL)
-        {
-            Value *val = (Value *)it.value;
-            ht_set(table, it.key, val);
-        }
+        Value value = set_get(s2, i);
+        if (!set_has(s1, value))
+            set_add(result, value);
     }
 
-    return NEW_OBJ(new_set(table));
+    return NEW_OBJ((Object *)result);
 }
 
 /**
@@ -608,10 +588,9 @@ Value pi_issubset(vm_t *vm, int argc, Value *argv)
     PiSet *s1 = AS_SET(argv[0]);
     PiSet *s2 = AS_SET(argv[1]);
 
-    ht_iter it = ht_iterator(s1->table);
-    while (ht_next(&it))
+    for (int i = 0; i < set_size(s1); i++)
     {
-        if (ht_get(s2->table, it.key) == NULL)
+        if (!set_has(s2, set_get(s1, i)))
             return NEW_BOOL(false);
     }
 
@@ -632,10 +611,9 @@ Value pi_issuperset(vm_t *vm, int argc, Value *argv)
     PiSet *s1 = AS_SET(argv[0]);
     PiSet *s2 = AS_SET(argv[1]);
 
-    ht_iter it = ht_iterator(s2->table);
-    while (ht_next(&it))
+    for (int i = 0; i < set_size(s2); i++)
     {
-        if (ht_get(s1->table, it.key) == NULL)
+        if (!set_has(s1, set_get(s2, i)))
             return NEW_BOOL(false);
     }
 
@@ -656,10 +634,9 @@ Value pi_isdisjoint(vm_t *vm, int argc, Value *argv)
     PiSet *s1 = AS_SET(argv[0]);
     PiSet *s2 = AS_SET(argv[1]);
 
-    ht_iter it = ht_iterator(s1->table);
-    while (ht_next(&it))
+    for (int i = 0; i < set_size(s1); i++)
     {
-        if (ht_get(s2->table, it.key) != NULL)
+        if (set_has(s2, set_get(s1, i)))
             return NEW_BOOL(false);
     }
 
@@ -674,7 +651,7 @@ Value _pi_set(vm_t *vm, int argc, Value *argv)
     if (argc >= 1 && !IS_COLLECTION(argv[0]))
         vm_error(vm, "[set] expects one argument: an iterable.");
 
-    table_t *table = ht_create(sizeof(Value));
+    PiSet *result = (PiSet *)new_set();
 
     if (argc >= 1)
     {
@@ -685,22 +662,14 @@ Value _pi_set(vm_t *vm, int argc, Value *argv)
             for (int i = 0; i < list->items->size; i++)
             {
                 Value *item = (Value *)list_getAt(list->items, i);
-                char *key = as_string(*item);
-                ht_put(table, key, item);
-                free(key);
+                set_add(result, *item);
             }
         }
         else if (IS_SET(iterable))
         {
             PiSet *set = AS_SET(iterable);
-            ht_iter it = ht_iterator(set->table);
-            while (ht_next(&it))
-            {
-                char *key = strdup(it.key);
-                Value *value = (Value *)it.value;
-                ht_put(table, key, value);
-                free(key);
-            }
+            for (int i = 0; i < set_size(set); i++)
+                set_add(result, set_get(set, i));
         }
         else if (IS_STRING(iterable))
         {
@@ -708,10 +677,8 @@ Value _pi_set(vm_t *vm, int argc, Value *argv)
             for (int i = 0; i < str->length; i++)
             {
                 char ch[2] = {str->chars[i], '\0'};
-                char *key = strdup(ch);
                 Value value = NEW_OBJ(add_obj(vm, new_pistring(strdup(ch))));
-                ht_put(table, key, &value);
-                free(key);
+                set_add(result, value);
             }
         }
         else if (IS_TUPLE(iterable))
@@ -720,16 +687,14 @@ Value _pi_set(vm_t *vm, int argc, Value *argv)
             for (int i = 0; i < tuple->items->size; i++)
             {
                 Value *item = (Value *)list_getAt(tuple->items, i);
-                char *key = as_string(*item);
-                ht_put(table, key, item);
-                free(key);
+                set_add(result, *item);
             }
         }
         else
             vm_error(vm, "[set] argument must be a list, set, string, or tuple.");
     }
 
-    return NEW_OBJ(new_set(table));
+    return NEW_OBJ((Object *)result);
 }
 
 Value pi_copy(vm_t *vm, int argc, Value *argv)
@@ -788,14 +753,14 @@ Value pi_copy(vm_t *vm, int argc, Value *argv)
         PiMap *copy = (PiMap *)obj;
 
         copy->proto = original->proto;
-        
+
         copy->super_instance = original->super_instance;
         copy->locked = original->locked;
         copy->bracket_access = original->bracket_access;
 
         copy->has_compute = original->has_compute;
         copy->has_rcompute = original->has_rcompute;
-        
+
         if (original->intrinsic_name)
             copy->intrinsic_name = strdup(original->intrinsic_name);
 
@@ -816,20 +781,17 @@ Value pi_copy(vm_t *vm, int argc, Value *argv)
 
     case OBJ_SET:
     {
-        table_t *table = ht_create(sizeof(Value));
-        ht_iter it = ht_iterator(AS_SET(value)->table);
+        PiSet *result = (PiSet *)new_set();
+        PiSet *set = AS_SET(value);
 
-        while (ht_next(&it))
+        for (int i = 0; i < set_size(set); i++)
         {
-            Value *item = (Value *)it.value;
-            if (!item)
-                continue;
-
-            Value copied = pi_copy(vm, 1, item);
-            ht_put(table, it.key, &copied);
+            Value item = set_get(set, i);
+            Value copied = pi_copy(vm, 1, &item);
+            set_add(result, copied);
         }
 
-        return NEW_OBJ(add_obj(vm, new_set(table)));
+        return NEW_OBJ(add_obj(vm, (Object *)result));
     }
 
     case OBJ_TENSOR:
@@ -877,9 +839,7 @@ Value cl_add(vm_t *vm, int argc, Value *argv)
         if (!IS_COLLECTION(elem))
         {
             // Single element
-            char *key_str = as_string(elem);
-            ht_put(set->table, key_str, &elem);
-            free(key_str);
+            set_add(set, elem);
         }
         else
         {
@@ -889,9 +849,7 @@ Value cl_add(vm_t *vm, int argc, Value *argv)
             while (iter_hasNext(iterable))
             {
                 Value it_elem = iter_next(iterable);
-                char *key_str = as_string(it_elem);
-                ht_put(set->table, key_str, &it_elem);
-                free(key_str);
+                set_add(set, it_elem);
             }
         }
     }
@@ -922,8 +880,7 @@ Value cl_clear(vm_t *vm, int argc, Value *argv)
     {
 
         PiSet *set = AS_SET(argv[0]);
-        ht_free(set->table);
-        set->table = ht_create(sizeof(Value));
+        set_clear(set);
     }
     else
         vm_error(vm, "[clear] Argument must be a list, string, or set.");
@@ -1223,9 +1180,7 @@ Value cl_contains(vm_t *vm, int argc, Value *argv)
     else if (IS_SET(collection))
     {
         PiSet *set = AS_SET(collection);
-        char *key_str = as_string(target);
-        bool found = ht_get(set->table, key_str) != NULL;
-        free(key_str);
+        bool found = set_has(set, target);
         return NEW_BOOL(found);
     }
     else
@@ -1614,16 +1569,12 @@ Value cl_copy(vm_t *vm, int argc, Value *argv)
     else if (IS_SET(input))
     {
         PiSet *orig = AS_SET(argv[0]);
-        table_t *table = ht_create(sizeof(Value));
+        PiSet *result = (PiSet *)new_set();
 
-        ht_iter it = ht_iterator(orig->table);
-        while (ht_next(&it))
-        {
-            Value *val = (Value *)it.value;
-            ht_set(table, it.key, val);
-        }
+        for (int i = 0; i < set_size(orig); i++)
+            set_add(result, set_get(orig, i));
 
-        return NEW_OBJ(new_set(table));
+        return NEW_OBJ((Object *)result);
     }
 
     vm_error(vm, "[copy] only works with lists or strings or sets.");

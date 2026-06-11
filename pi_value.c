@@ -5,6 +5,7 @@
 #include "pi_object.h"
 #include "pi_func.h"
 #include "pi_module.h"
+#include "pi_vm.h"
 
 static int normalize_compare(int cmp)
 {
@@ -1156,8 +1157,15 @@ static void tensor_appendString(char **result, size_t *buffer_size, PiTensor *te
     append_text(result, buffer_size, "]");
 }
 
-char *as_string(Value val)
+char *as_stringWithFormat(vm_t *vm, Value val)
 {
+    if (vm != NULL && IS_MAP(val) && AS_MAP(val)->is_instance)
+    {
+        Value formatted = vm_callMethodNoArgs(vm, val, "format");
+        if (!(IS_MAP(formatted) && AS_MAP(formatted) == AS_MAP(val)))
+            return as_stringWithFormat(vm, formatted);
+    }
+
     switch (val.type)
     {
     case VAL_NUM:
@@ -1201,11 +1209,11 @@ char *as_string(Value val)
                     strcat(result, ", ");
                 }
 
-                char *item = as_string(*(Value *)list_getAt(list, i));
+                char *item = as_stringWithFormat(vm, *(Value *)list_getAt(list, i));
                 buffer_size += strlen(item);
                 result = realloc(result, buffer_size);
                 strcat(result, item);
-                // free(item);
+                free(item);
             }
 
             buffer_size++; // For the closing "]"
@@ -1230,7 +1238,7 @@ char *as_string(Value val)
             for (int i = 0; i < size; i++)
             {
                 char *key = keys[i];
-                char *value = as_string(*(Value *)ht_get(map->table, key));
+                char *value = as_stringWithFormat(vm, *(Value *)ht_get(map->table, key));
 
                 // Add comma and space if not the first entry
                 if (i > 0)
@@ -1261,24 +1269,24 @@ char *as_string(Value val)
             PiSet *set = AS_SET(val);
             size_t buffer_size = 2; // Start with "{}"
             char *result = dup_cstring("{");
-            char **keys = set->table->_keys;
-            int size = ht_length(set->table);
+            int size = set_size(set);
 
             if (size == 0)
                 return dup_cstring("{}");
 
             for (int i = 0; i < size; i++)
             {
-                char *key = keys[i];
+                char *item = as_stringWithFormat(vm, set_get(set, i));
                 if (i > 0)
                 {
                     buffer_size += 2;
                     result = realloc(result, buffer_size);
                     strcat(result, ", ");
                 }
-                buffer_size += strlen(key) + 1; // key + null
+                buffer_size += strlen(item) + 1; // item + null
                 result = realloc(result, buffer_size);
-                strcat(result, key);
+                strcat(result, item);
+                free(item);
             }
 
             buffer_size += 2;
@@ -1304,7 +1312,7 @@ char *as_string(Value val)
                 }
 
                 Value item = *(Value *)list_getAt(tuple->items, i);
-                char *str = as_string(item);
+                char *str = as_stringWithFormat(vm, item);
                 buffer_size += strlen(str);
                 result = realloc(result, buffer_size);
                 strcat(result, str);
@@ -1365,6 +1373,87 @@ char *as_string(Value val)
     }
 
     return NULL;
+}
+
+char *as_string(Value val)
+{
+    return as_stringWithFormat(NULL, val);
+}
+
+static uint64_t hash_mix(uint64_t hash, uint64_t value)
+{
+    hash ^= value + 0x9e3779b97f4a7c15ULL + (hash << 6) + (hash >> 2);
+    return hash;
+}
+
+uint64_t value_hash(Value val)
+{
+    switch (val.type)
+    {
+    case VAL_NUM:
+    {
+        if (isnan(val.data.number))
+            return 0x6e616eULL;
+        double number = val.data.number == 0.0 ? 0.0 : val.data.number;
+        uint64_t bits = 0;
+        memcpy(&bits, &number, sizeof(bits));
+        return hash_mix(0x6e3aULL, bits);
+    }
+
+    case VAL_BOOL:
+        return val.data.boolean ? 0x623a31ULL : 0x623a30ULL;
+
+    case VAL_NIL:
+        return 0x7a3a6e696cULL;
+
+    case VAL_OBJ:
+    {
+        Object *obj = AS_OBJ(val);
+        if (obj->type == OBJ_STRING)
+            return hash_mix(0x733aULL, AS_STRING(val)->hash);
+
+        return hash_mix(0x6f3aULL, obj->id);
+    }
+    }
+
+    return 0;
+}
+
+bool value_keyEquals(Value left, Value right)
+{
+    if (left.type != right.type)
+        return false;
+
+    switch (left.type)
+    {
+    case VAL_NUM:
+        return (isnan(left.data.number) && isnan(right.data.number)) ||
+               left.data.number == right.data.number;
+
+    case VAL_BOOL:
+        return left.data.boolean == right.data.boolean;
+
+    case VAL_NIL:
+        return true;
+
+    case VAL_OBJ:
+    {
+        Object *left_obj = AS_OBJ(left);
+        Object *right_obj = AS_OBJ(right);
+        if (left_obj->type != right_obj->type)
+            return false;
+        if (left_obj->type == OBJ_STRING)
+        {
+            PiString *a = AS_STRING(left);
+            PiString *b = AS_STRING(right);
+            return a->length == b->length &&
+                   memcmp(a->chars, b->chars, a->length) == 0;
+        }
+        return left_obj->id == right_obj->id;
+    }
+    }
+
+    return false;
 }
 
 /**

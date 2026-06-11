@@ -62,7 +62,7 @@ static void append_char(char *buffer, int *offset, char c)
     buffer[*offset] = '\0';
 }
 
-static char *display_string(vm_t *vm, Value value);
+char *pi_displayString(vm_t *vm, Value value);
 
 typedef struct
 {
@@ -126,7 +126,7 @@ static char *display_mapString(vm_t *vm, PiMap *map)
     {
         char *key = map->table->_keys[i];
         Value *stored = (Value *)ht_get(map->table, key);
-        char *value = stored ? display_string(vm, *stored) : strdup("nil");
+        char *value = stored ? pi_displayString(vm, *stored) : strdup("nil");
 
         if (i > 0)
             builder_append(&builder, ", ");
@@ -149,7 +149,7 @@ static char *display_listString(vm_t *vm, PiList *list)
     for (int i = 0; i < list->items->size; i++)
     {
         Value item = *(Value *)list_getAt(list->items, i);
-        char *text = display_string(vm, item);
+        char *text = pi_displayString(vm, item);
 
         if (i > 0)
             builder_append(&builder, ", ");
@@ -171,7 +171,7 @@ static char *display_tupleString(vm_t *vm, PiTuple *tuple)
     for (int i = 0; i < size; i++)
     {
         Value item = *(Value *)list_getAt(tuple->items, i);
-        char *text = display_string(vm, item);
+        char *text = pi_displayString(vm, item);
 
         if (i > 0)
             builder_append(&builder, ", ");
@@ -189,7 +189,7 @@ static char *display_tupleString(vm_t *vm, PiTuple *tuple)
 
 static char *display_setString(vm_t *vm, PiSet *set)
 {
-    int size = ht_length(set->table);
+    int size = set_size(set);
     if (size == 0)
         return strdup("{}");
 
@@ -198,9 +198,7 @@ static char *display_setString(vm_t *vm, PiSet *set)
 
     for (int i = 0; i < size; i++)
     {
-        char *key = set->table->_keys[i];
-        Value *stored = (Value *)ht_get(set->table, key);
-        char *text = stored ? display_string(vm, *stored) : strdup(key);
+        char *text = pi_displayString(vm, set_get(set, i));
 
         if (i > 0)
             builder_append(&builder, ", ");
@@ -213,13 +211,13 @@ static char *display_setString(vm_t *vm, PiSet *set)
     return builder_finish(&builder);
 }
 
-static char *display_string(vm_t *vm, Value value)
+char *pi_displayString(vm_t *vm, Value value)
 {
     if (IS_MAP(value) && AS_MAP(value)->is_instance)
     {
         Value formatted = vm_callMethodNoArgs(vm, value, "format");
         if (!(IS_MAP(formatted) && AS_MAP(formatted) == AS_MAP(value)))
-            return display_string(vm, formatted);
+            return pi_displayString(vm, formatted);
     }
 
     if (IS_LIST(value))
@@ -231,7 +229,7 @@ static char *display_string(vm_t *vm, Value value)
     if (IS_TUPLE(value))
         return display_tupleString(vm, AS_TUPLE(value));
 
-    char *text = as_string(value);
+    char *text = as_stringWithFormat(vm, value);
     return text ? text : strdup("<unknown>");
 }
 
@@ -282,7 +280,7 @@ static void format_text(vm_t *vm, int argc, Value *argv, char *out)
             if ((index + 1) >= argc)
                 vm_errorf(vm, "[format] placeholder {%d} is out of range.", index);
 
-            char *arg_text = display_string(vm, argv[index + 1]);
+            char *arg_text = pi_displayString(vm, argv[index + 1]);
 
             append(out, &offset, arg_text);
             free(arg_text);
@@ -323,7 +321,7 @@ Value pi_print(vm_t *vm, int argc, Value *argv)
         if (i > 0)
             putchar(' ');
 
-        text = display_string(vm, argv[i]);
+        text = pi_displayString(vm, argv[i]);
 
         fputs(text, stdout);
         free(text);

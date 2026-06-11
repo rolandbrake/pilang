@@ -6,12 +6,30 @@
 
 #define CREATE_OBJ(obj, type) (obj *)create_obj(sizeof(obj), type)
 
+typedef struct
+{
+    bool occupied;
+    uint64_t hash;
+    Value value;
+} set_item;
+
+typedef struct set_table
+{
+    int size;
+    int capacity;
+    set_item *items;
+    list_t *values;
+} set_table;
+
+static uint64_t _ID = 1;
+
 static Object *create_obj(size_t size, o_type type)
 {
     Object *obj = (Object *)malloc(size);
     if (!obj)
         error("[create_obj] Memory allocation failed.");
     obj->type = type;
+    obj->id = _ID++;
     obj->is_marked = false;
     obj->in_gcList = false;
     obj->gc_color = GC_WHITE;
@@ -319,21 +337,178 @@ Object *new_map(table_t *table, bool is_instance)
     return (Object *)map;
 }
 
-/**
- * Creates a new PiSet object from a given table.
- *
- * @param table The underlying table that this object wraps.
- * @return The newly created PiSet object.
- */
-Object *new_set(table_t *table)
+Object *new_set(void)
 {
     PiSet *set = CREATE_OBJ(PiSet, OBJ_SET);
 
     // Store the given table in the object and initialize iterator state
-    set->table = table;
-    set->it = ht_iterator(table);
+    set_table *table = malloc(sizeof(set_table));
+    if (!table)
+        error("[new_set] Memory allocation for set table failed.");
 
+    table->size = 0;
+    table->capacity = INIT_CAP;
+    table->items = calloc((size_t)table->capacity, sizeof(set_item));
+    table->values = list_create(sizeof(Value));
+    if (!table->items || !table->values)
+        error("[new_set] Memory allocation for set table failed.");
+
+    set->table = table;
+    set->current = 0;
     return (Object *)set;
+}
+
+static bool _set_insert(PiSet *set, Value value, bool append)
+{
+    set_table *table = set->table;
+
+    if ((table->size + 1) * 4 > table->capacity * 3)
+    {
+        int old_capacity = table->capacity;
+        set_item *old_items = table->items;
+
+        table->capacity *= 2;
+        table->items = calloc((size_t)table->capacity, sizeof(set_item));
+        if (!table->items)
+            error("[set_add] Memory allocation for set table failed.");
+
+        table->size = 0;
+        for (int i = 0; i < old_capacity; i++)
+        {
+            if (old_items[i].occupied)
+                _set_insert(set, old_items[i].value, false);
+        }
+        free(old_items);
+    }
+
+    uint64_t hash = value_hash(value);
+    int mask = table->capacity - 1;
+    int index = (int)(hash & (uint64_t)mask);
+
+    while (table->items[index].occupied)
+    {
+        if (table->items[index].hash == hash &&
+            value_keyEquals(table->items[index].value, value))
+        {
+            table->items[index].value = value;
+            return true;
+        }
+        index = (index + 1) & mask;
+    }
+
+    table->items[index].occupied = true;
+    table->items[index].hash = hash;
+    table->items[index].value = value;
+    table->size++;
+
+    if (append)
+        list_add(table->values, &value);
+
+    return true;
+}
+
+bool set_add(PiSet *set, Value value)
+{
+    return _set_insert(set, value, true);
+}
+
+bool set_has(PiSet *set, Value value)
+{
+    set_table *table = set->table;
+    if (!table)
+        return false;
+
+    uint64_t hash = value_hash(value);
+    int mask = table->capacity - 1;
+    int index = (int)(hash & (uint64_t)mask);
+
+    while (table->items[index].occupied)
+    {
+        if (table->items[index].hash == hash &&
+            value_keyEquals(table->items[index].value, value))
+            return true;
+        index = (index + 1) & mask;
+    }
+
+    return false;
+}
+
+bool set_remove(PiSet *set, Value value)
+{
+    if (!set || !set->table || !set_has(set, value))
+        return false;
+
+    set_table *table = set->table;
+    int old_capacity = table->capacity;
+    set_item *old_items = table->items;
+    list_t *old_values = table->values;
+
+    table->size = 0;
+    table->items = calloc((size_t)old_capacity, sizeof(set_item));
+    table->values = list_create(sizeof(Value));
+    if (!table->items || !table->values)
+        error("[set_remove] Memory allocation for set table failed.");
+
+    for (int i = 0; i < old_values->size; i++)
+    {
+        Value item = *(Value *)list_getAt(old_values, i);
+        if (!value_keyEquals(item, value))
+            _set_insert(set, item, true);
+    }
+
+    free(old_items);
+    list_free(old_values);
+    set->current = 0;
+    return true;
+}
+
+int set_size(PiSet *set)
+{
+    set_table *table = set ? set->table : NULL;
+    return table ? table->size : 0;
+}
+
+Value set_get(PiSet *set, int index)
+{
+    set_table *table = set ? set->table : NULL;
+    if (!table || !table->values || index < 0 || index >= table->values->size)
+        return NEW_NIL();
+
+    return *(Value *)list_getAt(table->values, index);
+}
+
+void set_clear(PiSet *set)
+{
+    if (!set || !set->table)
+        return;
+
+    set_table *table = set->table;
+    free(table->items);
+    list_free(table->values);
+
+    table->size = 0;
+    table->capacity = INIT_CAP;
+    table->items = calloc((size_t)table->capacity, sizeof(set_item));
+    table->values = list_create(sizeof(Value));
+    if (!table->items || !table->values)
+        error("[set_clear] Memory allocation for set table failed.");
+
+    set->current = 0;
+}
+
+void set_free(PiSet *set)
+{
+    if (!set)
+        return;
+    set_table *table = set->table;
+    if (table)
+    {
+        free(table->items);
+        list_free(table->values);
+        free(table);
+        set->table = NULL;
+    }
+    free(set);
 }
 
 Object *new_tuple(list_t *items)
@@ -577,6 +752,7 @@ Object *new_context()
     PiContext *ctx = (PiContext *)malloc(sizeof(PiContext));
 
     ctx->object.type = OBJ_CONTEXT;
+    ctx->object.id = _ID++;
     ctx->object.is_marked = false;
     ctx->object.in_gcList = false;
     ctx->object.gc_color = GC_WHITE;
@@ -641,6 +817,7 @@ Object *new_event(const char *type, EventType event_type)
     PiEvent *e = (PiEvent *)malloc(sizeof(PiEvent));
 
     e->object.type = OBJ_EVENT;
+    e->object.id = _ID++;
     e->object.is_marked = false;
     e->object.in_gcList = false;
     e->object.gc_color = GC_WHITE;
@@ -741,7 +918,7 @@ void iter_reset(Object *col)
     {
         // Reset the set's iterator to its first element
         PiSet *set = (PiSet *)col;
-        ht_reset(&set->it);
+        set->current = 0;
         break;
     }
     default:
@@ -800,7 +977,7 @@ bool iter_hasNext(Object *col)
     else if (type == OBJ_SET)
     {
         PiSet *set = (PiSet *)col;
-        return ht_hasNext(&set->it);
+        return set->current < set_size(set);
     }
     else if (type == OBJ_TUPLE)
     {
@@ -872,8 +1049,7 @@ Value iter_next(Object *col)
     else if (type == OBJ_SET)
     {
         PiSet *set = (PiSet *)col;
-        ht_next(&set->it);
-        return *(Value *)set->it.value;
+        return set_get(set, set->current++);
     }
 
     fprintf(stderr, "Invalid col type for iteration.\n");
@@ -934,7 +1110,7 @@ int get_index(int index, int length)
 
 int slice_index(int index, int length, int step)
 {
-    
+
     // Handle negative indexing first (Python rule)
     if (index < 0)
         index += length;
@@ -980,7 +1156,7 @@ Value get_slice(Object *sequence, double start, double end, double step)
         exit(EXIT_FAILURE);
     }
 
-    _step = (int)step;    
+    _step = (int)step;
 
     if (sequence->type == OBJ_LIST)
     {
@@ -1103,7 +1279,6 @@ Value get_slice(Object *sequence, double start, double end, double step)
 
         return NEW_OBJ(new_pistring(s_str));
     }
-    
 
     fprintf(stderr, "Invalid sequence type.\n");
     exit(EXIT_FAILURE);

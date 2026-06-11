@@ -256,8 +256,7 @@ Value pi_hashCode(vm_t *vm, int argc, Value *argv)
     if (argc < 1 || !IS_MAP(argv[0]))
         vm_error(vm, "[hash] expects a map as the first argument.");
 
-    uintptr_t ptr = (uintptr_t)AS_OBJ(argv[0]);
-    return NEW_NUM((double)(ptr & 0x1FFFFFFFFFFFFFull));
+    return NEW_NUM((double)AS_OBJ(argv[0])->id);
 }
 
 Value pi_extends(vm_t *vm, int argc, Value *argv)

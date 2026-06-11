@@ -291,14 +291,13 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
  */
 static bool set_equals(PiSet *left, PiSet *right)
 {
-    if (left->table->size != right->table->size)
+    if (set_size(left) != set_size(right))
         return false;
 
-    ht_iter it = ht_iterator(left->table);
-
-    while (ht_next(&it))
+    for (int i = 0; i < set_size(left); i++)
     {
-        if (ht_get(right->table, it.key) == NULL)
+        Value value = set_get(left, i);
+        if (!set_has(right, value))
             return false;
     }
 
@@ -313,11 +312,10 @@ static bool set_equals(PiSet *left, PiSet *right)
  */
 static bool set_isSubset(PiSet *left, PiSet *right)
 {
-    ht_iter it = ht_iterator(left->table);
-
-    while (ht_next(&it))
+    for (int i = 0; i < set_size(left); i++)
     {
-        if (ht_get(right->table, it.key) == NULL)
+        Value value = set_get(left, i);
+        if (!set_has(right, value))
             return false;
     }
 
@@ -336,7 +334,7 @@ static bool set_isSubset(PiSet *left, PiSet *right)
  */
 static Object *set_ops(vm_t *vm, PiSet *left, PiSet *right, int op)
 {
-    table_t *table = ht_create(sizeof(Value));
+    PiSet *result = (PiSet *)new_set();
 
     if (op == 9) /* union */
     {
@@ -344,30 +342,22 @@ static Object *set_ops(vm_t *vm, PiSet *left, PiSet *right, int op)
          * Copy all elements from left, then add any
          * elements from right not already present.
          */
-        ht_iter it = ht_iterator(left->table);
+        for (int i = 0; i < set_size(left); i++)
+            set_add(result, set_get(left, i));
 
-        while (ht_next(&it))
-            ht_put(table, it.key, it.value);
-
-        ht_iter other = ht_iterator(right->table);
-
-        while (ht_next(&other))
-        {
-            if (ht_get(table, other.key) == NULL)
-                ht_put(table, other.key, other.value);
-        }
+        for (int i = 0; i < set_size(right); i++)
+            set_add(result, set_get(right, i));
     }
     else if (op == 8) /* intersection */
     {
         /*
          * Keep only elements that exist in both sets.
          */
-        ht_iter it = ht_iterator(left->table);
-
-        while (ht_next(&it))
+        for (int i = 0; i < set_size(left); i++)
         {
-            if (ht_get(right->table, it.key) != NULL)
-                ht_put(table, it.key, it.value);
+            Value value = set_get(left, i);
+            if (set_has(right, value))
+                set_add(result, value);
         }
     }
     else if (op == 10) /* symmetric difference */
@@ -375,23 +365,20 @@ static Object *set_ops(vm_t *vm, PiSet *left, PiSet *right, int op)
         /*
          * Elements present in exactly one set.
          */
-        ht_iter it = ht_iterator(left->table);
+        for (int i = 0; i < set_size(left); i++)
+            set_add(result, set_get(left, i));
 
-        while (ht_next(&it))
-            ht_put(table, it.key, it.value);
-
-        ht_iter other = ht_iterator(right->table);
-
-        while (ht_next(&other))
+        for (int i = 0; i < set_size(right); i++)
         {
-            if (ht_get(table, other.key) != NULL)
-                ht_delete(table, other.key);
+            Value value = set_get(right, i);
+            if (set_has(result, value))
+                set_remove(result, value);
             else
-                ht_put(table, other.key, other.value);
+                set_add(result, value);
         }
     }
 
-    return new_set(table);
+    return (Object *)result;
 }
 
 /**
@@ -403,16 +390,15 @@ static Object *set_ops(vm_t *vm, PiSet *left, PiSet *right, int op)
  */
 static Object *set_difference(vm_t *vm, PiSet *left, PiSet *right)
 {
-    table_t *table = ht_create(sizeof(Value));
-    ht_iter it = ht_iterator(left->table);
-
-    while (ht_next(&it))
+    PiSet *result = (PiSet *)new_set();
+    for (int i = 0; i < set_size(left); i++)
     {
-        if (ht_get(right->table, it.key) == NULL)
-            ht_put(table, it.key, it.value);
+        Value value = set_get(left, i);
+        if (!set_has(right, value))
+            set_add(result, value);
     }
 
-    return new_set(table);
+    return (Object *)result;
 }
 
 /**
@@ -2436,10 +2422,10 @@ void run(vm_t *vm)
                     result = !set_equals(left_set, right_set);
                     break;
                 case 2: // >
-                    result = set_isSubset(right_set, left_set) && left_set->table->size != right_set->table->size;
+                    result = set_isSubset(right_set, left_set) && set_size(left_set) != set_size(right_set);
                     break;
                 case 3: // <
-                    result = set_isSubset(left_set, right_set) && left_set->table->size != right_set->table->size;
+                    result = set_isSubset(left_set, right_set) && set_size(left_set) != set_size(right_set);
                     break;
                 case 4: // >=
                     result = set_isSubset(right_set, left_set);
@@ -2496,6 +2482,12 @@ void run(vm_t *vm)
                 {
                     // Key existence check — no iteration needed
                     result = (map_owner(AS_MAP(right), left) != NULL);
+                    break;
+                }
+
+                case OBJ_SET:
+                {
+                    result = set_has(AS_SET(right), left);
                     break;
                 }
 
@@ -2832,8 +2824,8 @@ void run(vm_t *vm)
 
                 if (IS_STRING(_left) || IS_STRING(_right))
                 {
-                    char *l_str = as_string(_left);
-                    char *r_str = as_string(_right);
+                    char *l_str = as_stringWithFormat(vm, _left);
+                    char *r_str = as_stringWithFormat(vm, _right);
                     size_t l_len = strlen(l_str);
                     size_t r_len = strlen(r_str);
                     char *res = (char *)malloc(l_len + r_len + 1);
@@ -2881,8 +2873,8 @@ void run(vm_t *vm)
                 {
                     Value _right = TO_PRIM(vm, right, false);
 
-                    char *l_str = as_string(left);
-                    char *r_str = as_string(_right);
+                    char *l_str = as_stringWithFormat(vm, left);
+                    char *r_str = as_stringWithFormat(vm, _right);
 
                     size_t l_len = strlen(l_str);
                     size_t r_len = strlen(r_str);
@@ -3783,11 +3775,11 @@ void run(vm_t *vm)
         case OP_PUSH_SET:
         {
             int numElements = (code[pc++] << 8) | code[pc++];
-            table_t *table = ht_create(sizeof(Value));
+            PiSet *set = (PiSet *)new_set();
 
             if (numElements == 0)
             {
-                Object *set_obj = add_obj(vm, new_set(table));
+                Object *set_obj = add_obj(vm, (Object *)set);
                 push_stack(vm, NEW_OBJ(set_obj));
                 break;
             }
@@ -3799,12 +3791,10 @@ void run(vm_t *vm)
                 Value element = vm->stack[vm->sp + i];
                 if (IS_OBJ(element))
                     add_obj(vm, AS_OBJ(element));
-                char *key_str = as_string(element);
-                ht_put(table, key_str, &element);
-                free(key_str);
+                set_add(set, element);
             }
 
-            Object *set_obj = add_obj(vm, new_set(table));
+            Object *set_obj = add_obj(vm, (Object *)set);
             push_stack(vm, NEW_OBJ(set_obj));
             break;
         }

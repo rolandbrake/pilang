@@ -11,13 +11,13 @@
 #include "pi_object.h"
 #include "pi_frame.h"
 
-#define STACK_MAX 1024 // max stack size
+#define STACK_MAX 4096 // max stack size
 #define ITER_MAX 256   // max iterator stack size
 
 #define RUN_STEPS 1024 // max number of instructions to run
 
 // Initial GC threshold (number of newly allocated VM objects).
-#define NEXT_GC 4096
+#define NEXT_GC (1024 * 1024 * 8)
 
 
 // Macros for handling opcodes [for future use]
@@ -45,7 +45,7 @@
 #define TO_PRIM_NUM(v)    (IS_MAP(v) ? to_primitive(vm, v, false) : (v))
 #define TO_PRIM_STR(v)    (IS_MAP(v) ? to_primitive(vm, v, true)  : (v))
 
-typedef struct
+typedef struct vm_t
 {
     int pc; // Program Counter: Points to the current instruction being executed.
     int sp; // Stack Pointer: Tracks the top of the stack.
@@ -95,7 +95,7 @@ typedef struct
     list_t *gc_stack;
 
     int obj_count;
-    
+
 
     table_t *modules;   // Hash table to store loaded modules by name
     char *current_path; // Current working directory for resolving relative imports

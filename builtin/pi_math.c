@@ -298,23 +298,12 @@ Value pi_min(vm_t *vm, int argc, Value *argv)
     {
         PiSet *set = AS_SET(argv[0]);
 
-        if (set->table->size == 0)
+        if (set_size(set) == 0)
             vm_error(vm, "[min] cannot operate on an empty set.");
 
-        ht_iter it = ht_iterator(set->table);
-        while (ht_next(&it))
+        for (int i = 0; i < set_size(set); i++)
         {
-            Value actual;
-            if (it.value && ((Value *)it.value)->type != VAL_NIL)
-                actual = *(Value *)it.value;
-            else
-            {
-                char *endptr;
-                double num = strtod(it.key, &endptr);
-                if (endptr == it.key || *endptr != '\0')
-                    vm_error(vm, "[min] All elements in the set must be numeric.");
-                actual = NEW_NUM(num);
-            }
+            Value actual = set_get(set, i);
 
             if (!is_numeric(actual))
                 vm_error(vm, "[min] All elements in the set must be numeric.");
@@ -390,23 +379,12 @@ Value pi_max(vm_t *vm, int argc, Value *argv)
     {
         PiSet *set = AS_SET(argv[0]);
 
-        if (set->table->size == 0)
+        if (set_size(set) == 0)
             vm_error(vm, "[max] cannot operate on an empty set.");
 
-        ht_iter it = ht_iterator(set->table);
-        while (ht_next(&it))
+        for (int i = 0; i < set_size(set); i++)
         {
-            Value actual;
-            if (it.value && ((Value *)it.value)->type != VAL_NIL)
-                actual = *(Value *)it.value;
-            else
-            {
-                char *endptr;
-                double num = strtod(it.key, &endptr);
-                if (endptr == it.key || *endptr != '\0')
-                    vm_error(vm, "[max] All elements in the set must be numeric.");
-                actual = NEW_NUM(num);
-            }
+            Value actual = set_get(set, i);
 
             if (!is_numeric(actual))
                 vm_error(vm, "[max] All elements in the set must be numeric.");

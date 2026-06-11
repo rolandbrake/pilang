@@ -111,6 +111,7 @@ typedef enum
 struct Object
 {
     o_type type;
+    uint64_t id;
     bool is_marked; // Flag to indicate if the object is marked for garbage collection
     bool in_gcList; // Flag to indicate if the object is in the GC list
 
@@ -228,12 +229,24 @@ typedef struct PiMap
 {
     Object object;
     table_t *table;
+
     char *intrinsic_name;
+
+    // Flag to indicate if the map is locked for modifications
+    // (e.g., during method lookup to prevent infinite recursion)
     bool locked;
+
+    // Flag to indicate if the map is being accessed via bracket notation (e.g., obj[key])
     bool bracket_access;
+
+    // Flag to indicate if this map represents an instance of
+    // a class (as opposed to a class definition)
     bool is_instance;
-    bool has_compute;
-    bool has_rcompute;
+
+    bool has_compute;  // Flag to indicate if the map has a compute method for computed properties
+    bool has_rcompute; // Flag to indicate if the map has a rcompute method for reverse computed properties
+
+    // Reference to the superclass instance for inheritance (if any)
     Object *super_instance;
 
     struct PiMap *proto; // Prototype map for inheritance and method lookup
@@ -246,8 +259,8 @@ typedef struct PiMap
 typedef struct
 {
     Object object;
-    table_t *table; // Use table for unique elements, keys are values, values are dummy
-    ht_iter it;     // Iterator state for set iteration
+    void *table; // private hash table backing this PiSet
+    int current;      // iterator state for traversing the set
 } PiSet;
 
 typedef struct
@@ -353,7 +366,14 @@ Object *tensor_rowAsList(PiTensor *tensor, int row);
 
 Object *new_map(table_t *table, bool is_instance);
 
-Object *new_set(table_t *table);
+Object *new_set(void);                    // Create empty set
+bool set_add(PiSet *set, Value value);    // Add element
+bool set_has(PiSet *set, Value value);    // Check membership
+bool set_remove(PiSet *set, Value value); // Remove element
+int set_size(PiSet *set);                 // Get size
+Value set_get(PiSet *set, int index);     // Get value by iteration order
+void set_clear(PiSet *set);               // Remove all elements
+void set_free(PiSet *set);                // Free memory
 
 Object *new_tuple(list_t *items);
 
@@ -382,6 +402,7 @@ void iter_reset(Object *col);
 bool iter_hasNext(Object *col);
 Value iter_next(Object *col);
 bool is_iterable(Object *obj);
+
 int get_index(int index, int length);
 int slice_index(int index, int length, int step);
 Value get_slice(Object *sequence, double start, double end, double step);

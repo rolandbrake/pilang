@@ -15,6 +15,8 @@ Value pi_println(vm_t *vm, int argc, Value *argv);
 Value pi_print(vm_t *vm, int argc, Value *argv);
 Value pi_printf(vm_t *vm, int argc, Value *argv);
 
+char *pi_displayString(vm_t *vm, Value value);
+
 Value pi_log(vm_t *vm, int argc, Value *argv);
 
 Value pi_input(vm_t *vm, int argc, Value *argv);
