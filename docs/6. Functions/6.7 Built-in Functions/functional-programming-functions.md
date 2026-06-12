@@ -1,6 +1,6 @@
 # Functional Programming Functions
 
-Functional helpers take functions as arguments. They are useful for transforming,
+Functional helpers take functions as arguments. They are useful for _transforming,
 filtering, searching, and reducing collections.
 
 ## `map`
@@ -83,8 +83,8 @@ import func:f
 let inc = x -> x + 1
 let double = x -> x * 2
 
-let transform = f.pipe(inc, double)
-println(transform(3)) // 8
+let _transform = f.pipe(inc, double)
+println(_transform(3)) // 8
 
 fun add(a, b) {
     return a + b

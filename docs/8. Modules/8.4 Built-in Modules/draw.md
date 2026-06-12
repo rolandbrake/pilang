@@ -1,6 +1,6 @@
 # draw Module
 
-The `draw` module provides canvas drawing, events, transforms, and drawing state.
+The `draw` module provides canvas drawing, events, _transforms, and drawing state.
 
 ```pilang
 import draw

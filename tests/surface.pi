@@ -1,0 +1,33 @@
+import draw
+import plot3d
+import tensor
+import math.{sin, cos, sqrt, exp}
+
+let ctx = draw.canvas(820, 600, "Surface Plot - Ripple")
+let chart = plot3d.chart(ctx)
+
+let size = 56
+let z = tensor.zeros([size, size])
+
+for r in 0..size {
+    for c in 0..size {
+
+        let x = (c - size / 2) / 5
+        let y = (r - size / 2) / 5
+
+        let d = sqrt(x * x + y * y)
+
+        // Ripple surface with soft falloff
+        z[r, c] = sin(d * 2.5) * exp(-d * 0.18)
+    }
+}
+
+plot3d.surface(chart, z)
+
+plot3d.title(chart, "Damped Ripple Surface")
+plot3d.xlabel(chart, "X axis")
+plot3d.ylabel(chart, "Y axis")
+plot3d.zlabel(chart, "Z axis")
+
+// plot3d.show(chart)
+// draw.run(ctx)

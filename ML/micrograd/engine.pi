@@ -191,26 +191,20 @@ class Value  {
         // Track visited nodes by the VM's object identity.
         let visited = {}
 
-        // Iterative depth-first traversal. This avoids overflowing the VM call
-        // stack on large graphs.
-        let stack = [[this, false]]
-
-        while len(stack) > 0 {
-            let frame = pop(stack)
-            let v = frame[0]
-            let expanded = frame[1]
+        fun build_topo(v) {
             let key = str(v.hash())
 
-            if expanded {
-                topo += v
-            } else if !(key in visited) {
+            if !(key in visited) {
                 visited[key] = true
 
-                stack += [v, true]
                 for child in v._prev
-                    stack += [child, false]
+                    build_topo(child)
+
+                push(topo, v)
             }
         }
+
+        build_topo(this)
 
         /*
          * Seed gradient of final output.

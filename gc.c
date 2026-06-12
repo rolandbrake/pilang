@@ -308,8 +308,12 @@ static void mark_references(Object *obj)
     }
 
     case OBJ_CONTEXT:
-        /* No GC-managed references (SDL handles are opaque). */
+    {
+        PiContext *ctx = (PiContext *)obj;
+        if (ctx->active_plot3d)
+            mark_object((Object *)ctx->active_plot3d);
         break;
+    }
 
     case OBJ_CHART:
     {
@@ -318,6 +322,15 @@ static void mark_references(Object *obj)
             mark_object((Object *)chart->ctx);
         mark_list(chart->series);
         mark_list(chart->colors);
+        break;
+    }
+
+    case OBJ_CHART3D:
+    {
+        PiChart3D *chart = (PiChart3D *)obj;
+        if (chart->ctx)
+            mark_object((Object *)chart->ctx);
+        mark_list(chart->series);
         break;
     }
 
@@ -502,6 +515,21 @@ void free_object(Object *obj)
             free(chart->xlabel);
         if (chart->ylabel)
             free(chart->ylabel);
+        break;
+    }
+    case OBJ_CHART3D:
+    {
+        PiChart3D *chart = (PiChart3D *)obj;
+        if (chart->series)
+            list_free(chart->series);
+        if (chart->title)
+            free(chart->title);
+        if (chart->xlabel)
+            free(chart->xlabel);
+        if (chart->ylabel)
+            free(chart->ylabel);
+        if (chart->zlabel)
+            free(chart->zlabel);
         break;
     }
     case OBJ_EVENT:

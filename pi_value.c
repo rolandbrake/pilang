@@ -1730,6 +1730,8 @@ char *type_name(Value val)
             return "context";
         case OBJ_CHART:
             return "chart";
+        case OBJ_CHART3D:
+            return "chart3d";
         case OBJ_EVENT:
             return "event";
         default:

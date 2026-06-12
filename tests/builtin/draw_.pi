@@ -63,7 +63,7 @@ fun paint(ctx) {
 
     draw.pop(ctx)
 
-    draw.text(ctx, 20, 222, "draw.pi exercises canvas, shapes, text, image, transforms, events and run loop", {
+    draw.text(ctx, 20, 222, "draw.pi exercises canvas, shapes, text, image, _transforms, events and run loop", {
         "color": draw.COLOR_LIGHT_GRAY,
         "size": 16
     })

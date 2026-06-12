@@ -1,0 +1,32 @@
+import draw
+import plot
+
+let ctx = draw.canvas(720, 520, "Quiver Plot")
+let chart = plot.chart(ctx)
+
+let xs = []
+let ys = []
+let us = []
+let vs = []
+
+for y in -5..6 {
+    for x in -5..6 {
+
+        push(xs, x)
+        push(ys, y)
+
+        push(us, -y)
+        push(vs, x)
+    }
+}
+
+plot.quiver(chart, xs, ys, us, vs)
+
+plot.title(chart, "Rotation Field")
+plot.xlabel(chart, "X")
+plot.ylabel(chart, "Y")
+
+plot.grid(chart, true)
+
+// plot.show(chart)
+// draw.run(ctx)

@@ -19,13 +19,13 @@ Value pi_find(vm_t *vm, int argc, Value *argv);
 // Right-to-left function composition. compose(f, g)(x) = f(g(x)). Accepts any number of functions.
 Value fn_compose(vm_t *vm, int argc, Value *argv);
 
-// Left-to-right composition. pipe(f, g)(x) = g(f(x)). More readable for data transformation pipelines.
+// Left-to-right composition. pipe(f, g)(x) = g(f(x)). More readable for data _transformation pipelines.
 Value fn_pipe(vm_t *vm, int argc, Value *argv);
 
 // Applies multiple functions to the same argument, returning a list of results.
 Value fn_juxt(vm_t *vm, int argc, Value *argv);
 
-// Transforms a multi-argument function into a chain of single-argument functions. Supports auto-currying by arity.
+// _transforms a multi-argument function into a chain of single-argument functions. Supports auto-currying by arity.
 Value fn_curry(vm_t *vm, int argc, Value *argv);
 
 // Partially applies the given arguments, returning a function that takes the rest.

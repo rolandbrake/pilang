@@ -38,6 +38,7 @@ typedef struct SDL_Rect
 
 #define IS_CONTEXT(o) IS_OBJ_TYPE(o, OBJ_CONTEXT)
 #define IS_CHART(o) IS_OBJ_TYPE(o, OBJ_CHART)
+#define IS_CHART3D(o) IS_OBJ_TYPE(o, OBJ_CHART3D)
 #define IS_EVENT(o) IS_OBJ_TYPE(o, OBJ_EVENT)
 
 #define IS_COLLECTION(o) (IS_LIST(o) || IS_TENSOR(o) || IS_MAP(o) || IS_SET(o) || IS_TUPLE(o) || IS_STRING(o))
@@ -59,6 +60,7 @@ typedef struct SDL_Rect
 
 #define AS_CONTEXT(o) ((PiContext *)AS_OBJ(o))
 #define AS_CHART(o) ((PiChart *)AS_OBJ(o))
+#define AS_CHART3D(o) ((PiChart3D *)AS_OBJ(o))
 #define AS_EVENT(o) ((PiEvent *)AS_OBJ(o))
 
 #define AS_CSTRING(o) AS_STRING(o)->chars
@@ -95,6 +97,7 @@ typedef enum
 
     OBJ_CONTEXT, // drawing context
     OBJ_CHART,   // chart context
+    OBJ_CHART3D, // 3D chart context
     OBJ_EVENT,
 
 } o_type;
@@ -288,6 +291,8 @@ typedef struct
     char *filename;
 } ObjFile;
 
+struct PiChart3D;
+
 // Update PiContext structure
 typedef struct PiContext
 {
@@ -301,9 +306,9 @@ typedef struct PiContext
     bool running;
     float tx, ty, sx, sy, angle, alpha;
     void *font;            // default font
-    void *transform_stack; // stack of TransformState
+    void *_transform_stack; // stack of _transformState
 
-    void *userdata; /* PiDraw extra state (transform stack, font, fps); owned by builtin/pi_draw.c */
+    void *userdata; /* PiDraw extra state (_transform stack, font, fps); owned by builtin/pi_draw.c */
 
     Value frame_callback;
 
@@ -324,6 +329,8 @@ typedef struct PiContext
     // Mouse state
     int mouse_x, mouse_y;
     uint32_t mouse_buttons;
+
+    struct PiChart3D *active_plot3d;
 } PiContext;
 
 typedef struct
@@ -348,6 +355,26 @@ typedef struct
     char *xlabel;
     char *ylabel;
 } PiChart;
+
+typedef struct PiChart3D
+{
+    Object object;
+
+    PiContext *ctx;
+    list_t *series;
+
+    bool show_grid;
+    bool show_axes;
+
+    double azimuth;
+    double elevation;
+    double distance;
+
+    char *title;
+    char *xlabel;
+    char *ylabel;
+    char *zlabel;
+} PiChart3D;
 
 uint32_t string_hash(char *chars, size_t length);
 Object *new_pistring(char *str);
@@ -396,6 +423,7 @@ Object *new_code(list_t *code);
 
 Object *new_context();
 Object *new_chart(PiContext *ctx);
+Object *new_chart3d(PiContext *ctx);
 Object *new_event(const char *type, EventType event_type);
 
 void iter_reset(Object *col);

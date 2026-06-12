@@ -1,5 +1,7 @@
 import nn.{MLP}
 import engine.{Value}
+import draw
+import plot
 
 const xs = [
     [2.0, 3.0, -1.0],
@@ -12,8 +14,10 @@ const ys = [1.0, -1.0, -1.0, 1.0]
 
 const model = MLP(3, [4, 4, 1])
 
+let loss_steps = []
+let loss_values = []
 
-println("parameters: " + #model.parameters())
+// println("parameters: " + #model.parameters())
 for step in range(150) {
     ypred = [model(x) : x in xs]    
     loss = Value(0)
@@ -29,6 +33,9 @@ for step in range(150) {
     for p in model.parameters()
         p.data += -0.01* p.grad
 
+    push(loss_steps, step)
+    push(loss_values, loss.data)
+
     println("step " + step + " loss " + loss.data)
 }
 
@@ -39,3 +46,15 @@ for x in xs
 
 println()
 
+let ctx = draw.canvas(480, 480, "Micrograd Loss")
+let chart = plot.chart(ctx)
+
+plot.line(chart, loss_steps, loss_values, draw.COLOR_RED)
+plot.title(chart, "Training Loss")
+plot.xlabel(chart, "step")
+plot.ylabel(chart, "Loss")
+plot.grid(chart, true)
+plot.axes(chart, true)
+
+plot.show(chart)
+draw.run(ctx)

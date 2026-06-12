@@ -14,6 +14,7 @@
 #include "pi_obj.h"     // Object functions
 #include "pi_random.h"  // Random functions
 #include "pi_lang.h"    // Language/runtime constants
+#include "pi_plot3d.h"  // 3D plot functions
 
 // Builtin functions struct definition
 typedef struct
@@ -66,6 +67,7 @@ extern BuiltinModule module_random; // random: Random number helpers
 extern BuiltinModule module_lang;   // lang: Runtime/language constants (e.g., operator ids)
 extern BuiltinModule module_draw;   // draw: Draw functions (e.g., canvas, run, clear, pixel, line, triangle, rect, polygon, circle, text, image, push, pop, translate, scale, rotate, alpha, on, off, poll, wait, mouse, key, open, close, title, resize, fullscreen, size, fps)
 extern BuiltinModule module_plot;   // plot: Plot functions (e.g., plot, show, scatter, bar)
+extern BuiltinModule module_plot3d; // plot3d: 3D plot functions (e.g., surface, mesh, wireframe)
 extern BuiltinModule module_tensor; // tensor: Tensor functions (e.g., zeros, ones, shape)
 
 // Helper macro to define a builtin module from local arrays.

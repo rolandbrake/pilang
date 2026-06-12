@@ -30,7 +30,7 @@ The language mixes familiar Python-like readability with features that are fun t
 - **Collections are first-class**: lists, maps, tuples, and sets have literal syntax and work naturally with loops, membership checks, copying, slicing, and collection helpers.
 - **Functions are flexible**: named functions, anonymous functions, arrow functions, closures, recursion, defaults, named arguments, and higher-order helpers are all part of the language.
 - **Objects are dynamic but structured**: classes, constructors, inheritance, methods, callable objects, bracket access, static behavior, and operator/magic methods let you choose between plain maps and richer objects.
-- **Numerical work is built in**: tensor constructors, indexing, transforms, reductions, broadcasting-style helpers, statistics, and linear algebra functions live in the standard modules.
+- **Numerical work is built in**: tensor constructors, indexing, _transforms, reductions, broadcasting-style helpers, statistics, and linear algebra functions live in the standard modules.
 - **Made to travel**: the same language can run as a native executable or as a WebAssembly/browser build.
 - **Small enough to study**: the compiler, VM, object model, module system, and garbage collector live in C source files that are approachable for language/runtime hacking.
 

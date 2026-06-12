@@ -1,0 +1,26 @@
+import draw
+import plot3d
+import tensor
+import math.{sin, cos}
+
+let ctx = draw.canvas(760, 560, "Mesh Plot")
+let chart = plot3d.chart(ctx)
+
+let z = tensor.zeros([32, 32])
+
+for r in 0..32 {
+    for c in 0..32 {
+        let x = (c - 16) / 4
+        let y = (r - 16) / 4
+        z[r, c] = sin(x) + cos(y)
+    }
+}
+
+plot3d.mesh(chart, z)
+plot3d.title(chart, "Mesh")
+plot3d.xlabel(chart, "X")
+plot3d.ylabel(chart, "Y")
+plot3d.zlabel(chart, "Z")
+
+// plot3d.show(chart)
+// draw.run(ctx)

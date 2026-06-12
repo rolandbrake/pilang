@@ -779,11 +779,12 @@ Object *new_context()
 
     ctx->frame_callback = NEW_NIL();
 
-    ctx->transform_stack = NULL;
+    ctx->_transform_stack = NULL;
 
     ctx->font = NULL;
     ctx->clip_rect = (SDL_Rect){0, 0, 0, 0};
     ctx->clip_enabled = false;
+    ctx->active_plot3d = NULL;
 
     return (Object *)ctx;
 }
@@ -807,6 +808,26 @@ Object *new_chart(PiContext *ctx)
     chart->title = NULL;
     chart->xlabel = NULL;
     chart->ylabel = NULL;
+
+    return (Object *)chart;
+}
+
+Object *new_chart3d(PiContext *ctx)
+{
+    PiChart3D *chart = CREATE_OBJ(PiChart3D, OBJ_CHART3D);
+
+    chart->object.next = NULL;
+    chart->ctx = ctx;
+    chart->series = list_create(VALUE_SIZE);
+    chart->show_grid = true;
+    chart->show_axes = true;
+    chart->azimuth = -45.0;
+    chart->elevation = 28.0;
+    chart->distance = 1.0;
+    chart->title = NULL;
+    chart->xlabel = NULL;
+    chart->ylabel = NULL;
+    chart->zlabel = NULL;
 
     return (Object *)chart;
 }

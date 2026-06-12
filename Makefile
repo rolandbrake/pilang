@@ -56,7 +56,8 @@ COMMON_BUILTIN_SRCS := \
 NATIVE_EXTRA_SRCS := \
 	builtin/pi_os.c \
 	builtin/pi_draw.c \
-	builtin/pi_plot.c
+	builtin/pi_plot.c \
+	builtin/pi_plot3d.c
 
 NATIVE_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS) $(NATIVE_EXTRA_SRCS)
 WEB_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS)

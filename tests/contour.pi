@@ -1,0 +1,32 @@
+import draw
+import plot
+import tensor
+import math.{sin, cos}
+
+let ctx = draw.canvas(720, 520, "Contour Plot")
+let chart = plot.chart(ctx)
+
+let z = tensor.zeros([50, 50])
+
+for r in 0..50 {
+    for c in 0..50 {
+
+        let x = (c - 25) / 8
+        let y = (r - 25) / 8
+
+        z[r, c] = sin(x) * cos(y)
+    }
+}
+
+plot.contour(chart, z, 20)
+
+plot.title(chart, "Contour Plot")
+plot.xlabel(chart, "X")
+plot.ylabel(chart, "Y")
+
+fun render(ctx_) {
+    plot.show(chart)
+}
+
+// draw.on_frame(ctx, render)
+// draw.run(ctx)

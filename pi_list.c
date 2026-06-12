@@ -312,11 +312,11 @@ void list_expand(list_t *list, int new_cap)
     list->capacity = new_cap;
 }
 /**
- * Applies a transformation function to each element in the list and returns a new list with the transformed elements.
+ * Applies a _transformation function to each element in the list and returns a new list with the _transformed elements.
  *
  * @param list The original list to be mapped over.
- * @param func A pointer to the function that transforms each element.
- * @return A new list containing the transformed elements, or NULL if the input is invalid.
+ * @param func A pointer to the function that _transforms each element.
+ * @return A new list containing the _transformed elements, or NULL if the input is invalid.
  */
 list_t *list_map(list_t *list, Value *(*func)(Value *))
 {
@@ -328,7 +328,7 @@ list_t *list_map(list_t *list, Value *(*func)(Value *))
     list_t *_list = list_create(list->i_size);
     for (int i = 0; i < list->size; i++)
     {
-        // Get the current item, apply the transformation, and add to the new list
+        // Get the current item, apply the _transformation, and add to the new list
         Value *item = (Value *)list_getAt(list, i);
         Value *mapped = func(item);
         list_add(_list, mapped);

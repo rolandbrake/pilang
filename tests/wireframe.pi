@@ -1,0 +1,26 @@
+import draw
+import plot3d
+import tensor
+import math.{sin, cos}
+
+let ctx = draw.canvas(760, 560, "Wireframe Plot")
+let chart = plot3d.chart(ctx)
+
+let z = tensor.zeros([28, 28])
+
+for r in 0..28 {
+    for c in 0..28 {
+        let x = (c - 14) / 4
+        let y = (r - 14) / 4
+        z[r, c] = sin(x) * cos(y)
+    }
+}
+
+plot3d.wireframe(chart, z, 0x2e86ab)
+plot3d.title(chart, "Wireframe")
+plot3d.xlabel(chart, "X")
+plot3d.ylabel(chart, "Y")
+plot3d.zlabel(chart, "Z")
+
+// plot3d.show(chart)
+// draw.run(ctx)

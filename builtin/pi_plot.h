@@ -26,9 +26,6 @@ Value pt_heatmap(vm_t *vm, int argc, Value *argv);
 Value pt_contour(vm_t *vm, int argc, Value *argv);
 Value pt_quiver(vm_t *vm, int argc, Value *argv);
 Value pt_streamplot(vm_t *vm, int argc, Value *argv);
-Value pt_surface(vm_t *vm, int argc, Value *argv);
-Value pt_mesh(vm_t *vm, int argc, Value *argv);
-Value pt_wireframe(vm_t *vm, int argc, Value *argv);
 
 // Chart functions
 Value pt_show(vm_t *vm, int argc, Value *argv);

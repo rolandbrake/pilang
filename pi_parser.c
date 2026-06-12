@@ -2420,6 +2420,11 @@ static void for_stmt(parser_t *parser)
 
     consume(parser, TK_IN, "Expect 'in' keyword after loop variable.");
 
+    push_scope(parser->comp);
+    add_variable(parser->comp, token_value(init));
+    set_pos(parser, init);
+    emit(parser->comp, OP_PUSH_NIL);
+
     token_t cond_tok = peek(parser);
     cond_expr(parser);
 
@@ -2432,9 +2437,7 @@ static void for_stmt(parser_t *parser)
     set_pos(parser, init); // mark the loop start
     int address = emit_16u(parser->comp, OP_LOOP, "", 0);
 
-    push_scope(parser->comp);
-
-    add_variable(parser->comp, token_value(init));
+    store_variable(parser->comp, token_value(init));
     push_loop(parser->comp, address - 2, true);
 
     if (match(parser, TK_LBRACE))

@@ -3,7 +3,7 @@
 // ==========================================
 // This module provides wrapper classes for common data structures and types.
 // It includes Iterator, List, Tuple, String, Number, Boolean, Map, Set, Range, Stack, and Queue.
-// These classes offer convenient methods for manipulation, transformation, and iteration.
+// These classes offer convenient methods for manipulation, _transformation, and iteration.
 // The language used in this module includes built-in functions like `str`, `number`, `upper`, `lower`,
 // `trim`, `split`, `replace`, `contains`, `startswith`, `endswith`, `abs`, `floor`, `ceil`, `round`,
 // `sqrt`, `keys`, `values`, `entries`, `delete`, `sort`, `copy`, `range`, and operators like `#` for length,
@@ -43,7 +43,7 @@ class Iterator {
 
     // Applies a mapping function to each element of the iterator and collects the results into a List.
     // Note: This consumes the entire iterator.
-    // param: fn - Mapping function that takes a value and returns a transformed value.
+    // param: fn - Mapping function that takes a value and returns a _transformed value.
     // return:s A new List containing the results of applying `fn` to each element.
     map(fn) {
 
@@ -151,7 +151,7 @@ class Iterator {
 // List
 // --------------------------------------------------
 // A dynamic array-like collection that stores an ordered sequence of elements.
-// Supports adding, removing, transforming, and querying elements.
+// Supports adding, removing, _transforming, and querying elements.
 // Many methods return a new List or modify the list in place and return `this` for chaining.
 
 class List {
@@ -334,9 +334,9 @@ class List {
         return List(result)
     }
 
-    // Applies a transformation function to each element and returns a new List with the results.
-    // param: fn - Mapping function that takes an element and returns a transformed value.
-    // return:s A new List containing the transformed elements.
+    // Applies a _transformation function to each element and returns a new List with the results.
+    // param: fn - Mapping function that takes an element and returns a _transformed value.
+    // return:s A new List containing the _transformed elements.
     map(fn) {
 
         let result = []

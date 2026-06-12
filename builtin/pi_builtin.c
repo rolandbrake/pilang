@@ -115,6 +115,7 @@ BuiltinModule *builtin_modules[] = {
     &module_os,
     &module_draw,
     &module_plot,
+    &module_plot3d,
 #endif
     &module_tensor,
 
