@@ -24,6 +24,12 @@ Pilang is a small, expressive scripting language with a compact C implementation
 
 The language mixes familiar Python-like readability with features that are fun to compose: list comprehensions, slices, ranges, spread syntax, tuples, sets, closures, classes, callable objects, operator hooks, and native tensor helpers. The repository includes a native interpreter, a WebAssembly/browser build, documentation, editor assets, built-in modules, reusable libraries, ML examples, and a growing test suite.
 
+<p align="center">
+  <img src="imgs/loss.png" alt="Pilang training loss plot" height="210">
+  &nbsp;&nbsp;
+  <img src="imgs/mesh.png" alt="Pilang 3D mesh plot" height="210">
+</p>
+
 ## Why Pilang
 
 - **Readable scripts with sharp edges where they help**: `let`, `const`, `fun`, `class`, ranges, slices, `#` length, `in`, ternaries, spread syntax, destructuring, and comprehensions.
@@ -157,6 +163,27 @@ w = t.eye(2, 2)
 println(t.shape(x))
 println(t.matmult(x, w))
 println(t.mean(x))
+```
+
+### Plotting and Visualization
+
+Pilang includes native SDL-backed drawing and plotting modules for quick visual feedback while experimenting with numerical code, simulations, and machine-learning examples. The `plot` module covers 2D charts such as loss curves, while `plot3d` supports interactive 3D surface, mesh, and wireframe plots.
+
+```pilang
+import draw
+import plot
+
+let ctx = draw.canvas(480, 480, "Training Loss")
+let chart = plot.chart(ctx)
+
+plot.line(chart, steps, losses, draw.COLOR_RED)
+plot.title(chart, "Training Loss")
+plot.xlabel(chart, "step")
+plot.ylabel(chart, "loss")
+plot.grid(chart, true)
+
+plot.show(chart)
+draw.run(ctx)
 ```
 
 

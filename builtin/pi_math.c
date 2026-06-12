@@ -1294,8 +1294,8 @@ static BuiltinConst math_consts[] = {
     {"E", {VAL_NUM, {.number = E}}},
     {"TAU", {VAL_NUM, {.number = TAU}}},
     {"PHI", {VAL_NUM, {.number = PHI}}},
-    // {"NaN", {VAL_NUM, {.number = NAN}}},
-    // {"INF", {VAL_NUM, {.number = INFINITY}}},
+    {"NaN", {VAL_NUM, {.number = NAN}}},
+    {"INF", {VAL_NUM, {.number = INFINITY}}},
 };
 
 static BuiltinFunc math_funcs[] = {
