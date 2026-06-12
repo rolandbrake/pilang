@@ -22,7 +22,7 @@
 
 Pilang is a small, expressive scripting language with a compact C implementation, a bytecode virtual machine, modules, objects, tensors, and a practical standard library. It aims to feel light enough for quick scripts, but capable enough for experiments, teaching tools, numerical code, and embeddable application logic.
 
-The language mixes familiar Python-like readability with features that are fun to compose: list comprehensions, slices, ranges, spread syntax, tuples, sets, closures, classes, callable objects, operator hooks, and native tensor helpers. The repository includes a native interpreter, a WebAssembly/browser build, documentation, editor assets, built-in modules, reusable libraries, ML examples, and a growing test suite.
+The language mixes familiar Python-like readability with features that are fun to compose: list comprehensions, slices, ranges, spread syntax, tuples, sets, closures, classes, callable objects, operator hooks, and native tensor helpers. The repository includes a native interpreter, a WebAssembly/browser build, documentation, editor assets, built-in modules, reusable libraries, and a growing test suite. here is two examples show case the capability of the language with data visualization:
 
 <p align="center">
   <img src="imgs/loss.png" alt="Pilang training loss plot" height="210">
@@ -42,7 +42,7 @@ The language mixes familiar Python-like readability with features that are fun t
 
 ## Quick Taste
 
-```pilang
+```swift
 import math:m
 
 fun area(radius) {
@@ -60,7 +60,7 @@ for r in radii {
 
 ### Expressive Collections
 
-```pilang
+```swift
 scores = [91, 72, 88, 91, 64, 72]
 
 unique = {91, 72, 88, 64}
@@ -78,7 +78,7 @@ println("top three-ish: " + curved[0:3])
 
 ### Functions and Closures
 
-```pilang
+```swift
 fun make_counter(start = 0) {
     let value = start
 
@@ -95,7 +95,7 @@ println(next_id()) // 102
 
 ### Classes, Inheritance, and Callable Objects
 
-```pilang
+```swift
 class Model {
     parameters() {
         return []
@@ -130,7 +130,7 @@ println(model.parameters())
 
 Objects can participate in operators by defining compute methods, which makes domain objects feel native without changing the VM for every new type.
 
-```pilang
+```swift
 import lang
 
 class Vec2 {
@@ -154,7 +154,7 @@ println(Vec2(2, 3) + Vec2(4, 1))
 
 ### Tensors for Numerical Code
 
-```pilang
+```swift
 import tensor:t
 
 x = t.from([[1, 2], [3, 4]])
@@ -169,7 +169,7 @@ println(t.mean(x))
 
 Pilang includes native SDL-backed drawing and plotting modules for quick visual feedback while experimenting with numerical code, simulations, and machine-learning examples. The `plot` module covers 2D charts such as loss curves, while `plot3d` supports interactive 3D surface, mesh, and wireframe plots.
 
-```pilang
+```swift
 import draw
 import plot
 
