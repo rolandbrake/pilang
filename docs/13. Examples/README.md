@@ -7,8 +7,9 @@ The examples use Pilang's normal style:
 - semicolons are optional
 - arrow functions use `->`
 - modules can be imported with aliases
-- `let` creates local variables inside local scopes
-- top-level assignments without `let` create module globals
+- `let` creates mutable local variables inside local scopes
+- `const` creates local bindings that cannot be rebound
+- assignments without a declaration create module globals
 
 Run a file with:
 

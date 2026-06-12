@@ -18,7 +18,7 @@ char *unary_ops[] = {"+", "-", "!", "~", "#", "++", "--", "typeof"};
 // Function prototypes for static functions
 static void program(parser_t *parser);
 static void declaration(parser_t *parser);
-static void var_decl(parser_t *parser);
+static void var_decl(parser_t *parser, bool is_const);
 static void func_decl(parser_t *parser);
 static void class_decl(parser_t *parser);
 static void statement(parser_t *parser);
@@ -32,7 +32,7 @@ static void break_stmt(parser_t *parser);
 static void continue_stmt(parser_t *parser);
 static void return_stmt(parser_t *parser);
 static void print(parser_t *parser);
-static void variable(parser_t *parser);
+static void variable(parser_t *parser, bool is_const);
 static void expr(parser_t *parser);
 static void assignment(parser_t *parser, bool emit_load);
 static void cond_expr(parser_t *parser);
@@ -1448,7 +1448,7 @@ static void declarations(parser_t *parser)
             mark_tokens(parser, start, end); // Mark tokens as processed
         }
         // Skip global variable declarations to preserve execution order
-        else if (match(parser, TK_LET))
+        else if (match(parser, TK_LET) || match(parser, TK_CONST))
             skip_letDecl(parser);
         else
             next(parser); // Move to the next token
@@ -1489,7 +1489,9 @@ static void declaration(parser_t *parser)
 {
     // Check if the declaration is a variable declaration using 'let'
     if (match(parser, TK_LET))
-        var_decl(parser); // Parse the variable declaration
+        var_decl(parser, false); // Parse the variable declaration
+    else if (match(parser, TK_CONST))
+        var_decl(parser, true);
     // Check if the declaration is a function declaration using 'fun'
     else if (match(parser, TK_FUN))
         func_decl(parser);
@@ -1507,11 +1509,11 @@ static void declaration(parser_t *parser)
  * var_decl -> "let" IDENT EQUAL expr
  * A variable declaration is a statement that declares a variable.
  */
-static void var_decl(parser_t *parser)
+static void var_decl(parser_t *parser, bool is_const)
 {
     do
     {
-        variable(parser);
+        variable(parser, is_const);
     } while (match(parser, TK_COMMA));
     consume_ifExist(parser, 1, TK_SEMICOLON);
 }
@@ -1521,7 +1523,7 @@ static void var_decl(parser_t *parser)
  * A variable is a name that can be used to refer to a value.
  * It is used to parse a variable in a variable declaration.
  */
-static void variable(parser_t *parser)
+static void variable(parser_t *parser, bool is_const)
 {
     int index = -1;
 
@@ -1542,7 +1544,7 @@ static void variable(parser_t *parser)
         if (function_literal && is_localScope(parser->comp))
         {
             emit(parser->comp, OP_PUSH_NIL);
-            add_local(parser->comp, name);
+            add_localConst(parser->comp, name, is_const);
             reserved_local_function = true;
         }
 
@@ -1554,7 +1556,7 @@ static void variable(parser_t *parser)
         if (reserved_local_function)
         {
             cond_expr(parser);
-            store_variable(parser->comp, name);
+            store_variableInit(parser->comp, name);
         }
         else
         {
@@ -1570,7 +1572,7 @@ static void variable(parser_t *parser)
 
     // Store the variable
     if (!reserved_local_function)
-        add_variable(parser->comp, name);
+        add_variableConst(parser->comp, name, is_const);
 }
 
 /**

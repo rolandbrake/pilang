@@ -48,7 +48,7 @@ emsdk/
 release/    
 # docs/
 # micrograd/
-editors/
+# editors/
 website/
 # ML/
 

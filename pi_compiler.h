@@ -20,6 +20,7 @@ typedef struct
     char *name;       // Variable name
     int depth;        // Scope depth where the variable is declared
     bool is_captured; // Indicates if the variable is captured as an upvalue
+    bool is_const;    // Indicates if the binding cannot be rebound
 } local_t;
 
 // Represents the compilation context for functions and blocks
@@ -107,6 +108,7 @@ int store_name(compiler_t *comp, char *name);
 
 // Adds a new local variable to the current scope
 void add_local(compiler_t *comp, char *name);
+void add_localConst(compiler_t *comp, char *name, bool is_const);
 bool is_localScope(compiler_t *comp);
 
 // Functions for managing object allocation and scope
@@ -143,7 +145,9 @@ int add_upvalue(compiler_t *comp, int depth, int index, bool is_local);
 
 // Functions for managing variable declarations and assignments
 void add_variable(compiler_t *comp, char *name);
+void add_variableConst(compiler_t *comp, char *name, bool is_const);
 void store_variable(compiler_t *comp, char *name);
+void store_variableInit(compiler_t *comp, char *name);
 void load_variable(compiler_t *comp, char *name);
 
 // Functions for managing scope tracking

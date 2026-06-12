@@ -1,0 +1,32 @@
+const answer = 42
+assert(answer == 42, "const binding should read its initial value")
+
+const items = [1, 2, 3]
+items[0] = 10
+assert(items == [10, 2, 3], "const should not deep-freeze lists")
+
+const config = {lr: 0.01, epochs: 10}
+config.lr = 0.02
+assert(config.lr == 0.02, "const should not deep-freeze object fields")
+
+{
+    const local = "ready"
+    assert(local == "ready", "local const should be readable")
+}
+
+fun read_const() {
+    const label = "inside"
+    return label
+}
+
+assert(read_const() == "inside", "function-local const should work")
+
+fun make_const_function() {
+    const inner = fun() {
+        return "const function"
+    }
+
+    return inner()
+}
+
+assert(make_const_function() == "const function", "const function literal should initialize once")

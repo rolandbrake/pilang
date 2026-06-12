@@ -1,0 +1,7 @@
+fun fail_local() {
+    const label = "first"
+    label = "second"
+}
+
+fail_local()
+

@@ -1,0 +1,11 @@
+fun outer() {
+    const count = 1
+
+    fun inner() {
+        count = 2
+    }
+
+    inner()
+}
+
+outer()

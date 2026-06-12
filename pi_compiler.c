@@ -574,7 +574,7 @@ static void print_local(void *_local)
  * @param comp[in] A pointer to the compiler instance.
  * @param name[in] The name of the local variable to add.
  */
-void add_local(compiler_t *comp, char *name)
+void add_localConst(compiler_t *comp, char *name, bool is_const)
 {
     stack_t *locals = comp->current->locals;
 
@@ -598,9 +598,15 @@ void add_local(compiler_t *comp, char *name)
     local->name = strdup(name); // Allocate and copy name string
     local->depth = comp->current->depth;
     local->is_captured = false;
+    local->is_const = is_const;
 
     // Push the new local variable onto the stack
     push(locals, local);
+}
+
+void add_local(compiler_t *comp, char *name)
+{
+    add_localConst(comp, name, false);
 }
 
 /**
@@ -796,6 +802,57 @@ bool is_builtin(compiler_t *comp, const char *name)
     return false; // Return false if the name is not found in the list
 }
 
+static bool global_isConst(compiler_t *comp, const char *name)
+{
+    bool *is_const = comp->declared_globals ? (bool *)ht_get(comp->declared_globals, name) : NULL;
+    return is_const != NULL && *is_const;
+}
+
+static bool local_isConstAt(compiler_t *comp, int depth, int index)
+{
+    context_t *context = context_at(comp, depth);
+    if (!context || index < 0 || index >= stack_size(context->locals))
+        return false;
+
+    local_t *local = (local_t *)stack_getAt(context->locals, index);
+    return local && local->is_const;
+}
+
+static bool resolved_upvalueIsConst(compiler_t *comp, const char *name)
+{
+    int depth = stack_size(comp->contexts) - 2;
+    for (int d = depth; d >= 0; d--)
+    {
+        context_t *context = context_at(comp, d);
+        for (int i = stack_size(context->locals) - 1; i >= 0; i--)
+        {
+            local_t *local = (local_t *)stack_getAt(context->locals, i);
+            if (strcmp(local->name, name) == 0)
+                return local->is_const;
+        }
+    }
+
+    return false;
+}
+
+static void check_constAssignment(compiler_t *comp, const char *name, int local_index, bool is_upvalue)
+{
+    if (local_index != -1)
+    {
+        bool is_const = is_upvalue
+                            ? resolved_upvalueIsConst(comp, name)
+                            : local_isConstAt(comp, stack_size(comp->contexts) - 1, local_index);
+        if (is_const)
+            p_errorf(comp->current_line, comp->current_col,
+                     "Cannot reassign const binding [%s]", name);
+        return;
+    }
+
+    if (global_isConst(comp, name))
+        p_errorf(comp->current_line, comp->current_col,
+                 "Cannot reassign const binding [%s]", name);
+}
+
 /**
  * Adds a new variable to the current scope.
  * If the variable is local, it checks if the variable is already declared.
@@ -803,14 +860,14 @@ bool is_builtin(compiler_t *comp, const char *name)
  * @param comp The compiler instance.
  * @param name The name of the variable to add.
  */
-void add_variable(compiler_t *comp, char *name)
+void add_variableConst(compiler_t *comp, char *name, bool is_const)
 {
     int g_index = -1;
     // Check if the variable is local or global
     if (is_localScope(comp))
     {
         // Add the local variable to the current scope
-        add_local(comp, name);
+        add_localConst(comp, name, is_const);
     }
     else
     {
@@ -821,13 +878,17 @@ void add_variable(compiler_t *comp, char *name)
             p_errorf(comp->current_line, comp->current_col,
                      "Name already exists [%s]; this name is reserved by a builtin.", name);
 
-        bool yes = true;
-        ht_put(comp->declared_globals, name, &yes);
+        ht_put(comp->declared_globals, name, &is_const);
 
         // Store the global variable
         g_index = store_name(comp, name);
         emit_8u(comp, OP_STORE_GLOBAL, name, g_index);
     }
+}
+
+void add_variable(compiler_t *comp, char *name)
+{
+    add_variableConst(comp, name, false);
 }
 
 /**
@@ -837,17 +898,24 @@ void add_variable(compiler_t *comp, char *name)
  * @param comp The compiler instance.
  * @param name The name of the variable to store.
  */
-void store_variable(compiler_t *comp, char *name)
+static void store_variableWithMode(compiler_t *comp, char *name, bool allow_const_init)
 {
     // If the variable is local, check if the variable is already declared
     if (is_localScope(comp))
     {
         int index = get_local(comp, name);
+        bool is_upvalue = comp->is_upvalue;
         if (index != -1)
+        {
+            if (!allow_const_init)
+                check_constAssignment(comp, name, index, is_upvalue);
             // Store the variable in the local scope
-            emit_8u(comp, comp->is_upvalue ? OP_STORE_UPVALUE : OP_STORE_LOCAL, name, index);
+            emit_8u(comp, is_upvalue ? OP_STORE_UPVALUE : OP_STORE_LOCAL, name, index);
+        }
         else
         {
+            if (!allow_const_init)
+                check_constAssignment(comp, name, -1, false);
             // Store the variable in the global scope
             int g_index = store_name(comp, name);
             emit_8u(comp, OP_STORE_GLOBAL, name, g_index);
@@ -855,10 +923,22 @@ void store_variable(compiler_t *comp, char *name)
     }
     else
     {
+        if (!allow_const_init)
+            check_constAssignment(comp, name, -1, false);
         // Store the variable in the global scope
         int g_index = store_name(comp, name);
         emit_8u(comp, OP_STORE_GLOBAL, name, g_index);
     }
+}
+
+void store_variable(compiler_t *comp, char *name)
+{
+    store_variableWithMode(comp, name, false);
+}
+
+void store_variableInit(compiler_t *comp, char *name)
+{
+    store_variableWithMode(comp, name, true);
 }
 
 /**

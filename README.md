@@ -26,7 +26,7 @@ The language mixes familiar Python-like readability with features that are fun t
 
 ## Why Pilang
 
-- **Readable scripts with sharp edges where they help**: `let`, `fun`, `class`, ranges, slices, `#` length, `in`, ternaries, spread syntax, destructuring, and comprehensions.
+- **Readable scripts with sharp edges where they help**: `let`, `const`, `fun`, `class`, ranges, slices, `#` length, `in`, ternaries, spread syntax, destructuring, and comprehensions.
 - **Collections are first-class**: lists, maps, tuples, and sets have literal syntax and work naturally with loops, membership checks, copying, slicing, and collection helpers.
 - **Functions are flexible**: named functions, anonymous functions, arrow functions, closures, recursion, defaults, named arguments, and higher-order helpers are all part of the language.
 - **Objects are dynamic but structured**: classes, constructors, inheritance, methods, callable objects, bracket access, static behavior, and operator/magic methods let you choose between plain maps and richer objects.
@@ -159,35 +159,6 @@ println(t.matmult(x, w))
 println(t.mean(x))
 ```
 
-### Tiny ML Experiments
-
-The `ML/` directory contains linear regression, logistic regression, and a small scalar autograd/neural-network experiment inspired by micrograd.
-
-```pilang
-import nn.{MLP}
-import engine.{Value}
-
-xs = [
-    [2.0, 3.0, -1.0],
-    [3.0, -1.0, 0.5],
-    [0.5, 1.0, 1.0],
-    [1.0, 1.0, -1.0],
-]
-
-ys = [1.0, -1.0, -1.0, 1.0]
-model = MLP(3, [4, 4, 1])
-
-ypred = [model(x) : x in xs]
-loss = Value(0)
-
-for i in range(len(ypred)) {
-    diff = ypred[i] - ys[i]
-    loss += diff * diff
-}
-
-loss.backward()
-println(loss)
-```
 
 ## Run Pilang
 

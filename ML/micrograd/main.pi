@@ -1,19 +1,19 @@
 import nn.{MLP}
 import engine.{Value}
 
-xs = [
+const xs = [
     [2.0, 3.0, -1.0],
     [3.0, -1.0, 0.5],
     [0.5, 1.0, 1.0],
     [1.0, 1.0, -1.0],
 ]
 
-ys = [1.0, -1.0, -1.0, 1.0]
+const ys = [1.0, -1.0, -1.0, 1.0]
 
-model = MLP(3, [4, 4, 1])
+const model = MLP(3, [4, 4, 1])
 
 
-// println("parameters: " + model.parameters())
+println("parameters: " + #model.parameters())
 for step in range(150) {
     ypred = [model(x) : x in xs]    
     loss = Value(0)
@@ -29,11 +29,13 @@ for step in range(150) {
     for p in model.parameters()
         p.data += -0.01* p.grad
 
-    println("step " + str(step) + " loss " + str(loss.data))
+    println("step " + step + " loss " + loss.data)
 }
 
 
 println("predictions:")
 for x in xs
     println(model(x))
+
+println()
 

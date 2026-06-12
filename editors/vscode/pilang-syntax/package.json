@@ -1,0 +1,35 @@
+{
+  "name": "pilang-syntax",
+  "displayName": "Pilang Syntax",
+  "description": "Syntax highlighting and editor basics for Pilang .pi files.",
+  "version": "0.1.0",
+  "publisher": "pilang",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "pilang",
+        "aliases": [
+          "Pilang",
+          "pilang"
+        ],
+        "extensions": [
+          ".pi"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "pilang",
+        "scopeName": "source.pilang",
+        "path": "./syntaxes/pilang.tmLanguage.json"
+      }
+    ]
+  }
+}

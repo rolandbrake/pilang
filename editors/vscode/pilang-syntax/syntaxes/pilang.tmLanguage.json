@@ -1,0 +1,307 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Pilang",
+  "scopeName": "source.pilang",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#imports"
+    },
+    {
+      "include": "#declarations"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#constants"
+    },
+    {
+      "include": "#builtins"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#function-calls"
+    },
+    {
+      "include": "#properties"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.pilang",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.pilang",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.pilang",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.pilang",
+              "match": "\\\\(?:[\\\\\"'nrtbf0]|u[0-9A-Fa-f]{4}|x[0-9A-Fa-f]{2})"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.pilang",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.pilang",
+              "match": "\\\\(?:[\\\\\"'nrtbf0]|u[0-9A-Fa-f]{4}|x[0-9A-Fa-f]{2})"
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.pilang",
+          "match": "\\b0[xX][0-9A-Fa-f](?:_?[0-9A-Fa-f])*\\b"
+        },
+        {
+          "name": "constant.numeric.octal.pilang",
+          "match": "\\b0[oO][0-7](?:_?[0-7])*\\b"
+        },
+        {
+          "name": "constant.numeric.binary.pilang",
+          "match": "\\b0[bB][01](?:_?[01])*\\b"
+        },
+        {
+          "name": "constant.numeric.float.pilang",
+          "match": "(?x)\\b(?:\\d+\\.\\d*|\\.\\d+|\\d+[eE][+-]?\\d+|\\d+\\.\\d*[eE][+-]?\\d+|\\.\\d+[eE][+-]?\\d+)\\b"
+        },
+        {
+          "name": "constant.numeric.integer.pilang",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "imports": {
+      "patterns": [
+        {
+          "name": "meta.import.pilang",
+          "begin": "\\b(import)\\b",
+          "beginCaptures": {
+            "1": {
+              "name": "keyword.control.import.pilang"
+            }
+          },
+          "end": "$|;",
+          "patterns": [
+            {
+              "name": "entity.name.namespace.pilang",
+              "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+            },
+            {
+              "name": "keyword.operator.import-alias.pilang",
+              "match": "[:.*{}]"
+            },
+            {
+              "name": "punctuation.separator.comma.pilang",
+              "match": ","
+            }
+          ]
+        }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "name": "meta.function.declaration.pilang",
+          "match": "\\b(fun)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.function.pilang"
+            },
+            "2": {
+              "name": "entity.name.function.pilang"
+            }
+          }
+        },
+        {
+          "name": "meta.class.declaration.pilang",
+          "match": "\\b(class)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s*(:)\\s*([A-Za-z_][A-Za-z0-9_]*))?",
+          "captures": {
+            "1": {
+              "name": "storage.type.class.pilang"
+            },
+            "2": {
+              "name": "entity.name.type.class.pilang"
+            },
+            "3": {
+              "name": "punctuation.separator.inheritance.pilang"
+            },
+            "4": {
+              "name": "entity.other.inherited-class.pilang"
+            }
+          }
+        },
+        {
+          "name": "meta.variable.declaration.pilang",
+          "match": "\\b(let)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.variable.pilang"
+            },
+            "2": {
+              "name": "variable.other.readwrite.pilang"
+            }
+          }
+        },
+        {
+          "name": "meta.variable.declaration.const.pilang",
+          "match": "\\b(const)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.declaration.const.pilang"
+            },
+            "2": {
+              "name": "variable.other.constant.pilang"
+            }
+          }
+        },
+        {
+          "name": "entity.name.function.method.pilang",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\()"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.pilang",
+          "match": "\\b(?:if|elif|else|for|while|break|continue|return|goto)\\b"
+        },
+        {
+          "name": "keyword.operator.word.pilang",
+          "match": "\\b(?:in|is|typeof)\\b"
+        },
+        {
+          "name": "keyword.declaration.const.pilang",
+          "match": "\\bconst\\b"
+        },
+        {
+          "name": "variable.language.super.pilang",
+          "match": "\\b(?:this|super)\\b"
+        },
+        {
+          "name": "keyword.other.debug.pilang",
+          "match": "\\bdebug\\b"
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.pilang",
+          "match": "\\b(?:true|false)\\b"
+        },
+        {
+          "name": "constant.language.nil.pilang",
+          "match": "\\bnil\\b"
+        },
+        {
+          "name": "constant.language.numeric.special.pilang",
+          "match": "\\b(?:INF|NAN)\\b"
+        }
+      ]
+    },
+    "builtins": {
+      "patterns": [
+        {
+          "name": "support.function.builtin.pilang",
+          "match": "\\b(?:abs|append|assert|bool|char|clear|clock|contains|copy|del|eval|exit|format|input|int|len|lower|number|pop|print|printf|println|range|read|repr|str|string|type|upper)\\b(?=\\s*\\()"
+        },
+        {
+          "name": "support.class.builtin.pilang",
+          "match": "\\b(?:Object|List|Tuple|String|Number|Boolean|Map|Set|Range|Stack|Queue|Iterator)\\b"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.assignment.compound.pilang",
+          "match": "(?:>>>=|<<=|>>=|\\*\\*=|\\.\\*=|[@+\\-*/%&|^]=|&&=|\\|\\|=)"
+        },
+        {
+          "name": "keyword.operator.comparison.pilang",
+          "match": "(?:==|!=|<=|>=|<|>)"
+        },
+        {
+          "name": "keyword.operator.logical.pilang",
+          "match": "(?:&&|\\|\\||!)"
+        },
+        {
+          "name": "keyword.operator.bitwise.pilang",
+          "match": "(?:>>>|<<|>>|[&|^~])"
+        },
+        {
+          "name": "keyword.operator.arithmetic.pilang",
+          "match": "(?:\\.\\*|\\*\\*|\\+\\+|--|[+\\-*/%@])"
+        },
+        {
+          "name": "keyword.operator.arrow.pilang",
+          "match": "(?:->|<-)"
+        },
+        {
+          "name": "keyword.operator.range.pilang",
+          "match": "(?:\\.\\.\\.|\\.\\.)"
+        },
+        {
+          "name": "keyword.operator.assignment.pilang",
+          "match": "="
+        },
+        {
+          "name": "keyword.operator.length.pilang",
+          "match": "#"
+        },
+        {
+          "name": "keyword.operator.ternary.pilang",
+          "match": "\\?"
+        }
+      ]
+    },
+    "function-calls": {
+      "patterns": [
+        {
+          "name": "entity.name.function.call.pilang",
+          "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b(?=\\s*\\()"
+        }
+      ]
+    },
+    "properties": {
+      "patterns": [
+        {
+          "name": "variable.other.property.pilang",
+          "match": "(?<=\\.)[A-Za-z_][A-Za-z0-9_]*\\b"
+        }
+      ]
+    }
+  }
+}
