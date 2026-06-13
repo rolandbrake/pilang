@@ -1,0 +1,26 @@
+assert("  hello  ".trim() == "hello", "string.trim() should call trim(string)");
+assert("hello".upper() == "HELLO", "string.upper() should call upper(string)");
+assert("HELLO".lower() == "hello", "string.lower() should call lower(string)");
+assert("ha".repeat(3) == "hahaha", "string.repeat(n) should call repeat(string, n)");
+assert("hello".contains("ell"), "string.contains(value) should call contains(string, value)");
+
+let items = [];
+items.append("a");
+items.push("b");
+
+assert(items.len() == 2, "list.len() should call len(list)");
+assert(items.contains("a"), "list.contains(value) should call contains(list, value)");
+assert(items.index("b") == 1, "list.index(value) should call index(list, value)");
+assert(items.pop() == "b", "list.pop() should call pop(list)");
+assert(items.len() == 1, "list.pop() should mutate the receiver list");
+
+let copied = items.copy();
+copied.append("c");
+
+assert(items.len() == 1, "list.copy() should return a separate list");
+assert(copied.len() == 2, "copied list should support native methods too");
+
+let pair = (1, 2, 1);
+assert(pair.len() == 3, "tuple.len() should call len(tuple)");
+assert(pair.contains(2), "tuple.contains(value) should call contains(tuple, value)");
+assert(pair.count(1) == 2, "tuple.count(value) should call count(tuple, value)");

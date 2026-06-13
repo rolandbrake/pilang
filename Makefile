@@ -51,6 +51,7 @@ COMMON_BUILTIN_SRCS := \
 	builtin/pi_random.c \
 	builtin/pi_lang.c \
 	builtin/pi_obj.c \
+	builtin/pi_methods.c \
 	builtin/pi_builtin.c
 
 NATIVE_EXTRA_SRCS := \

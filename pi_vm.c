@@ -19,6 +19,7 @@
 #include "gc.h"
 
 #include "builtin/pi_builtin.h"
+#include "builtin/pi_methods.h"
 
 #define GC_MIN_THRESHOLD 4096
 #define GC_MAX_THRESHOLD (1024 * 1024 * 8)
@@ -27,6 +28,7 @@
 static PiMap *create_objectProto(vm_t *vm);
 static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value kw_args);
 static Value bind(vm_t *vm, Function *function, Object *instance);
+static Value bind_nativeMethod(Object *instance, NativeMethod *method);
 
 /**
  * Return a newly allocated string containing only the directory portion
@@ -873,6 +875,15 @@ static inline int resolve_localSlot(vm_t *vm, int local)
     }
 
     return vm->bp + local;
+}
+
+static Value bind_nativeMethod(Object *instance, NativeMethod *method)
+{
+    Value native = *new_native(method->name, method->func);
+    Function *bound = AS_FUN(native);
+    bound->instance = instance;
+    bound->is_method = true;
+    return native;
 }
 
 /**
@@ -4157,6 +4168,23 @@ void run(vm_t *vm)
                 Value result = get_slice(AS_OBJ(container), s->start, s->stop, s->step);
                 push_stack(vm, result);
                 break;
+            }
+
+            if (!bracket_access && IS_STRING(index) &&
+                OBJ_TYPE(container) != OBJ_MAP &&
+                OBJ_TYPE(container) != OBJ_MODULE)
+            {
+                char *method_name = AS_CSTRING(index);
+                NativeMethod *method = pi_nativeMethodFor(OBJ_TYPE(container), method_name);
+
+                if (method)
+                {
+                    push_stack(vm, bind_nativeMethod(AS_OBJ(container), method));
+                    break;
+                }
+
+                vm_errorf(vm, "Type '%s' has no method '%s'.",
+                          type_name(container), method_name);
             }
 
             switch (OBJ_TYPE(container))
