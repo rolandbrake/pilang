@@ -3,14 +3,20 @@ assert("hello".upper() == "HELLO", "string.upper() should call upper(string)");
 assert("HELLO".lower() == "hello", "string.lower() should call lower(string)");
 assert("ha".repeat(3) == "hahaha", "string.repeat(n) should call repeat(string, n)");
 assert("hello".contains("ell"), "string.contains(value) should call contains(string, value)");
+assert("hello".includes("ell"), "string.includes(value) should alias contains");
+assert("hello".indexOf("ll") == 2, "string.indexOf(value) should alias index");
+assert("hello".length() == 5, "string.length() should alias len");
 
 let items = [];
 items.append("a");
 items.push("b");
 
 assert(items.len() == 2, "list.len() should call len(list)");
+assert(items.length() == 2, "list.length() should alias len");
 assert(items.contains("a"), "list.contains(value) should call contains(list, value)");
+assert(items.includes("a"), "list.includes(value) should alias contains");
 assert(items.index("b") == 1, "list.index(value) should call index(list, value)");
+assert(items.indexOf("b") == 1, "list.indexOf(value) should alias index");
 assert(items.pop() == "b", "list.pop() should call pop(list)");
 assert(items.len() == 1, "list.pop() should mutate the receiver list");
 
@@ -22,5 +28,43 @@ assert(copied.len() == 2, "copied list should support native methods too");
 
 let pair = (1, 2, 1);
 assert(pair.len() == 3, "tuple.len() should call len(tuple)");
+assert(pair.length() == 3, "tuple.length() should alias len");
 assert(pair.contains(2), "tuple.contains(value) should call contains(tuple, value)");
+assert(pair.includes(2), "tuple.includes(value) should alias contains");
+assert(pair.indexOf(2) == 1, "tuple.indexOf(value) should alias index");
 assert(pair.count(1) == 2, "tuple.count(value) should call count(tuple, value)");
+
+let unique = set([1, 2]);
+unique.add(3);
+
+assert(unique.len() == 3, "set.len() should call len(set)");
+assert(unique.length() == 3, "set.length() should alias len");
+assert(unique.contains(2), "set.contains(value) should call contains(set, value)");
+assert(unique.includes(3), "set.includes(value) should alias contains");
+
+let other = set([3, 4]);
+let joined = unique.union(other);
+let shared = unique.intersection(other);
+let left_only = unique.difference(other);
+
+assert(joined.contains(4), "set.union(other) should include rhs values");
+assert(shared.len() == 1 && shared.contains(3), "set.intersection(other) should return shared values");
+assert(left_only.contains(1) && !left_only.contains(4), "set.difference(other) should remove rhs values");
+assert(shared.isSubset(unique), "set.isSubset(other) should alias issubset");
+assert(unique.isSuperset(shared), "set.isSuperset(other) should alias issuperset");
+assert(unique.isDisjoint(set([8])), "set.isDisjoint(other) should alias isdisjoint");
+
+unique.clear();
+assert(unique.len() == 0, "set.clear() should mutate the receiver set");
+
+let map_like = {
+    len: fun() {
+        return 42;
+    },
+    includes: fun(value) {
+        return value == "map";
+    }
+};
+
+assert(map_like.len() == 42, "map members should win over native method fallback");
+assert(map_like.includes("map"), "map method aliases should not be hijacked by native fallback");
