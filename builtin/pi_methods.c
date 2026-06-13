@@ -1,4 +1,6 @@
 #include <string.h>
+#include <stdio.h>
+#include <stdbool.h>
 
 #include "pi_methods.h"
 #include "_pi_string.h"
@@ -84,4 +86,47 @@ NativeMethod *pi_nativeMethodFor(o_type type, const char *name)
     }
 
     return NULL;
+}
+
+void pi_nativeMethodNames(o_type type, char *buffer, size_t size)
+{
+    if (!buffer || size == 0)
+        return;
+
+    buffer[0] = '\0';
+    size_t used = 0;
+
+    for (int i = 0; i < native_methodCount; i++)
+    {
+        NativeMethod *method = &native_methods[i];
+        if (method->type != type)
+            continue;
+
+        bool seen = false;
+        for (int j = 0; j < i; j++)
+        {
+            NativeMethod *previous = &native_methods[j];
+            if (previous->type == type && strcmp(previous->name, method->name) == 0)
+            {
+                seen = true;
+                break;
+            }
+        }
+
+        if (seen)
+            continue;
+
+        int written = snprintf(buffer + used, size - used, "%s%s",
+                               used > 0 ? ", " : "", method->name);
+        if (written < 0)
+            return;
+
+        if ((size_t)written >= size - used)
+        {
+            buffer[size - 1] = '\0';
+            return;
+        }
+
+        used += (size_t)written;
+    }
 }

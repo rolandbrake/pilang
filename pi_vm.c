@@ -4183,8 +4183,15 @@ void run(vm_t *vm)
                     break;
                 }
 
-                vm_errorf(vm, "Type '%s' has no method '%s'.",
-                          type_name(container), method_name);
+                char available_methods[512];
+                pi_nativeMethodNames(OBJ_TYPE(container), available_methods, sizeof(available_methods));
+
+                if (available_methods[0] != '\0')
+                    vm_errorf(vm, "Type '%s' has no method '%s'. Available methods: %s.",
+                              type_name(container), method_name, available_methods);
+                else
+                    vm_errorf(vm, "Type '%s' has no method '%s'.",
+                              type_name(container), method_name);
             }
 
             switch (OBJ_TYPE(container))
