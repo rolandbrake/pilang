@@ -1,0 +1,28 @@
+import draw
+import plot3d
+import math.{sin, cos}
+
+let ctx = draw.canvas(760, 560, "3D Scatter")
+let chart = plot3d.chart(ctx)
+
+let xs = []
+let ys = []
+let zs = []
+
+for i in 0..90 {
+    let t = i / 8
+    let r = 1 + i / 45
+
+    push(xs, cos(t) * r)
+    push(ys, sin(t) * r)
+    push(zs, i / 18)
+}
+
+plot3d.scatter(chart, xs, ys, zs, 0x2563eb, 5)
+plot3d.title(chart, "3D Scatter")
+plot3d.xlabel(chart, "X")
+plot3d.ylabel(chart, "Y")
+plot3d.zlabel(chart, "Z")
+
+// plot3d.show(chart)
+// draw.run(ctx)

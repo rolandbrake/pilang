@@ -3,7 +3,7 @@ import plot3d
 import tensor
 import math.{sin, cos, sqrt, exp}
 
-let ctx = draw.canvas(820, 600, "Surface Plot - Ripple")
+let ctx = draw.canvas(600, 600, "Surface Plot - Ripple")
 let chart = plot3d.chart(ctx)
 
 let size = 56
@@ -22,7 +22,7 @@ for r in 0..size {
     }
 }
 
-plot3d.surface(chart, z)
+plot3d.surface(chart, z, 0x2563eb, 0xf97316, true)
 
 plot3d.title(chart, "Damped Ripple Surface")
 plot3d.xlabel(chart, "X axis")

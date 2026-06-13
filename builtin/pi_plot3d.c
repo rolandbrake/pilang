@@ -170,6 +170,13 @@ static void heat_rgb(double t, Uint8 *R, Uint8 *G, Uint8 *B)
     *B = (Uint8)(stops[i][2] + (stops[i + 1][2] - stops[i][2]) * f);
 }
 
+static int heat_color(double t)
+{
+    Uint8 R, G, B;
+    heat_rgb(t, &R, &G, &B);
+    return ((int)R << 16) | ((int)G << 8) | (int)B;
+}
+
 static int blend_rgb(int a, int b, double t)
 {
     if (t < 0.0)
@@ -260,10 +267,13 @@ static Value make_plot3dTensorSeries(vm_t *vm, int argc, Value *argv,
     list_t *tail = list_create(VALUE_SIZE);
     list_add(tail, &argv[1]);
 
-    if (argc > 2 && IS_NUM(argv[2]))
+    for (int i = 2; i < argc; i++)
     {
-        Value color = argv[2];
-        list_add(tail, &color);
+        if (IS_NUM(argv[i]) || IS_BOOL(argv[i]))
+        {
+            Value option = argv[i];
+            list_add(tail, &option);
+        }
     }
 
     return make_plot3dSeries(vm, chart, kind, tail);
@@ -299,6 +309,52 @@ Value pt3d_wireframe(vm_t *vm, int argc, Value *argv)
     return make_plot3dTensorSeries(vm, argc, argv, "wireframe",
                                    "wireframe() takes a plot3d chart as first argument",
                                    "wireframe requires a 2d tensor as second argument");
+}
+
+Value pt3d_scatter(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1 || !IS_CHART3D(argv[0]))
+    {
+        vm_error(vm, "scatter() takes a plot3d chart as first argument");
+        return NIL_VAL;
+    }
+
+    int valid_lists = argc >= 4 && IS_LIST(argv[1]) && IS_LIST(argv[2]) && IS_LIST(argv[3]);
+    int valid_tensor = argc >= 2 && IS_TENSOR(argv[1]) && AS_TENSOR(argv[1])->ndim == 2 && AS_TENSOR(argv[1])->cols >= 3;
+
+    if (!valid_lists && !valid_tensor)
+    {
+        vm_error(vm, "scatter requires x, y, z lists or an Nx3 tensor");
+        return NIL_VAL;
+    }
+
+    PiChart3D *chart = AS_CHART3D(argv[0]);
+    list_t *tail = list_create(VALUE_SIZE);
+
+    int option_start = 0;
+    if (valid_lists)
+    {
+        list_add(tail, &argv[1]);
+        list_add(tail, &argv[2]);
+        list_add(tail, &argv[3]);
+        option_start = 4;
+    }
+    else
+    {
+        list_add(tail, &argv[1]);
+        option_start = 2;
+    }
+
+    for (int i = option_start; i < argc; i++)
+    {
+        if (IS_NUM(argv[i]))
+        {
+            Value option = argv[i];
+            list_add(tail, &option);
+        }
+    }
+
+    return make_plot3dSeries(vm, chart, "scatter", tail);
 }
 
 static void chart3d_setLabel(char **dst, Value value)
@@ -410,6 +466,8 @@ typedef struct
 {
     PiTensor *M;
     double zmin, zmax;
+    double xmin, xmax;
+    double ymin, ymax;
     double rows, cols;
 } SurfaceData;
 
@@ -490,11 +548,11 @@ static Vec3 normalize_data_point(SurfaceData *data, double x, double y, double z
     double ny = 0.0;
     double nz = 0.0;
 
-    if (data->cols > 1.0)
-        nx = (x / (data->cols - 1.0)) * 2.0 - 1.0;
+    if (data->xmax > data->xmin)
+        nx = ((x - data->xmin) / (data->xmax - data->xmin)) * 2.0 - 1.0;
 
-    if (data->rows > 1.0)
-        ny = (y / (data->rows - 1.0)) * 2.0 - 1.0;
+    if (data->ymax > data->ymin)
+        ny = ((y - data->ymin) / (data->ymax - data->ymin)) * 2.0 - 1.0;
 
     nz = ((z - data->zmin) / (data->zmax - data->zmin)) * 2.0 - 1.0;
 
@@ -846,20 +904,20 @@ static void draw_axis_grid(SDL_Renderer *r, PiChart3D *chart,
         soft, filled reference panels (like matplotlib's pane fill) rather
         than a bare set of gray strokes on white.
     */
-    Point2D xy_a = project_data(proj, data, 0, 0, data->zmin);
-    Point2D xy_b = project_data(proj, data, data->cols - 1.0, 0, data->zmin);
-    Point2D xy_c = project_data(proj, data, data->cols - 1.0, data->rows - 1.0, data->zmin);
-    Point2D xy_d = project_data(proj, data, 0, data->rows - 1.0, data->zmin);
+    Point2D xy_a = project_data(proj, data, data->xmin, data->ymin, data->zmin);
+    Point2D xy_b = project_data(proj, data, data->xmax, data->ymin, data->zmin);
+    Point2D xy_c = project_data(proj, data, data->xmax, data->ymax, data->zmin);
+    Point2D xy_d = project_data(proj, data, data->xmin, data->ymax, data->zmin);
 
-    Point2D xz_a = project_data(proj, data, 0, 0, data->zmin);
-    Point2D xz_b = project_data(proj, data, data->cols - 1.0, 0, data->zmin);
-    Point2D xz_c = project_data(proj, data, data->cols - 1.0, 0, data->zmax);
-    Point2D xz_d = project_data(proj, data, 0, 0, data->zmax);
+    Point2D xz_a = project_data(proj, data, data->xmin, data->ymin, data->zmin);
+    Point2D xz_b = project_data(proj, data, data->xmax, data->ymin, data->zmin);
+    Point2D xz_c = project_data(proj, data, data->xmax, data->ymin, data->zmax);
+    Point2D xz_d = project_data(proj, data, data->xmin, data->ymin, data->zmax);
 
-    Point2D yz_a = project_data(proj, data, data->cols - 1.0, 0, data->zmin);
-    Point2D yz_b = project_data(proj, data, data->cols - 1.0, data->rows - 1.0, data->zmin);
-    Point2D yz_c = project_data(proj, data, data->cols - 1.0, data->rows - 1.0, data->zmax);
-    Point2D yz_d = project_data(proj, data, data->cols - 1.0, 0, data->zmax);
+    Point2D yz_a = project_data(proj, data, data->xmax, data->ymin, data->zmin);
+    Point2D yz_b = project_data(proj, data, data->xmax, data->ymax, data->zmin);
+    Point2D yz_c = project_data(proj, data, data->xmax, data->ymax, data->zmax);
+    Point2D yz_d = project_data(proj, data, data->xmax, data->ymin, data->zmax);
 
     set_drawColor(r, 0xf2f2f2, 255);
     fill_quad(r, xy_a, xy_b, xy_c, xy_d);
@@ -871,15 +929,15 @@ static void draw_axis_grid(SDL_Renderer *r, PiChart3D *chart,
     for (int i = 0; i <= tick_count; i++)
     {
         double t = (double)i / (double)tick_count;
-        double x = (data->cols - 1.0) * t;
-        double y = (data->rows - 1.0) * t;
+        double x = data->xmin + (data->xmax - data->xmin) * t;
+        double y = data->ymin + (data->ymax - data->ymin) * t;
         double z = data->zmin + (data->zmax - data->zmin) * t;
 
         /* XY base grid (floor) */
-        Point2D xy_x0 = project_data(proj, data, x, 0, data->zmin);
-        Point2D xy_x1 = project_data(proj, data, x, data->rows - 1.0, data->zmin);
-        Point2D xy_y0 = project_data(proj, data, 0, y, data->zmin);
-        Point2D xy_y1 = project_data(proj, data, data->cols - 1.0, y, data->zmin);
+        Point2D xy_x0 = project_data(proj, data, x, data->ymin, data->zmin);
+        Point2D xy_x1 = project_data(proj, data, x, data->ymax, data->zmin);
+        Point2D xy_y0 = project_data(proj, data, data->xmin, y, data->zmin);
+        Point2D xy_y1 = project_data(proj, data, data->xmax, y, data->zmin);
 
         SDL_RenderDrawLine(r, (int)lrint(xy_x0.x), (int)lrint(xy_x0.y),
                               (int)lrint(xy_x1.x), (int)lrint(xy_x1.y));
@@ -887,10 +945,10 @@ static void draw_axis_grid(SDL_Renderer *r, PiChart3D *chart,
                               (int)lrint(xy_y1.x), (int)lrint(xy_y1.y));
 
         /* XZ side grid, at y = 0. */
-        Point2D xz_x0 = project_data(proj, data, x, 0, data->zmin);
-        Point2D xz_x1 = project_data(proj, data, x, 0, data->zmax);
-        Point2D xz_z0 = project_data(proj, data, 0, 0, z);
-        Point2D xz_z1 = project_data(proj, data, data->cols - 1.0, 0, z);
+        Point2D xz_x0 = project_data(proj, data, x, data->ymin, data->zmin);
+        Point2D xz_x1 = project_data(proj, data, x, data->ymin, data->zmax);
+        Point2D xz_z0 = project_data(proj, data, data->xmin, data->ymin, z);
+        Point2D xz_z1 = project_data(proj, data, data->xmax, data->ymin, z);
 
         SDL_RenderDrawLine(r, (int)lrint(xz_x0.x), (int)lrint(xz_x0.y),
                               (int)lrint(xz_x1.x), (int)lrint(xz_x1.y));
@@ -899,10 +957,10 @@ static void draw_axis_grid(SDL_Renderer *r, PiChart3D *chart,
 
         /* YZ side grid, at x = cols - 1. Shared by Y and Z axes, with Y to
            the right of Z. */
-        Point2D yz_y0 = project_data(proj, data, data->cols - 1.0, y, data->zmin);
-        Point2D yz_y1 = project_data(proj, data, data->cols - 1.0, y, data->zmax);
-        Point2D yz_z0 = project_data(proj, data, data->cols - 1.0, 0, z);
-        Point2D yz_z1 = project_data(proj, data, data->cols - 1.0, data->rows - 1.0, z);
+        Point2D yz_y0 = project_data(proj, data, data->xmax, y, data->zmin);
+        Point2D yz_y1 = project_data(proj, data, data->xmax, y, data->zmax);
+        Point2D yz_z0 = project_data(proj, data, data->xmax, data->ymin, z);
+        Point2D yz_z1 = project_data(proj, data, data->xmax, data->ymax, z);
 
         SDL_RenderDrawLine(r, (int)lrint(yz_y0.x), (int)lrint(yz_y0.y),
                               (int)lrint(yz_y1.x), (int)lrint(yz_y1.y));
@@ -966,11 +1024,11 @@ static void draw_axes_ticks_labels(SDL_Renderer *r, TTF_Font *font,
         keeps every label outside the plot area, regardless of where along
         the axis it sits.
     */
-    Point2D O = project_data(proj, data, 0, 0, data->zmin);
-    Point2D X0 = project_data(proj, data, 0, data->rows - 1.0, data->zmin);
-    Point2D X = project_data(proj, data, data->cols - 1.0, data->rows - 1.0, data->zmin);
-    Point2D Y = project_data(proj, data, 0, data->rows - 1.0, data->zmin);
-    Point2D Z = project_data(proj, data, 0, 0, data->zmax);
+    Point2D O = project_data(proj, data, data->xmin, data->ymin, data->zmin);
+    Point2D X0 = project_data(proj, data, data->xmin, data->ymax, data->zmin);
+    Point2D X = project_data(proj, data, data->xmax, data->ymax, data->zmin);
+    Point2D Y = project_data(proj, data, data->xmin, data->ymax, data->zmin);
+    Point2D Z = project_data(proj, data, data->xmin, data->ymin, data->zmax);
 
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
 
@@ -985,8 +1043,8 @@ static void draw_axes_ticks_labels(SDL_Renderer *r, TTF_Font *font,
         the empty margin.
     */
     Point2D center = project_data(proj, data,
-                                  (data->cols - 1.0) * 0.5,
-                                  (data->rows - 1.0) * 0.5,
+                                  (data->xmin + data->xmax) * 0.5,
+                                  (data->ymin + data->ymax) * 0.5,
                                   (data->zmin + data->zmax) * 0.5);
 
     double xnx, xny, ynx, yny, znx, zny;
@@ -1034,18 +1092,18 @@ static void draw_axes_ticks_labels(SDL_Renderer *r, TTF_Font *font,
     {
         double t = (double)i / (double)tick_count;
 
-        double xv = (data->cols - 1.0) * t;
-        Point2D px = project_data(proj, data, xv, data->rows - 1.0, data->zmin);
+        double xv = data->xmin + (data->xmax - data->xmin) * t;
+        Point2D px = project_data(proj, data, xv, data->ymax, data->zmin);
         format_tick(label, sizeof(label), xv);
         draw_axis_tick_label(r, font, px, xnx, xny, label, PLOT3D_X_AXIS);
 
-        double yv = (data->rows - 1.0) * t;
-        Point2D py = project_data(proj, data, 0, yv, data->zmin);
+        double yv = data->ymin + (data->ymax - data->ymin) * t;
+        Point2D py = project_data(proj, data, data->xmin, yv, data->zmin);
         format_tick(label, sizeof(label), yv);
         draw_axis_tick_label(r, font, py, ynx, yny, label, PLOT3D_Y_AXIS);
 
         double zv = data->zmin + (data->zmax - data->zmin) * t;
-        Point2D pz = project_data(proj, data, 0, 0, zv);
+        Point2D pz = project_data(proj, data, data->xmin, data->ymin, zv);
         format_tick(label, sizeof(label), zv);
         draw_axis_tick_label(r, font, pz, znx, zny, label, PLOT3D_Z_AXIS);
     }
@@ -1059,13 +1117,13 @@ static void draw_axes_ticks_labels(SDL_Renderer *r, TTF_Font *font,
         /* Midpoints of each axis, in data space, pushed further outward
            than ticks (using the same fixed outward directions) so the
            axis name clears the tick labels. */
-        double midx = (data->cols - 1.0) * 0.5;
-        double midy = (data->rows - 1.0) * 0.5;
+        double midx = (data->xmin + data->xmax) * 0.5;
+        double midy = (data->ymin + data->ymax) * 0.5;
         double midz = data->zmin + (data->zmax - data->zmin) * 0.5;
 
-        Point2D Xm = project_data(proj, data, midx, data->rows - 1.0, data->zmin);
-        Point2D Ym = project_data(proj, data, 0, midy, data->zmin);
-        Point2D Zm = project_data(proj, data, 0, 0, midz);
+        Point2D Xm = project_data(proj, data, midx, data->ymax, data->zmin);
+        Point2D Ym = project_data(proj, data, data->xmin, midy, data->zmin);
+        Point2D Zm = project_data(proj, data, data->xmin, data->ymin, midz);
 
         draw_text_at(r, font, xl,
                      (int)lrint(Xm.x + xnx * 40.0),
@@ -1086,18 +1144,364 @@ static void draw_axes_ticks_labels(SDL_Renderer *r, TTF_Font *font,
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
 }
 
-static int series_color(list_t *items, int fallback)
+typedef struct
 {
-    if (LIST_SIZE(items) >= 3)
+    int line_color;
+    int low_color;
+    int high_color;
+    int custom_heatmap;
+    int show_colorbar;
+} Plot3DSeriesStyle;
+
+static Plot3DSeriesStyle series_style(list_t *items, int fallback)
+{
+    Plot3DSeriesStyle style;
+    style.line_color = fallback;
+    style.low_color = heat_color(0.0);
+    style.high_color = heat_color(1.0);
+    style.custom_heatmap = 0;
+    style.show_colorbar = 0;
+
+    int color_count = 0;
+    for (int i = 2; i < LIST_SIZE(items); i++)
     {
-        Value *cv = (Value *)list_getAt(items, 2);
+        Value *cv = (Value *)list_getAt(items, i);
+        if (cv && IS_NUM(*cv))
+        {
+            int color = (int)AS_NUM(*cv);
+            if (color_count == 0)
+            {
+                style.line_color = color;
+                style.low_color = color;
+            }
+            else if (color_count == 1)
+            {
+                style.high_color = color;
+                style.custom_heatmap = 1;
+            }
+            color_count++;
+        }
+        else if (cv && IS_BOOL(*cv))
+        {
+            style.show_colorbar = AS_BOOL(*cv);
+        }
+    }
+
+    return style;
+}
+
+static int heatmap_style_color(Plot3DSeriesStyle *style, double t)
+{
+    if (style->custom_heatmap)
+        return blend_rgb(style->low_color, style->high_color, t);
+    return heat_color(t);
+}
+
+static void draw_colorbar(SDL_Renderer *r, TTF_Font *font,
+                          SurfaceData *data, Plot3DSeriesStyle *style)
+{
+    int W = 0;
+    int H = 0;
+    if (SDL_GetRendererOutputSize(r, &W, &H) != 0 || W <= 0 || H <= 0)
+        return;
+
+    int bar_w = 14;
+    int right_margin = 74;
+    int max_h = H - 96;
+    if (max_h < 40)
+        max_h = H > 20 ? H - 20 : H;
+
+    int bar_h = (int)lrint(H * 0.42);
+    if (bar_h < 120)
+        bar_h = 120;
+    if (bar_h > max_h)
+        bar_h = max_h;
+    if (bar_h < 2)
+        return;
+
+    int x = W - right_margin;
+    int y = (H - bar_h) / 2;
+    if (x < W / 2)
+        x = W - 48;
+    if (y < 48)
+        y = 48;
+
+    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
+    for (int i = 0; i < bar_h; i++)
+    {
+        double t = 1.0 - (double)i / (double)(bar_h - 1);
+        set_drawColor(r, heatmap_style_color(style, t), 255);
+        SDL_RenderDrawLine(r, x, y + i, x + bar_w, y + i);
+    }
+
+    set_drawColor(r, 0x222222, 255);
+    SDL_Rect border = {x, y, bar_w, bar_h};
+    SDL_RenderDrawRect(r, &border);
+
+    char label[64];
+    const int tick_count = 4;
+    for (int i = 0; i <= tick_count; i++)
+    {
+        double t = (double)i / (double)tick_count;
+        int ty = y + (int)lrint((1.0 - t) * (double)(bar_h - 1));
+        double value = data->zmin + (data->zmax - data->zmin) * t;
+
+        set_drawColor(r, 0x222222, 255);
+        SDL_RenderDrawLine(r, x - 4, ty, x + bar_w + 4, ty);
+
+        format_tick(label, sizeof(label), value);
+        draw_text_at(r, font, label, x + bar_w + 10, ty, PLOT3D_TEXT, 0, 1);
+    }
+
+    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
+}
+
+typedef struct
+{
+    double x, y, z;
+    Point2D p;
+} ScatterPoint3D;
+
+static int compare_scatter_back_to_front(const void *a, const void *b)
+{
+    const ScatterPoint3D *pa = (const ScatterPoint3D *)a;
+    const ScatterPoint3D *pb = (const ScatterPoint3D *)b;
+
+    if (pa->p.depth < pb->p.depth)
+        return -1;
+    if (pa->p.depth > pb->p.depth)
+        return 1;
+    return 0;
+}
+
+static void draw_filled_circle(SDL_Renderer *r, int cx, int cy, int radius, int fill, int border)
+{
+    if (radius < 1)
+        radius = 1;
+
+    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
+    set_drawColor(r, fill, 230);
+    for (int dy = -radius; dy <= radius; dy++)
+    {
+        int dx = (int)floor(sqrt((double)(radius * radius - dy * dy)));
+        SDL_RenderDrawLine(r, cx - dx, cy + dy, cx + dx, cy + dy);
+    }
+
+    set_drawColor(r, border, 180);
+    for (int a = 0; a < 360; a += 12)
+    {
+        double rad = (double)a * M_PI / 180.0;
+        int x = cx + (int)lrint(cos(rad) * radius);
+        int y = cy + (int)lrint(sin(rad) * radius);
+        SDL_RenderDrawPoint(r, x, y);
+    }
+    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
+}
+
+static int scatter_count(list_t *items)
+{
+    if (LIST_SIZE(items) >= 4 &&
+        IS_LIST(*(Value *)list_getAt(items, 1)) &&
+        IS_LIST(*(Value *)list_getAt(items, 2)) &&
+        IS_LIST(*(Value *)list_getAt(items, 3)))
+    {
+        PiList *xl = AS_LIST(*(Value *)list_getAt(items, 1));
+        PiList *yl = AS_LIST(*(Value *)list_getAt(items, 2));
+        PiList *zl = AS_LIST(*(Value *)list_getAt(items, 3));
+        int n = LIST_SIZE(xl->items);
+        if (LIST_SIZE(yl->items) < n)
+            n = LIST_SIZE(yl->items);
+        if (LIST_SIZE(zl->items) < n)
+            n = LIST_SIZE(zl->items);
+        return n;
+    }
+
+    if (LIST_SIZE(items) >= 2 && IS_TENSOR(*(Value *)list_getAt(items, 1)))
+    {
+        PiTensor *T = AS_TENSOR(*(Value *)list_getAt(items, 1));
+        if (T->ndim == 2 && T->cols >= 3)
+            return T->rows;
+    }
+
+    return 0;
+}
+
+static int scatter_point_at(list_t *items, int i, double *x, double *y, double *z)
+{
+    if (LIST_SIZE(items) >= 4 &&
+        IS_LIST(*(Value *)list_getAt(items, 1)) &&
+        IS_LIST(*(Value *)list_getAt(items, 2)) &&
+        IS_LIST(*(Value *)list_getAt(items, 3)))
+    {
+        PiList *xl = AS_LIST(*(Value *)list_getAt(items, 1));
+        PiList *yl = AS_LIST(*(Value *)list_getAt(items, 2));
+        PiList *zl = AS_LIST(*(Value *)list_getAt(items, 3));
+        Value *vx = (Value *)list_getAt(xl->items, i);
+        Value *vy = (Value *)list_getAt(yl->items, i);
+        Value *vz = (Value *)list_getAt(zl->items, i);
+
+        if (!vx || !vy || !vz || !IS_NUM(*vx) || !IS_NUM(*vy) || !IS_NUM(*vz))
+            return 0;
+
+        *x = AS_NUM(*vx);
+        *y = AS_NUM(*vy);
+        *z = AS_NUM(*vz);
+        return isfinite(*x) && isfinite(*y) && isfinite(*z);
+    }
+
+    if (LIST_SIZE(items) >= 2 && IS_TENSOR(*(Value *)list_getAt(items, 1)))
+    {
+        PiTensor *T = AS_TENSOR(*(Value *)list_getAt(items, 1));
+        if (T->ndim != 2 || T->cols < 3)
+            return 0;
+
+        *x = tensor_get(T, (int[]){i, 0});
+        *y = tensor_get(T, (int[]){i, 1});
+        *z = tensor_get(T, (int[]){i, 2});
+        return isfinite(*x) && isfinite(*y) && isfinite(*z);
+    }
+
+    return 0;
+}
+
+static int scatter_option_start(list_t *items)
+{
+    if (LIST_SIZE(items) >= 4 && IS_LIST(*(Value *)list_getAt(items, 1)))
+        return 4;
+    return 2;
+}
+
+static int scatter_color(list_t *items, int fallback)
+{
+    int start = scatter_option_start(items);
+    if (LIST_SIZE(items) > start)
+    {
+        Value *cv = (Value *)list_getAt(items, start);
         if (cv && IS_NUM(*cv))
             return (int)AS_NUM(*cv);
     }
     return fallback;
 }
 
-static void draw_surface(SDL_Renderer *r, Projector3D *proj, SurfaceData *data)
+static int scatter_radius(list_t *items, int fallback)
+{
+    int start = scatter_option_start(items);
+    if (LIST_SIZE(items) > start + 1)
+    {
+        Value *sv = (Value *)list_getAt(items, start + 1);
+        if (sv && IS_NUM(*sv))
+        {
+            int radius = (int)lrint(AS_NUM(*sv));
+            if (radius > 0)
+                return radius;
+        }
+    }
+    return fallback;
+}
+
+static int scatter_data_bounds(list_t *items, SurfaceData *data)
+{
+    int n = scatter_count(items);
+    if (n <= 0)
+        return 0;
+
+    data->M = NULL;
+    data->rows = 2.0;
+    data->cols = 2.0;
+    data->xmin = INFINITY;
+    data->xmax = -INFINITY;
+    data->ymin = INFINITY;
+    data->ymax = -INFINITY;
+    data->zmin = INFINITY;
+    data->zmax = -INFINITY;
+
+    for (int i = 0; i < n; i++)
+    {
+        double x, y, z;
+        if (!scatter_point_at(items, i, &x, &y, &z))
+            continue;
+
+        if (x < data->xmin)
+            data->xmin = x;
+        if (x > data->xmax)
+            data->xmax = x;
+        if (y < data->ymin)
+            data->ymin = y;
+        if (y > data->ymax)
+            data->ymax = y;
+        if (z < data->zmin)
+            data->zmin = z;
+        if (z > data->zmax)
+            data->zmax = z;
+    }
+
+    if (!isfinite(data->xmin) || !isfinite(data->xmax) ||
+        !isfinite(data->ymin) || !isfinite(data->ymax) ||
+        !isfinite(data->zmin) || !isfinite(data->zmax))
+        return 0;
+
+    if (data->xmax <= data->xmin)
+        data->xmax = data->xmin + 1e-9;
+    if (data->ymax <= data->ymin)
+        data->ymax = data->ymin + 1e-9;
+    if (data->zmax <= data->zmin)
+        data->zmax = data->zmin + 1e-9;
+
+    return 1;
+}
+
+static void draw_scatter3d(SDL_Renderer *r, TTF_Font *font,
+                           PiChart3D *chart, Projector3D *proj,
+                           list_t *items)
+{
+    SurfaceData data;
+    if (!scatter_data_bounds(items, &data))
+        return;
+
+    int n = scatter_count(items);
+    ScatterPoint3D *points = (ScatterPoint3D *)malloc(sizeof(ScatterPoint3D) * (size_t)n);
+    if (!points)
+        return;
+
+    int count = 0;
+    for (int i = 0; i < n; i++)
+    {
+        double x, y, z;
+        if (!scatter_point_at(items, i, &x, &y, &z))
+            continue;
+
+        points[count].x = x;
+        points[count].y = y;
+        points[count].z = z;
+        points[count].p = project_plot_data(proj, &data, x, y, z);
+        count++;
+    }
+
+    qsort(points, (size_t)count, sizeof(ScatterPoint3D), compare_scatter_back_to_front);
+
+    int color = scatter_color(items, 0x2e86ab);
+    int radius = scatter_radius(items, 5);
+
+    draw_axis_grid(r, chart, proj, &data);
+
+    for (int i = 0; i < count; i++)
+    {
+        double t = (points[i].z - data.zmin) / (data.zmax - data.zmin);
+        int shaded = blend_rgb(color, 0xffffff, 0.10 + 0.24 * t);
+        draw_filled_circle(r,
+                           (int)lrint(points[i].p.x),
+                           (int)lrint(points[i].p.y),
+                           radius,
+                           shaded,
+                           0x111111);
+    }
+
+    draw_axes_ticks_labels(r, font, chart, proj, &data);
+    free(points);
+}
+
+static void draw_surface(SDL_Renderer *r, Projector3D *proj, SurfaceData *data,
+                         Plot3DSeriesStyle *style)
 {
     int face_count = (data->M->rows - 1) * (data->M->cols - 1);
     if (face_count <= 0)
@@ -1137,9 +1541,7 @@ static void draw_surface(SDL_Renderer *r, Projector3D *proj, SurfaceData *data)
             f.depth = (f.p[0].depth + f.p[1].depth + f.p[2].depth + f.p[3].depth) * 0.25;
 
             double t = (f.zavg - data->zmin) / (data->zmax - data->zmin);
-            Uint8 R, G, B;
-            heat_rgb(t, &R, &G, &B);
-            f.color = ((int)R << 16) | ((int)G << 8) | (int)B;
+            f.color = heatmap_style_color(style, t);
 
             draw_depth_face(r, zbuf, W, H, &f);
         }
@@ -1149,7 +1551,8 @@ static void draw_surface(SDL_Renderer *r, Projector3D *proj, SurfaceData *data)
 }
 
 static void draw_wire_grid(SDL_Renderer *r, Projector3D *proj, SurfaceData *data,
-                           int color, int colored_by_height, int thickness)
+                           Plot3DSeriesStyle *style, int colored_by_height,
+                           int thickness)
 {
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
 
@@ -1165,14 +1568,12 @@ static void draw_wire_grid(SDL_Renderer *r, Projector3D *proj, SurfaceData *data
             if (colored_by_height)
             {
                 double t = (((z0 + z1) * 0.5) - data->zmin) / (data->zmax - data->zmin);
-                Uint8 R, G, B;
-                heat_rgb(t, &R, &G, &B);
-                SDL_SetRenderDrawColor(r, R, G, B, 245);
+                set_drawColor(r, heatmap_style_color(style, t), 245);
             }
             else
             {
                 double t = (((z0 + z1) * 0.5) - data->zmin) / (data->zmax - data->zmin);
-                int shaded = blend_rgb(color, 0xffffff, 0.18 + 0.20 * t);
+                int shaded = blend_rgb(style->line_color, 0xffffff, 0.18 + 0.20 * t);
                 set_drawColor(r, shaded, 255);
             }
 
@@ -1194,14 +1595,12 @@ static void draw_wire_grid(SDL_Renderer *r, Projector3D *proj, SurfaceData *data
             if (colored_by_height)
             {
                 double t = (((z0 + z1) * 0.5) - data->zmin) / (data->zmax - data->zmin);
-                Uint8 R, G, B;
-                heat_rgb(t, &R, &G, &B);
-                SDL_SetRenderDrawColor(r, R, G, B, 245);
+                set_drawColor(r, heatmap_style_color(style, t), 245);
             }
             else
             {
                 double t = (((z0 + z1) * 0.5) - data->zmin) / (data->zmax - data->zmin);
-                int shaded = blend_rgb(color, 0xffffff, 0.18 + 0.20 * t);
+                int shaded = blend_rgb(style->line_color, 0xffffff, 0.18 + 0.20 * t);
                 set_drawColor(r, shaded, 255);
             }
 
@@ -1233,9 +1632,13 @@ static void draw_surface_like(SDL_Renderer *r, TTF_Font *font,
     data.M = M;
     data.rows = (double)M->rows;
     data.cols = (double)M->cols;
+    data.xmin = 0.0;
+    data.xmax = data.cols - 1.0;
+    data.ymin = 0.0;
+    data.ymax = data.rows - 1.0;
     tensor_minmax(M, &data.zmin, &data.zmax);
 
-    int base_col = series_color(items, 0x2e86ab);
+    Plot3DSeriesStyle style = series_style(items, 0x2e86ab);
 
     draw_axis_grid(r, chart, proj, &data);
 
@@ -1246,18 +1649,21 @@ static void draw_surface_like(SDL_Renderer *r, TTF_Font *font,
     */
     if (mode == 0)
     {
-        draw_surface(r, proj, &data);
+        draw_surface(r, proj, &data, &style);
     }
     else if (mode == 1)
     {
-        draw_wire_grid(r, proj, &data, base_col, 1, 1);
+        draw_wire_grid(r, proj, &data, &style, 1, 1);
     }
     else
     {
-        draw_wire_grid(r, proj, &data, base_col, 0, 1);
+        draw_wire_grid(r, proj, &data, &style, 0, 1);
     }
 
     draw_axes_ticks_labels(r, font, chart, proj, &data);
+
+    if (style.show_colorbar && mode != 2)
+        draw_colorbar(r, font, &data, &style);
 }
 
 
@@ -1395,6 +1801,8 @@ static void plot3d_render(PiChart3D *chart, int present)
             draw_surface_like(r, tick_font, chart, &projector, items, 1);
         else if (!strcmp(kind, "wireframe"))
             draw_surface_like(r, tick_font, chart, &projector, items, 2);
+        else if (!strcmp(kind, "scatter"))
+            draw_scatter3d(r, tick_font, chart, &projector, items);
     }
 
     TTF_Font *title_font = get_openFont(18);
@@ -1439,6 +1847,7 @@ static BuiltinFunc plot3d_funcs[] = {
     {"surface", pt3d_surface},
     {"mesh", pt3d_mesh},
     {"wireframe", pt3d_wireframe},
+    {"scatter", pt3d_scatter},
     {"show", pt3d_show},
     {"title", pt3d_title},
     {"xlabel", pt3d_xlabel},

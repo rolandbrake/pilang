@@ -7,6 +7,7 @@
 Value pt3d_surface(vm_t *vm, int argc, Value *argv);
 Value pt3d_mesh(vm_t *vm, int argc, Value *argv);
 Value pt3d_wireframe(vm_t *vm, int argc, Value *argv);
+Value pt3d_scatter(vm_t *vm, int argc, Value *argv);
 
 Value pt3d_chart(vm_t *vm, int argc, Value *argv);
 
