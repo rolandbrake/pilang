@@ -22,7 +22,7 @@ for r in 0..size {
     }
 }
 
-plot3d.surface(chart, z, 0x2563eb, 0xf97316, true)
+plot3d.surface(chart, z)
 
 plot3d.title(chart, "Damped Ripple Surface")
 plot3d.xlabel(chart, "X axis")

@@ -603,6 +603,8 @@ void mark_roots(vm_t *vm)
     if (vm->function)
         mark_object(vm->function);
 
+    mark_value(vm->_kw_args);
+
     mark_list(vm->names);
 
     // Open upvalues (linked list)

@@ -101,7 +101,7 @@ Value *new_native(const char *name, native_func func)
     fn->params = NULL;
     fn->param_names = NULL;
     fn->owns_params = false;
-    
+
     fn->body = NULL;
     fn->constants = NULL;
     fn->names = NULL;
@@ -114,7 +114,7 @@ Value *new_native(const char *name, native_func func)
 
     fn->need_args = false; // Native functions don't use the args slot
     fn->need_kwargs = false; // Native functions don't use the kw_args slot
-    
+
     fn->native = func;
 
     fn->upvalues = NULL;
@@ -142,22 +142,31 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     if (function->is_native)
     {
         Object *prev_function = vm->function;
+        Value prev_kwargs = vm->_kw_args;
+
         vm->function = (Object *)function;
+        vm->_kw_args = kw_args;
 
         if (function->is_method && function->instance != NULL)
         {
             Value *method_argv = malloc(sizeof(Value) * (argc + 1));
+            if (!method_argv)
+                vm_error(vm, "Memory allocation failed for native method arguments.");
             method_argv[0] = NEW_OBJ(add_obj(vm, function->instance));
             for (size_t i = 0; i < argc; i++)
                 method_argv[i + 1] = argv[i];
 
             Value result = function->native(vm, (int)argc + 1, method_argv);
             free(method_argv);
+
+            vm->_kw_args = prev_kwargs;
             vm->function = prev_function;
+
             return result;
         }
 
         Value result = function->native(vm, argc, argv);
+        vm->_kw_args = prev_kwargs;
         vm->function = prev_function;
         return result;
     }

@@ -543,6 +543,7 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     vm->openUpvalues = NULL;
 
     vm->function = NULL;
+    vm->_kw_args = NEW_NIL();
 
     // Initialize the garbage collector
     vm->next_gc = NEXT_GC;
@@ -633,6 +634,7 @@ void vm_reset(vm_t *vm, compiler_t *comp)
 
     vm->openUpvalues = NULL;
     vm->function = NULL;
+    vm->_kw_args = NEW_NIL();
 
     // Mark new constants from the new compiler for GC
     mark_constants(vm);
@@ -666,6 +668,39 @@ inline Object *add_obj(vm_t *vm, Object *obj)
     vm->obj_count++;
 
     return obj;
+}
+
+Value vm_kwargs(vm_t *vm)
+{
+    if (!vm)
+        return NEW_NIL();
+    return vm->_kw_args;
+}
+
+bool vm_hasKwarg(vm_t *vm, const char *name)
+{
+    if (!vm || !name || !IS_MAP(vm->_kw_args))
+        return false;
+    return ht_get(AS_MAP(vm->_kw_args)->table, name) != NULL;
+}
+
+bool vm_getKwarg(vm_t *vm, const char *name, Value *out)
+{
+    if (!vm || !name || !out || !IS_MAP(vm->_kw_args))
+        return false;
+
+    Value *value = ht_get(AS_MAP(vm->_kw_args)->table, name);
+    if (!value)
+        return false;
+
+    *out = *value;
+    return true;
+}
+
+Value vm_getKwargOr(vm_t *vm, const char *name, Value fallback)
+{
+    Value value;
+    return vm_getKwarg(vm, name, &value) ? value : fallback;
 }
 
 /**
