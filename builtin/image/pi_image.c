@@ -208,119 +208,6 @@ Value im_flip(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, (Object *)n));
 }
 
-Value im_rgb2gray(vm_t *vm, int argc, Value *argv)
-{
-    if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
-        vm_error(vm, "[image.rgb2gray] expects an image.");
-
-    ObjImage *img = AS_IMAGE(argv[0]);
-    int w = img->surface->w;
-    int h = img->surface->h;
-    int bpp = img->surface->format->BytesPerPixel;
-
-    // create RGB24 destination
-    SDL_Surface *dst = SDL_CreateRGBSurfaceWithFormat(0, w, h, 24, SDL_PIXELFORMAT_RGB24);
-    if (!dst)
-        vm_error(vm, "[image.rgb2gray] failed to create surface.");
-
-    SDL_LockSurface(img->surface);
-    SDL_LockSurface(dst);
-
-    Uint8 *sp = (Uint8 *)img->surface->pixels;
-    Uint8 *dp = (Uint8 *)dst->pixels;
-
-    for (int y = 0; y < h; y++)
-    {
-        for (int x = 0; x < w; x++)
-        {
-            Uint8 r, g, b;
-            Uint8 *pix = sp + y * img->surface->pitch + x * bpp;
-            if (bpp >= 3)
-            {
-                r = pix[0];
-                g = pix[1];
-                b = pix[2];
-            }
-            else
-            {
-                r = g = b = pix[0];
-            }
-
-            Uint8 gray = (Uint8)(0.299f * r + 0.587f * g + 0.114f * b);
-            Uint8 *out = dp + y * dst->pitch + x * 3;
-            out[0] = out[1] = out[2] = gray;
-        }
-    }
-
-    SDL_UnlockSurface(img->surface);
-    SDL_UnlockSurface(dst);
-
-    ObjImage *n = new_image(dst);
-    return NEW_OBJ(add_obj(vm, (Object *)n));
-}
-
-Value im_gray2rgb(vm_t *vm, int argc, Value *argv)
-{
-    // For our representation grayscale images are RGB with equal channels,
-    // so just return a copy.
-    if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
-        vm_error(vm, "[image.gray2rgb] expects an image.");
-
-    ObjImage *img = AS_IMAGE(argv[0]);
-    SDL_Surface *dst = create_surface_same_format(img->surface, img->surface->w, img->surface->h);
-    if (!dst)
-        vm_error(vm, "[image.gray2rgb] failed to create surface.");
-
-    if (SDL_BlitSurface(img->surface, NULL, dst, NULL) != 0)
-    {
-        SDL_FreeSurface(dst);
-        vm_error(vm, "[image.gray2rgb] blit failed.");
-    }
-
-    ObjImage *n = new_image(dst);
-    return NEW_OBJ(add_obj(vm, (Object *)n));
-}
-
-Value im_gray2rgba(vm_t *vm, int argc, Value *argv)
-{
-    if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
-        vm_error(vm, "[image.gray2rgba] expects an image.");
-
-    ObjImage *img = AS_IMAGE(argv[0]);
-    int w = img->surface->w;
-    int h = img->surface->h;
-
-    SDL_Surface *dst = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_RGBA32);
-    if (!dst)
-        vm_error(vm, "[image.gray2rgba] failed to create surface.");
-
-    SDL_LockSurface(img->surface);
-    SDL_LockSurface(dst);
-
-    int bpp = img->surface->format->BytesPerPixel;
-    Uint8 *sp = (Uint8 *)img->surface->pixels;
-    Uint8 *dp = (Uint8 *)dst->pixels;
-
-    for (int y = 0; y < h; y++)
-    {
-        for (int x = 0; x < w; x++)
-        {
-            Uint8 gray = sp[y * img->surface->pitch + x * bpp];
-            Uint8 *out = dp + y * dst->pitch + x * 4;
-            out[0] = gray;
-            out[1] = gray;
-            out[2] = gray;
-            out[3] = 255;
-        }
-    }
-
-    SDL_UnlockSurface(img->surface);
-    SDL_UnlockSurface(dst);
-
-    ObjImage *n = new_image(dst);
-    return NEW_OBJ(add_obj(vm, (Object *)n));
-}
-
 static bool _try_setWindowIcon(SDL_Window *window, const char *path)
 {
     SDL_Surface *icon = IMG_Load(path);
@@ -579,9 +466,6 @@ static BuiltinFunc image_funcs[] = {
     {"resize", im_resize},
     {"crop", im_crop},
     {"flip", im_flip},
-    {"rgb2gray", im_rgb2gray},
-    {"gray2rgb", im_gray2rgb},
-    {"gray2rgba", im_gray2rgba},
     {"show", im_show},
     {"img2tensor", im_img2tensor},
     {"tensor2img", im_tensor2img},

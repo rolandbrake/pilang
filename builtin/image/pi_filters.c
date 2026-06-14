@@ -22,7 +22,7 @@ static SDL_Surface *to_rgba32(SDL_Surface *src)
 }
 
 // Apply a convolution kernel (ksize x ksize) to src (RGBA32) -> dst (RGBA32).
-static void apply_convolution_rgba(SDL_Surface *src, SDL_Surface *dst, const float *kernel, int ksize)
+static void apply_convolutionRGBA(SDL_Surface *src, SDL_Surface *dst, const float *kernel, int ksize)
 {
     int w = src->w;
     int h = src->h;
@@ -213,7 +213,7 @@ static int parse_kernelValue(vm_t *vm, Value value, double **kernel, int *rows, 
     return parse_listKernel(vm, value, kernel, rows, cols);
 }
 
-static void apply_kernel_rgba(SDL_Surface *src, SDL_Surface *dst, const double *kernel, int krows, int kcols)
+static void apply_kernelRGBA(SDL_Surface *src, SDL_Surface *dst, const double *kernel, int krows, int kcols)
 {
     int w = src->w;
     int h = src->h;
@@ -429,7 +429,7 @@ Value im_filter(vm_t *vm, int argc, Value *argv)
         return NIL_VAL;
     }
 
-    apply_kernel_rgba(src, dst, kernel, rows, cols);
+    apply_kernelRGBA(src, dst, kernel, rows, cols);
     free(kernel);
 
     ObjImage *n = new_image(dst);
@@ -656,7 +656,7 @@ Value im_blur(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[image.filters.blur] failed to create surface.");
     }
 
-    apply_convolution_rgba(src, dst, kernel, ksize);
+    apply_convolutionRGBA(src, dst, kernel, ksize);
 
     free(kernel);
     ObjImage *n = new_image(dst);
@@ -685,7 +685,7 @@ Value im_sharpen(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[image.filters.sharpen] failed to create surface.");
     }
 
-    apply_convolution_rgba(src, dst, kernel, 3);
+    apply_convolutionRGBA(src, dst, kernel, 3);
 
     ObjImage *n = new_image(dst);
     Value out = NEW_OBJ(add_obj(vm, (Object *)n));
@@ -821,6 +821,274 @@ Value im_threshold(vm_t *vm, int argc, Value *argv)
     return out;
 }
 
+static void gaussian_blurGray(const float *in, float *out, int w, int h)
+{
+    const float kernel[25] = {
+        1 / 273.0f, 4 / 273.0f, 7 / 273.0f, 4 / 273.0f, 1 / 273.0f,
+        4 / 273.0f,16 / 273.0f,26 / 273.0f,16 / 273.0f, 4 / 273.0f,
+        7 / 273.0f,26 / 273.0f,41 / 273.0f,26 / 273.0f, 7 / 273.0f,
+        4 / 273.0f,16 / 273.0f,26 / 273.0f,16 / 273.0f, 4 / 273.0f,
+        1 / 273.0f, 4 / 273.0f, 7 / 273.0f, 4 / 273.0f, 1 / 273.0f};
+
+    for (int y = 0; y < h; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
+            float sum = 0.0f;
+            for (int ky = -2; ky <= 2; ky++)
+            {
+                int sy = y + ky;
+                if (sy < 0) sy = 0;
+                else if (sy >= h) sy = h - 1;
+                for (int kx = -2; kx <= 2; kx++)
+                {
+                    int sx = x + kx;
+                    if (sx < 0) sx = 0;
+                    else if (sx >= w) sx = w - 1;
+                    sum += kernel[(ky + 2) * 5 + (kx + 2)] * in[sy * w + sx];
+                }
+            }
+            out[y * w + x] = sum;
+        }
+    }
+}
+
+static void compute_gradient(const float *gray, float *mag, float *ang, int w, int h)
+{
+    const float kx[9] = {-1, 0, 1, -2, 0, 2, -1, 0, 1};
+    const float ky[9] = {-1, -2, -1, 0, 0, 0, 1, 2, 1};
+
+    for (int y = 0; y < h; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
+            float gx = 0.0f;
+            float gy = 0.0f;
+            for (int kyoff = -1; kyoff <= 1; kyoff++)
+            {
+                int sy = y + kyoff;
+                if (sy < 0) sy = 0;
+                else if (sy >= h) sy = h - 1;
+                for (int kxoff = -1; kxoff <= 1; kxoff++)
+                {
+                    int sx = x + kxoff;
+                    if (sx < 0) sx = 0;
+                    else if (sx >= w) sx = w - 1;
+                    float val = gray[sy * w + sx];
+                    gx += kx[(kyoff + 1) * 3 + (kxoff + 1)] * val;
+                    gy += ky[(kyoff + 1) * 3 + (kxoff + 1)] * val;
+                }
+            }
+            mag[y * w + x] = sqrtf(gx * gx + gy * gy);
+            ang[y * w + x] = atan2f(gy, gx) * 180.0f / M_PI;
+            if (ang[y * w + x] < 0.0f)
+                ang[y * w + x] += 180.0f;
+        }
+    }
+}
+
+static void non_max_suppression(const float *mag, const float *ang, float *out, int w, int h)
+{
+    for (int y = 0; y < h; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
+            float angle = ang[y * w + x];
+            float value = mag[y * w + x];
+            float neighbor1 = 0.0f;
+            float neighbor2 = 0.0f;
+
+            int x1 = x;
+            int y1 = y;
+            int x2 = x;
+            int y2 = y;
+
+            if ((angle >= 0.0f && angle < 22.5f) || (angle >= 157.5f && angle <= 180.0f))
+            {
+                x1 = x - 1;
+                x2 = x + 1;
+            }
+            else if (angle >= 22.5f && angle < 67.5f)
+            {
+                x1 = x - 1;
+                y1 = y - 1;
+                x2 = x + 1;
+                y2 = y + 1;
+            }
+            else if (angle >= 67.5f && angle < 112.5f)
+            {
+                y1 = y - 1;
+                y2 = y + 1;
+            }
+            else
+            {
+                x1 = x - 1;
+                y1 = y + 1;
+                x2 = x + 1;
+                y2 = y - 1;
+            }
+
+            if (x1 < 0) x1 = 0;
+            if (x2 < 0) x2 = 0;
+            if (y1 < 0) y1 = 0;
+            if (y2 < 0) y2 = 0;
+            if (x1 >= w) x1 = w - 1;
+            if (x2 >= w) x2 = w - 1;
+            if (y1 >= h) y1 = h - 1;
+            if (y2 >= h) y2 = h - 1;
+
+            neighbor1 = mag[y1 * w + x1];
+            neighbor2 = mag[y2 * w + x2];
+
+            if (value >= neighbor1 && value >= neighbor2)
+                out[y * w + x] = value;
+            else
+                out[y * w + x] = 0.0f;
+        }
+    }
+}
+
+static void hysteresis(float *edges, int w, int h, int low, int high)
+{
+    for (int y = 0; y < h; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
+            float val = edges[y * w + x];
+            if (val >= high)
+            {
+                edges[y * w + x] = 255.0f;
+            }
+            else if (val >= low)
+            {
+                bool connected = false;
+                for (int ky = -1; ky <= 1 && !connected; ky++)
+                {
+                    for (int kx = -1; kx <= 1; kx++)
+                    {
+                        if (kx == 0 && ky == 0)
+                            continue;
+                        int nx = x + kx;
+                        int ny = y + ky;
+                        if (nx < 0 || nx >= w || ny < 0 || ny >= h)
+                            continue;
+                        if (edges[ny * w + nx] >= high)
+                        {
+                            connected = true;
+                            break;
+                        }
+                    }
+                }
+                edges[y * w + x] = connected ? 255.0f : 0.0f;
+            }
+            else
+            {
+                edges[y * w + x] = 0.0f;
+            }
+        }
+    }
+}
+
+Value im_canny(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
+        vm_error(vm, "[image.filters.canny] expects (image, low=50, high=150).");
+
+    int low = 50;
+    int high = 150;
+    if (argc >= 2 && IS_NUM(argv[1]))
+        low = (int)AS_NUM(argv[1]);
+    if (argc >= 3 && IS_NUM(argv[2]))
+        high = (int)AS_NUM(argv[2]);
+    if (low < 0) low = 0;
+    if (high < 0) high = 0;
+    if (low > 255) low = 255;
+    if (high > 255) high = 255;
+    if (low > high)
+        low = high / 2;
+
+    ObjImage *img = AS_IMAGE(argv[0]);
+    SDL_Surface *src_surface = to_rgba32(img->surface);
+    bool converted = (src_surface != img->surface);
+    int w = src_surface->w;
+    int h = src_surface->h;
+
+    float *gray = (float *)malloc(sizeof(float) * (size_t)(w * h));
+    float *blur = (float *)malloc(sizeof(float) * (size_t)(w * h));
+    float *mag = (float *)malloc(sizeof(float) * (size_t)(w * h));
+    float *ang = (float *)malloc(sizeof(float) * (size_t)(w * h));
+    float *nms = (float *)malloc(sizeof(float) * (size_t)(w * h));
+    if (!gray || !blur || !mag || !ang || !nms)
+    {
+        free(gray);
+        free(blur);
+        free(mag);
+        free(ang);
+        free(nms);
+        if (converted)
+            SDL_FreeSurface(src_surface);
+        vm_error(vm, "[image.filters.canny] out of memory.");
+    }
+
+    SDL_LockSurface(src_surface);
+    Uint8 *sp = (Uint8 *)src_surface->pixels;
+    for (int y = 0; y < h; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
+            Uint8 *ps = sp + y * src_surface->pitch + x * 4;
+            gray[y * w + x] = 0.299f * ps[0] + 0.587f * ps[1] + 0.114f * ps[2];
+        }
+    }
+    SDL_UnlockSurface(src_surface);
+
+    gaussian_blurGray(gray, blur, w, h);
+    compute_gradient(blur, mag, ang, w, h);
+    non_max_suppression(mag, ang, nms, w, h);
+    hysteresis(nms, w, h, low, high);
+
+    SDL_Surface *dst = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_RGBA32);
+    if (!dst)
+    {
+        free(gray);
+        free(blur);
+        free(mag);
+        free(ang);
+        free(nms);
+        if (converted)
+            SDL_FreeSurface(src_surface);
+        vm_error(vm, "[image.filters.canny] failed to create surface.");
+    }
+
+    SDL_LockSurface(dst);
+    Uint8 *dp = (Uint8 *)dst->pixels;
+    for (int y = 0; y < h; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
+            Uint8 edge = (Uint8)nms[y * w + x];
+            Uint8 *pd = dp + y * dst->pitch + x * 4;
+            pd[0] = edge;
+            pd[1] = edge;
+            pd[2] = edge;
+            pd[3] = 255;
+        }
+    }
+    SDL_UnlockSurface(dst);
+
+    free(gray);
+    free(blur);
+    free(mag);
+    free(ang);
+    free(nms);
+
+    ObjImage *n = new_image(dst);
+    Value out = NEW_OBJ(add_obj(vm, (Object *)n));
+    if (converted)
+        SDL_FreeSurface(src_surface);
+    return out;
+}
+
 // Module export
 static BuiltinFunc filter_funcs[] = {
     {"filter", im_filter},
@@ -834,6 +1102,7 @@ static BuiltinFunc filter_funcs[] = {
     {"sharpen", im_sharpen},
     {"sobel", im_sobel},
     {"threshold", im_threshold},
+    {"canny", im_canny},
 };
 
 static BuiltinConst filter_consts[] = {

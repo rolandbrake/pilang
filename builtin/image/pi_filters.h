@@ -13,6 +13,7 @@ Value im_blur(vm_t *vm, int argc, Value *argv);
 Value im_sharpen(vm_t *vm, int argc, Value *argv);
 Value im_sobel(vm_t *vm, int argc, Value *argv);
 Value im_threshold(vm_t *vm, int argc, Value *argv);
+Value im_canny(vm_t *vm, int argc, Value *argv);
 Value im_filter(vm_t *vm, int argc, Value *argv);
 Value im_kernel(vm_t *vm, int argc, Value *argv);
 Value im_boxKernel(vm_t *vm, int argc, Value *argv);
