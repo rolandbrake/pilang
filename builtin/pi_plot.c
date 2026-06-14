@@ -421,6 +421,38 @@ static void chart_computeBounds(PiChart *c)
             ymin = 0;
             ymax = M->rows > 0 ? M->rows : 1;
         }
+        else if (!strcmp(kind, "imshow"))
+        {
+            if (LIST_SIZE(items) < 2)
+                continue;
+            Value *mv = (Value *)list_getAt(items, 1);
+            if (IS_TENSOR(*mv))
+            {
+                PiTensor *M = AS_TENSOR(*mv);
+                if (M->ndim == 2)
+                {
+                    xmin = 0;
+                    xmax = M->cols > 0 ? M->cols : 1;
+                    ymin = 0;
+                    ymax = M->rows > 0 ? M->rows : 1;
+                }
+                else if (M->ndim == 3 && M->shape[2] >= 1 && M->shape[2] <= 4)
+                {
+                    xmin = 0;
+                    xmax = M->shape[1] > 0 ? M->shape[1] : 1;
+                    ymin = 0;
+                    ymax = M->shape[0] > 0 ? M->shape[0] : 1;
+                }
+            }
+            else if (IS_IMAGE(*mv))
+            {
+                ObjImage *img = AS_IMAGE(*mv);
+                xmin = 0;
+                xmax = img->surface && img->surface->w > 0 ? img->surface->w : 1;
+                ymin = 0;
+                ymax = img->surface && img->surface->h > 0 ? img->surface->h : 1;
+            }
+        }
     }
 
     if (xmin <= xmax && ymin <= ymax && isfinite(xmin) && isfinite(xmax) && isfinite(ymin) && isfinite(ymax))
@@ -908,6 +940,41 @@ Value pt_step(vm_t *vm, int argc, Value *argv)
     return make_kindSeries(vm, chart, "step", tail);
 }
 
+Value pt_imshow(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1 || !IS_CHART(argv[0]))
+    {
+        vm_error(vm, "imshow() takes a chart as first argument");
+        return NIL_VAL;
+    }
+    if (argc < 2)
+    {
+        vm_error(vm, "imshow() expects an image or tensor as second argument");
+        return NIL_VAL;
+    }
+
+    if (IS_TENSOR(argv[1]))
+    {
+        PiTensor *tensor = AS_TENSOR(argv[1]);
+        if (!(tensor->ndim == 2 ||
+              (tensor->ndim == 3 && tensor->shape[2] >= 1 && tensor->shape[2] <= 4)))
+        {
+            vm_error(vm, "imshow() tensor must be [height,width] or [height,width,channels] with channels 1..4");
+            return NIL_VAL;
+        }
+    }
+    else if (!IS_IMAGE(argv[1]))
+    {
+        vm_error(vm, "imshow() expects an image or tensor as second argument");
+        return NIL_VAL;
+    }
+
+    PiChart *chart = AS_CHART(argv[0]);
+    list_t *tail = list_create(VALUE_SIZE);
+    list_add(tail, &argv[1]);
+    return make_kindSeries(vm, chart, "imshow", tail);
+}
+
 Value pt_heatmap(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
@@ -1198,6 +1265,7 @@ static int is_legendDrawableKind(const char *kind)
            !strcmp(kind, "step") ||
            !strcmp(kind, "bar") ||
            !strcmp(kind, "hist") ||
+           !strcmp(kind, "imshow") ||
            !strcmp(kind, "heatmap") ||
            !strcmp(kind, "contour") ||
            !strcmp(kind, "quiver") ||
@@ -1723,6 +1791,305 @@ static void draw_heatmap(DrawContext *dc, list_t *items,
     }
 }
 
+static void tensor_minmax(PiTensor *M, double *zmin, double *zmax);
+
+static Uint8 imshow_channel(double value, double scale)
+{
+    double v = value * scale;
+    if (v < 0.0)
+        v = 0.0;
+    if (v > 255.0)
+        v = 255.0;
+    return (Uint8)lrint(v);
+}
+
+static double tensor_imageScale(PiTensor *M)
+{
+    double max_abs = 0.0;
+    for (int i = 0; i < M->size; i++)
+    {
+        double v = fabs(tensor_getFlat(M, i));
+        if (v > max_abs)
+            max_abs = v;
+    }
+    return max_abs <= 1.0 ? 255.0 : 1.0;
+}
+
+static void draw_imshowTensor2D(DrawContext *dc, PiTensor *M,
+                                int start_x, int start_y, int width, int height,
+                                int border_right, int border_top, int border_bottom)
+{
+    double zmin, zmax;
+    tensor_minmax(M, &zmin, &zmax);
+
+    int idx[2];
+    for (int row = 0; row < M->rows; row++)
+    {
+        idx[0] = row;
+        int y0 = start_y + (int)((double)row * height / M->rows);
+        int y1 = start_y + (int)((double)(row + 1) * height / M->rows);
+        if (y1 <= y0)
+            y1 = y0 + 1;
+
+        for (int col = 0; col < M->cols; col++)
+        {
+            idx[1] = col;
+            double z = tensor_get(M, idx);
+            double t = (z - zmin) / (zmax - zmin);
+            if (t < 0.0)
+                t = 0.0;
+            if (t > 1.0)
+                t = 1.0;
+
+            Uint8 R, G, B;
+            heatmap_rgb(t, &R, &G, &B);
+            SDL_SetRenderDrawColor(dc->r, R, G, B, 255);
+
+            int x0 = start_x + (int)((double)col * width / M->cols);
+            int x1 = start_x + (int)((double)(col + 1) * width / M->cols);
+            if (x1 <= x0)
+                x1 = x0 + 1;
+
+            SDL_Rect rect = {x0, y0, x1 - x0, y1 - y0};
+            SDL_RenderFillRect(dc->r, &rect);
+        }
+    }
+
+    if (dc->chart->show_grid && M->rows <= 80 && M->cols <= 80 && width / M->cols > 4 && height / M->rows > 4)
+    {
+        SDL_SetRenderDrawBlendMode(dc->r, SDL_BLENDMODE_BLEND);
+        set_drawColor(dc->r, 0xffffff, 95);
+        for (int col = 1; col < M->cols; col++)
+        {
+            int x = start_x + (int)((double)col * width / M->cols);
+            SDL_RenderDrawLine(dc->r, x, start_y, x, start_y + height);
+        }
+        for (int row = 1; row < M->rows; row++)
+        {
+            int y = start_y + (int)((double)row * height / M->rows);
+            SDL_RenderDrawLine(dc->r, start_x, y, start_x + width, y);
+        }
+        SDL_SetRenderDrawBlendMode(dc->r, SDL_BLENDMODE_NONE);
+    }
+
+    int color_bar_width = width < 160 ? 18 : 25;
+    int color_bar_x = border_right + (width < 160 ? 8 : 15);
+    draw_colorBar(dc->r, dc->chart, zmin, zmax, dc->W, dc->H, dc->margin,
+                  color_bar_x, border_top, border_bottom, color_bar_width);
+}
+
+static void draw_imshowTensorImage(DrawContext *dc, PiTensor *M,
+                                   int start_x, int start_y, int width, int height)
+{
+    int rows = M->shape[0];
+    int cols = M->shape[1];
+    int channels = M->shape[2];
+    if (rows <= 0 || cols <= 0 || channels <= 0)
+        return;
+
+    double scale = tensor_imageScale(M);
+    int idx[3];
+    for (int row = 0; row < rows; row++)
+    {
+        idx[0] = row;
+        int y0 = start_y + (int)((double)row * height / rows);
+        int y1 = start_y + (int)((double)(row + 1) * height / rows);
+        if (y1 <= y0)
+            y1 = y0 + 1;
+
+        for (int col = 0; col < cols; col++)
+        {
+            idx[1] = col;
+            Uint8 R = 0, G = 0, B = 0, A = 255;
+
+            idx[2] = 0;
+            R = imshow_channel(tensor_get(M, idx), scale);
+            if (channels == 1)
+            {
+                G = R;
+                B = R;
+            }
+            else
+            {
+                idx[2] = 1;
+                G = imshow_channel(tensor_get(M, idx), scale);
+                idx[2] = 2;
+                B = channels >= 3 ? imshow_channel(tensor_get(M, idx), scale) : 0;
+                if (channels >= 4)
+                {
+                    idx[2] = 3;
+                    A = imshow_channel(tensor_get(M, idx), scale);
+                }
+            }
+
+            SDL_SetRenderDrawBlendMode(dc->r, A < 255 ? SDL_BLENDMODE_BLEND : SDL_BLENDMODE_NONE);
+            SDL_SetRenderDrawColor(dc->r, R, G, B, A);
+
+            int x0 = start_x + (int)((double)col * width / cols);
+            int x1 = start_x + (int)((double)(col + 1) * width / cols);
+            if (x1 <= x0)
+                x1 = x0 + 1;
+
+            SDL_Rect rect = {x0, y0, x1 - x0, y1 - y0};
+            SDL_RenderFillRect(dc->r, &rect);
+        }
+    }
+    SDL_SetRenderDrawBlendMode(dc->r, SDL_BLENDMODE_NONE);
+}
+
+static void draw_imshowImage(DrawContext *dc, ObjImage *img,
+                             int start_x, int start_y, int width, int height)
+{
+    if (!img || !img->surface)
+        return;
+
+    SDL_Texture *tex = SDL_CreateTextureFromSurface(dc->r, img->surface);
+    if (!tex)
+        return;
+
+    SDL_Rect dst = {start_x, start_y, width, height};
+    SDL_RenderCopy(dc->r, tex, NULL, &dst);
+    SDL_DestroyTexture(tex);
+}
+
+static void draw_imshow(DrawContext *dc, list_t *items,
+                        int start_x, int start_y, int width, int height,
+                        int border_right, int border_top, int border_bottom)
+{
+    if (LIST_SIZE(items) < 2 || width <= 0 || height <= 0)
+        return;
+
+    Value *mv = (Value *)list_getAt(items, 1);
+    if (IS_TENSOR(*mv))
+    {
+        PiTensor *M = AS_TENSOR(*mv);
+        if (M->ndim == 2)
+            draw_imshowTensor2D(dc, M, start_x, start_y, width, height,
+                                border_right, border_top, border_bottom);
+        else if (M->ndim == 3)
+            draw_imshowTensorImage(dc, M, start_x, start_y, width, height);
+    }
+    else if (IS_IMAGE(*mv))
+        draw_imshowImage(dc, AS_IMAGE(*mv), start_x, start_y, width, height);
+}
+
+static void draw_gridAxisTicks(SDL_Renderer *r, TTF_Font *font,
+                               int border_left, int border_top,
+                               int border_right, int border_bottom,
+                               int rows, int cols,
+                               double cell_width, double cell_height)
+{
+    if (rows <= 0 || cols <= 0 || cell_width <= 0.0 || cell_height <= 0.0)
+        return;
+
+    int x_count = adaptive_tickCount(border_right - border_left);
+    int y_count = adaptive_tickCount(border_bottom - border_top);
+    if (x_count > 5)
+        x_count = 5;
+    if (y_count > 5)
+        y_count = 5;
+    int x_step = (int)ceil((double)cols / x_count);
+    int y_step = (int)ceil((double)rows / y_count);
+    if (x_step < 1)
+        x_step = 1;
+    if (y_step < 1)
+        y_step = 1;
+
+    set_drawColor(r, 0xffffff, 255);
+    SDL_Rect bottom_band = {
+        border_left - 1,
+        border_bottom + 1,
+        border_right - border_left + 2,
+        28};
+    SDL_RenderFillRect(r, &bottom_band);
+
+    SDL_Rect left_band = {
+        0,
+        border_top - 1,
+        border_left - 1,
+        border_bottom - border_top + 2};
+    if (left_band.w > 0)
+        SDL_RenderFillRect(r, &left_band);
+
+    set_drawColor(r, 0x333333, 255);
+
+    for (int col = 0; col < cols; col += x_step)
+    {
+        int x = border_left + (int)lrint((col + 0.5) * cell_width);
+        SDL_RenderDrawLine(r, x, border_bottom + 1, x, border_bottom + 5);
+
+        char label[32];
+        snprintf(label, sizeof(label), "%d", col);
+        if (font)
+        {
+            int tw, th;
+            measure_text(font, label, TEXT_NONE, &tw, &th);
+            int lx = x - tw / 2;
+            if (lx < border_left)
+                lx = border_left;
+            if (lx + tw > border_right)
+                lx = border_right - tw;
+            draw_text(r, font, label, lx, border_bottom + 8, 0x111111, TEXT_NONE);
+        }
+    }
+
+    int last_col = cols - 1;
+    if (last_col >= 0 && last_col % x_step != 0)
+    {
+        int x = border_left + (int)lrint((last_col + 0.5) * cell_width);
+        SDL_RenderDrawLine(r, x, border_bottom + 1, x, border_bottom + 5);
+        char label[32];
+        snprintf(label, sizeof(label), "%d", last_col);
+        if (font)
+        {
+            int tw, th;
+            measure_text(font, label, TEXT_NONE, &tw, &th);
+            int lx = x - tw / 2;
+            if (lx < border_left)
+                lx = border_left;
+            if (lx + tw > border_right)
+                lx = border_right - tw;
+            draw_text(r, font, label, lx, border_bottom + 8, 0x111111, TEXT_NONE);
+        }
+    }
+
+    for (int row = 0; row < rows; row += y_step)
+    {
+        int y = border_top + (int)lrint((row + 0.5) * cell_height);
+        SDL_RenderDrawLine(r, border_left - 5, y, border_left - 1, y);
+
+        char label[32];
+        snprintf(label, sizeof(label), "%d", row);
+        if (font)
+        {
+            int tw, th;
+            measure_text(font, label, TEXT_NONE, &tw, &th);
+            int lx = border_left - tw - 9;
+            if (lx < 2)
+                lx = 2;
+            draw_text(r, font, label, lx, y, 0x111111, TEXT_CENTER_Y);
+        }
+    }
+
+    int last_row = rows - 1;
+    if (last_row >= 0 && last_row % y_step != 0)
+    {
+        int y = border_top + (int)lrint((last_row + 0.5) * cell_height);
+        SDL_RenderDrawLine(r, border_left - 5, y, border_left - 1, y);
+        char label[32];
+        snprintf(label, sizeof(label), "%d", last_row);
+        if (font)
+        {
+            int tw, th;
+            measure_text(font, label, TEXT_NONE, &tw, &th);
+            int lx = border_left - tw - 9;
+            if (lx < 2)
+                lx = 2;
+            draw_text(r, font, label, lx, y, 0x111111, TEXT_CENTER_Y);
+        }
+    }
+}
+
 static int tensor_value(PiTensor *M, int row, int col, double *out)
 {
     if (!M || row < 0 || col < 0 || row >= M->rows || col >= M->cols)
@@ -2085,6 +2452,13 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
         return NIL_VAL;
 
     int is_subplot = chart_has_subplot(chart);
+    if (is_subplot && chart->subplot_index == 1)
+    {
+        SDL_RenderSetViewport(r, NULL);
+        SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
+        SDL_RenderClear(r);
+    }
+
     SDL_RenderSetViewport(r, &viewport);
 
     int W = viewport.w, H = viewport.h;
@@ -2131,6 +2505,7 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
 
     // detect grid plots
     int has_grid_plot = 0;
+    int grid_fill_plot = 0;
     PiTensor *grid_matrix = NULL;
     int grid_rows = 0, grid_cols = 0;
 
@@ -2161,6 +2536,40 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
             }
             break;
         }
+        if (!strcmp(kind, "imshow"))
+        {
+            has_grid_plot = 1;
+            grid_fill_plot = 1;
+            if (LIST_SIZE(items) >= 2)
+            {
+                Value *mv = (Value *)list_getAt(items, 1);
+                if (IS_TENSOR(*mv))
+                {
+                    PiTensor *M = AS_TENSOR(*mv);
+                    if (M->ndim == 2)
+                    {
+                        grid_matrix = M;
+                        grid_rows = M->rows;
+                        grid_cols = M->cols;
+                    }
+                    else if (M->ndim == 3)
+                    {
+                        grid_rows = M->shape[0];
+                        grid_cols = M->shape[1];
+                    }
+                }
+                else if (IS_IMAGE(*mv))
+                {
+                    ObjImage *img = AS_IMAGE(*mv);
+                    if (img->surface)
+                    {
+                        grid_rows = img->surface->h;
+                        grid_cols = img->surface->w;
+                    }
+                }
+            }
+            break;
+        }
     }
 
     // border / plot area
@@ -2168,18 +2577,35 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
     int heatmap_start_x = 0, heatmap_start_y = 0;
     int heatmap_width = 0, heatmap_height = 0;
     double cell_size = 0;
+    double cell_width = 0;
+    double cell_height = 0;
 
-    if (has_grid_plot && grid_matrix)
+    if (has_grid_plot && grid_rows > 0 && grid_cols > 0)
     {
         int plot_width = W - left_margin - margin;
         int plot_height = H - 2 * margin;
-        double cw = (double)plot_width / grid_cols;
-        double ch = (double)plot_height / grid_rows;
-        cell_size = fmin(cw, ch);
-        heatmap_width = (int)(cell_size * grid_cols);
-        heatmap_height = (int)(cell_size * grid_rows);
-        heatmap_start_x = left_margin + (plot_width - heatmap_width) / 2;
-        heatmap_start_y = margin + (plot_height - heatmap_height) / 2;
+        if (grid_fill_plot)
+        {
+            heatmap_width = plot_width;
+            heatmap_height = plot_height;
+            heatmap_start_x = left_margin;
+            heatmap_start_y = margin;
+            cell_width = (double)heatmap_width / grid_cols;
+            cell_height = (double)heatmap_height / grid_rows;
+            cell_size = cell_width < cell_height ? cell_width : cell_height;
+        }
+        else
+        {
+            double cw = (double)plot_width / grid_cols;
+            double ch = (double)plot_height / grid_rows;
+            cell_size = fmin(cw, ch);
+            cell_width = cell_size;
+            cell_height = cell_size;
+            heatmap_width = (int)(cell_size * grid_cols);
+            heatmap_height = (int)(cell_size * grid_rows);
+            heatmap_start_x = left_margin + (plot_width - heatmap_width) / 2;
+            heatmap_start_y = margin + (plot_height - heatmap_height) / 2;
+        }
         border_left = heatmap_start_x;
         border_top = heatmap_start_y;
         border_right = heatmap_start_x + heatmap_width;
@@ -2200,48 +2626,18 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
     SDL_RenderFillRect(r, &border_rect);
 
     // Draw border (single rectangle, all sides same thickness)
-    set_drawColor(r, 0x333333, 255);
-    SDL_RenderDrawRect(r, &border_rect);
+    if (!has_grid_plot)
+    {
+        set_drawColor(r, 0x333333, 255);
+        SDL_RenderDrawRect(r, &border_rect);
+    }
 
     // Removed duplicate axes lines â€“ only the rectangle above is used.
 
     // ticks
     if (tick_font)
     {
-        if (has_grid_plot && grid_matrix)
-        {
-            for (int col = 0; col < grid_cols; col++)
-            {
-                int x = heatmap_start_x + (int)((col + 0.5) * cell_size);
-                int y = border_bottom;
-                SDL_RenderDrawLine(r, x, y, x, y + 5);
-                int x_label_step = grid_cols <= 8 ? 1 : grid_cols / adaptive_tickCount(border_right - border_left);
-                if (x_label_step < 1)
-                    x_label_step = 1;
-                if (col % x_label_step == 0)
-                {
-                    char label[32];
-                    snprintf(label, sizeof(label), "%d", col);
-                    draw_text(r, tick_font, label, x - (int)(strlen(label) * tick_size) / 4, y + 5, 0x555555, TEXT_NONE);
-                }
-            }
-            for (int row = 0; row < grid_rows; row++)
-            {
-                int x = border_left;
-                int y = heatmap_start_y + (int)((row + 0.5) * cell_size);
-                SDL_RenderDrawLine(r, x - 5, y, x, y);
-                int y_label_step = grid_rows <= 8 ? 1 : grid_rows / adaptive_tickCount(border_bottom - border_top);
-                if (y_label_step < 1)
-                    y_label_step = 1;
-                if (row % y_label_step == 0)
-                {
-                    char label[32];
-                    snprintf(label, sizeof(label), "%d", row);
-                    draw_text(r, tick_font, label, x - (int)(strlen(label) * tick_size / 2) - 6, y - tick_size / 2, 0x555555, TEXT_NONE);
-                }
-            }
-        }
-        else if (chart->show_ticks)
+        if (!has_grid_plot && chart->show_ticks)
         {
             draw_axisTicks(r, chart, tick_font, W, H, left_margin, margin);
         }
@@ -2327,6 +2723,14 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
             draw_hist(&dc, items);
             series_index++;
         }
+        else if (!strcmp(kind, "imshow"))
+        {
+            draw_imshow(&dc, items,
+                        heatmap_start_x, heatmap_start_y,
+                        heatmap_width, heatmap_height,
+                        border_right, border_top, border_bottom);
+            series_index++;
+        }
         else if (!strcmp(kind, "heatmap"))
         {
             draw_heatmap(&dc, items,
@@ -2357,6 +2761,19 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
         }
     }
 
+    if (has_grid_plot)
+    {
+        if (chart->show_axes)
+        {
+            set_drawColor(r, 0x666666, 255);
+            SDL_RenderDrawRect(r, &border_rect);
+        }
+        if (chart->show_ticks)
+            draw_gridAxisTicks(r, tick_font,
+                               border_left, border_top, border_right, border_bottom,
+                               grid_rows, grid_cols, cell_width, cell_height);
+    }
+
     if (title_font)
         TTF_CloseFont(title_font);
     if (label_font)
@@ -2379,6 +2796,7 @@ static BuiltinFunc plot_funcs[] = {
     {"line", pt_line},
     {"hist", pt_hist},
     {"step", pt_step},
+    {"imshow", pt_imshow},
     {"heatmap", pt_heatmap},
     {"contour", pt_contour},
     {"quiver", pt_quiver},

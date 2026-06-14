@@ -22,6 +22,7 @@ Value pt_bar(vm_t *vm, int argc, Value *argv);
 Value pt_line(vm_t *vm, int argc, Value *argv);
 Value pt_hist(vm_t *vm, int argc, Value *argv);
 Value pt_step(vm_t *vm, int argc, Value *argv);
+Value pt_imshow(vm_t *vm, int argc, Value *argv);
 Value pt_heatmap(vm_t *vm, int argc, Value *argv);
 Value pt_contour(vm_t *vm, int argc, Value *argv);
 Value pt_quiver(vm_t *vm, int argc, Value *argv);

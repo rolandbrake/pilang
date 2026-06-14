@@ -1829,6 +1829,13 @@ static void plot3d_render(PiChart3D *chart, int present)
     plot3d_handle_mouse(chart, viewport);
 
     int is_subplot = chart3d_has_subplot(chart);
+    if (is_subplot && chart->subplot_index == 1)
+    {
+        SDL_RenderSetViewport(r, NULL);
+        SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
+        SDL_RenderClear(r);
+    }
+
     SDL_RenderSetViewport(r, &viewport);
 
     int W = viewport.w;
