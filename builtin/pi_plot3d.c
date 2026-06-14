@@ -198,6 +198,15 @@ static int blend_rgb(int a, int b, double t)
     return (rr << 16) | (rg << 8) | rb;
 }
 
+static int clamp_int(int value, int lo, int hi)
+{
+    if (value < lo)
+        return lo;
+    if (value > hi)
+        return hi;
+    return value;
+}
+
 static void draw_thick_line(SDL_Renderer *r, int x0, int y0, int x1, int y1, int thickness)
 {
     if (thickness <= 1)
@@ -439,6 +448,59 @@ Value pt3d_view(vm_t *vm, int argc, Value *argv)
     if (argc > 3 && IS_NUM(argv[3]))
         chart->distance = AS_NUM(argv[3]);
 
+    return argv[0];
+}
+
+static int subplot_rect(int canvas_w, int canvas_h, int rows, int cols, int index, SDL_Rect *out)
+{
+    if (!out || rows <= 0 || cols <= 0 || index < 1 || index > rows * cols)
+        return 0;
+
+    int idx = index - 1;
+    int row = idx / cols;
+    int col = idx % cols;
+    int min_side = canvas_w < canvas_h ? canvas_w : canvas_h;
+    int gap = (rows > 1 || cols > 1) ? clamp_int(min_side / 160, 2, 6) : 0;
+
+    int cell_w = (canvas_w - gap * (cols + 1)) / cols;
+    int cell_h = (canvas_h - gap * (rows + 1)) / rows;
+    if (cell_w <= 0 || cell_h <= 0)
+        return 0;
+
+    out->x = gap + col * (cell_w + gap);
+    out->y = gap + row * (cell_h + gap);
+    out->w = cell_w;
+    out->h = cell_h;
+    return 1;
+}
+
+static int chart3d_has_subplot(PiChart3D *chart)
+{
+    return chart && (chart->subplot_rows > 1 || chart->subplot_cols > 1);
+}
+
+Value pt3d_subplot(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 4 || !IS_CHART3D(argv[0]) || !IS_NUM(argv[1]) || !IS_NUM(argv[2]) || !IS_NUM(argv[3]))
+    {
+        vm_error(vm, "subplot() takes a plot3d chart, rows, columns, and 1-based index");
+        return NIL_VAL;
+    }
+
+    int rows = (int)AS_NUM(argv[1]);
+    int cols = (int)AS_NUM(argv[2]);
+    int index = (int)AS_NUM(argv[3]);
+
+    if (rows < 1 || cols < 1 || index < 1 || index > rows * cols)
+    {
+        vm_error(vm, "subplot() index must be inside rows * columns");
+        return NIL_VAL;
+    }
+
+    PiChart3D *chart = AS_CHART3D(argv[0]);
+    chart->subplot_rows = rows;
+    chart->subplot_cols = cols;
+    chart->subplot_index = index;
     return argv[0];
 }
 
@@ -1681,7 +1743,7 @@ static void draw_surface_like(SDL_Renderer *r, TTF_Font *font,
     - A one-time call will draw the chart once, but there will be no continuous
       mouse-driven redraw.
 */
-static void plot3d_handle_mouse(PiChart3D *chart)
+static void plot3d_handle_mouse(PiChart3D *chart, SDL_Rect viewport)
 {
     static PiChart3D *active_chart = NULL;
     static int dragging = 0;
@@ -1695,8 +1757,10 @@ static void plot3d_handle_mouse(PiChart3D *chart)
     int y = 0;
     Uint32 buttons = SDL_GetMouseState(&x, &y);
     int left_down = (buttons & SDL_BUTTON(SDL_BUTTON_LEFT)) != 0;
+    int inside = x >= viewport.x && x < viewport.x + viewport.w &&
+                 y >= viewport.y && y < viewport.y + viewport.h;
 
-    if (left_down && (!dragging || active_chart != chart))
+    if (left_down && inside && (!dragging || active_chart != chart))
     {
         dragging = 1;
         active_chart = chart;
@@ -1753,19 +1817,38 @@ static void plot3d_render(PiChart3D *chart, int present)
     if (!ctx || !r || ctx->width <= 0 || ctx->height <= 0)
         return;
 
-    plot3d_handle_mouse(chart);
+    SDL_Rect old_viewport;
+    SDL_RenderGetViewport(r, &old_viewport);
 
-    int W = ctx->width;
-    int H = ctx->height;
+    SDL_Rect viewport;
+    if (!subplot_rect(ctx->width, ctx->height,
+                      chart->subplot_rows, chart->subplot_cols, chart->subplot_index,
+                      &viewport))
+        return;
+
+    plot3d_handle_mouse(chart, viewport);
+
+    int is_subplot = chart3d_has_subplot(chart);
+    SDL_RenderSetViewport(r, &viewport);
+
+    int W = viewport.w;
+    int H = viewport.h;
 
     SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
-    SDL_RenderClear(r);
+    if (is_subplot)
+    {
+        SDL_Rect clear_rect = {0, 0, W, H};
+        SDL_RenderFillRect(r, &clear_rect);
+    }
+    else
+    {
+        SDL_RenderClear(r);
+    }
 
-    int margin = (int)lrint(fmin((double)W, (double)H) * 0.075);
-    if (margin < PLOT3D_MARGIN)
-        margin = PLOT3D_MARGIN;
-    if (margin > 72)
-        margin = 72;
+    int min_side = W < H ? W : H;
+    int margin = clamp_int((int)lrint((double)min_side * 0.06), PLOT3D_MARGIN, 60);
+    if (W - 2 * margin < 120 || H - 2 * margin < 120)
+        margin = clamp_int(min_side / 14, 12, 34);
 
     SDL_Rect plot = {
         margin,
@@ -1777,7 +1860,9 @@ static void plot3d_render(PiChart3D *chart, int present)
     /* No gray plot rectangle and no plot border. The 3D scene is drawn directly on the white canvas. */
 
     Projector3D projector = make_projector(chart, plot);
-    TTF_Font *tick_font = get_openFont(11);
+    int tick_size = clamp_int(min_side / 34, 8, 11);
+    int title_size = clamp_int(min_side / 22, 11, 18);
+    TTF_Font *tick_font = get_openFont(tick_size);
 
     for (int si = 0; si < list_size(chart->series); si++)
     {
@@ -1805,14 +1890,16 @@ static void plot3d_render(PiChart3D *chart, int present)
             draw_scatter3d(r, tick_font, chart, &projector, items);
     }
 
-    TTF_Font *title_font = get_openFont(18);
+    TTF_Font *title_font = get_openFont(title_size);
     if (chart->title && title_font)
-        draw_text_at(r, title_font, chart->title, W / 2, 24, PLOT3D_TEXT, 1, 1);
+        draw_text_at(r, title_font, chart->title, W / 2, margin > 36 ? 24 : 12, PLOT3D_TEXT, 1, 1);
 
     if (title_font)
         TTF_CloseFont(title_font);
     if (tick_font)
         TTF_CloseFont(tick_font);
+
+    SDL_RenderSetViewport(r, &old_viewport);
 
     if (present)
         SDL_RenderPresent(r);
@@ -1855,6 +1942,7 @@ static BuiltinFunc plot3d_funcs[] = {
     {"zlabel", pt3d_zlabel},
     {"grid", pt3d_grid},
     {"view", pt3d_view},
+    {"subplot", pt3d_subplot},
 };
 
 static BuiltinConst plot3d_consts[] = {};

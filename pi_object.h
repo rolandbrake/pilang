@@ -351,6 +351,10 @@ typedef struct
     bool show_axes;
     bool show_ticks;
 
+    int subplot_rows;
+    int subplot_cols;
+    int subplot_index;
+
     char *title;
     char *xlabel;
     char *ylabel;
@@ -365,6 +369,10 @@ typedef struct PiChart3D
 
     bool show_grid;
     bool show_axes;
+
+    int subplot_rows;
+    int subplot_cols;
+    int subplot_index;
 
     double azimuth;
     double elevation;

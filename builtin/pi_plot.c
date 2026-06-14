@@ -67,6 +67,15 @@ static int palette_color(int series_index)
 static const int plot_left_margin = 100;
 static const int plot_margin = 80;
 
+static int clamp_int(int value, int lo, int hi)
+{
+    if (value < lo)
+        return lo;
+    if (value > hi)
+        return hi;
+    return value;
+}
+
 static PiChart *chart_from(vm_t *vm, Value v0)
 {
     if (IS_CHART(v0))
@@ -168,7 +177,7 @@ static void draw_text(SDL_Renderer *r, TTF_Font *font, const char *text,
 
     SDL_Surface *final_surf = surf;
 
-    // Handle vertical (rotate 90°)
+    // Handle vertical (rotate 90Â°)
     if (flags & TEXT_VERTICAL)
     {
         SDL_Surface *rotated = SDL_CreateRGBSurface(0, surf->h, surf->w, 32,
@@ -449,6 +458,17 @@ static void format_axisLabel(char *buffer, size_t size, double value)
         snprintf(buffer, size, "%.2f", value);
 }
 
+static int adaptive_tickCount(int plot_span)
+{
+    if (plot_span < 110)
+        return 2;
+    if (plot_span < 180)
+        return 3;
+    if (plot_span < 260)
+        return 4;
+    return 6;
+}
+
 static void draw_axisTicks(SDL_Renderer *r, PiChart *chart, TTF_Font *font, int W, int H, int xmargin, int ymargin)
 {
     if (!font)
@@ -456,10 +476,14 @@ static void draw_axisTicks(SDL_Renderer *r, PiChart *chart, TTF_Font *font, int 
 
     set_drawColor(r, 0x000000, 255);
 
-    int num_ticks = 6;
-    for (int i = 0; i <= num_ticks; i++)
+    int x_ticks = adaptive_tickCount(W - xmargin - ymargin);
+    int y_ticks = adaptive_tickCount(H - 2 * ymargin);
+    int label_gap = ymargin < 56 ? 5 : 8;
+    int y_label_gap = xmargin < 70 ? 8 : 16;
+
+    for (int i = 0; i <= x_ticks; i++)
     {
-        double t = (double)i / num_ticks;
+        double t = (double)i / x_ticks;
         double x_val = chart->xmin + t * (chart->xmax - chart->xmin - 1e-2);
         int px, py0, py1;
         map_xy(chart, x_val, chart->ymin, W, H, xmargin, ymargin, &px, &py0);
@@ -470,12 +494,12 @@ static void draw_axisTicks(SDL_Renderer *r, PiChart *chart, TTF_Font *font, int 
         format_axisLabel(label, sizeof(label), x_val);
         int tw, th;
         measure_text(font, label, TEXT_BOLD, &tw, &th);
-        draw_text(r, font, label, px - tw / 2, py0 + 8, 0x555555, TEXT_BOLD);
+        draw_text(r, font, label, px - tw / 2, py0 + label_gap, 0x555555, TEXT_BOLD);
     }
 
-    for (int i = 0; i <= num_ticks; i++)
+    for (int i = 0; i <= y_ticks; i++)
     {
-        double t = (double)i / num_ticks;
+        double t = (double)i / y_ticks;
         double y_val = chart->ymin + t * (chart->ymax - chart->ymin);
         int px0, py, px1;
         map_xy(chart, chart->xmin, y_val, W, H, xmargin, ymargin, &px0, &py);
@@ -486,7 +510,7 @@ static void draw_axisTicks(SDL_Renderer *r, PiChart *chart, TTF_Font *font, int 
         format_axisLabel(label, sizeof(label), y_val);
         int tw, th;
         measure_text(font, label, TEXT_BOLD, &tw, &th);
-        draw_text(r, font, label, px0 - tw - 16, py, 0x555555, TEXT_CENTER_Y | TEXT_BOLD);
+        draw_text(r, font, label, px0 - tw - y_label_gap, py, 0x555555, TEXT_CENTER_Y | TEXT_BOLD);
     }
 }
 
@@ -1112,6 +1136,59 @@ Value pt_legend(vm_t *vm, int argc, Value *argv)
     return make_kindSeries(vm, chart, "legend", tail);
 }
 
+static int subplot_rect(int canvas_w, int canvas_h, int rows, int cols, int index, SDL_Rect *out)
+{
+    if (!out || rows <= 0 || cols <= 0 || index < 1 || index > rows * cols)
+        return 0;
+
+    int idx = index - 1;
+    int row = idx / cols;
+    int col = idx % cols;
+    int min_side = canvas_w < canvas_h ? canvas_w : canvas_h;
+    int gap = (rows > 1 || cols > 1) ? clamp_int(min_side / 160, 2, 6) : 0;
+
+    int cell_w = (canvas_w - gap * (cols + 1)) / cols;
+    int cell_h = (canvas_h - gap * (rows + 1)) / rows;
+    if (cell_w <= 0 || cell_h <= 0)
+        return 0;
+
+    out->x = gap + col * (cell_w + gap);
+    out->y = gap + row * (cell_h + gap);
+    out->w = cell_w;
+    out->h = cell_h;
+    return 1;
+}
+
+static int chart_has_subplot(PiChart *chart)
+{
+    return chart && (chart->subplot_rows > 1 || chart->subplot_cols > 1);
+}
+
+Value pt_subplot(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 4 || !IS_CHART(argv[0]) || !IS_NUM(argv[1]) || !IS_NUM(argv[2]) || !IS_NUM(argv[3]))
+    {
+        vm_error(vm, "subplot() takes a chart, rows, columns, and 1-based index");
+        return NIL_VAL;
+    }
+
+    int rows = (int)AS_NUM(argv[1]);
+    int cols = (int)AS_NUM(argv[2]);
+    int index = (int)AS_NUM(argv[3]);
+
+    if (rows < 1 || cols < 1 || index < 1 || index > rows * cols)
+    {
+        vm_error(vm, "subplot() index must be inside rows * columns");
+        return NIL_VAL;
+    }
+
+    PiChart *chart = AS_CHART(argv[0]);
+    chart->subplot_rows = rows;
+    chart->subplot_cols = cols;
+    chart->subplot_index = index;
+    return argv[0];
+}
+
 static int series_color(list_t *items, int default_color);
 
 static int is_legendDrawableKind(const char *kind)
@@ -1223,7 +1300,7 @@ static void draw_legend(DrawContext *dc, list_t *items,
         else
         {
             int px_tmp, py_tmp;
-            map_xy(dc->chart, legend_x, legend_y, dc->W, dc->H, dc->margin, plot_margin, &px_tmp, &py_tmp);
+            map_xy(dc->chart, legend_x, legend_y, dc->W, dc->H, dc->margin, dc->ymargin, &px_tmp, &py_tmp);
             legend_x_pos = px_tmp;
             legend_y_pos = py_tmp - legend_height / 2;
         }
@@ -1238,7 +1315,7 @@ static void draw_legend(DrawContext *dc, list_t *items,
         else
         {
             int px_tmp, py_tmp;
-            map_xy(dc->chart, legend_x, dc->chart->ymax, dc->W, dc->H, dc->margin, plot_margin, &px_tmp, &py_tmp);
+            map_xy(dc->chart, legend_x, dc->chart->ymax, dc->W, dc->H, dc->margin, dc->ymargin, &px_tmp, &py_tmp);
             legend_x_pos = px_tmp;
             legend_y_pos = py_tmp + 10;
         }
@@ -1253,7 +1330,7 @@ static void draw_legend(DrawContext *dc, list_t *items,
         else
         {
             int px_tmp, py_tmp;
-            map_xy(dc->chart, dc->chart->xmax, legend_y, dc->W, dc->H, dc->margin, plot_margin, &px_tmp, &py_tmp);
+            map_xy(dc->chart, dc->chart->xmax, legend_y, dc->W, dc->H, dc->margin, dc->ymargin, &px_tmp, &py_tmp);
             legend_x_pos = px_tmp - legend_width - 10;
             legend_y_pos = py_tmp - legend_height / 2;
         }
@@ -1360,7 +1437,7 @@ static void draw_scatter(DrawContext *dc, list_t *items)
                AS_NUM(*vy),
                dc->W, dc->H,
                dc->margin,
-               plot_margin,
+               dc->ymargin,
                &px, &py);
 
         if (shape == 'x')
@@ -1417,8 +1494,8 @@ static void draw_line(DrawContext *dc, list_t *items)
         if (!IS_NUM(*vx0) || !IS_NUM(*vy0) || !IS_NUM(*vx1) || !IS_NUM(*vy1))
             continue;
         int p0x, p0y, p1x, p1y;
-        map_xy(dc->chart, AS_NUM(*vx0), AS_NUM(*vy0), dc->W, dc->H, dc->margin, plot_margin, &p0x, &p0y);
-        map_xy(dc->chart, AS_NUM(*vx1), AS_NUM(*vy1), dc->W, dc->H, dc->margin, plot_margin, &p1x, &p1y);
+        map_xy(dc->chart, AS_NUM(*vx0), AS_NUM(*vy0), dc->W, dc->H, dc->margin, dc->ymargin, &p0x, &p0y);
+        map_xy(dc->chart, AS_NUM(*vx1), AS_NUM(*vy1), dc->W, dc->H, dc->margin, dc->ymargin, &p1x, &p1y);
 
         int col = series_color(items, dc->col);
         set_drawColor(dc->r, col, 255);
@@ -1446,9 +1523,9 @@ static void draw_step(DrawContext *dc, list_t *items)
         if (!IS_NUM(*vx0) || !IS_NUM(*vy0) || !IS_NUM(*vx1) || !IS_NUM(*vy1))
             continue;
         int p0x, p0y, p1x, p1y, p2x, p2y;
-        map_xy(dc->chart, AS_NUM(*vx0), AS_NUM(*vy0), dc->W, dc->H, dc->margin, plot_margin, &p0x, &p0y);
-        map_xy(dc->chart, AS_NUM(*vx1), AS_NUM(*vy0), dc->W, dc->H, dc->margin, plot_margin, &p1x, &p1y);
-        map_xy(dc->chart, AS_NUM(*vx1), AS_NUM(*vy1), dc->W, dc->H, dc->margin, plot_margin, &p2x, &p2y);
+        map_xy(dc->chart, AS_NUM(*vx0), AS_NUM(*vy0), dc->W, dc->H, dc->margin, dc->ymargin, &p0x, &p0y);
+        map_xy(dc->chart, AS_NUM(*vx1), AS_NUM(*vy0), dc->W, dc->H, dc->margin, dc->ymargin, &p1x, &p1y);
+        map_xy(dc->chart, AS_NUM(*vx1), AS_NUM(*vy1), dc->W, dc->H, dc->margin, dc->ymargin, &p2x, &p2y);
 
         int col = series_color(items, dc->col);
         set_drawColor(dc->r, col, 255);
@@ -1482,9 +1559,9 @@ static void draw_bar(DrawContext *dc, list_t *items)
         double xleft = (double)i - 0.4;
         double xright = (double)i + 0.4;
         int ax0, ay0, ax1, ay1, bx0, ay1b;
-        map_xy(dc->chart, xleft, 0, dc->W, dc->H, dc->margin, plot_margin, &ax0, &ay0);
-        map_xy(dc->chart, xright, 0, dc->W, dc->H, dc->margin, plot_margin, &ax1, &ay1);
-        map_xy(dc->chart, xleft, yi, dc->W, dc->H, dc->margin, plot_margin, &bx0, &ay1b);
+        map_xy(dc->chart, xleft, 0, dc->W, dc->H, dc->margin, dc->ymargin, &ax0, &ay0);
+        map_xy(dc->chart, xright, 0, dc->W, dc->H, dc->margin, dc->ymargin, &ax1, &ay1);
+        map_xy(dc->chart, xleft, yi, dc->W, dc->H, dc->margin, dc->ymargin, &bx0, &ay1b);
         SDL_Rect rect = {ax0, ay1b, ax1 - ax0, ay0 - ay1b};
         if (rect.w < 1)
             rect.w = 1;
@@ -1544,9 +1621,9 @@ static void draw_hist(DrawContext *dc, list_t *items)
         double x1 = lo + (hi - lo) * (b + 1) / bins;
         double h = counts[b];
         int ax0, ay0, ax1, bx0, by1;
-        map_xy(dc->chart, x0, 0, dc->W, dc->H, dc->margin, plot_margin, &ax0, &ay0);
-        map_xy(dc->chart, x1, 0, dc->W, dc->H, dc->margin, plot_margin, &ax1, &ay0);
-        map_xy(dc->chart, x0, h, dc->W, dc->H, dc->margin, plot_margin, &bx0, &by1);
+        map_xy(dc->chart, x0, 0, dc->W, dc->H, dc->margin, dc->ymargin, &ax0, &ay0);
+        map_xy(dc->chart, x1, 0, dc->W, dc->H, dc->margin, dc->ymargin, &ax1, &ay0);
+        map_xy(dc->chart, x0, h, dc->W, dc->H, dc->margin, dc->ymargin, &bx0, &by1);
         SDL_Rect rect = {ax0, by1, ax1 - ax0, ay0 - by1};
         if (rect.w < 1)
             rect.w = 1;
@@ -1840,8 +1917,8 @@ static void draw_vectorSegment(DrawContext *dc, double x, double y, double u, do
         return;
 
     int x0, y0, xdir, ydir;
-    map_xy(dc->chart, x, y, dc->W, dc->H, dc->margin, plot_margin, &x0, &y0);
-    map_xy(dc->chart, x + u / mag, y + v / mag, dc->W, dc->H, dc->margin, plot_margin, &xdir, &ydir);
+    map_xy(dc->chart, x, y, dc->W, dc->H, dc->margin, dc->ymargin, &x0, &y0);
+    map_xy(dc->chart, x + u / mag, y + v / mag, dc->W, dc->H, dc->margin, dc->ymargin, &xdir, &ydir);
 
     double dx = (double)xdir - x0;
     double dy = (double)ydir - y0;
@@ -1998,26 +2075,59 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
     if (!ctx || !r || ctx->width <= 0 || ctx->height <= 0)
         return NIL_VAL;
 
-    int W = ctx->width, H = ctx->height;
-    const int left_margin = plot_left_margin;
-    const int margin = plot_margin;
+    SDL_Rect old_viewport;
+    SDL_RenderGetViewport(r, &old_viewport);
+
+    SDL_Rect viewport;
+    if (!subplot_rect(ctx->width, ctx->height,
+                      chart->subplot_rows, chart->subplot_cols, chart->subplot_index,
+                      &viewport))
+        return NIL_VAL;
+
+    int is_subplot = chart_has_subplot(chart);
+    SDL_RenderSetViewport(r, &viewport);
+
+    int W = viewport.w, H = viewport.h;
+    int font_scale = W < H ? W : H;
+    int tick_size = clamp_int(font_scale / 34, 8, 11);
+    int label_size = clamp_int(font_scale / 24, 10, 16);
+    int title_size = clamp_int(font_scale / 22, 11, 18);
+    int legend_size = clamp_int(font_scale / 30, 9, 12);
+
+    int left_margin = clamp_int(W / 5, 38, plot_left_margin);
+    int margin = clamp_int(H / 7, 34, plot_margin);
+    if (W - left_margin - margin < 90)
+    {
+        left_margin = clamp_int(W / 6, 30, 58);
+        margin = clamp_int(W / 12, 24, 42);
+    }
+    if (H - 2 * margin < 80)
+        margin = clamp_int(H / 8, 22, 40);
 
     chart_computeBounds(chart);
 
     SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
-    SDL_RenderClear(r);
+    if (is_subplot)
+    {
+        SDL_Rect clear_rect = {0, 0, W, H};
+        SDL_RenderFillRect(r, &clear_rect);
+    }
+    else
+    {
+        SDL_RenderClear(r);
+    }
 
-    TTF_Font *title_font = get_openFont(18);
-    TTF_Font *label_font = get_openFont(16);
-    TTF_Font *tick_font = get_openFont(11);
-    TTF_Font *legend_font = get_openFont(12);
+    TTF_Font *title_font = get_openFont(title_size);
+    TTF_Font *label_font = get_openFont(label_size);
+    TTF_Font *tick_font = get_openFont(tick_size);
+    TTF_Font *legend_font = get_openFont(legend_size);
 
     if (chart->title && title_font)
-        draw_text(r, title_font, chart->title, W / 2, 15, 0x222222, TEXT_CENTER_X);
+        draw_text(r, title_font, chart->title, W / 2, margin > 48 ? 15 : 6, 0x222222, TEXT_CENTER_X);
     if (chart->xlabel && label_font)
-        draw_text(r, label_font, chart->xlabel, W / 2, H - margin + 35, 0x333333, TEXT_CENTER_X);
+        draw_text(r, label_font, chart->xlabel, W / 2, H - margin + (margin > 48 ? 35 : 22), 0x333333, TEXT_CENTER_X);
     if (chart->ylabel && label_font)
-        draw_text(r, label_font, chart->ylabel, 25, H / 2, 0x333333, TEXT_VERTICAL | TEXT_CENTER_Y);
+        draw_text(r, label_font, chart->ylabel, left_margin > 70 ? 25 : 12, H / 2, 0x333333, TEXT_VERTICAL | TEXT_CENTER_Y);
 
     // detect grid plots
     int has_grid_plot = 0;
@@ -2093,7 +2203,7 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
     set_drawColor(r, 0x333333, 255);
     SDL_RenderDrawRect(r, &border_rect);
 
-    // Removed duplicate axes lines – only the rectangle above is used.
+    // Removed duplicate axes lines â€“ only the rectangle above is used.
 
     // ticks
     if (tick_font)
@@ -2105,11 +2215,14 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
                 int x = heatmap_start_x + (int)((col + 0.5) * cell_size);
                 int y = border_bottom;
                 SDL_RenderDrawLine(r, x, y, x, y + 5);
-                if (grid_cols <= 20 || col % (grid_cols / 10 + 1) == 0)
+                int x_label_step = grid_cols <= 8 ? 1 : grid_cols / adaptive_tickCount(border_right - border_left);
+                if (x_label_step < 1)
+                    x_label_step = 1;
+                if (col % x_label_step == 0)
                 {
                     char label[32];
                     snprintf(label, sizeof(label), "%d", col);
-                    draw_text(r, tick_font, label, x - (int)(strlen(label) * 5) / 2, y + 8, 0x555555, TEXT_NONE);
+                    draw_text(r, tick_font, label, x - (int)(strlen(label) * tick_size) / 4, y + 5, 0x555555, TEXT_NONE);
                 }
             }
             for (int row = 0; row < grid_rows; row++)
@@ -2117,11 +2230,14 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
                 int x = border_left;
                 int y = heatmap_start_y + (int)((row + 0.5) * cell_size);
                 SDL_RenderDrawLine(r, x - 5, y, x, y);
-                if (grid_rows <= 20 || row % (grid_rows / 10 + 1) == 0)
+                int y_label_step = grid_rows <= 8 ? 1 : grid_rows / adaptive_tickCount(border_bottom - border_top);
+                if (y_label_step < 1)
+                    y_label_step = 1;
+                if (row % y_label_step == 0)
                 {
                     char label[32];
                     snprintf(label, sizeof(label), "%d", row);
-                    draw_text(r, tick_font, label, x - (int)(strlen(label) * 5) - 8, y - 6, 0x555555, TEXT_NONE);
+                    draw_text(r, tick_font, label, x - (int)(strlen(label) * tick_size / 2) - 6, y - tick_size / 2, 0x555555, TEXT_NONE);
                 }
             }
         }
@@ -2131,7 +2247,7 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
         }
     }
 
-    // grid – clipped to the *interior* of the border (so it never crosses the border)
+    // grid â€“ clipped to the *interior* of the border (so it never crosses the border)
     if (chart->show_grid && !has_grid_plot)
     {
         // Clip to area exactly one pixel inside the border
@@ -2178,7 +2294,7 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
             continue;
         const char *kind = AS_CSTRING(*k0);
 
-        DrawContext dc = {r, chart, W, H, left_margin, palette_color(series_index)};
+        DrawContext dc = {r, chart, W, H, left_margin, margin, palette_color(series_index)};
 
         if (!strcmp(kind, "legend"))
         {
@@ -2250,6 +2366,7 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
     if (legend_font)
         TTF_CloseFont(legend_font);
 
+    SDL_RenderSetViewport(r, &old_viewport);
     SDL_RenderPresent(r);
     return NIL_VAL;
 }
@@ -2274,6 +2391,7 @@ static BuiltinFunc plot_funcs[] = {
     {"grid", pt_grid},
     {"axes", pt_axes},
     {"legend", pt_legend},
+    {"subplot", pt_subplot},
 };
 
 static BuiltinConst plot_consts[] = {};

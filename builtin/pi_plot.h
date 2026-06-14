@@ -9,7 +9,7 @@ typedef struct
 {
     SDL_Renderer *r;
     PiChart *chart;
-    int W, H, margin;
+    int W, H, margin, ymargin;
     int col; /* palette colour for this series */
 } DrawContext;
 
@@ -36,5 +36,6 @@ Value pt_tick(vm_t *vm, int argc, Value *argv);
 Value pt_grid(vm_t *vm, int argc, Value *argv);
 Value pt_axes(vm_t *vm, int argc, Value *argv);
 Value pt_legend(vm_t *vm, int argc, Value *argv);
+Value pt_subplot(vm_t *vm, int argc, Value *argv);
 
 #endif // PI_PLOT_H

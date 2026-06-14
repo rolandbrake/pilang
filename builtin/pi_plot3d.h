@@ -22,5 +22,6 @@ Value pt3d_zlabel(vm_t *vm, int argc, Value *argv);
 Value pt3d_grid(vm_t *vm, int argc, Value *argv);
 
 Value pt3d_view(vm_t *vm, int argc, Value *argv);
+Value pt3d_subplot(vm_t *vm, int argc, Value *argv);
 
 #endif // PI_PLOT3D_H

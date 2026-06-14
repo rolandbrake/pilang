@@ -805,6 +805,9 @@ Object *new_chart(PiContext *ctx)
     chart->show_grid = true;
     chart->show_axes = true;
     chart->show_ticks = true;
+    chart->subplot_rows = 1;
+    chart->subplot_cols = 1;
+    chart->subplot_index = 1;
     chart->title = NULL;
     chart->xlabel = NULL;
     chart->ylabel = NULL;
@@ -821,6 +824,9 @@ Object *new_chart3d(PiContext *ctx)
     chart->series = list_create(VALUE_SIZE);
     chart->show_grid = true;
     chart->show_axes = true;
+    chart->subplot_rows = 1;
+    chart->subplot_cols = 1;
+    chart->subplot_index = 1;
     chart->azimuth = -45.0;
     chart->elevation = 28.0;
     chart->distance = 1.0;

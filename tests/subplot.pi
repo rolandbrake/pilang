@@ -1,0 +1,50 @@
+import draw
+import plot
+import math.{arange, exp, cos, PI}
+
+fun f(t) {
+    return exp(-t) * cos(2 * PI * t)
+}
+
+let ctx = draw.canvas(700, 640, "Subplot Margins Demo")
+draw.clear(ctx, draw.COLOR_WHITE)
+
+let t1 = arange(0.0, 3.0, 0.01)
+let y1 = []
+
+for t in t1 {
+    push(y1, f(t))
+}
+
+// Matplotlib: plt.subplot(212)
+let ax1 = plot.chart(ctx)
+plot.subplot(ax1, 2, 1, 2)
+plot.line(ax1, t1, y1, 0x2e86ab)
+plot.title(ax1, "Default margin")
+plot.xlabel(ax1, "t")
+plot.ylabel(ax1, "f(t)")
+plot.grid(ax1, true)
+
+// Matplotlib: plt.subplot(221)
+let ax2 = plot.chart(ctx)
+plot.subplot(ax2, 2, 2, 1)
+plot.line(ax2, t1, y1, 0xa23b72)
+plot.title(ax2, "Zoomed out")
+plot.xlabel(ax2, "t")
+plot.ylabel(ax2, "f(t)")
+plot.grid(ax2, true)
+
+// Matplotlib: plt.subplot(222)
+let ax3 = plot.chart(ctx)
+plot.subplot(ax3, 2, 2, 2)
+plot.line(ax3, t1, y1, 0xf18f01)
+plot.title(ax3, "Zoomed in")
+plot.xlabel(ax3, "t")
+plot.ylabel(ax3, "f(t)")
+plot.grid(ax3, true)
+
+// plot.show(ax1)
+// plot.show(ax2)
+// plot.show(ax3)
+
+// draw.run(ctx)
