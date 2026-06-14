@@ -52,6 +52,9 @@ COMMON_BUILTIN_SRCS := \
 	builtin/pi_lang.c \
 	builtin/pi_obj.c \
 	builtin/pi_methods.c \
+	builtin/image/pi_image.c \
+	builtin/image/pi_filters.c \
+	builtin/image/pi_color.c \
 	builtin/pi_builtin.c
 
 NATIVE_EXTRA_SRCS := \

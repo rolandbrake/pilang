@@ -116,6 +116,9 @@ BuiltinModule *builtin_modules[] = {
     &module_draw,
     &module_plot,
     &module_plot3d,
+    &module_image,
+    &module_imageFilters,
+    &module_imageColor,
 #endif
     &module_tensor,
 

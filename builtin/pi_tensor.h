@@ -26,6 +26,8 @@ Value tn_concat(vm_t *vm, int argc, Value *argv);
 
 Value tn_flatten(vm_t *vm, int argc, Value *argv);
 Value tn_transpose(vm_t *vm, int argc, Value *argv);
+Value tn_expandDims(vm_t *vm, int argc, Value *argv);
+Value tn_squeeze(vm_t *vm, int argc, Value *argv);
 
 // Check
 Value tn_isTensor(vm_t *vm, int argc, Value *argv);
@@ -81,6 +83,7 @@ Value tn_reduce(vm_t *vm, int argc, Value *argv);
 Value tn_var(vm_t *vm, int argc, Value *argv);
 Value tn_std(vm_t *vm, int argc, Value *argv);
 Value tn_median(vm_t *vm, int argc, Value *argv);
+Value tn_percentile(vm_t *vm, int argc, Value *argv);
 Value tn_mode(vm_t *vm, int argc, Value *argv);
 Value tn_covariance(vm_t *vm, int argc, Value *argv);
 Value tn_correlation(vm_t *vm, int argc, Value *argv);

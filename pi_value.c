@@ -1734,6 +1734,8 @@ char *type_name(Value val)
             return "chart3d";
         case OBJ_EVENT:
             return "event";
+        case OBJ_IMAGE:
+            return "image";
         default:
             return "undefined";
         }

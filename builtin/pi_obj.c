@@ -9,7 +9,7 @@ static int normalize_compare(int cmp)
     return (cmp > 0) - (cmp < 0);
 }
 
-static bool is_object_map(vm_t *vm, PiMap *map)
+static bool is_objectMap(vm_t *vm, PiMap *map)
 {
     while (map != NULL)
     {
@@ -367,7 +367,7 @@ Value pi_type(vm_t *vm, int argc, Value *argv)
 
     if (IS_MAP(target))
     {
-        const char *kind = is_object_map(vm, AS_MAP(target)) ? "Object" : "map";
+        const char *kind = is_objectMap(vm, AS_MAP(target)) ? "Object" : "map";
         return NEW_OBJ(add_obj(vm, new_pistring(strdup(kind))));
     }
 

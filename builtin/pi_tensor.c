@@ -495,7 +495,7 @@ Value tn_flatten(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value tn_expand_dims(vm_t *vm, int argc, Value *argv)
+Value tn_expandDims(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_NUM(argv[1]))
         vm_error(vm, "tensor.expand_dims expects a tensor and axis");
@@ -1279,7 +1279,7 @@ static BuiltinFunc tensor_funcs[] = {
     {"concat", tn_concat},
     {"transpose", tn_transpose},
     {"flatten", tn_flatten},
-    {"expand_dims", tn_expand_dims},
+    {"expand_dims", tn_expandDims},
     {"squeeze", tn_squeeze},
     {"is_tensor", tn_isTensor},
     {"is_matrix", tn_isMatrix},

@@ -20,9 +20,16 @@
 
 ## Overview
 
-Pilang is a small, expressive scripting language with a compact C implementation, a bytecode virtual machine, modules, objects, tensors, and a practical standard library. It aims to feel light enough for quick scripts, but capable enough for experiments, teaching tools, numerical code, and embeddable application logic.
+## Overview
 
-The language mixes familiar Python-like readability with features that are fun to compose: list comprehensions, slices, ranges, spread syntax, tuples, sets, closures, classes, callable objects, operator hooks, and native tensor helpers. The repository includes a native interpreter, a WebAssembly/browser build, documentation, editor assets, built-in modules, reusable libraries, and a growing test suite. here is two examples show case the capability of the language with data visualization:
+Pilang is a lightweight programming language designed for machine learning, numerical computing, data processing, and visualization. It combines the readability of Python with the flexibility of JavaScript while remaining small enough to embed directly into applications.
+
+Built around a compact C implementation and a bytecode virtual machine, Pilang provides native support for tensors, plotting, data transformation, object-oriented programming, and modular application development. The language is intended for experimentation, scientific computing, educational tools, simulation projects, machine-learning workflows, and interactive visualization.
+
+Unlike many scripting languages that rely on large external ecosystems for numerical work, Pilang treats data-oriented programming as a first-class concern. Tensor operations, statistics, plotting, 3D visualization, and machine-learning experiments are part of the core experience, making it easy to move from data processing to visual exploration with minimal setup.
+
+The language syntax draws inspiration from Python and JavaScript, combining familiar scripting-language ergonomics with features such as comprehensions, closures, classes, operator overloading, ranges, slices, sets, tuples, and callable objects.
+here is two examples show case the capability of the language with data visualization:
 
 <p align="center">
   <img src="imgs/loss.png" alt="Pilang training loss plot" height="210">
@@ -96,34 +103,66 @@ println(next_id()) // 102
 ### Classes, Inheritance, and Callable Objects
 
 ```swift
-class Model {
-    parameters() {
-        return []
+class Shape {
+    area() {
+        return 0
+    }
+
+    perimeter() {
+        return 0
     }
 }
 
-class Linear: Model {
-    constructor(w, b) {
-        this.w = w
-        this.b = b
+class Rectangle: Shape {
+    constructor(width, height) {
+        this.width = width
+        this.height = height
     }
 
-    call(x) {
-        return this.w * x + this.b
+    area() {
+        return this.width * this.height
     }
 
-    parameters() {
-        return [this.w, this.b]
+    perimeter() {
+        return 2 * (this.width + this.height)
     }
 
     format() {
-        return "Linear(w=" + this.w + ", b=" + this.b + ")"
+        return "Rectangle(" +
+               this.width + ", " +
+               this.height + ")"
     }
 }
 
-model = Linear(2, 1)
-println(model(10))      // callable object
-println(model.parameters())
+class Circle: Shape {
+    constructor(radius) {
+        this.radius = radius
+    }
+
+    area() {
+        return 3.14159 * this.radius * this.radius
+    }
+
+    perimeter() {
+        return 2 * 3.14159 * this.radius
+    }
+
+    format() {
+        return "Circle(" + this.radius + ")"
+    }
+}
+
+shapes = [
+    Rectangle(10, 5),
+    Circle(3)
+]
+
+for shape in shapes {
+    println(shape)
+    println("area = " + shape.area())
+    println("perimeter = " + shape.perimeter())
+    println("")
+}
 ```
 
 ### Operator Hooks

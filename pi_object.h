@@ -41,6 +41,9 @@ typedef struct SDL_Rect
 #define IS_CHART3D(o) IS_OBJ_TYPE(o, OBJ_CHART3D)
 #define IS_EVENT(o) IS_OBJ_TYPE(o, OBJ_EVENT)
 
+#define IS_IMAGE(o) IS_OBJ_TYPE(o, OBJ_IMAGE)
+#define AS_IMAGE(o) ((ObjImage *)AS_OBJ(o))
+
 #define IS_COLLECTION(o) (IS_LIST(o) || IS_TENSOR(o) || IS_MAP(o) || IS_SET(o) || IS_TUPLE(o) || IS_STRING(o))
 
 #define IS_SEQUENCE(o) (IS_LIST(o) || IS_STRING(o) || IS_TUPLE(o))
@@ -290,6 +293,16 @@ typedef struct
     char *mode;
     char *filename;
 } ObjFile;
+
+typedef struct
+{
+    Object object;
+    SDL_Surface *surface;
+} ObjImage;
+
+
+
+ObjImage *new_image(SDL_Surface *surface);
 
 struct PiChart3D;
 
