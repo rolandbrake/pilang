@@ -1,0 +1,19 @@
+import draw
+import image
+import plot
+import tensor
+import math.{sin, cos}
+
+let ctx = draw.canvas(500, 500, "PiLang - imshow demo")
+
+let chart = plot.chart(ctx)
+plot.title(chart, "Loaded image")
+plot.xlabel(chart, "x pixel")
+plot.ylabel(chart, "y pixel")
+
+let img = image.load("../imgs/baboon.bmp")
+plot.imshow(chart, img)
+
+
+plot.show(chart)
+draw.run(ctx)

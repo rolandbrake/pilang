@@ -71,7 +71,7 @@ extern BuiltinModule module_plot;   // plot: Plot functions (e.g., plot, show, s
 extern BuiltinModule module_plot3d; // plot3d: 3D plot functions (e.g., surface, mesh, wireframe)
 extern BuiltinModule module_tensor; // tensor: Tensor functions (e.g., zeros, ones, shape)
 extern BuiltinModule module_image;  // image: Image loading/manipulation
-extern BuiltinModule module_imageFilters; // image.filter: Image filtering helpers
+extern BuiltinModule module_imageFilters; // image.filters: Image filtering helpers
 extern BuiltinModule module_imageColor;  // image.color: Image color helpers
 
 // Helper macro to define a builtin module from local arrays.
