@@ -1018,6 +1018,7 @@ Value im_canny(vm_t *vm, int argc, Value *argv)
     float *mag = (float *)malloc(sizeof(float) * (size_t)(w * h));
     float *ang = (float *)malloc(sizeof(float) * (size_t)(w * h));
     float *nms = (float *)malloc(sizeof(float) * (size_t)(w * h));
+
     if (!gray || !blur || !mag || !ang || !nms)
     {
         free(gray);
@@ -1108,11 +1109,9 @@ static BuiltinFunc filter_funcs[] = {
 static BuiltinConst filter_consts[] = {
     {"KERNEL_IDENTITY", NEW_NUM(KERNEL_IDENTITY)},
     {"KERNEL_SHARPEN", NEW_NUM(KERNEL_SHARPEN)},
-    {"KERNEL_EDGE", NEW_NUM(KERNEL_EDGE)},
-    {"KERNEL_EDGE8", NEW_NUM(KERNEL_EDGE)},
+    {"KERNEL_EDGE", NEW_NUM(KERNEL_EDGE)},    
     {"KERNEL_EMBOSS", NEW_NUM(KERNEL_EMBOSS)},
-    {"KERNEL_GAUSSIAN", NEW_NUM(KERNEL_GAUSSIAN)},
-    {"KERNEL_GAUSSIAN3", NEW_NUM(KERNEL_GAUSSIAN)},
+    {"KERNEL_GAUSSIAN", NEW_NUM(KERNEL_GAUSSIAN)},    
     {"KERNEL_SOBEL", NEW_NUM(KERNEL_SOBEL_X)},
     {"KERNEL_SOBEL_X", NEW_NUM(KERNEL_SOBEL_X)},
     {"KERNEL_SOBEL_Y", NEW_NUM(KERNEL_SOBEL_Y)},

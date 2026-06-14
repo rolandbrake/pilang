@@ -32,10 +32,19 @@ The language syntax draws inspiration from Python and JavaScript, combining fami
 here is two examples show case the capability of the language with data visualization:
 
 <p align="center">
-  <img src="imgs/loss.png" alt="Pilang training loss plot" height="210">
+  <img src="imgs/loss.png" alt="Pilang training loss plot" height="264">
   &nbsp;&nbsp;
-  <img src="imgs/mesh.png" alt="Pilang 3D mesh plot" height="210">
+  <img src="imgs/mesh.png" alt="Pilang 3D mesh plot" height="264">
 </p>
+
+and here is some examples for image processing and applying filtering and manipulating the chroma of images:
+
+<p align="center">
+  <img src="imgs/lenna.png" alt="edige detection plot" height="264">
+  &nbsp;&nbsp;
+  <img src="imgs/baboon.png" alt="grayscale plot" height="264">
+</p>
+
 
 ## Why Pilang
 
