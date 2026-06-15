@@ -52,16 +52,19 @@ COMMON_BUILTIN_SRCS := \
 	builtin/pi_lang.c \
 	builtin/pi_obj.c \
 	builtin/pi_methods.c \
+	builtin/pi_builtin.c
+
+IMAGE_SRCS := \
 	builtin/image/pi_image.c \
 	builtin/image/pi_filters.c \
-	builtin/image/pi_color.c \
-	builtin/pi_builtin.c
+	builtin/image/pi_color.c
 
 NATIVE_EXTRA_SRCS := \
 	builtin/pi_os.c \
 	builtin/pi_draw.c \
 	builtin/pi_plot.c \
-	builtin/pi_plot3d.c
+	builtin/pi_plot3d.c \
+	$(IMAGE_SRCS)
 
 NATIVE_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS) $(NATIVE_EXTRA_SRCS)
 WEB_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS)

@@ -305,6 +305,9 @@ Start with the [documentation index](docs/README.md), then explore:
 - [Functions](docs/6.%20Functions/README.md)
 - [Objects and classes](docs/7.%20Objects%20and%20Classes/README.md)
 - [Modules](docs/8.%20Modules/README.md)
+- [2D plotting](docs/8.%20Modules/8.4%20Built-in%20Modules/plot.md)
+- [3D plotting](docs/8.%20Modules/8.4%20Built-in%20Modules/plot3d.md)
+- [Image processing](docs/8.%20Modules/8.4%20Built-in%20Modules/image.md)
 - [Examples](docs/13.%20Examples/README.md)
 
 ## Testing

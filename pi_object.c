@@ -784,6 +784,7 @@ Object *new_context()
     ctx->font = NULL;
     ctx->clip_rect = (SDL_Rect){0, 0, 0, 0};
     ctx->clip_enabled = false;
+    ctx->plot_subplots_cleared = false;
     ctx->active_plot3d = NULL;
 
     return (Object *)ctx;

@@ -294,15 +294,15 @@ typedef struct
     char *filename;
 } ObjFile;
 
+#ifndef __EMSCRIPTEN__
 typedef struct
 {
     Object object;
     SDL_Surface *surface;
 } ObjImage;
 
-
-
 ObjImage *new_image(SDL_Surface *surface);
+#endif
 
 struct PiChart3D;
 
@@ -338,6 +338,8 @@ typedef struct PiContext
     uint32_t last_fps_time;
     int frame_count;
     double current_fps;
+
+    bool plot_subplots_cleared;
 
     // Mouse state
     int mouse_x, mouse_y;

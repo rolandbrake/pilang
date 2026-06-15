@@ -593,6 +593,7 @@ Value dw_clear(vm_t *vm, int argc, Value *argv)
     int color = (argc > 1) ? as_number(argv[1]) : 0x000000;
     _set_color(ctx->renderer, color, ctx->alpha);
     SDL_RenderClear((SDL_Renderer *)ctx->renderer);
+    ctx->plot_subplots_cleared = false;
 
     return NEW_NIL();
 }

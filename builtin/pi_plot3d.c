@@ -1322,6 +1322,8 @@ typedef struct
 {
     double x, y, z;
     Point2D p;
+    int color;
+    int radius;
 } ScatterPoint3D;
 
 static int compare_scatter_back_to_front(const void *a, const void *b)
@@ -1554,6 +1556,166 @@ static void draw_scatter3d(SDL_Renderer *r, TTF_Font *font,
                            (int)lrint(points[i].p.x),
                            (int)lrint(points[i].p.y),
                            radius,
+                           shaded,
+                           0x111111);
+    }
+
+    draw_axes_ticks_labels(r, font, chart, proj, &data);
+    free(points);
+}
+
+static int plot3d_palette_color(int index)
+{
+    static const int colors[] = {
+        0x2563eb, 0xdc2626, 0x16a34a, 0xf59e0b,
+        0x7c3aed, 0x0891b2, 0xdb2777, 0x4b5563,
+    };
+    return colors[index % (int)(sizeof(colors) / sizeof(colors[0]))];
+}
+
+static int collect_scatter_bounds(PiChart3D *chart, SurfaceData *data)
+{
+    data->M = NULL;
+    data->rows = 2.0;
+    data->cols = 2.0;
+    data->xmin = INFINITY;
+    data->xmax = -INFINITY;
+    data->ymin = INFINITY;
+    data->ymax = -INFINITY;
+    data->zmin = INFINITY;
+    data->zmax = -INFINITY;
+
+    int found = 0;
+    for (int si = 0; si < list_size(chart->series); si++)
+    {
+        Value *series_val = (Value *)list_getAt(chart->series, si);
+        if (!series_val || !IS_LIST(*series_val))
+            continue;
+
+        list_t *items = AS_LIST(*series_val)->items;
+        if (LIST_SIZE(items) < 1)
+            continue;
+
+        Value *kind_val = (Value *)list_getAt(items, 0);
+        if (!kind_val || !IS_STRING(*kind_val) || strcmp(AS_CSTRING(*kind_val), "scatter") != 0)
+            continue;
+
+        int n = scatter_count(items);
+        for (int i = 0; i < n; i++)
+        {
+            double x, y, z;
+            if (!scatter_point_at(items, i, &x, &y, &z))
+                continue;
+
+            if (x < data->xmin)
+                data->xmin = x;
+            if (x > data->xmax)
+                data->xmax = x;
+            if (y < data->ymin)
+                data->ymin = y;
+            if (y > data->ymax)
+                data->ymax = y;
+            if (z < data->zmin)
+                data->zmin = z;
+            if (z > data->zmax)
+                data->zmax = z;
+            found = 1;
+        }
+    }
+
+    if (!found || !isfinite(data->xmin) || !isfinite(data->xmax) ||
+        !isfinite(data->ymin) || !isfinite(data->ymax) ||
+        !isfinite(data->zmin) || !isfinite(data->zmax))
+        return 0;
+
+    if (data->xmax <= data->xmin)
+        data->xmax = data->xmin + 1e-9;
+    if (data->ymax <= data->ymin)
+        data->ymax = data->ymin + 1e-9;
+    if (data->zmax <= data->zmin)
+        data->zmax = data->zmin + 1e-9;
+
+    return 1;
+}
+
+static void draw_all_scatter3d(SDL_Renderer *r, TTF_Font *font,
+                               PiChart3D *chart, Projector3D *proj)
+{
+    SurfaceData data;
+    if (!collect_scatter_bounds(chart, &data))
+        return;
+
+    int total = 0;
+    for (int si = 0; si < list_size(chart->series); si++)
+    {
+        Value *series_val = (Value *)list_getAt(chart->series, si);
+        if (!series_val || !IS_LIST(*series_val))
+            continue;
+        list_t *items = AS_LIST(*series_val)->items;
+        if (LIST_SIZE(items) < 1)
+            continue;
+        Value *kind_val = (Value *)list_getAt(items, 0);
+        if (kind_val && IS_STRING(*kind_val) && strcmp(AS_CSTRING(*kind_val), "scatter") == 0)
+            total += scatter_count(items);
+    }
+
+    if (total <= 0)
+        return;
+
+    ScatterPoint3D *points = (ScatterPoint3D *)malloc(sizeof(ScatterPoint3D) * (size_t)total);
+    if (!points)
+        return;
+
+    int count = 0;
+    int scatter_series_index = 0;
+    for (int si = 0; si < list_size(chart->series); si++)
+    {
+        Value *series_val = (Value *)list_getAt(chart->series, si);
+        if (!series_val || !IS_LIST(*series_val))
+            continue;
+
+        list_t *items = AS_LIST(*series_val)->items;
+        if (LIST_SIZE(items) < 1)
+            continue;
+
+        Value *kind_val = (Value *)list_getAt(items, 0);
+        if (!kind_val || !IS_STRING(*kind_val) || strcmp(AS_CSTRING(*kind_val), "scatter") != 0)
+            continue;
+
+        int color = scatter_color(items, plot3d_palette_color(scatter_series_index));
+        int radius = scatter_radius(items, 5);
+        int n = scatter_count(items);
+
+        for (int i = 0; i < n; i++)
+        {
+            double x, y, z;
+            if (!scatter_point_at(items, i, &x, &y, &z))
+                continue;
+
+            points[count].x = x;
+            points[count].y = y;
+            points[count].z = z;
+            points[count].p = project_plot_data(proj, &data, x, y, z);
+            points[count].color = color;
+            points[count].radius = radius;
+            count++;
+        }
+
+        scatter_series_index++;
+    }
+
+    qsort(points, (size_t)count, sizeof(ScatterPoint3D), compare_scatter_back_to_front);
+
+    draw_axis_grid(r, chart, proj, &data);
+
+    for (int i = 0; i < count; i++)
+    {
+        double t = (points[i].z - data.zmin) / (data.zmax - data.zmin);
+        int shaded = blend_rgb(points[i].color, 0xffffff, 0.10 + 0.24 * t);
+        draw_filled_circle(r,
+                           (int)lrint(points[i].p.x),
+                           (int)lrint(points[i].p.y),
+                           points[i].radius,
                            shaded,
                            0x111111);
     }
@@ -1871,6 +2033,7 @@ static void plot3d_render(PiChart3D *chart, int present)
     int title_size = clamp_int(min_side / 22, 11, 18);
     TTF_Font *tick_font = get_openFont(tick_size);
 
+    int has_scatter = 0;
     for (int si = 0; si < list_size(chart->series); si++)
     {
         Value *series_val = (Value *)list_getAt(chart->series, si);
@@ -1894,8 +2057,11 @@ static void plot3d_render(PiChart3D *chart, int present)
         else if (!strcmp(kind, "wireframe"))
             draw_surface_like(r, tick_font, chart, &projector, items, 2);
         else if (!strcmp(kind, "scatter"))
-            draw_scatter3d(r, tick_font, chart, &projector, items);
+            has_scatter = 1;
     }
+
+    if (has_scatter)
+        draw_all_scatter3d(r, tick_font, chart, &projector);
 
     TTF_Font *title_font = get_openFont(title_size);
     if (chart->title && title_font)

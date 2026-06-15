@@ -4,10 +4,6 @@
 
 #include "../../pi_value.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 Value im_load(vm_t *vm, int argc, Value *argv);
 Value im_save(vm_t *vm, int argc, Value *argv);
 Value im_width(vm_t *vm, int argc, Value *argv);
@@ -22,10 +18,6 @@ Value im_gray2rgba(vm_t *vm, int argc, Value *argv);
 Value im_show(vm_t *vm, int argc, Value *argv);
 Value im_img2tensor(vm_t *vm, int argc, Value *argv);
 Value im_tensor2img(vm_t *vm, int argc, Value *argv);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif // PI_IMAGE_H
 

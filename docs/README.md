@@ -76,6 +76,11 @@ This documentation is organized as a numbered reference for learning and using P
   - [8.2 Exporting Symbols](8.%20Modules/8.2-exporting-symbols.md)
   - [8.3 Module Paths](8.%20Modules/8.3-module-paths.md)
   - [8.4 Built-in Modules](8.%20Modules/8.4%20Built-in%20Modules/README.md)
+    - [plot](8.%20Modules/8.4%20Built-in%20Modules/plot.md)
+    - [plot3d](8.%20Modules/8.4%20Built-in%20Modules/plot3d.md)
+    - [image](8.%20Modules/8.4%20Built-in%20Modules/image.md)
+    - [image.filters](8.%20Modules/8.4%20Built-in%20Modules/image.filters.md)
+    - [image.color](8.%20Modules/8.4%20Built-in%20Modules/image.color.md)
   - [8.5 User Modules](8.%20Modules/8.5-user-modules.md)
 
 - [9. Syntax Reference](9.%20Syntax%20Reference/README.md)

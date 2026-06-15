@@ -2452,11 +2452,12 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
         return NIL_VAL;
 
     int is_subplot = chart_has_subplot(chart);
-    if (is_subplot && chart->subplot_index == 1)
+    if (is_subplot && !ctx->plot_subplots_cleared)
     {
         SDL_RenderSetViewport(r, NULL);
         SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
         SDL_RenderClear(r);
+        ctx->plot_subplots_cleared = true;
     }
 
     SDL_RenderSetViewport(r, &viewport);

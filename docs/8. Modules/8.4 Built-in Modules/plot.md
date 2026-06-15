@@ -1,143 +1,228 @@
 # plot Module
 
-The `plot` module provides charting and plotting helpers.
+The `plot` module is Pilang's SDL-backed 2D plotting layer. It works with a
+`draw` canvas and stores plot state in chart objects, so several charts can share
+one window through subplots.
+
+![Pilang subplot example](subplot.png)
 
 ```pilang
+import draw
 import plot
+
+let ctx = draw.canvas(720, 480, "2D Plot")
+let chart = plot.chart(ctx)
+
+plot.line(chart, [0, 1, 2, 3], [0, 1, 4, 9])
+plot.title(chart, "Quadratic")
+plot.xlabel(chart, "x")
+plot.ylabel(chart, "y")
+plot.grid(chart, true)
+
+plot.show(chart)
+draw.run(ctx)
 ```
 
-## `plot.chart(kind, data, ...)`
+## Chart Lifecycle
 
-Creates a generic chart.
+### `plot.chart(ctx)`
+
+Creates a chart attached to a `draw` context.
 
 ```pilang
-plot.chart("line", [1, 2, 3])
-plot.show()
+let ctx = draw.canvas(640, 480, "Chart")
+let chart = plot.chart(ctx)
 ```
 
-## `plot.func(function, start, end, ...)`
+### `plot.show(chart)`
 
-Plots a function over a range.
+Renders the chart. When the chart belongs to a canvas, call `draw.run(ctx)` after
+`plot.show(chart)` to keep the window open and allow redraws.
 
 ```pilang
-plot.func(x -> x * x, -10, 10)
-plot.show()
+plot.show(chart)
+draw.run(ctx)
 ```
 
-## `plot.scatter(x, y, ...)`
+## Series
 
-Creates a scatter plot.
+### `plot.line(chart, x, y, color = auto)`
+
+Adds a line series. `x` and `y` must be lists of numbers. `color` is an optional
+integer RGB value, for example `0xff0000`.
 
 ```pilang
-plot.scatter([1, 2, 3], [2, 4, 9])
-plot.show()
+plot.line(chart, [0, 1, 2], [1, 3, 2], 0x3366cc)
 ```
 
-## `plot.bar(labels, values, ...)`
+### `plot.scatter(chart, x, y, color = auto, shape = "circle")`
 
-Creates a bar chart.
+Adds a scatter series. The optional shape can be passed as the fourth argument
+when no color is used, or as the fifth argument when a color is used.
 
 ```pilang
-plot.bar(["A", "B"], [10, 20])
-plot.show()
+plot.scatter(chart, [1, 2, 3], [2, 4, 3])
+plot.scatter(chart, [1, 2, 3], [3, 1, 4], 0xdd3344, "square")
 ```
 
-## `plot.line(x, y, ...)`
+### `plot.bar(chart, labels, values, color = auto)`
 
-Creates a line plot.
+Adds a bar chart. `labels` is normally a list of strings and `values` is a list
+of numbers.
 
 ```pilang
-plot.line([1, 2, 3], [2, 4, 8])
-plot.show()
+plot.bar(chart, ["A", "B", "C"], [12, 18, 9])
 ```
 
-## `plot.hist(values, ...)`
+### `plot.hist(chart, values, bins = auto, color = auto)`
 
-Creates a histogram.
+Adds a histogram from a list of numeric values.
 
 ```pilang
-plot.hist([1, 1, 2, 3, 3, 3])
-plot.show()
+plot.hist(chart, samples, 20)
 ```
 
-## `plot.step(x, y, ...)`
+### `plot.step(chart, x, y, color = auto)`
 
-Creates a step plot.
+Adds a step plot, useful for piecewise-constant data.
 
 ```pilang
-plot.step([1, 2, 3], [10, 20, 15])
-plot.show()
+plot.step(chart, [0, 1, 2, 3], [4, 4, 2, 5])
 ```
 
-## `plot.heatmap(values, ...)`
+### `plot.func(chart, x_values, fn, color = auto)`
 
-Creates a heatmap from matrix-like data.
+Evaluates a Pilang function for every value in `x_values` and plots the result
+as a line series.
 
 ```pilang
-plot.heatmap([[1, 2], [3, 4]])
-plot.show()
+plot.func(chart, [-2, -1, 0, 1, 2], x -> x * x)
 ```
 
-## `plot.show()`
+## Matrix And Image Plots
 
-Displays the current plot.
+### `plot.imshow(chart, image_or_tensor)`
+
+Displays an `image` object or tensor data inside chart axes. A 2D tensor is
+drawn as a heatmap with tick labels and a color scale. A 3D tensor must have
+shape `[height, width, channels]` with `channels` in `1..4`.
 
 ```pilang
-plot.show()
+import image
+
+let img = image.load("imgs/baboon.bmp")
+plot.imshow(chart, img)
 ```
 
-## `plot.title(text)`
+### `plot.heatmap(chart, tensor2d)`
+
+Displays a 2D tensor as a heatmap.
+
+```pilang
+let z = tensor.from([[1, 2, 3], [4, 5, 6]])
+plot.heatmap(chart, z)
+```
+
+### `plot.contour(chart, tensor2d, levels = auto, color = auto)`
+
+Draws contour lines over a 2D tensor. `levels` controls how many value bands are
+sampled.
+
+![Pilang contour plot](contour.png)
+
+```pilang
+plot.contour(chart, z, 12, 0x222222)
+```
+
+## Vector Fields
+
+### `plot.quiver(chart, x, y, u, v, color = auto)`
+
+Draws arrows for a vector field. Use explicit coordinate lists:
+
+```pilang
+plot.quiver(chart, xs, ys, us, vs, 0x444444)
+```
+
+or pass two 2D tensors for `u` and `v`:
+
+```pilang
+plot.quiver(chart, u, v)
+```
+
+### `plot.streamplot(chart, x, y, u, v, color = auto)`
+
+Uses the same accepted data layouts as `quiver`, but renders short connected
+flow strokes instead of standalone arrows.
+
+```pilang
+plot.streamplot(chart, xs, ys, us, vs)
+```
+
+## Labels And Display Options
+
+### `plot.title(chart, text)`
 
 Sets the chart title.
 
-```pilang
-plot.title("Growth")
-```
-
-## `plot.xlabel(text)`
+### `plot.xlabel(chart, text)`
 
 Sets the x-axis label.
 
-```pilang
-plot.xlabel("time")
-```
-
-## `plot.ylabel(text)`
+### `plot.ylabel(chart, text)`
 
 Sets the y-axis label.
 
-```pilang
-plot.ylabel("value")
-```
+### `plot.grid(chart, enabled)`
 
-## `plot.tick(...)`
+Turns the grid on or off. `enabled` can be a boolean or a nonzero number.
 
-Configures axis ticks.
+### `plot.axes(chart, enabled)`
 
-```pilang
-plot.tick("x", [1, 2, 3])
-```
+Turns axis lines on or off.
 
-## `plot.grid(value = true)`
+### `plot.tick(chart, enabled)`
 
-Turns grid rendering on or off.
+Turns tick labels on or off.
 
-```pilang
-plot.grid(true)
-```
+### `plot.legend(chart, labels, x = auto, y = auto)`
 
-## `plot.axes(value = true)`
-
-Turns axes rendering on or off.
+Adds a legend. `labels` is a list of strings. Optional `x` and `y` place the
+legend; omit them for automatic placement.
 
 ```pilang
-plot.axes(true)
+plot.legend(chart, ["train", "validation"])
+plot.legend(chart, ["train", "validation"], 0.72, 0.12)
 ```
 
-## `plot.legend(...)`
+## Subplots
 
-Configures or shows a legend.
+### `plot.subplot(chart, rows, cols, index)`
+
+Places the chart in a subplot cell. `index` is 1-based and must be inside
+`rows * cols`. Multiple chart objects can share the same canvas.
 
 ```pilang
-plot.legend(["actual", "expected"])
+let ctx = draw.canvas(900, 500, "Subplots")
+
+let left = plot.chart(ctx)
+plot.subplot(left, 1, 2, 1)
+plot.line(left, [0, 1, 2], [1, 4, 2])
+plot.title(left, "Line")
+
+let right = plot.chart(ctx)
+plot.subplot(right, 1, 2, 2)
+plot.bar(right, ["A", "B", "C"], [3, 6, 4])
+plot.title(right, "Bars")
+
+plot.show(left)
+plot.show(right)
+draw.run(ctx)
 ```
+
+## Notes
+
+- Chart functions mutate and return the chart, so calls can be grouped in any
+  convenient order before `plot.show`.
+- Colors are integer RGB values such as `0xff8800`.
+- Tensor image plots expect `tensor` values from the `tensor` module.

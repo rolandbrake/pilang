@@ -15,7 +15,9 @@
 #include "pi_random.h"  // Random functions
 #include "pi_lang.h"    // Language/runtime constants
 #include "pi_plot3d.h"  // 3D plot functions
+#ifndef __EMSCRIPTEN__
 #include "image/pi_image.h" // Image package functions
+#endif
 
 // Builtin functions struct definition
 typedef struct
@@ -70,9 +72,11 @@ extern BuiltinModule module_draw;   // draw: Draw functions (e.g., canvas, run, 
 extern BuiltinModule module_plot;   // plot: Plot functions (e.g., plot, show, scatter, bar)
 extern BuiltinModule module_plot3d; // plot3d: 3D plot functions (e.g., surface, mesh, wireframe)
 extern BuiltinModule module_tensor; // tensor: Tensor functions (e.g., zeros, ones, shape)
+#ifndef __EMSCRIPTEN__
 extern BuiltinModule module_image;  // image: Image loading/manipulation
 extern BuiltinModule module_imageFilters; // image.filters: Image filtering helpers
 extern BuiltinModule module_imageColor;  // image.color: Image color helpers
+#endif
 
 // Helper macro to define a builtin module from local arrays.
 #define DEFINE_BUILTIN_MODULE(module, name, func_list, const_list) \

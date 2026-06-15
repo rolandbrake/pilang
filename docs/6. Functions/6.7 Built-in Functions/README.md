@@ -29,7 +29,7 @@ covered in [Modules](../../8.%20Modules/README.md).
 - [Collection Functions](collection-functions.md): extra helpers exported by the `col` module
 - [Functional Programming Functions](functional-programming-functions.md): composition and wrapper helpers exported by the `func` module
 - [Tensor Functions](tensor-functions.md): tensor constructors, shape helpers, math operations, and statistics exported by the `tensor` module
-- Graphics functions are documented in the built-in module pages for [`draw`](../../8.%20Modules/8.4%20Built-in%20Modules/draw.md) and [`plot`](../../8.%20Modules/8.4%20Built-in%20Modules/plot.md)
+- Graphics, plotting, and image-processing functions are documented in the built-in module pages for [`draw`](../../8.%20Modules/8.4%20Built-in%20Modules/draw.md), [`plot`](../../8.%20Modules/8.4%20Built-in%20Modules/plot.md), [`plot3d`](../../8.%20Modules/8.4%20Built-in%20Modules/plot3d.md), [`image`](../../8.%20Modules/8.4%20Built-in%20Modules/image.md), [`image.filters`](../../8.%20Modules/8.4%20Built-in%20Modules/image.filters.md), and [`image.color`](../../8.%20Modules/8.4%20Built-in%20Modules/image.color.md)
 
 Module-scoped functions must be imported before use unless the program has
 already exposed them in the current scope.
