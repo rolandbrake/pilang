@@ -7,6 +7,7 @@
 // Reading
 Value fs_read(vm_t *vm, int argc, Value *argv);
 Value fs_readlines(vm_t *vm, int argc, Value *argv);
+Value fs_readLinesLimit(vm_t *vm, int argc, Value *argv);
 Value fs_open(vm_t *vm, int argc, Value *argv);
 Value fs_seek(vm_t *vm, int argc, Value *argv);
 

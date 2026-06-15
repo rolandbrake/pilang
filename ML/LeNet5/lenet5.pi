@@ -1,0 +1,350 @@
+import math.{exp, logE, sqrt}
+import random.{seed, uniform}
+import tensor:t
+
+
+// Forward-only LeNet-5 implementation for 32x32 grayscale images.
+//
+// Architecture:
+//   input 1x32x32
+//   C1: 6 kernels, 5x5, tanh          -> 6x28x28
+//   S2: 2x2 average pooling, stride 2  -> 6x14x14
+//   C3: 16 kernels, 5x5, tanh          -> 16x10x10
+//   S4: 2x2 average pooling, stride 2  -> 16x5x5
+//   C5: 120 kernels, 5x5, tanh         -> 120x1x1
+//   F6: 84 tanh units
+//   OUT: 10 softmax classes
+
+
+// tanh computed from scratch using the identity tanh(x) = (e^2x - 1) / (e^2x + 1).
+// Reusing e2x avoids calling exp() twice.
+fun tanh(x) {
+    let e2x = exp(x * 2)
+    return (e2x - 1) / (e2x + 1)
+}
+
+
+// Dispatch to the right activation function by name.
+// Passing nil or any unrecognised string returns x unchanged (linear).
+fun activate(kind, x) {
+    if kind == "tanh"
+        return tanh(x)
+
+    return x
+}
+
+
+// Numerically stable softmax: subtract the maximum logit before exponentiating
+// so the largest value becomes e^0 = 1, preventing overflow.
+fun softmax(xs) {
+    let max_x = xs[0]
+
+    for i in range(1, #xs)
+        if xs[i] > max_x
+            max_x = xs[i]
+
+    let exps = []
+    let total = 0
+
+    for x in xs {
+        let v = exp(x - max_x)
+        exps += v
+        total += v
+    }
+
+    // Divide each exp by the sum to get a proper probability distribution.
+    return [v / total : v in exps]
+}
+
+
+// Return the index of the highest value — the model's class prediction.
+fun argmax(xs) {
+    let best_i = 0
+    let best_v = xs[0]
+
+    for i in range(1, #xs) {
+        if xs[i] > best_v {
+            best_i = i
+            best_v = xs[i]
+        }
+    }
+
+    return best_i
+}
+
+
+fun cross_entropy(probs, label) {
+    let p = probs[label]
+
+    if p < 0.000000001
+        p = 0.000000001
+
+    return -logE(p)
+}
+
+
+// Collapse a 1-D, 2-D, or 3-D tensor into a plain list.
+// Used after C5 to turn the 120x1x1 feature map into a 120-element vector
+// before the dense layers.
+fun flatten(x) {
+    let shape = t.shape(x)
+    let out = []
+
+    if #shape == 1 {
+        for i in range(shape[0])
+            out += x[i]
+    } else if #shape == 2 {
+        for y in range(shape[0])
+            for z in range(shape[1])
+                out += x[y, z]
+    } else if #shape == 3 {
+        // Iterate channels outermost so the flat order is C, H, W —
+        // consistent with how Conv2D stores its output.
+        for c in range(shape[0])
+            for y in range(shape[1])
+                for z in range(shape[2])
+                    out += x[c, y, z]
+    }
+
+    return out
+}
+
+
+// Produce a list of uniformly sampled weights in [-scale, scale].
+fun random_vector(size, scale) {
+    return [uniform(-scale, scale) : _ in range(size)]
+}
+
+
+// Produce a 4-D weight tensor of shape (out_channels, in_channels, K, K)
+// with entries sampled uniformly from [-scale, scale].
+fun random_tensor4(out_channels, in_channels, kernel_size, scale) {
+    let weights = t.zeros(out_channels, in_channels, kernel_size, kernel_size)
+
+    for oc in range(out_channels)
+        for ic in range(in_channels)
+            for ky in range(kernel_size)
+                for kx in range(kernel_size)
+                    weights[oc, ic, ky, kx] = uniform(-scale, scale)
+
+    return weights
+}
+
+
+// 2-D convolutional layer with optional activation.
+// No padding is applied, so each spatial dimension shrinks by (kernel_size - 1).
+class Conv2D {
+    constructor(in_channels, out_channels, kernel_size, activation = "tanh") {
+        this.in_channels = in_channels
+        this.out_channels = out_channels
+        this.kernel_size = kernel_size
+        this.activation = activation
+
+        // Kaiming-style uniform init: scale by 1/sqrt(fan_in) to keep
+        // activations from exploding or vanishing at the start of training.
+        let fan_in = in_channels * kernel_size * kernel_size
+        let scale = 1 / sqrt(fan_in)
+
+        this.weights = random_tensor4(out_channels, in_channels, kernel_size, scale)
+        this.bias = random_vector(out_channels, scale)
+    }
+
+    call(x) {
+        return t.conv2d(x, this.weights, this.bias, this.activation)
+    }
+
+    // Expose weight tensor and bias vector for a future optimiser to iterate over.
+    parameters() {
+        return [this.weights, this.bias]
+    }
+
+    format() {
+        return "Conv2D(" + this.in_channels + ", " +
+               this.out_channels + ", " + this.kernel_size + "x" +
+               this.kernel_size + ")"
+    }
+}
+
+
+// Non-overlapping average pooling. Reduces each spatial dimension by stride.
+// In the classic LeNet-5 each pooling stage also had a learned scale and bias,
+// but those are omitted here as they make negligible difference for inference.
+class AvgPool2D {
+    constructor(kernel_size = 2, stride = 2) {
+        this.kernel_size = kernel_size
+        this.stride = stride
+    }
+
+    call(x) {
+        return t.avgpool2d(x, this.kernel_size, this.stride)
+    }
+
+    // Pooling has no learnable parameters.
+    parameters() {
+        return []
+    }
+
+    format() {
+        return "AvgPool2D(" + this.kernel_size + ", stride=" +
+               this.stride + ")"
+    }
+}
+
+
+// Fully-connected layer: computes W·x + b, then applies an activation.
+// Weights are stored as a (out_features × in_features) matrix so that
+// row oc holds all weights feeding into output unit oc.
+class Dense {
+    constructor(in_features, out_features, activation = "tanh") {
+        this.in_features = in_features
+        this.out_features = out_features
+        this.activation = activation
+
+        let scale = 1 / sqrt(in_features)
+        this.weights = t.zeros(out_features, in_features)
+        this.bias = random_vector(out_features, scale)
+
+        for o in range(out_features)
+            for i in range(in_features)
+                this.weights[o, i] = uniform(-scale, scale)
+    }
+
+    call(x) {
+        return t.dense(x, this.weights, this.bias, this.activation)
+    }
+
+    parameters() {
+        return [this.weights, this.bias]
+    }
+
+    format() {
+        return "Dense(" + this.in_features + ", " +
+               this.out_features + ")"
+    }
+}
+
+
+// Full LeNet-5 model wired together.
+// Seeding inside the constructor makes weight init reproducible by default.
+class LeNet5 {
+    constructor(num_classes = 10, random_seed = 42) {
+        seed(random_seed)
+
+        this.c1 = Conv2D(1, 6, 5)        // 1x32x32  -> 6x28x28
+        this.s2 = AvgPool2D(2, 2)        // 6x28x28  -> 6x14x14
+        this.c3 = Conv2D(6, 16, 5)       // 6x14x14  -> 16x10x10
+        this.s4 = AvgPool2D(2, 2)        // 16x10x10 -> 16x5x5
+        this.c5 = Conv2D(16, 120, 5)     // 16x5x5   -> 120x1x1
+        this.f6 = Dense(120, 84)         // 120      -> 84
+        this.output = Dense(84, num_classes, nil)  // 84 -> num_classes (linear, softmax applied later)
+    }
+
+    features(x) {
+        x = this.c1(x)
+        x = this.s2(x)
+        x = this.c3(x)
+        x = this.s4(x)
+        x = this.c5(x)
+
+        return flatten(x)   // 120x1x1 -> [120]
+    }
+
+    logits_from_features(features) {
+        let x = this.f6(features)
+        return this.output(x)
+    }
+
+    // Raw pre-softmax scores. Separated out so callers can compute
+    // cross-entropy loss directly against logits if needed.
+    logits(x) {
+        return this.logits_from_features(this.features(x))
+    }
+
+    // Full forward pass returning a probability distribution over classes.
+    call(x) {
+        return softmax(this.logits(x))
+    }
+
+    // Convenience: run inference and return the most likely class index.
+    predict(x) {
+        return argmax(this(x))
+    }
+
+    call_features(features) {
+        return softmax(this.logits_from_features(features))
+    }
+
+    predict_features(features) {
+        return argmax(this.call_features(features))
+    }
+
+    train_classifier_features(features, label, learning_rate = 0.01) {
+        return t.train_classifierHead(
+            features,
+            this.f6.weights,
+            this.f6.bias,
+            this.output.weights,
+            this.output.bias,
+            label,
+            learning_rate
+        )
+    }
+
+    train_classifier(x, label, learning_rate = 0.01) {
+        return this.train_classifier_features(
+            this.features(x),
+            label,
+            learning_rate
+        )
+    }
+
+    // Collect every learnable tensor in one flat list, ready for an optimiser.
+    // Pooling layers are skipped because they have no parameters.
+    parameters() {
+        return [
+            ...this.c1.parameters(),
+            ...this.c3.parameters(),
+            ...this.c5.parameters(),
+            ...this.f6.parameters(),
+            ...this.output.parameters()
+        ]
+    }
+
+    format() {
+        return "LeNet5(1x32x32 -> 10)"
+    }
+}
+
+
+// Synthesise a simple 32x32 test image without needing a real dataset:
+// a vertical stroke from row 10–21 centred at column 16, with a horizontal
+// bar across the bottom — loosely resembles the digit "7".
+fun demo_image() {
+    let x = t.zeros(1, 32, 32)
+
+    for y in range(10, 22)
+        for dx in range(-1, 2)
+            x[0, y, 16 + dx] = 1
+
+    for x_pos in range(12, 21)
+        x[0, 20, x_pos] = 1
+
+    return x
+}
+
+
+// Build a model with default weights, run it on the synthetic image,
+// and print the output distribution and winning class.
+fun demo() {
+    let model = LeNet5()
+    let x = demo_image()
+    let probs = model(x)
+
+    println(model)
+    println("output probabilities:", probs)
+    println("predicted class:", argmax(probs))
+}
+
+
+if module.is_main
+    demo()

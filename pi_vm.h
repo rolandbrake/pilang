@@ -91,6 +91,7 @@ typedef struct vm_t
     int counter;
 
     table_t *instrs; // PiList of instruction metadata
+    instr_t *current_instr; // Source metadata for the opcode currently executing.
 
     int next_gc; // Next garbage collection threshold
     list_t *gc_stack;

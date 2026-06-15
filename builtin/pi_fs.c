@@ -130,6 +130,56 @@ Value fs_readlines(vm_t *vm, int argc, Value *argv)
     return result;
 }
 
+Value fs_readLinesLimit(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1 || !IS_STRING(argv[0]))
+        vm_error(vm, "[read_lines] expects a path string.");
+
+    int limit = -1;
+    if (argc >= 2)
+    {
+        if (!IS_NUM(argv[1]))
+            vm_error(vm, "[read_lines] limit must be a number.");
+        limit = (int)AS_NUM(argv[1]);
+        if (limit < 0)
+            vm_error(vm, "[read_lines] limit must be non-negative.");
+    }
+
+    FILE *file = fopen(AS_CSTRING(argv[0]), "r");
+    if (!file)
+        vm_errorf(vm, "[read_lines] Failed to open file: %s", AS_CSTRING(argv[0]));
+
+    list_t *lines = list_create(sizeof(Value));
+    if (!lines)
+    {
+        fclose(file);
+        vm_error(vm, "[read_lines] allocation failed.");
+    }
+
+    char buffer[16384];
+    int count = 0;
+
+    while ((limit < 0 || count < limit) && fgets(buffer, sizeof(buffer), file))
+    {
+        size_t len = strlen(buffer);
+        while (len > 0 && (buffer[len - 1] == '\n' || buffer[len - 1] == '\r'))
+            buffer[--len] = '\0';
+
+        Value line = NEW_OBJ(add_obj(vm, new_pistring(strdup(buffer))));
+        list_add(lines, &line);
+        count++;
+    }
+
+    fclose(file);
+
+    PiList *result = (PiList *)new_list(lines);
+    result->is_numeric = false;
+    result->is_matrix = false;
+    result->rows = count;
+    result->cols = 1;
+    return NEW_OBJ(add_obj(vm, (Object *)result));
+}
+
 /**
  * @brief Opens a file and returns a file handler.
  *
@@ -778,6 +828,7 @@ static BuiltinConst fs_consts[] = {
 static BuiltinFunc fs_functions[] = {
     {"read", fs_read},
     {"readlines", fs_readlines},
+    {"read_lines", fs_readLinesLimit},
     {"open", fs_open},
     {"seek", fs_seek},
     {"write", fs_write},

@@ -439,7 +439,7 @@ static const char *vm_moduleLabel(vm_t *vm)
  * The algorithm returns the last instruction whose bytecode
  * offset does not exceed the current PC.
  */
-static instr_t *vm_currentInstr(vm_t *vm)
+static instr_t *vm_instrForOffset(vm_t *vm, int target_offset)
 {
     if (!vm || !vm->instrs)
         return NULL;
@@ -472,7 +472,6 @@ static instr_t *vm_currentInstr(vm_t *vm)
 
     int size = list_size(instrs);
     instr_t *instr = NULL;
-    int target_offset = vm->pc;
 
     /*
      * Find the instruction whose offset is the closest
@@ -489,6 +488,17 @@ static instr_t *vm_currentInstr(vm_t *vm)
     }
 
     return instr;
+}
+
+static instr_t *vm_currentInstr(vm_t *vm)
+{
+    if (!vm)
+        return NULL;
+
+    if (vm->current_instr)
+        return vm->current_instr;
+
+    return vm_instrForOffset(vm, vm->pc);
 }
 
 /**
@@ -513,6 +523,7 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     vm->constants = comp->constants;
     vm->names = comp->names;
     vm->instrs = comp->instrs;
+    vm->current_instr = NULL;
 
     // Create a hash table to store global variables
     vm->globals = ht_create(sizeof(Value));
@@ -618,6 +629,7 @@ void vm_reset(vm_t *vm, compiler_t *comp)
     vm->constants = comp->constants;
     vm->names = comp->names;
     vm->instrs = comp->instrs;
+    vm->current_instr = NULL;
 
     // Note: vm->globals is NOT reset. This is intentional to allow
     // persistence of global state between script executions in the shell.
@@ -2222,6 +2234,7 @@ void run(vm_t *vm)
     while (pc < length && vm->running)
     {
         vm->pc = pc;
+        vm->current_instr = vm_instrForOffset(vm, pc);
         op = code[pc++];
 
         vm->ip++; // Advance instruction index

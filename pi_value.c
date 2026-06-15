@@ -1363,6 +1363,13 @@ char *as_stringWithFormat(vm_t *vm, Value val)
             snprintf(result, 256, "<file %s>", file->filename ? file->filename : "<anonymous>");
             return result;
         }
+        case OBJ_IMAGE:
+        {
+            ObjImage *img = AS_IMAGE(val);
+            char *result = (char *)malloc(128);
+            snprintf(result, 128, "<image %dx%d>", img->surface->w, img->surface->h);
+            return result;
+        }
         case OBJ_RANGE:
         case OBJ_CODE:
             break;
@@ -1657,6 +1664,12 @@ void print_value(Value val, bool is_root)
         {
             ObjModule *module = AS_MODULE(val);
             printf("<module %s>", module->name ? module->name : "<anonymous>");
+            break;
+        }
+        case OBJ_IMAGE:
+        {
+            ObjImage *img = AS_IMAGE(val);
+            printf("<image %dx%d>", img->surface->w, img->surface->h);
             break;
         }
         case OBJ_MAP:

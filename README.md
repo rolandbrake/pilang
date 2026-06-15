@@ -20,7 +20,6 @@
 
 ## Overview
 
-## Overview
 
 Pilang is a lightweight programming language designed for machine learning, numerical computing, data processing, and visualization. It combines the readability of Python with the flexibility of JavaScript while remaining small enough to embed directly into applications.
 

@@ -1,0 +1,217 @@
+import lenet5.{LeNet5}
+import mnist
+import sys
+import draw
+import plot
+
+
+const TRAIN_LIMIT = 1000
+const TEST_LIMIT = 200
+const EPOCHS = 100
+const LEARNING_RATE = 0.03
+const SHOW_PLOTS = true
+
+
+fun accuracy(model, samples) {
+    let correct = 0
+
+    for sample in samples
+        if model.predict(sample.image) == sample.label
+            correct += 1
+
+    return correct / #samples
+}
+
+
+fun cache_features(model, samples, drop_images = true) {
+    let cached = []
+
+    for sample in samples {
+        cached += {
+            label: sample.label,
+            features: model.features(sample.image)
+        }
+
+        if drop_images
+            sample.image = nil
+    }
+
+    if drop_images
+        sys.gc()
+
+    return cached
+}
+
+
+fun accuracy_features(model, samples) {
+    let correct = 0
+
+    for sample in samples
+        if model.predict_features(sample.features) == sample.label
+            correct += 1
+
+    return correct / #samples
+}
+
+
+fun train(model, samples, test_samples, epochs = 5, learning_rate = 0.03) {
+    let steps = []
+    let losses = []
+    let train_accs = []
+    let test_accs = []
+
+    for epoch in range(epochs) {
+        let total_loss = 0
+
+        for i in range(#samples) {
+            let sample = samples[i]
+            total_loss += model.train_classifier_features(
+                sample.features,
+                sample.label,
+                learning_rate
+            )
+        }
+
+        let loss = total_loss / #samples
+        let train_acc = accuracy_features(model, samples)
+        let test_acc = accuracy_features(model, test_samples)
+
+        steps += epoch + 1
+        losses += loss
+        train_accs += train_acc
+        test_accs += test_acc
+
+        println(
+            "epoch:", epoch + 1,
+            "loss:", loss,
+            "train accuracy:", train_acc,
+            "test accuracy:", test_acc
+        )
+    }
+
+    return {
+        steps: steps,
+        losses: losses,
+        train_accs: train_accs,
+        test_accs: test_accs
+    }
+}
+
+
+fun show_metric_plots(history) {
+    let ctx = draw.canvas(980, 420, "LeNet-5 MNIST Metrics")
+    draw.clear(ctx, draw.COLOR_WHITE)
+
+    let loss_chart = plot.chart(ctx)
+    plot.subplot(loss_chart, 1, 2, 1)
+    plot.line(loss_chart, history.steps, history.losses, 0xd1495b)
+    plot.title(loss_chart, "Loss")
+    plot.xlabel(loss_chart, "epoch")
+    plot.ylabel(loss_chart, "cross entropy")
+    plot.grid(loss_chart, true)
+
+    let acc_chart = plot.chart(ctx)
+    plot.subplot(acc_chart, 1, 2, 2)
+    plot.line(acc_chart, history.steps, history.train_accs, 0x00798c)
+    plot.line(acc_chart, history.steps, history.test_accs, 0xedae49)
+    plot.title(acc_chart, "Accuracy")
+    plot.xlabel(acc_chart, "epoch")
+    plot.ylabel(acc_chart, "accuracy")
+    plot.grid(acc_chart, true)
+    plot.legend(acc_chart, ["train", "test"])
+
+    plot.show(loss_chart)
+    plot.show(acc_chart)
+    draw.run(ctx)
+}
+
+
+fun gray_color(value) {
+    let c = value * 255
+    return c * 0x010101
+}
+
+
+fun draw_sample_image(ctx, sample, left, top, size) {
+    let pixel = size / 32
+
+    draw.rect(ctx, left - 1, top - 1, size + 2, size + 2, 0x333333, false)
+
+    for y in range(32) {
+        for x in range(32) {
+            let color = gray_color(sample.image[0, y, x])
+            draw.rect(ctx, left + x * pixel, top + y * pixel, pixel, pixel, color, true)
+        }
+    }
+}
+
+
+fun show_dataset_images(samples) {
+    let shown = min(#samples, 6)
+    let ctx = draw.canvas(720, 560, "LeNet-5 MNIST Samples")
+    draw.clear(ctx, draw.COLOR_WHITE)
+    draw.text(ctx, 360, 24, "MNIST Sample Images", {
+        color: 0x222222,
+        size: 24,
+        bold: true,
+        align: "center"
+    })
+
+    let image_size = 150
+    let gap_x = 60
+    let gap_y = 62
+    let start_x = 65
+    let start_y = 80
+
+    for i in range(shown) {
+        let sample = samples[i]
+        let row = i < 3 ? 0 : 1
+        let col = i < 3 ? i : i - 3
+        let left = start_x + col * (image_size + gap_x)
+        let top = start_y + row * (image_size + gap_y)
+
+        draw_sample_image(ctx, sample, left, top, image_size)
+        draw.text(ctx, left + image_size / 2, top + image_size + 12, "label " + sample.label, {
+            color: 0x333333,
+            size: 16,
+            bold: true,
+            align: "center"
+        })
+    }
+
+    draw.present(ctx)
+    draw.run(ctx)
+}
+
+
+fun show_training_plots(history, samples) {
+    show_metric_plots(history)
+    // show_dataset_images(samples)
+}
+
+
+fun demo() {
+    let train_samples = mnist.read_train(TRAIN_LIMIT)
+    let test_samples = mnist.read_test(TEST_LIMIT)
+    let model = LeNet5()
+
+    println("train samples:", #train_samples)
+    println("test samples:", #test_samples)
+    println("caching frozen LeNet features...")
+
+    let train_features = cache_features(model, train_samples)
+    let test_features = cache_features(model, test_samples, false)
+
+    println("accuracy before:", accuracy_features(model, test_features))
+
+    let history = train(model, train_features, test_features, EPOCHS, LEARNING_RATE)
+
+    println("accuracy after:", accuracy_features(model, test_features))
+
+    if SHOW_PLOTS
+        show_training_plots(history, test_samples)
+}
+
+
+if module.is_main
+    demo()

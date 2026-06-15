@@ -1,0 +1,112 @@
+import fs
+import string
+import tensor:t
+import type:tp
+
+
+// MNIST CSV loader for files shaped like:
+//   label,1x1,1x2,...,28x28
+//
+// LeNet-5 expects a 1x32x32 image, so each 28x28 digit is normalized to
+// 0..1 and centered with a 2-pixel zero border.
+
+const IMAGE_SIZE = 28
+const LENET_IMAGE_SIZE = 32
+const LENET_PAD = 2
+const PIXEL_SCALE = 255
+const DATA_DIR = fs.join(fs.dirname(module.path), "MNIST")
+
+
+fun row_to_sample(row) {
+    let fields = string.split(trim(row), ",")
+
+    assert(#fields == 785,
+           "MNIST CSV rows should have 1 label and 784 pixels")
+
+    let label = tp.int(fields[0])
+    let image = t.zeros(1, LENET_IMAGE_SIZE, LENET_IMAGE_SIZE)
+    let index = 1
+
+    for y in range(IMAGE_SIZE) {
+        for x in range(IMAGE_SIZE) {
+            image[0, y + LENET_PAD, x + LENET_PAD] =
+                tp.float(fields[index]) / PIXEL_SCALE
+            index += 1
+        }
+    }
+
+    return {
+        label: label,
+        image: image
+    }
+}
+
+
+fun one_hot(label, classes = 10) {
+    let target = [0 : _ in range(classes)]
+    target[label] = 1
+    return target
+}
+
+
+fun read_samples(path, limit = nil) {
+    let lines = limit == nil ? fs.read_lines(path) : fs.read_lines(path, limit + 1)
+    let samples = []
+
+    // Skip row 0, which is the CSV header.
+    for i in range(1, #lines) {
+        let line = trim(lines[i])
+
+        if #line == 0
+            continue
+
+        samples += row_to_sample(line)
+    }
+
+    return samples
+}
+
+
+fun read_train(limit = nil) {
+    return read_samples(fs.join(DATA_DIR, "mnist_train.csv"), limit)
+}
+
+
+fun read_test(limit = nil) {
+    return read_samples(fs.join(DATA_DIR, "mnist_test.csv"), limit)
+}
+
+
+fun batch(samples, start, batch_size) {
+    let xs = []
+    let ys = []
+    let end = start + batch_size
+
+    if end > #samples
+        end = #samples
+
+    for i in range(start, end) {
+        xs += samples[i].image
+        ys += one_hot(samples[i].label)
+    }
+
+    return {
+        images: xs,
+        labels: ys
+    }
+}
+
+
+fun demo(limit = 6) {
+    let samples = read_train(limit)
+
+    println("loaded samples:", #samples)
+
+    for sample in samples {
+        println("label:", sample.label, "shape:", t.shape(sample.image))
+    }
+}
+
+
+if module.is_main
+    demo()

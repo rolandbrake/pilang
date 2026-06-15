@@ -6,12 +6,82 @@
 #include <stdlib.h>
 #include <math.h>
 #include <limits.h>
+#include <string.h>
 
 static int double_cmp(const void *a, const void *b)
 {
     double x = *(double *)a;
     double y = *(double *)b;
     return (x > y) - (x < y);
+}
+
+static double activation_value(const char *activation, double x)
+{
+    if (activation && strcmp(activation, "tanh") == 0)
+        return tanh(x);
+    if (activation && strcmp(activation, "relu") == 0)
+        return x > 0.0 ? x : 0.0;
+    return x;
+}
+
+static const char *optional_activation(vm_t *vm, int argc, Value *argv, int index)
+{
+    if (argc <= index || IS_NIL(argv[index]))
+        return NULL;
+    if (!IS_STRING(argv[index]))
+        vm_error(vm, "activation must be nil or a string.");
+    return AS_CSTRING(argv[index]);
+}
+
+static double vector_get(vm_t *vm, Value vector, int index, const char *name)
+{
+    if (IS_TENSOR(vector))
+    {
+        PiTensor *tensor = AS_TENSOR(vector);
+        if (tensor->ndim != 1 || index < 0 || index >= tensor->shape[0])
+            vm_errorf(vm, "%s tensor has invalid shape.", name);
+        return tensor_getFlat(tensor, index);
+    }
+
+    if (IS_LIST(vector))
+    {
+        PiList *list = AS_LIST(vector);
+        if (index < 0 || index >= list->items->size)
+            vm_errorf(vm, "%s list has invalid length.", name);
+        Value value = *(Value *)list_getAt(list->items, index);
+        if (!IS_NUM(value))
+            vm_errorf(vm, "%s list must contain only numbers.", name);
+        return AS_NUM(value);
+    }
+
+    vm_errorf(vm, "%s must be a numeric list or tensor.", name);
+    return 0.0;
+}
+
+static void vector_set(vm_t *vm, Value vector, int index, double new_value, const char *name)
+{
+    if (IS_TENSOR(vector))
+    {
+        PiTensor *tensor = AS_TENSOR(vector);
+        if (tensor->ndim != 1 || index < 0 || index >= tensor->shape[0])
+            vm_errorf(vm, "%s tensor has invalid shape.", name);
+        tensor_setFlat(tensor, index, new_value);
+        return;
+    }
+
+    if (IS_LIST(vector))
+    {
+        PiList *list = AS_LIST(vector);
+        if (index < 0 || index >= list->items->size)
+            vm_errorf(vm, "%s list has invalid length.", name);
+        Value *slot = (Value *)list_getAt(list->items, index);
+        if (!IS_NUM(*slot))
+            vm_errorf(vm, "%s list must contain only numbers.", name);
+        *slot = NEW_NUM(new_value);
+        return;
+    }
+
+    vm_errorf(vm, "%s must be a numeric list or tensor.", name);
 }
 
 static int tn_shapeFromArgs(vm_t *vm, int argc, Value *argv, int **out_shape)
@@ -900,6 +970,330 @@ Value tn_apply(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
+Value tn_conv2d(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 3 || !IS_TENSOR(argv[0]) || !IS_TENSOR(argv[1]))
+        vm_error(vm, "tensor.conv2d expects input tensor, weight tensor, and bias vector.");
+
+    PiTensor *input = AS_TENSOR(argv[0]);
+    PiTensor *weights = AS_TENSOR(argv[1]);
+    Value bias = argv[2];
+    const char *activation = optional_activation(vm, argc, argv, 3);
+
+    if (input->ndim != 3)
+        vm_error(vm, "tensor.conv2d input must have shape [channels, height, width].");
+    if (weights->ndim != 4)
+        vm_error(vm, "tensor.conv2d weights must have shape [out_channels, in_channels, kernel_h, kernel_w].");
+
+    int in_channels = input->shape[0];
+    int in_h = input->shape[1];
+    int in_w = input->shape[2];
+    int out_channels = weights->shape[0];
+    int weight_channels = weights->shape[1];
+    int kernel_h = weights->shape[2];
+    int kernel_w = weights->shape[3];
+
+    if (weight_channels != in_channels)
+        vm_error(vm, "tensor.conv2d channel mismatch.");
+    if (kernel_h <= 0 || kernel_w <= 0 || kernel_h > in_h || kernel_w > in_w)
+        vm_error(vm, "tensor.conv2d invalid kernel size.");
+
+    int out_h = in_h - kernel_h + 1;
+    int out_w = in_w - kernel_w + 1;
+    int shape[3] = {out_channels, out_h, out_w};
+    PiTensor *out = (PiTensor *)add_obj(vm, new_tensorUninit(3, shape, TN_FLOAT64));
+
+    for (int oc = 0; oc < out_channels; oc++)
+    {
+        double b = vector_get(vm, bias, oc, "conv2d bias");
+
+        for (int oy = 0; oy < out_h; oy++)
+        {
+            for (int ox = 0; ox < out_w; ox++)
+            {
+                double sum = b;
+
+                for (int ic = 0; ic < in_channels; ic++)
+                {
+                    int input_base = ic * input->strides[0] + oy * input->strides[1] + ox * input->strides[2];
+                    int weight_base = oc * weights->strides[0] + ic * weights->strides[1];
+
+                    for (int ky = 0; ky < kernel_h; ky++)
+                    {
+                        int input_row = input_base + ky * input->strides[1];
+                        int weight_row = weight_base + ky * weights->strides[2];
+
+                        for (int kx = 0; kx < kernel_w; kx++)
+                        {
+                            sum += tensor_getFlat(input, input_row + kx * input->strides[2]) *
+                                   tensor_getFlat(weights, weight_row + kx * weights->strides[3]);
+                        }
+                    }
+                }
+
+                int out_index = oc * out->strides[0] + oy * out->strides[1] + ox * out->strides[2];
+                tensor_setFlat(out, out_index, activation_value(activation, sum));
+            }
+        }
+    }
+
+    return NEW_OBJ(out);
+}
+
+Value tn_avgpool2d(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1 || !IS_TENSOR(argv[0]))
+        vm_error(vm, "tensor.avgpool2d expects an input tensor.");
+
+    PiTensor *input = AS_TENSOR(argv[0]);
+    if (input->ndim != 3)
+        vm_error(vm, "tensor.avgpool2d input must have shape [channels, height, width].");
+
+    int kernel = 2;
+    int stride = 2;
+
+    if (argc >= 2)
+    {
+        if (!IS_NUM(argv[1]))
+            vm_error(vm, "tensor.avgpool2d kernel size must be a number.");
+        kernel = (int)AS_NUM(argv[1]);
+    }
+    if (argc >= 3)
+    {
+        if (!IS_NUM(argv[2]))
+            vm_error(vm, "tensor.avgpool2d stride must be a number.");
+        stride = (int)AS_NUM(argv[2]);
+    }
+
+    if (kernel <= 0 || stride <= 0)
+        vm_error(vm, "tensor.avgpool2d kernel and stride must be positive.");
+    if (kernel > input->shape[1] || kernel > input->shape[2])
+        vm_error(vm, "tensor.avgpool2d kernel is larger than the input.");
+
+    int channels = input->shape[0];
+    int out_h = ((input->shape[1] - kernel) / stride) + 1;
+    int out_w = ((input->shape[2] - kernel) / stride) + 1;
+    int shape[3] = {channels, out_h, out_w};
+    PiTensor *out = (PiTensor *)add_obj(vm, new_tensorUninit(3, shape, TN_FLOAT64));
+    double area = (double)(kernel * kernel);
+
+    for (int c = 0; c < channels; c++)
+    {
+        for (int oy = 0; oy < out_h; oy++)
+        {
+            for (int ox = 0; ox < out_w; ox++)
+            {
+                double sum = 0.0;
+                int start_y = oy * stride;
+                int start_x = ox * stride;
+
+                for (int ky = 0; ky < kernel; ky++)
+                {
+                    int input_row = c * input->strides[0] + (start_y + ky) * input->strides[1] + start_x * input->strides[2];
+
+                    for (int kx = 0; kx < kernel; kx++)
+                        sum += tensor_getFlat(input, input_row + kx * input->strides[2]);
+                }
+
+                int out_index = c * out->strides[0] + oy * out->strides[1] + ox * out->strides[2];
+                tensor_setFlat(out, out_index, sum / area);
+            }
+        }
+    }
+
+    return NEW_OBJ(out);
+}
+
+Value tn_dense(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 3 || !IS_TENSOR(argv[1]))
+        vm_error(vm, "tensor.dense expects input vector, weight matrix, and bias vector.");
+
+    Value input = argv[0];
+    PiTensor *weights = AS_TENSOR(argv[1]);
+    Value bias = argv[2];
+    const char *activation = optional_activation(vm, argc, argv, 3);
+
+    if (weights->ndim != 2)
+        vm_error(vm, "tensor.dense weights must have shape [out_features, in_features].");
+
+    int out_features = weights->shape[0];
+    int in_features = weights->shape[1];
+
+    if (IS_TENSOR(input))
+    {
+        PiTensor *tensor = AS_TENSOR(input);
+        if (tensor->ndim != 1 || tensor->shape[0] != in_features)
+            vm_error(vm, "tensor.dense input tensor has incompatible shape.");
+    }
+    else if (IS_LIST(input))
+    {
+        if (AS_LIST(input)->items->size != in_features)
+            vm_error(vm, "tensor.dense input list has incompatible length.");
+    }
+    else
+    {
+        vm_error(vm, "tensor.dense input must be a numeric list or tensor.");
+    }
+
+    list_t *items = list_create(sizeof(Value));
+    if (!items)
+        vm_error(vm, "tensor.dense allocation failed.");
+
+    for (int o = 0; o < out_features; o++)
+    {
+        double sum = vector_get(vm, bias, o, "dense bias");
+        int weight_row = o * weights->strides[0];
+
+        for (int i = 0; i < in_features; i++)
+            sum += vector_get(vm, input, i, "dense input") *
+                   tensor_getFlat(weights, weight_row + i * weights->strides[1]);
+
+        Value value = NEW_NUM(activation_value(activation, sum));
+        list_add(items, &value);
+    }
+
+    PiList *result = (PiList *)new_list(items);
+    result->is_numeric = true;
+    result->is_matrix = false;
+    result->rows = 1;
+    result->cols = out_features;
+    return NEW_OBJ(add_obj(vm, (Object *)result));
+}
+
+Value tn_trainClassifierHead(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 7 || !IS_TENSOR(argv[1]) || !IS_TENSOR(argv[3]) || !IS_NUM(argv[5]) || !IS_NUM(argv[6]))
+        vm_error(vm, "tensor.train_classifierHead expects features, f6 weights/bias, output weights/bias, label, learning_rate.");
+
+    Value features = argv[0];
+    PiTensor *f6_w = AS_TENSOR(argv[1]);
+    Value f6_b = argv[2];
+    PiTensor *out_w = AS_TENSOR(argv[3]);
+    Value out_b = argv[4];
+    int label = (int)AS_NUM(argv[5]);
+    double lr = AS_NUM(argv[6]);
+
+    if (f6_w->ndim != 2 || out_w->ndim != 2)
+        vm_error(vm, "tensor.train_classifierHead weights must be matrices.");
+
+    int hidden_count = f6_w->shape[0];
+    int feature_count = f6_w->shape[1];
+    int class_count = out_w->shape[0];
+
+    if (out_w->shape[1] != hidden_count)
+        vm_error(vm, "tensor.train_classifierHead output weight shape mismatch.");
+    if (label < 0 || label >= class_count)
+        vm_error(vm, "tensor.train_classifierHead label out of range.");
+
+    if (IS_TENSOR(features))
+    {
+        PiTensor *feature_tensor = AS_TENSOR(features);
+        if (feature_tensor->ndim != 1 || feature_tensor->shape[0] != feature_count)
+            vm_error(vm, "tensor.train_classifierHead feature tensor shape mismatch.");
+    }
+    else if (IS_LIST(features))
+    {
+        if (AS_LIST(features)->items->size != feature_count)
+            vm_error(vm, "tensor.train_classifierHead feature list length mismatch.");
+    }
+    else
+    {
+        vm_error(vm, "tensor.train_classifierHead features must be a numeric list or tensor.");
+    }
+
+    double *hidden = malloc(sizeof(double) * (size_t)hidden_count);
+    double *dhidden = calloc((size_t)hidden_count, sizeof(double));
+    double *logits = malloc(sizeof(double) * (size_t)class_count);
+    double *probs = malloc(sizeof(double) * (size_t)class_count);
+
+    if (!hidden || !dhidden || !logits || !probs)
+    {
+        free(hidden);
+        free(dhidden);
+        free(logits);
+        free(probs);
+        vm_error(vm, "tensor.train_classifierHead allocation failed.");
+    }
+
+    for (int h = 0; h < hidden_count; h++)
+    {
+        double sum = vector_get(vm, f6_b, h, "f6 bias");
+        int row = h * f6_w->strides[0];
+
+        for (int i = 0; i < feature_count; i++)
+            sum += vector_get(vm, features, i, "features") *
+                   tensor_getFlat(f6_w, row + i * f6_w->strides[1]);
+
+        hidden[h] = tanh(sum);
+    }
+
+    double max_logit = 0.0;
+    for (int o = 0; o < class_count; o++)
+    {
+        double sum = vector_get(vm, out_b, o, "output bias");
+        int row = o * out_w->strides[0];
+
+        for (int h = 0; h < hidden_count; h++)
+            sum += hidden[h] * tensor_getFlat(out_w, row + h * out_w->strides[1]);
+
+        logits[o] = sum;
+        if (o == 0 || sum > max_logit)
+            max_logit = sum;
+    }
+
+    double total = 0.0;
+    for (int o = 0; o < class_count; o++)
+    {
+        probs[o] = exp(logits[o] - max_logit);
+        total += probs[o];
+    }
+
+    for (int o = 0; o < class_count; o++)
+        probs[o] /= total;
+
+    double p = probs[label] < 1e-9 ? 1e-9 : probs[label];
+    double loss = -log(p);
+
+    for (int o = 0; o < class_count; o++)
+    {
+        double dlogit = probs[o] - (o == label ? 1.0 : 0.0);
+        int row = o * out_w->strides[0];
+
+        for (int h = 0; h < hidden_count; h++)
+        {
+            int weight_index = row + h * out_w->strides[1];
+            double old_weight = tensor_getFlat(out_w, weight_index);
+            dhidden[h] += dlogit * old_weight;
+            tensor_setFlat(out_w, weight_index, old_weight - lr * dlogit * hidden[h]);
+        }
+
+        vector_set(vm, out_b, o, vector_get(vm, out_b, o, "output bias") - lr * dlogit, "output bias");
+    }
+
+    for (int h = 0; h < hidden_count; h++)
+    {
+        double dz = dhidden[h] * (1.0 - hidden[h] * hidden[h]);
+        int row = h * f6_w->strides[0];
+
+        for (int i = 0; i < feature_count; i++)
+        {
+            int weight_index = row + i * f6_w->strides[1];
+            double old_weight = tensor_getFlat(f6_w, weight_index);
+            tensor_setFlat(f6_w, weight_index, old_weight - lr * dz * vector_get(vm, features, i, "features"));
+        }
+
+        vector_set(vm, f6_b, h, vector_get(vm, f6_b, h, "f6 bias") - lr * dz, "f6 bias");
+    }
+
+    free(hidden);
+    free(dhidden);
+    free(logits);
+    free(probs);
+
+    return NEW_NUM(loss);
+}
+
 Value tn_cross(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_TENSOR(argv[1]))
@@ -1296,6 +1690,10 @@ static BuiltinFunc tensor_funcs[] = {
     {"clip", tn_clip},
     {"sign", tn_sign},
     {"apply", tn_apply},
+    {"conv2d", tn_conv2d},
+    {"avgpool2d", tn_avgpool2d},
+    {"dense", tn_dense},
+    {"train_classifierHead", tn_trainClassifierHead},
     {"matmult", tn_matmult},
     {"dot", tn_dot},
     {"cross", tn_cross},

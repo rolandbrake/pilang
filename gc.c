@@ -439,6 +439,28 @@ void free_object(Object *obj)
         break;
     }
 
+    case OBJ_FILE:
+    {
+        ObjFile *file = (ObjFile *)obj;
+        if (file->fp && !file->closed)
+            fclose(file->fp);
+        if (file->mode)
+            free(file->mode);
+        if (file->filename)
+            free(file->filename);
+        break;
+    }
+
+#ifndef __EMSCRIPTEN__
+    case OBJ_IMAGE:
+    {
+        ObjImage *image = (ObjImage *)obj;
+        if (image->surface)
+            SDL_FreeSurface(image->surface);
+        break;
+    }
+#endif
+
     case OBJ_MAP:
     {
         // Free the memory allocated for the map's key-value pairs

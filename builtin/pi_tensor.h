@@ -48,6 +48,12 @@ Value tn_clip(vm_t *vm, int argc, Value *argv);
 Value tn_sign(vm_t *vm, int argc, Value *argv);
 Value tn_apply(vm_t *vm, int argc, Value *argv);
 
+
+Value tn_conv2d(vm_t *vm, int argc, Value *argv);
+Value tn_avgpool2d(vm_t *vm, int argc, Value *argv);
+Value tn_dense(vm_t *vm, int argc, Value *argv);
+Value tn_trainClassifierHead(vm_t *vm, int argc, Value *argv);
+
 // Algebraic Operations
 Value tn_matmult(vm_t *vm, int argc, Value *argv);
 Value tn_dot(vm_t *vm, int argc, Value *argv);
