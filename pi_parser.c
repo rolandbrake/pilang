@@ -1,4 +1,4 @@
-﻿#include <stdarg.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
@@ -10,12 +10,10 @@
 #include "pi_object.h"
 #include "pi_string.h"
 
-// Operator definitions for parsing expressions
 char *comp_ops[] = {"==", "!=", ">", "<", ">=", "<=", "in"};
 char *bin_ops[] = {"+", "-", "*", "/", "%", "&&", "||", "**", "&", "|", "^", "<<", ">>", ">>>", ".", "is"};
 char *unary_ops[] = {"+", "-", "!", "~", "#", "++", "--", "typeof"};
 
-// Function prototypes for static functions
 static void program(parser_t *parser);
 static void declaration(parser_t *parser);
 static void var_decl(parser_t *parser, bool is_const);
@@ -168,55 +166,32 @@ static void emit_boundMethodCall(parser_t *parser, const char *receiver, const c
     emit(parser->comp, OP_GET_MEMBER);
 }
 
-/**
- * Emits the bytecode for a spread list literal.
- * A spread list literal is a list literal with a spread operator (**) at the end.
- * This allows the list to be extended with the elements of another list.
- *
- * @param parser The parser object.
- */
 static void emit_spreadListLiteral(parser_t *parser)
 {
     emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
 
-    // If the list literal is empty, emit OP_LIST_FINALIZE and return
     if (match(parser, TK_RBRACKET))
     {
         emit(parser->comp, OP_LIST_FINALIZE);
         return;
     }
 
-    // Loop until the end of the list literal or a spread operator is encountered
     do
     {
-        // If the end of the list literal is reached, break
         if (check(parser, TK_RBRACKET))
             break;
 
-        // Check if the current token is a spread operator
         bool is_spread = match(parser, TK_ELLIPSIS);
 
-        // Parse the expression after the spread operator if it exists
         cond_expr(parser);
 
-        // Emit the bytecode for extending the list if a spread operator was encountered
         emit(parser->comp, is_spread ? OP_LIST_EXTEND : OP_LIST_APPEND);
     } while (match(parser, TK_COMMA));
 
-    // Consume the end of the list literal
     consume(parser, TK_RBRACKET, "Expect ']' at the end of list literal.");
-    // Emit the bytecode for finalizing the list
     emit(parser->comp, OP_LIST_FINALIZE);
 }
 
-/**
- * Checks if the current function call has spread arguments.
- * A spread argument is a argument that is prefixed with a spread operator (...)
- * This allows the argument to be passed as a variable number of arguments.
- *
- * @param parser The parser object.
- * @return True if the current function call has spread arguments, false otherwise.
- */
 static bool call_hasSpreadArgs(parser_t *parser)
 {
     int index = parser->current;
@@ -231,37 +206,28 @@ static bool call_hasSpreadArgs(parser_t *parser)
         switch (token.type)
         {
         case TK_LPAREN:
-            // Increment the parentheses depth
             paren_depth++;
             break;
         case TK_RPAREN:
-            // Decrement the parentheses depth
             paren_depth--;
             if (paren_depth == 0)
-                // If the parentheses depth is 0, the function call has ended
                 return false;
             break;
         case TK_LBRACKET:
-            // Increment the brackets depth
             bracket_depth++;
             break;
         case TK_RBRACKET:
             if (bracket_depth > 0)
-                // Decrement the brackets depth
                 bracket_depth--;
             break;
         case TK_LBRACE:
-            // Increment the braces depth
             brace_depth++;
             break;
         case TK_RBRACE:
             if (brace_depth > 0)
-                // Decrement the braces depth
                 brace_depth--;
             break;
         case TK_ELLIPSIS:
-            // If the parentheses depth is 1, the brackets depth is 0, and the braces depth is 0,
-            // the current token is a spread operator
             if (paren_depth == 1 && bracket_depth == 0 && brace_depth == 0)
                 return true;
             break;
@@ -273,18 +239,12 @@ static bool call_hasSpreadArgs(parser_t *parser)
     return false;
 }
 
-/**
- * Checks if the current token is a spread operator in a list.
- *
- * @param parser The parser state.
- * @return true if the current token is a spread operator, false otherwise.
- */
 static bool list_hasSpreadItems(parser_t *parser)
 {
     int index = parser->current;
-    int paren_depth = 0;   // Depth of parentheses
-    int bracket_depth = 1; // Depth of brackets
-    int brace_depth = 0;   // Depth of braces
+    int paren_depth = 0;
+    int bracket_depth = 1;
+    int brace_depth = 0;
 
     while (parser->tokens[index].type != TK_EOF)
     {
@@ -293,37 +253,28 @@ static bool list_hasSpreadItems(parser_t *parser)
         switch (token.type)
         {
         case TK_LPAREN:
-            // Increment the parentheses depth
             paren_depth++;
             break;
         case TK_RPAREN:
-            // Decrement the parentheses depth
             if (paren_depth > 0)
                 paren_depth--;
             break;
         case TK_LBRACKET:
-            // Increment the brackets depth
             bracket_depth++;
             break;
         case TK_RBRACKET:
-            // Decrement the brackets depth
             bracket_depth--;
             if (bracket_depth == 0)
-                // If the brackets depth is 0, the current token is not a spread operator
                 return false;
             break;
         case TK_LBRACE:
-            // Increment the braces depth
             brace_depth++;
             break;
         case TK_RBRACE:
-            // Decrement the braces depth
             if (brace_depth > 0)
                 brace_depth--;
             break;
         case TK_ELLIPSIS:
-            // If the parentheses depth is 0, the brackets depth is 1, and the braces depth is 0,
-            // the current token is a spread operator
             if (paren_depth == 0 && bracket_depth == 1 && brace_depth == 0)
                 return true;
             break;
@@ -335,20 +286,12 @@ static bool list_hasSpreadItems(parser_t *parser)
     return false;
 }
 
-/**
- * Checks if the current map expression has spread items.
- * A spread item is a value that is prefixed with a spread operator (...).
- * This allows the value to be passed as a variable number of arguments.
- *
- * @param parser The parser object.
- * @return True if the current map expression has spread items, false otherwise.
- */
 static bool map_hasSpreadItems(parser_t *parser)
 {
     int index = parser->current;
-    int paren_depth = 0;   // The parentheses depth of the current expression
-    int bracket_depth = 0; // The brackets depth of the current expression
-    int brace_depth = 1;   // The braces depth of the current expression
+    int paren_depth = 0;
+    int bracket_depth = 0;
+    int brace_depth = 1;
 
     while (parser->tokens[index].type != TK_EOF)
     {
@@ -357,30 +300,30 @@ static bool map_hasSpreadItems(parser_t *parser)
         switch (token.type)
         {
         case TK_LPAREN:
-            paren_depth++; // Increment the parentheses depth
+            paren_depth++;
             break;
         case TK_RPAREN:
             if (paren_depth > 0)
-                paren_depth--; // Decrement the parentheses depth
+                paren_depth--;
             break;
         case TK_LBRACKET:
-            bracket_depth++; // Increment the brackets depth
+            bracket_depth++;
             break;
         case TK_RBRACKET:
             if (bracket_depth > 0)
-                bracket_depth--; // Decrement the brackets depth
+                bracket_depth--;
             break;
         case TK_LBRACE:
-            brace_depth++; // Increment the braces depth
+            brace_depth++;
             break;
         case TK_RBRACE:
-            brace_depth--; // Decrement the braces depth
+            brace_depth--;
             if (brace_depth == 0)
-                return false; // If the braces depth is 0, the current token is not a spread operator
+                return false;
             break;
         case TK_ELLIPSIS:
             if (paren_depth == 0 && bracket_depth == 0 && brace_depth == 1)
-                return true; // If the parentheses depth is 0, the brackets depth is 0, and the braces depth is 1, the current token is a spread operator
+                return true;
             break;
         default:
             break;
@@ -435,22 +378,15 @@ static void emit_setLiteral(parser_t *parser)
     emit_16u(parser->comp, OP_PUSH_SET, "", size);
 }
 
-/**
- * Scans the current list comprehension expression and stores its parts in the given structure.
- *
- * @param parser The parser object.
- * @param comp The list comprehension structure to store the parts in.
- * @return True if the list comprehension expression has been successfully scanned, false otherwise.
- */
 static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
 {
     int index = parser->current;
-    int paren_depth = 0;   // The parentheses depth of the current expression
-    int bracket_depth = 1; // The brackets depth of the current expression
-    int brace_depth = 0;   // The braces depth of the current expression
-    int ternary_depth = 0; // The ternary operator depth of the current expression
-    int first_colon = -1;  // The index of the first colon in the current expression
-    int second_colon = -1; // The index of the second colon in the current expression
+    int paren_depth = 0;
+    int bracket_depth = 1;
+    int brace_depth = 0;
+    int ternary_depth = 0;
+    int first_colon = -1;
+    int second_colon = -1;
 
     while (parser->tokens[index].type != TK_EOF)
     {
@@ -459,28 +395,22 @@ static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
         switch (token.type)
         {
         case TK_LPAREN:
-            // Increment the parentheses depth
             paren_depth++;
             break;
         case TK_RPAREN:
-            // Decrement the parentheses depth
             if (paren_depth > 0)
                 paren_depth--;
             break;
         case TK_LBRACKET:
-            // Increment the brackets depth
             bracket_depth++;
             break;
         case TK_RBRACKET:
-            // Decrement the brackets depth
             bracket_depth--;
             if (bracket_depth == 0)
             {
-                // If the brackets depth is 0, the current token is not a spread operator
                 if (first_colon == -1)
                     return false;
 
-                // Store the parts of the list comprehension expression in the given structure
                 comp->result.start = parser->current;
                 comp->result.end = first_colon;
                 comp->iterators.start = first_colon + 1;
@@ -493,24 +423,19 @@ static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
             }
             break;
         case TK_LBRACE:
-            // Increment the braces depth
             brace_depth++;
             break;
         case TK_RBRACE:
-            // Decrement the braces depth
             if (brace_depth > 0)
                 brace_depth--;
             break;
         case TK_QUESTION:
-            // Increment the ternary operator depth
             if (paren_depth == 0 && bracket_depth == 1 && brace_depth == 0)
                 ternary_depth++;
             break;
         case TK_COLON:
-            // If the parentheses depth is 0, the brackets depth is 1, and the braces depth is 0
             if (paren_depth == 0 && bracket_depth == 1 && brace_depth == 0)
             {
-                // If the ternary operator depth is greater than 0
                 if (ternary_depth > 0)
                     ternary_depth--;
                 else if (first_colon == -1)
@@ -532,79 +457,42 @@ static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
     return false;
 }
 
-/**
- * Checks if the current token is the start of a list comprehension.
- * If it is, parses the list comprehension and returns true. Otherwise, returns false.
- *
- * @param parser The current parser instance.
- * @return true if the current token is the start of a list comprehension, false otherwise.
- */
 static bool list_isComprehension(parser_t *parser)
 {
-    // The list comprehension structure to parse
     list_comp_t comp;
 
-    // Check if the current token is the start of a list comprehension
-    // If it is, parse the list comprehension
     return scan_listComprehension(parser, &comp);
 }
 
-/**
- * Compiles an expression segment. If the segment is empty, an error is raised.
- *
- * @param parser The parser object.
- * @param segment The segment of tokens to compile.
- * @param message The error message to display if the segment is empty.
- */
 static void compile_segmentExpr(parser_t *parser, segment_t segment, const char *message)
 {
-    // Check if the segment is empty
     if (segment.start >= segment.end)
     {
-        // If it is, raise an error with the given message
         token_t token = parser->tokens[segment.start];
         p_error(message, token.line, token.column);
     }
 
-    // Save the current position of the parser
     int saved = parser->current;
 
-    // Save the token at the end of the segment
     token_t saved_end = parser->tokens[segment.end];
 
-    // Set the current position of the parser to the start of the segment
     parser->current = segment.start;
 
-    // Set the type of the token at the end of the segment to TK_EOF
     parser->tokens[segment.end].type = TK_EOF;
 
-    // Compile the expression
     cond_expr(parser);
 
-    // Restore the token at the end of the segment
     parser->tokens[segment.end] = saved_end;
 
-    // Check if the parser has reached the end of the segment
     if (parser->current != segment.end)
     {
-        // If not, raise an error
         token_t token = parser->tokens[parser->current];
         p_error(message, token.line, token.column);
     }
 
-    // Restore the current position of the parser
     parser->current = saved;
 }
 
-/**
- * Parses the list comprehension iterator expressions.
- *
- * @param parser The current parser instance.
- * @param segment The segment of tokens to parse.
- * @param iters The iterator expressions to store.
- * @param max_iters The maximum number of iterator expressions to store.
- * @return The number of iterator expressions parsed.
- */
 static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t *iters, int max_iters)
 {
     int index = segment.start;
@@ -612,19 +500,16 @@ static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t 
 
     while (index < segment.end)
     {
-        // Check for too many iterators
         if (count >= max_iters)
         {
             token_t token = parser->tokens[index];
             p_errorf(token.line, token.column, "Too many iterators in list comprehension.");
         }
 
-        // Parse the iterator variable name
         token_t name = parser->tokens[index++];
         if (name.type != TK_ID)
             p_errorf(name.line, name.column, "Expect iterator variable name in list comprehension.");
 
-        // Check for the 'in' keyword
         if (index >= segment.end || parser->tokens[index].type != TK_IN)
         {
             token_t token = parser->tokens[index < segment.end ? index : segment.end - 1];
@@ -632,7 +517,6 @@ static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t 
         }
         index++;
 
-        // Parse the iterable expression
         int expr_start = index;
         int paren_depth = 0;
         int bracket_depth = 0;
@@ -674,17 +558,14 @@ static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t 
             index++;
         }
 
-        // Check for empty iterable expression
         if (expr_start == index)
             p_errorf(name.line, name.column, "Expect iterable expression after 'in' in list comprehension.");
 
-        // Store the iterator expression
         iters[count].name = name;
         iters[count].iterable.start = expr_start;
         iters[count].iterable.end = index;
         count++;
 
-        // Check for trailing comma
         if (index < segment.end && parser->tokens[index].type == TK_COMMA)
             index++;
     }
@@ -692,25 +573,6 @@ static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t 
     return count;
 }
 
-/**
- * Parses the conditions of a list comprehension expression.
- * List comprehensions are a concise way of creating lists from other
- * iterables. They are defined as [expr for var in iterable if cond1, cond2, ...],
- * where expr is an expression that is evaluated for each value of var in
- * iterable, and cond1, cond2, ... are conditions that must be true for
- * the value to be included in the resulting list.
- *
- * This function parses the conditions of a list comprehension expression.
- * It takes a parser object, a segment of tokens that contains the
- * conditions, and an array of segment_t objects that will be filled with the
- * parsed conditions. The function returns the number of conditions parsed.
- *
- * @param parser The parser object.
- * @param segment The segment of tokens that contains the conditions.
- * @param conds The array of segment_t objects that will be filled with the parsed conditions.
- * @param max_conds The maximum number of conditions that can be parsed.
- * @return The number of conditions parsed.
- */
 static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *conds, int max_conds)
 {
     if (segment.start >= segment.end)
@@ -719,10 +581,8 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
     int index = segment.start;
     int count = 0;
 
-    // Loop until we reach the end of the segment
     while (index < segment.end)
     {
-        // Check if we have reached the maximum number of conditions
         if (count >= max_conds)
         {
             token_t token = parser->tokens[index];
@@ -734,7 +594,6 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
         int bracket_depth = 0;
         int brace_depth = 0;
 
-        // Loop until we reach the end of the expression or a comma
         while (index < segment.end)
         {
             token_t token = parser->tokens[index];
@@ -744,25 +603,25 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
             switch (token.type)
             {
             case TK_LPAREN:
-                paren_depth++; // Increment the parentheses depth
+                paren_depth++;
                 break;
             case TK_RPAREN:
                 if (paren_depth > 0)
-                    paren_depth--; // Decrement the parentheses depth
+                    paren_depth--;
                 break;
             case TK_LBRACKET:
-                bracket_depth++; // Increment the brackets depth
+                bracket_depth++;
                 break;
             case TK_RBRACKET:
                 if (bracket_depth > 0)
-                    bracket_depth--; // Decrement the brackets depth
+                    bracket_depth--;
                 break;
             case TK_LBRACE:
-                brace_depth++; // Increment the braces depth
+                brace_depth++;
                 break;
             case TK_RBRACE:
                 if (brace_depth > 0)
-                    brace_depth--; // Decrement the braces depth
+                    brace_depth--;
                 break;
             default:
                 break;
@@ -775,7 +634,6 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
         conds[count].end = index;
         count++;
 
-        // Check if there is a trailing comma
         if (index < segment.end && parser->tokens[index].type == TK_COMMA)
             index++;
     }
@@ -783,22 +641,6 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
     return count;
 }
 
-/**
- * Emits bytecode for the loop of a list comprehension expression.
- * The loop iterates over each iterator expression in the list comprehension,
- * and for each iterator expression, it compiles the expression and checks
- * if the resulting value is true. If it is, it compiles the list comprehension
- * expression and appends the resulting value to the list.
- *
- * @param parser The parser object.
- * @param comp The list comprehension expression to emit bytecode for.
- * @param iters The array of iterator expressions.
- * @param iter_count The number of iterator expressions.
- * @param conds The array of condition expressions.
- * @param cond_count The number of condition expressions.
- * @param iter_index The index of the current iterator expression.
- * @param acc_slot The local slot for the comprehension result list.
- */
 static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
                                comp_iter_t *iters, int iter_count,
                                segment_t *conds, int cond_count,
@@ -806,75 +648,52 @@ static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
 {
     if (iter_index == iter_count)
     {
-        // If we have reached the end of the iterator expressions, compile the condition
         // expressions and list comprehension expression, and append the resulting value to the list.
         int jumps[32];
         int jump_count = 0;
 
         for (int i = 0; i < cond_count; i++)
         {
-            // Compile the condition expression at conds[i]
             compile_segmentExpr(parser, conds[i], "Invalid list comprehension condition.");
             // Emit a jump if false instruction to jump over the list comprehension expression if the condition is false
             jumps[jump_count++] = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
         }
 
-        // Compile the list comprehension expression
         compile_segmentExpr(parser, comp->result, "Invalid list comprehension expression.");
-        // Emit an instruction to append the resulting value to the list
         emit_8u(parser->comp, OP_COMP_APPEND, "<comp>", acc_slot);
 
-        // Patch the jump if false instructions to jump over the list comprehension expression if the condition is false
+
         for (int i = 0; i < jump_count; i++)
             patch_jump(parser->comp, jumps[i]);
         return;
     }
 
-    // Get the current iterator expression
     token_t iter_token = iters[iter_index].name;
 
-    // Set the position of the parser to the start of the current iterator expression
     set_pos(parser, parser->tokens[iters[iter_index].iterable.start]);
 
-    // Compile the current iterator expression
     compile_segmentExpr(parser, iters[iter_index].iterable, "Invalid list comprehension iterator expression.");
-    // Emit an instruction to push the iterator expression onto the stack
     emit(parser->comp, OP_PUSH_ITER);
 
-    // Set the position of the parser to the current iterator expression
     set_pos(parser, iter_token);
 
-    // Emit an instruction to start the loop
     int address = emit_16u(parser->comp, OP_LOOP, "", 0);
 
-    // Push a new scope onto the stack
     push_scope(parser->comp);
-    // Add a new local variable to the scope with the name of the current iterator expression
     add_variable(parser->comp, token_value(iter_token));
-    // Push a new loop onto the stack
     push_loop(parser->comp, address - 2, true);
 
-    // Recursively emit bytecode for the loop
     emit_listCompLoops(parser, comp, iters, iter_count, conds, cond_count, iter_index + 1, acc_slot);
 
-    // Pop the scope off the stack
     pop_scope(parser->comp);
-    // Pop the loop off the stack
     pop_loop(parser->comp, address - 2);
-    // Patch the jump if false instruction to jump over the list comprehension expression if the condition is false
+
     patch_jump(parser->comp, address);
 }
 
-/**
- * Emits the bytecode for a list comprehension expression.
- * List comprehension expressions are in the form of [x for x in y if z].
- * This function parses the list comprehension expression and emits the appropriate bytecode.
- * @param parser The parser object.
- */
 static void emit_listComprehension(parser_t *parser)
 {
     list_comp_t comp;
-    // Parse the list comprehension expression
     if (!scan_listComprehension(parser, &comp))
         return;
 
@@ -897,78 +716,40 @@ static void emit_listComprehension(parser_t *parser)
     int acc_slot = get_local(parser->comp, hidden_name);
     emit_8u(parser->comp, OP_COMP_BEGIN, "<comp>", acc_slot);
 
-    // Recursively emit bytecode for the loop
     emit_listCompLoops(parser, &comp, iters, iter_count, conds, cond_count, 0, acc_slot);
 
     emit(parser->comp, OP_COMP_END);
     remove_locals(parser->comp, 1);
-    // Set the position of the parser to the end of the list comprehension
     parser->current = comp.end_index;
-    // Consume the end of the list comprehension
     consume(parser, TK_RBRACKET, "Expect ']' after list comprehension.");
 }
 
-/**
- * Peeks at the current token from the tokens array.
- * This function is used to inspect the current token without advancing the parser.
- * @return the current token
- */
 static token_t peek(parser_t *parser)
 {
     return parser->tokens[parser->current];
 }
 
-/**
- * Peeks at the next token from the tokens array.
- * This function is used to inspect the token immediately following the current token
- * without advancing the parser.
- * @return the next token
- */
 
 static token_t peek_next(parser_t *parser)
 {
     return parser->tokens[parser->current + 1];
 }
 
-/**
- * Checks if the parser is at the end of the token stream.
- * @return true if the parser is at the end of the token stream, false otherwise
- */
 static bool is_atEnd(parser_t *parser)
 {
     return peek(parser).type == TK_EOF;
 }
 
-/**
- * Retrieves the previous token from the tokens array.
- *
- * This function is used to access the token that was previously processed
- * by the parser. It is used to handle certain language constructs that
- * require access to the previous token.
- *
- * @return the previous token
- */
 static token_t previous(parser_t *parser)
 {
     return parser->tokens[parser->current - 1];
 }
 
-/**
- * Checks if a given token is a delimiter.
- * A delimiter is a token that delimits (or separates) other tokens. In this
- * case, the only delimiter is the semicolon (;).
- * @param token the token to check
- * @return true if the token is a delimiter, false otherwise
- */
 static bool is_delimiter(parser_t *parser, token_t token)
 {
     return token.type == TK_SEMICOLON;
 }
 
-/**
- * Advances the parser to the next token and returns the previous token.
- * @return the previous token
- */
 static token_t next(parser_t *parser)
 {
     if (!is_atEnd(parser))
@@ -982,23 +763,11 @@ static token_t next(parser_t *parser)
     return previous(parser);
 }
 
-/**
- * Checks if the current token matches a given type.
- * @param type the type of token to check
- * @return true if the current token matches the given type, false otherwise
- */
 static bool check(parser_t *parser, tk_type type)
 {
     return !is_atEnd(parser) && peek(parser).type == type;
 }
 
-/**
- * Checks if the current token matches one of the given types and
- * advances the parser if a match is found.
- * @param t_count the number of types to check
- * @param ... the types to check
- * @return true if the current token matches one of the given types, false otherwise
- */
 static bool match_n(parser_t *parser, int t_count, ...)
 {
     va_list args;
@@ -1018,13 +787,6 @@ static bool match_n(parser_t *parser, int t_count, ...)
     return false;
 }
 
-/**
- * Checks if the current token matches a given type and advances the parser
- * if a match is found.
- * @param type the type of token to check
- * @return true if the current token matches the given type and has been
- *         advanced, false otherwise
- */
 static bool match(parser_t *parser, tk_type type)
 {
     if (check(parser, type))
@@ -1035,32 +797,22 @@ static bool match(parser_t *parser, tk_type type)
     return false;
 }
 
-/**
- * Checks if the current token is the start of a destructure assignment.
- * If so, advances the parser until the end of the assignment.
- * @param parser The parser object.
- * @return true if the current token is the start of a destructure assignment, false otherwise
- */
 static bool is_destructure_assign(parser_t *parser)
 {
-    // Check if the current token is the start of a destructure assignment
     if (!check(parser, TK_LBRACKET))
         return false;
 
     int current = parser->current;
     next(parser);
 
-    // Check if the current token is the end of a destructure assignment
     if (check(parser, TK_RBRACKET))
     {
         parser->current = current;
         return false;
     }
 
-    // Iterate until the end of the assignment
     while (true)
     {
-        // Check if the current token is an identifier
         if (!check(parser, TK_ID))
         {
             parser->current = current;
@@ -1068,24 +820,15 @@ static bool is_destructure_assign(parser_t *parser)
         }
         next(parser);
 
-        // Check if the current token is a comma
         if (!match(parser, TK_COMMA))
             break;
     }
 
-    // Check if the current token is an assignment operator
     bool is_assign = match(parser, TK_RBRACKET) && check(parser, TK_ASSIGN);
     parser->current = current;
     return is_assign;
 }
 
-/**
- * Checks if the current token matches any of the given types.
- *
- * @param t_count the number of types to check
- * @param ... the types to check
- * @return true if the current token matches one of the given types, false otherwise
- */
 static bool check_n(parser_t *parser, int t_count, ...)
 {
     if (is_atEnd(parser))
@@ -1105,30 +848,16 @@ static bool check_n(parser_t *parser, int t_count, ...)
     return false;
 }
 
-/**
- * Consumes the current token if it matches the given type and advances the
- * parser to the next token.
- *
- * @param type the type of token to check
- * @param message the error message to display if the token does not match
- * @return the consumed token if it matches the given type, or else exit with
- *         an error message
- */
 static token_t consume(parser_t *parser, tk_type type, const char *message)
 {
     if (check(parser, type))
     {
-        // If the token matches the given type, advance the parser and return
-        // the consumed token
         token_t token = next(parser);
         return token;
     }
     else if (message != NULL)
-        // If there is an error message, print it to the standard error stream
-        // with the line and column of the error
         p_error(message, peek(parser).line, peek(parser).column);
     else
-        // If there is no error message, use a default error message
         p_error("Unexpected token", peek(parser).line, peek(parser).column);
 
     if (global_errorHandler)
@@ -1144,40 +873,17 @@ static token_t consume(parser_t *parser, tk_type type, const char *message)
     exit(EXIT_FAILURE);
 }
 
-/**
- * Advances the parser to the next token.
- *
- * This function increments the current position of the parser
- * to point to the next token, if the end of the token stream
- * has not been reached.
- */
 static void advance(parser_t *parser)
 {
-    if (!is_atEnd(parser)) // Check if there are more tokens to process
-        parser->current++; // Move to the next token
+    if (!is_atEnd(parser))
+        parser->current++;
 }
 
-/**
- * Advances the parser by a given number of steps. This is used to skip over
- * tokens that are not of interest when parsing.
- * @param steps the number of steps to advance the parser
- **/
 static void skip(parser_t *parser, int steps)
 {
     parser->current += steps;
 }
 
-/**
- * Consumes tokens if they exist in the given types.
- *
- * This function checks whether the current token matches any of the given
- * types and advances the parser if a match is found. It continues to consume
- * tokens as long as they match one of the specified types.
- *
- * @param t_count The number of token types to check against.
- * @param ... Variadic arguments representing the token types to match.
- * @return true if any tokens were consumed, false otherwise.
- */
 static bool consume_ifExist(parser_t *parser, int t_count, ...)
 {
     bool consumed = false;
@@ -1188,13 +894,12 @@ static bool consume_ifExist(parser_t *parser, int t_count, ...)
     {
         bool matched = false;
 
-        // Iterate over each token type to check for a match
         for (int i = 0; i < t_count; ++i)
         {
             tk_type type = va_arg(args, tk_type);
             if (check(parser, type))
             {
-                advance(parser); // Advance parser if a match is found
+                advance(parser);
                 consumed = true;
                 matched = true;
                 break;
@@ -1202,9 +907,8 @@ static bool consume_ifExist(parser_t *parser, int t_count, ...)
         }
 
         if (!matched)
-            break; // Exit loop if no types matched
+            break;
 
-        // Reset the va_list to begin checking from the start again
         va_end(args);
         va_start(args, t_count);
     }
@@ -1213,44 +917,20 @@ static bool consume_ifExist(parser_t *parser, int t_count, ...)
     return consumed;
 }
 
-/**
- * Updates the parser's current position to match the given token's position.
- *
- * This function sets the current line and column of the parser's compiler
- * to the line and column positions of the provided token.
- *
- * @param parser The parser whose position is to be updated.
- * @param token The token whose position is used to update the parser's position.
- */
 void set_pos(parser_t *parser, token_t token)
 {
-    // Set the current line of the compiler to the token's line
     parser->comp->current_line = token.line;
 
-    // Set the current column of the compiler to the token's column
     parser->comp->current_col = token.column;
 }
 
-/**
- * Checks if there is a line break between the previous and current token.
- *
- * This function compares the line numbers of the previous token and the
- * current token to determine if there is a line break between them.
- *
- * @return true if there is a line break, false otherwise.
- */
 static bool is_lineBreak(parser_t *parser)
 {
-    // Compare line numbers of previous and current tokens
     return previous(parser).line < peek(parser).line || peek(parser).type == TK_EOF;
 }
 
 bool need_delimiter(parser_t *parser)
 {
-    // If there's no explicit semicolon,
-    // and it's not a line break,
-    // and the next token is not a closing brace,
-    // then we should insert a semicolon.
     if (!consume_ifExist(parser, 1, TK_SEMICOLON))
     {
         if (!is_lineBreak(parser))
@@ -1260,31 +940,21 @@ bool need_delimiter(parser_t *parser)
         }
     }
 
-    // If we get here, we don't need a delimiter
     return false;
 }
-/**
- * Checks if the current token is an assignment operator.
- * The function verifies if the parser is in a store state and if the current
- * token matches any of the assignment operators. If so, it resets the store
- * state and returns true.
- *
- * @return true if the current token is an assignment operator, false otherwise
- */
 static bool is_assign(parser_t *parser)
 {
-    // Check if the parser is in a store state and the current token is an assignment operator
     if (parser->is_store &&
         (parser->force_store ||
          check_n(parser, 11, TK_ASSIGN, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_DIV_ASSIGN, TK_MULT_ASSIGN,
                  TK_MOD_ASSIGN, TK_BITOR_ASSIGN, TK_XOR_ASSIGN, TK_BITAND_ASSIGN, TK_INCR, TK_DECR)))
     {
-        parser->is_store = false; // Reset the store state
+        parser->is_store = false;
         parser->force_store = false;
-        return true; // Return true as the token is an assignment operator
+        return true;
     }
 
-    return false; // Return false if no assignment operator is found
+    return false;
 }
 
 static bool has_accessContinuation(parser_t *parser, token_t token)
@@ -1293,16 +963,6 @@ static bool has_accessContinuation(parser_t *parser, token_t token)
            check_n(parser, 3, TK_DOT, TK_LBRACKET, TK_LPAREN);
 }
 
-/**
- * Marks a range of tokens as skipped tokens.
- *
- * This function iterates over a range of tokens and sets the skip flag
- * to true for each of them. This is used to skip over tokens that are not
- * of interest when parsing.
- *
- * @param start the starting index of the range of tokens to be marked
- * @param end the ending index of the range of tokens to be marked
- */
 void mark_tokens(parser_t *parser, int start, int end)
 {
     // Iterate over the range of tokens and mark them as skipped
@@ -1346,25 +1006,15 @@ static void skip_letDecl(parser_t *parser)
     }
 }
 
-/**
- * Initializes the parser with the provided tokens.
- * Allocates memory for the parser structure and sets default values
- * for various parser state variables.
- *
- * @param tokens the array of tokens to be parsed
- */
 parser_t *init_parser(compiler_t *comp, token_t *tokens, ParserMode mode)
 {
-    // Allocate memory for the parser structure
     parser_t *parser = (parser_t *)malloc(sizeof(parser_t));
 
-    // Initialize the parser's tokens with the provided tokens
     parser->tokens = tokens;
 
-    // Set initial states for parser flags
-    parser->access = false;   // Indicates whether access is allowed
-    parser->current = 0;      // Start at the first token
-    parser->is_store = false; // Store flag set to false
+    parser->access = false;
+    parser->current = 0;
+    parser->is_store = false;
     parser->force_store = false;
     parser->is_return = false;
     parser->has_walrus = false;
@@ -1372,11 +1022,9 @@ parser_t *init_parser(compiler_t *comp, token_t *tokens, ParserMode mode)
     parser->fun_name = NULL;
     parser->object_name = NULL;
 
-    // Initialize the compiler associated with the parser
     parser->comp = comp;
     set_errorSource(comp ? comp->source_name : NULL);
 
-    // Set the parsing mode
     parser->mode = mode;
     if (mode == MODE_REPL)
         parser->comp->is_repl = true;
@@ -1384,11 +1032,6 @@ parser_t *init_parser(compiler_t *comp, token_t *tokens, ParserMode mode)
     return parser;
 }
 
-/**
- * Parses the provided tokens according to the language's grammar rules.
- * Generates bytecode by calling the emit() function from the compiler module.
- * @param parser the parser structure containing the tokens to be parsed
- */
 void parse(parser_t *parser)
 {
     if (parser->mode == MODE_REPL)
@@ -1403,7 +1046,6 @@ void parse(parser_t *parser)
         program(parser);
     }
 
-    // Emit HALT bytecode to indicate the end of the program
     emit(parser->comp, OP_HALT);
 
     // Runtime diagnostics need the global instruction metadata even when
@@ -1411,14 +1053,6 @@ void parse(parser_t *parser)
     ht_put(parser->comp->instrs, "<global>", parser->comp->current->instrs);
 }
 
-/**
- * Parses all declarations within the program.
- * This function performs two passes over the tokens:
- * 1. Hoists functions and collects globals.
- * 2. Parses remaining statements while skipping processed tokens.
- *
- * @param parser The parser structure containing the tokens to be parsed.
- */
 static void declarations(parser_t *parser)
 {
     int depth = 0;
@@ -1439,65 +1073,47 @@ static void declarations(parser_t *parser)
             continue;
         }
 
-        // Hoist function declarations
         if (match(parser, TK_FUN) && !match(parser, TK_LPAREN))
         {
-            int start = parser->current - 1; // Start at 'fun'
-            func_decl(parser);               // Parse and hoist function
+            int start = parser->current - 1;
+            func_decl(parser);
             int end = parser->current;
-            mark_tokens(parser, start, end); // Mark tokens as processed
+            mark_tokens(parser, start, end);
         }
-        // Skip global variable declarations to preserve execution order
         else if (match(parser, TK_LET) || match(parser, TK_CONST))
             skip_letDecl(parser);
         else
-            next(parser); // Move to the next token
+            next(parser);
     }
 
-    // Reset parser position for second pass
     parser->current = 0;
 
     // Second pass: Parse remaining code (skipping processed tokens)
     while (!is_atEnd(parser))
     {
-        // Skip tokens marked as processed
         if (parser->tokens[parser->current].skip)
             next(parser);
         else
             // statement(parser); // Parse remaining statements
-            declaration(parser); // Parse remaining declarations/statements in order
+            declaration(parser);
     }
 }
 
-/**
- * Program -> Declaration* EOF
- * Parses the entire program consisting of declarations and a terminating EOF.
- */
 static void program(parser_t *parser)
 {
-    // Parse the program
     declarations(parser);
 }
 
-/**
- * Parses a declaration, which can be either a variable declaration,
- * a function declaration, or a statement.
- * Declaration -> VarDecl | FunDecl | Statement
- * @param parser The parser structure containing the tokens to be parsed.
- */
 static void declaration(parser_t *parser)
 {
-    // Check if the declaration is a variable declaration using 'let'
     if (match(parser, TK_LET))
-        var_decl(parser, false); // Parse the variable declaration
+        var_decl(parser, false);
     else if (match(parser, TK_CONST))
         var_decl(parser, true);
-    // Check if the declaration is a function declaration using 'fun'
     else if (match(parser, TK_FUN))
         func_decl(parser);
     else if (match(parser, TK_CLASS))
         class_decl(parser);
-    // If not a variable or function declaration, parse as a statement
     else
     {
         statement(parser); // Parse as a statement
@@ -1505,10 +1121,6 @@ static void declaration(parser_t *parser)
     }
 }
 
-/**
- * var_decl -> "let" IDENT EQUAL expr
- * A variable declaration is a statement that declares a variable.
- */
 static void var_decl(parser_t *parser, bool is_const)
 {
     do
@@ -1518,27 +1130,20 @@ static void var_decl(parser_t *parser, bool is_const)
     consume_ifExist(parser, 1, TK_SEMICOLON);
 }
 
-/**
- * variable -> IDENT
- * A variable is a name that can be used to refer to a value.
- * It is used to parse a variable in a variable declaration.
- */
 static void variable(parser_t *parser, bool is_const)
 {
     int index = -1;
 
-    // Parse the variable name
     token_t token = consume(parser, TK_ID, "Expect variable name");
     char *name = token_value(token);
     bool reserved_local_function = false;
 
-    // parser->comp->name = strdup(name); // Store the variable name;
+    // parser->comp->name = strdup(name);
 
-    // Check if the variable is being assigned a value
     if (match(parser, TK_ASSIGN))
     {
-        char *prev_fun = parser->fun_name;    // Store the pending function name
-        char *prev_obj = parser->object_name; // Store the pending object name
+        char *prev_fun = parser->fun_name;
+        char *prev_obj = parser->object_name;
         bool function_literal = is_functionLiteral(parser, parser->current);
 
         if (function_literal && is_localScope(parser->comp))
@@ -1570,18 +1175,10 @@ static void variable(parser_t *parser, bool is_const)
     else
         emit(parser->comp, OP_PUSH_NIL);
 
-    // Store the variable
     if (!reserved_local_function)
         add_variableConst(parser->comp, name, is_const);
 }
 
-/**
- * param_list -> IDENT ( COMMA IDENT )* ( COMMA )?
- *
- * param_list parses a parameter list for a function declaration.
- * It returns a list of strings, where each string is the name of a parameter.
- * @returns a list of strings, where each string is the name of a parameter
- */
 static list_t *param_list(parser_t *parser)
 {
     int size = 0;
@@ -1590,7 +1187,6 @@ static list_t *param_list(parser_t *parser)
 
     set_pos(parser, previous(parser));
 
-    // parse the parameter list until the right parenthesis is encountered
     if (!check(parser, TK_RPAREN))
     {
         do
@@ -1598,20 +1194,16 @@ static list_t *param_list(parser_t *parser)
             if (size >= 32)
                 p_error("Can't have more than 32 parameters.", peek(parser).line, peek(parser).column);
 
-            // parse the parameter name
             name = consume(parser, TK_ID, "Expect parameter name.");
             list_add(params, new_string(token_value(name)));
 
-            // parse the default value if it is present
             if (match(parser, TK_ASSIGN))
                 expr(parser);
             else
                 emit(parser->comp, OP_PUSH_NIL);
 
-            // increment the parameter counter
             size++;
 
-            // continue parsing the parameter list if there is a comma
         } while (match(parser, TK_COMMA));
     }
 
@@ -1856,18 +1448,13 @@ static void class_decl(parser_t *parser)
     emit_8u(parser->comp, OP_CALL_FUNCTION, "bracketAccess", 2);
     emit(parser->comp, OP_POP);
 }
-/**
- * func_decl -> "fun" IDENT "(" param_list ")" block
- * Parses a function declaration, which is a statement that declares a function.
- * @param parser The parser structure containing the tokens to be parsed.
- */
 static void func_decl(parser_t *parser)
 {
     token_t token = previous(parser);
 
     if (match(parser, TK_ID))
     {
-        token_t id_token = previous(parser); // Capture token for position
+        token_t id_token = previous(parser);
         char *name = token_value(id_token);
 
         if (is_localScope(parser->comp))
@@ -1883,7 +1470,6 @@ static void func_decl(parser_t *parser)
         push_function(parser->comp, name);
         parser->comp->current->param_names = params;
 
-        // Add parameters as locals
         for (int i = 0; i < size; i++)
             add_local(parser->comp, string_get(params, i));
         add_local(parser->comp, "args");
@@ -1939,15 +1525,10 @@ static void func_decl(parser_t *parser)
     consume_ifExist(parser, 1, TK_SEMICOLON);
 }
 
-/**
- * Outputs a debug operation for the parser.
- * Emits the OP_DEBUG operation and consumes an optional semicolon.
- * @param parser The parser object used for parsing.
- */
 static void debug(parser_t *parser)
 {
-    emit(parser->comp, OP_DEBUG);             // Emit the debug operation
-    consume_ifExist(parser, 1, TK_SEMICOLON); // Consume a semicolon if it exists
+    emit(parser->comp, OP_DEBUG);
+    consume_ifExist(parser, 1, TK_SEMICOLON);
 }
 
 static char *import_joinParts(token_t *parts, int count)
@@ -1973,13 +1554,6 @@ static char *import_joinParts(token_t *parts, int count)
     return path;
 }
 
-/**
- * Emits the OP_LOAD_CONST operation with the module path and stores the module name in the constants table.
- * Emits the OP_IMPORT operation to load the module.
- * @param parser The parser object used for parsing.
- * @param parts The array of tokens representing the module path.
- * @param count The number of tokens in the module path.
- */
 
 static void emit_importModule(parser_t *parser, token_t *parts, int count)
 {
@@ -1988,26 +1562,15 @@ static void emit_importModule(parser_t *parser, token_t *parts, int count)
     emit_16u(parser->comp, OP_LOAD_CONST, module_path, module_index);
     emit(parser->comp, OP_IMPORT);
 }
-/**
- * Emits the OP_LOAD_CONST operation with the export name and the alias name.
- * Emits the OP_GET_EXPORT operation to retrieve the export.
- * Adds a new variable to the current scope with the alias name.
- * @param parser The parser object used for parsing.
- * @param exporttok The token containing the name of the export to be retrieved.
- * @param aliastok The token containing the name of the alias for the export.
- */
 
 static void emit_importBinding(parser_t *parser, token_t export_tok, token_t alias_tok)
 {
-    // Get the export name and alias name from the tokens
     char *alias_name = token_value(alias_tok);
     int export_index = store_const(parser->comp, new_value(export_tok));
 
-    // Emit the export name and alias name as constants
     emit_16u(parser->comp, OP_LOAD_CONST, alias_name, export_index);
     emit(parser->comp, OP_GET_EXPORT);
 
-    // Add the alias to the current scope
     store_variable(parser->comp, alias_name);
     free(alias_name);
 }
@@ -2019,20 +1582,6 @@ static void emit_importAlias(parser_t *parser, token_t alias_tok)
     free(alias_name);
 }
 
-/**
- * import_stmt supports:
- * import math
- * import math.*
- * import math.{sin, cos}
- * import math.{sin:s, cos}
- * import math.sin:s
- * import path.to.mod.elem:alias
- *
- * Notes:
- * - Plain import binds the module to its last segment.
- * - `.*` imports all exports into current globals.
- * - Braced/single selectors import selected exports with optional aliases.
- */
 static void import_stmt(parser_t *parser)
 {
     token_t tok = previous(parser); // 'import'
@@ -2129,11 +1678,6 @@ static void import_stmt(parser_t *parser)
     consume_ifExist(parser, 1, TK_SEMICOLON);
 }
 
-/**
- * statement -> block | if_stmt | while_stmt | for_stmt | break_stmt | continue_stmt | return_stmt | expr_state
- * Parses a statement, which is a single expression or a block of expressions.
- * @param parser The parser object used for parsing.
- */
 static void statement(parser_t *parser)
 {
     if (is_destructure_assign(parser))
@@ -2141,18 +1685,17 @@ static void statement(parser_t *parser)
     else if (match(parser, TK_LBRACE))
     {
         // Look ahead to check if it's an object literal (key: value format)
-        int current = parser->current; // Save current position
+        int current = parser->current;
 
         if (match_n(parser, 5, TK_STR, TK_ID, TK_NUM, TK_FALSE, TK_TRUE) && match(parser, TK_COLON))
         {
-            // If we find key-value pattern, reset position and parse as object
             parser->current = current - 1;
             primary(parser);
         }
         else
         {
             // Otherwise, parse as a block
-            parser->current = current; // Restore position
+            parser->current = current;
             block(parser);
         }
     }
@@ -2178,74 +1721,43 @@ static void statement(parser_t *parser)
     // parser->is_return = false;
 }
 
-/**
- * Parses a destructuring assignment statement.
- * Destructuring assignment statements are in the form of [x, y, z] = [a, b, c],
- * where x, y, and z are assigned the values of a, b, and c respectively.
- * @param parser The parser object used for parsing.
- */
 static void destructure_assignStatement(parser_t *parser)
 {
-    // Parse the destructuring assignment statement
-    // List to store the identifiers on the left-hand side of the assignment
     list_t *targets = list_create(sizeof(char *));
-    // Consume the left brace token
     consume(parser, TK_LBRACKET, "Expect '[' to start destructuring assignment.");
-    // Parse the identifiers on the left-hand side of the assignment
     do
     {
-        // Consume the identifier token and store its value in the list
         token_t name_tok = consume(parser, TK_ID, "Expect identifier in destructuring assignment.");
         char *name = token_value(name_tok);
         list_add(targets, &name);
     } while (match(parser, TK_COMMA));
 
-    // Consume the right brace token
     consume(parser, TK_RBRACKET, "Expect ']' after destructuring targets.");
-    // Consume the assignment operator token
     consume(parser, TK_ASSIGN, "Expect '=' after destructuring targets.");
-    // Parse the right-hand side of the assignment
     expr(parser);
 
-    // Get the size of the list
     int size = list_size(targets);
-    // Iterate over the list and create bytecode to assign the values
     for (int i = 0; i < size; i++)
     {
         char *name = *(char **)list_getAt(targets, i);
         int index = store_const(parser->comp, NEW_NUM(i));
 
-        // Duplicate the top of the stack (the value to be assigned)
         emit(parser->comp, OP_DUP_TOP);
-        // Load the constant value at the specified index
         emit_16u(parser->comp, OP_LOAD_CONST, name, index);
-        // Get the item at the specified index from the value
         emit(parser->comp, OP_GET_ITEM);
-        // Store the value in the variable
         store_variable(parser->comp, name);
     }
 
-    // Pop the value from the stack
     emit(parser->comp, OP_POP);
 
-    // Check if a delimiter is needed
     if (need_delimiter(parser))
         p_error("Expected delemiter between statements.", peek(parser).line, peek(parser).column);
 }
 
-/**
- * Executes a block of code by creating a new scope.
- * Parses and processes declarations until a closing brace '}' or end of input is encountered.
- * Pops the scope after processing the block, ensuring proper scope management.
- * Consumes the closing brace token to validate block syntax.
- * @returns nothing
- */
 static void block(parser_t *parser)
 {
-    // Create a new scope for the block
     push_scope(parser->comp);
 
-    // Parse and process declarations until the closing brace or end of input is encountered
     while (!check(parser, TK_RBRACE) && !is_atEnd(parser) && !parser->is_return)
         declaration(parser);
 
@@ -2254,47 +1766,27 @@ static void block(parser_t *parser)
 
     parser->is_return = false;
 
-    // Pop the scope after processing the block
     pop_scope(parser->comp);
 
-    // Consume the closing brace token to validate block syntax
     consume(parser, TK_RBRACE, "Expect '}' after block.");
 }
 
-/**
- * print -> primary
- * Parses a print statement, which is a statement that prints its argument to the console.
- * Emits the OP_PRINT bytecode to print the result of the expression.
- * Consumes the semicolon token to validate the statement syntax.
- * @returns nothing
- */
 static void print(parser_t *parser)
 {
-    primary(parser);                          // Parse the expression to be printed
-    emit(parser->comp, OP_PRINT);             // Emit bytecode to print the result of the expression
-    consume_ifExist(parser, 1, TK_SEMICOLON); // Consume the semicolon token to validate the statement syntax
+    primary(parser);
+    emit(parser->comp, OP_PRINT);
+    consume_ifExist(parser, 1, TK_SEMICOLON);
 }
 
-/**
- * condition -> "(" expr ")" condition?
- *
- * Parses a condition expression, which is an expression enclosed in parentheses.
- * The condition expression is parsed by calling the cond_expr() function.
- * @param parser The parser object used for parsing.
- */
 static void condition(parser_t *parser)
 {
-    bool has_parens = match(parser, TK_LPAREN); // Match and consume '(' if present
+    bool has_parens = match(parser, TK_LPAREN);
 
-    cond_expr(parser); // Your existing function to parse the condition expression
+    cond_expr(parser);
 
     if (has_parens)
         consume(parser, TK_RPAREN, "Expect ')' after condition.");
 }
-/**
- * if_stmt -> "if" "(" expr ")" block ("elif" "(" expr ")" block)* ("else" block)?
- * Parses an if statement with optional elif and else clauses.
- */
 static void if_stmt(parser_t *parser)
 {
     token_t start = peek(parser); // capture for accurate position
@@ -2369,32 +1861,21 @@ static void if_stmt(parser_t *parser)
         patch_jump(parser->comp, end_jumps[i]);
 }
 
-/**
- * while_stmt -> "while" "(" expr ")" block
- * Parses a while loop, which repeatedly executes a block as long as a condition is true.
- * @param parser The parser object used for parsing.
- */
 static void while_stmt(parser_t *parser)
 {
-    // Record the address to jump back to for looping
     int jump = code_size(parser->comp);
 
-    // Capture the starting position of the condition for error reporting
     token_t cond_start = peek(parser);
 
-    // Parse the loop condition
     condition(parser);
 
-    // Set the parser position to the start of the condition
     set_pos(parser, cond_start);
 
     // Emit a conditional jump instruction to exit the loop if the condition is false
     int address = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
 
-    // Push a new loop context onto the stack
     push_loop(parser->comp, jump, false);
 
-    // Check if the loop body is enclosed in braces and parse accordingly
     if (match(parser, TK_LBRACE))
         block(parser);
     else
@@ -2403,15 +1884,10 @@ static void while_stmt(parser_t *parser)
         parser->is_return = false;
     }
 
-    // Pop the loop context and patch the jump address to loop back
     pop_loop(parser->comp, jump);
     patch_jump(parser->comp, address);
 }
 
-/**
- * for_stmt -> "for" "(" IDENT "in" expr ")" block
- * Parses a for-in loop, which iterates over the elements of an iterable.
- */
 static void for_stmt(parser_t *parser)
 {
     bool has_parens = match(parser, TK_LPAREN);
@@ -2458,15 +1934,6 @@ static void for_stmt(parser_t *parser)
     patch_jump(parser->comp, address);
 }
 
-/**
- * break_stmt -> "break"
- * Parses a break statement, which is used to prematurely exit a loop.
- * Emits the OP_POP_ITER bytecode to remove the loop iterator from the stack.
- * If the break statement is inside a for loop, a jump is emitted to the end of
- * the loop. Otherwise, the code will exit the loop and continue executing the
- * code after the loop.
- * @param parser The parser object used for parsing.
- */
 static void break_stmt(parser_t *parser)
 {
     token_t tok = previous(parser); // 'break' token
@@ -2488,12 +1955,6 @@ static void break_stmt(parser_t *parser)
         p_error("Expected delimiter or newline after 'break'.", tok.line, tok.column);
 }
 
-/**
- * continue_stmt -> "continue"
- * Parses a continue statement, which is used to skip the current iteration of a loop.
- * It emits the necessary bytecode to jump to the start of the loop.
- * @param parser The parser object used for parsing.
- */
 static void continue_stmt(parser_t *parser)
 {
     token_t tok = previous(parser); // 'continue' token
@@ -2512,10 +1973,6 @@ static void continue_stmt(parser_t *parser)
         p_error("Expected delemiter or newline after 'continue'.", tok.line, tok.column);
 }
 
-/**
- * return_stmt -> "return [expr]?"
- * Parses a return statement, optionally with a return value.
- */
 static void return_stmt(parser_t *parser)
 {
     token_t tok = previous(parser); // 'return' token
@@ -2530,7 +1987,6 @@ static void return_stmt(parser_t *parser)
     }
     else
     {
-        // Check if return is followed by a newline or semicolon => nil
         if (match(parser, TK_SEMICOLON) || is_lineBreak(parser))
         {
             int index = store_const(parser->comp, NEW_NIL());
@@ -2547,13 +2003,6 @@ static void return_stmt(parser_t *parser)
         p_error("Expected delemiter or newline after return.", tok.line, tok.column);
 }
 
-/**
- * expr_state -> expr
- * Parses an expression statement.
- * An expression statement is an expression followed by a semicolon.
- * The expression is evaluated and the result is discarded.
- * @returns nothing
- */
 static void expr_state(parser_t *parser)
 {
 
@@ -2562,20 +2011,18 @@ static void expr_state(parser_t *parser)
     bool prev_lookUp, is_assign = false;
     int current = parser->current;
 
-    // Check if the expression is enclosed in parentheses
     if (token.type == TK_LPAREN)
     {
-        prev_lookUp = look_up(parser->comp, true); // Set the look_up flag to true to indicate that the expression is enclosed in parentheses
-        primary(parser);                           // Parse the primary expression
-        look_up(parser->comp, prev_lookUp);        // Reset the look_up flag to false after parsing the expression
-        parser->current = current;                 // Reset the current position to its original value
+        prev_lookUp = look_up(parser->comp, true);
+        primary(parser);
+        look_up(parser->comp, prev_lookUp);
+        parser->current = current;
     }
 
     current = parser->current;
 
     prev_lookUp = look_up(parser->comp, true);
 
-    // Check if the expression is an assignment expression
     cond_expr(parser);
     token = peek(parser);
     if (token.line == start_line && token.type >= TK_ASSIGN && token.type <= TK_MOD_ASSIGN)
@@ -2584,15 +2031,13 @@ static void expr_state(parser_t *parser)
 
     parser->current = current;
 
-    expr(parser); // Parse the expression
+    expr(parser);
 
-    // Check if the expression is an assignment expression
-    // If it is, do not emit the POP bytecode
     // The assignment expression is handled separately
     if (!is_assign)
     {
         if (!parser->comp->is_repl)
-            emit(parser->comp, OP_POP); // Emit POP only if not in REPL mode
+            emit(parser->comp, OP_POP);
     }
 
     // Check for statement separation
@@ -2600,31 +2045,15 @@ static void expr_state(parser_t *parser)
         p_error("Expected delemiter between statements.", peek(parser).line, peek(parser).column);
 }
 
-/**
- * expr -> assignment
- * Parses an expression, which is a statement that assigns a value to a variable.
- * The assignment expression can be a simple assignment or a compound assignment
- * like +=, -=, \*=, /=, %=, |=, ^=, or &=.
- * @returns nothing
- */
 static void expr(parser_t *parser)
 {
-    assignment(parser, false); // Parse the assignment expression
+    assignment(parser, false);
 }
 
-/**
- * Initializes a new assign_t structure with the given fields.
- * @param left the first index of left hand side of the assignment
- * @param right the first index of right hand side of the assignment
- * @param op the operator used in the assignment
- * @return a pointer to the newly allocated assign_t structure
- */
 static assign_t *init_assign(int left, int right, tk_type op)
 {
-    // Allocate memory for a new assign_t structure
     assign_t *assign = malloc(sizeof(assign_t));
 
-    // Initialize fields
     assign->left = left;
     assign->right = right;
     assign->op = op;
@@ -2632,13 +2061,6 @@ static assign_t *init_assign(int left, int right, tk_type op)
     return assign;
 }
 
-/**
- * assignment -> condition
- * Parses an assignment expression, which is a statement that assigns a value
- * to a variable. It supports compound assignments like +=, -=, \*=, /=, %=,
- * |=, ^=, and &=.
- * @returns nothing
- */
 static void assignment(parser_t *parser, bool emit_load)
 {
     tk_type op;
@@ -2658,17 +2080,14 @@ static void assignment(parser_t *parser, bool emit_load)
 
         right = parser->current;
 
-        // Push the assignment information to the stack
         push(assigns, init_assign(left, right, op));
 
-        // Parse the right-hand side of the assignment
         cond_expr(parser);
         left = right;
     }
 
     look_up(parser->comp, prev_lookUp);
 
-    // If there was no assignment operator, re-evaluate as a non-assignment
     if (is_empty(assigns))
     {
         parser->current = left;
@@ -2704,7 +2123,6 @@ static void assignment(parser_t *parser, bool emit_load)
                 cond_expr(parser);
             }
 
-            // Evaluate RHS
             parser->current = right;
             char *prev_fun = parser->fun_name;
             char *prev_obj = parser->object_name;
@@ -2718,10 +2136,8 @@ static void assignment(parser_t *parser, bool emit_load)
             parser->fun_name = prev_fun;
             parser->object_name = prev_obj;
 
-            // Emit the bytecode for compound operation (e.g., `+=`)
             if (op != TK_ASSIGN)
             {
-                // Emit the bytecode for the compound assignment
                 switch (op)
                 {
                 case TK_PLUS_ASSIGN:
@@ -2753,7 +2169,7 @@ static void assignment(parser_t *parser, bool emit_load)
                 }
             }
 
-            // Store result to LHS
+
             parser->current = left;
             parser->is_store = true;
             cond_expr(parser);
@@ -2765,20 +2181,10 @@ static void assignment(parser_t *parser, bool emit_load)
             cond_expr(parser);
         }
 
-        // Restore the original parsing position
         parser->current = current;
     }
 }
 
-/**
- * cond_expr -> or_expr ("?" expr ":" expr)?
- *
- * Parse a conditional expression. If the condition is a ternary expression,
- * parse the expression after the '?' and the expression after the ':'. If the
- * condition is not a ternary expression, just parse the expression.
- *
- * @returns nothing
- */
 static void cond_expr(parser_t *parser)
 {
 
@@ -2786,80 +2192,36 @@ static void cond_expr(parser_t *parser)
 
     if (match(parser, TK_QUESTION))
     {
-        /*
-         * Emit a jump if the condition is false. The jump offset is initially
-         * set to 0, and the address of the jump instruction is stored in
-         * then_jump. The jump offset is patched later when the actual address
-         * of the target instruction is known.
-         */
         int then_jump = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
 
         // Sync current token for better runtime error info
         set_pos(parser, peek(parser));
 
-        /*
-         * Parse the expression after the '?'. This is the expression that will
-         * be executed if the condition is true.
-         */
         cond_expr(parser);
 
-        /*
-         * Parse the expression after the ':'. This is the expression that will
-         * be executed if the condition is false.
-         */
         token_t token = consume(parser, TK_COLON, "Expect ':' after '?'");
         int else_jump = emit_16u(parser->comp, OP_JUMP, "", 0);
 
-        /*
-         * Patch the jump offset of the jump instruction stored in then_jump
-         * with the current instruction address. This will cause the jump
-         * instruction to jump to the instruction after the '?' expression.
-         */
         patch_jump(parser->comp, then_jump);
 
-        /*
-         * Parse the expression after the ':'. This is the expression that will
-         * be executed if the condition is false.
-         */
         cond_expr(parser);
 
-        /*
-         * Patch the jump offset of the jump instruction stored in else_jump
-         * with the current instruction address. This will cause the jump
-         * instruction to jump to the instruction after the ':' expression.
-         */
         patch_jump(parser->comp, else_jump);
     }
 }
 
-/**
- * or_expr -> and_expr ("or" and_expr)*
- * Parses a logical OR expression, which is an expression that checks if either
- * of two values are true. The syntax for a logical OR expression is [value1 or
- * value2] or [value1 or value2 or value3].
- * @returns nothing
- */
 static void or_expr(parser_t *parser)
 {
     and_expr(parser);
-    // Parse the "or" expression
     while (match(parser, TK_OR))
     {
         token_t op_token = previous(parser);
         and_expr(parser);
         set_pos(parser, op_token);
-        // Emit bytecode for the logical OR operator
         emit_8u(parser->comp, OP_BINARY, bin_ops[6], 6);
     }
 }
 
-/**
- * and_expr -> in_expr ("and" in_expr)*
- * Parses a logical AND expression, which is an expression that checks if two
- * values are true. The syntax for a logical AND expression is [value1 and value2]
- * or [value1 and value2 and value3].
- * @returns nothing
- */
 static void and_expr(parser_t *parser)
 {
     in_expr(parser);
@@ -2868,17 +2230,10 @@ static void and_expr(parser_t *parser)
         token_t op_token = previous(parser);
         in_expr(parser);
         set_pos(parser, op_token);
-        emit_8u(parser->comp, OP_BINARY, bin_ops[5], 5); // Emit bytecode for the "and" operator
+        emit_8u(parser->comp, OP_BINARY, bin_ops[5], 5);
     }
 }
 
-/**
- * in_expr -> range_expr ( "in" range_expr )*
- * Parses a membership expression, which is an expression that checks if a
- * value is in a list or tuple. The syntax for a membership expression is
- * [value in list] or [value in list if condition].
- * @returns nothing
- */
 static void in_expr(parser_t *parser)
 {
     range_expr(parser);
@@ -2887,18 +2242,10 @@ static void in_expr(parser_t *parser)
         token_t op_token = previous(parser);
         range_expr(parser);
         set_pos(parser, op_token);
-        emit_8u(parser->comp, OP_COMPARE, comp_ops[6], 6); // Emit bytecode for the "in" operator
+        emit_8u(parser->comp, OP_COMPARE, comp_ops[6], 6);
     }
 }
 
-/**
- * range_expr -> bitOr_expr ( ".." bitOr_expr (":" expr?)? )?
- * Parses a range expression, which is a form of slicing a list or tuple.
- * The syntax for a range expression is [start..stop] or [start..stop:step],
- * where start, stop, and step are optional and default to 0, the size of the
- * list, and 1, respectively.
- * @returns nothing
- */
 static void range_expr(parser_t *parser)
 {
     bitOr_expr(parser);
@@ -2907,20 +2254,14 @@ static void range_expr(parser_t *parser)
         token_t op_token = previous(parser);
         bitOr_expr(parser);
         if (match(parser, TK_COLON))
-            expr(parser); // parse the step
+            expr(parser);
         else
             emit(parser->comp, OP_PUSH_NIL);
         set_pos(parser, op_token);
-        // generate the bytecode for the range expression here
         emit(parser->comp, OP_PUSH_RANGE);
     }
 }
 
-/**
- * bitOr_expr -> xor_expr ( "|" xor_expr )*
- * Parses a bitwise OR expression.
- * @returns nothing
- */
 static void bitOr_expr(parser_t *parser)
 {
     xor_expr(parser);
@@ -2929,16 +2270,10 @@ static void bitOr_expr(parser_t *parser)
         token_t op_token = previous(parser);
         xor_expr(parser);
         set_pos(parser, op_token);
-        // generate the bytecode for the binary expression here
         emit_8u(parser->comp, OP_BINARY, bin_ops[9], 9);
     }
 }
 
-/**
- * xor_expr -> bitAnd_expr ( "^" bitAnd_expr )*
- * Parses a bitwise XOR expression.
- * @returns nothing
- */
 static void xor_expr(parser_t *parser)
 {
     bitAnd_expr(parser);
@@ -2947,16 +2282,10 @@ static void xor_expr(parser_t *parser)
         token_t op_token = previous(parser);
         bitAnd_expr(parser);
         set_pos(parser, op_token);
-        // generate the bytecode for the binary expression here
         emit_8u(parser->comp, OP_BINARY, bin_ops[10], 10);
     }
 }
 
-/**
- * bitAnd_expr -> shift_expr ( "&" shift_expr )*
- * Parses a bitwise AND expression.
- * @returns nothing
- */
 static void bitAnd_expr(parser_t *parser)
 {
     shift_expr(parser);
@@ -2965,40 +2294,31 @@ static void bitAnd_expr(parser_t *parser)
         token_t op_token = previous(parser);
         shift_expr(parser);
         set_pos(parser, op_token);
-        // generate the bytecode for the binary expression here
         emit_8u(parser->comp, OP_BINARY, bin_ops[8], 8);
     }
 }
 
-/**
- * shift_expr -> equality_expr (("<<" | ">>" | ">>>") equality_expr)*
- * Parses a shift expression, which allows shifting bits to the left or right.
- * The supported operators are <<, >>, and >>> for left, right, and unsigned right shifts respectively.
- * Emits the corresponding bytecode for the parsed expression.
- */
 static void shift_expr(parser_t *parser)
 {
-    equality_expr(parser); // Parse the initial equality expression
+    equality_expr(parser);
 
-    // Loop to handle multiple shift operations
     while (match_n(parser, 3, TK_LSHIFT, TK_RSHIFT, TK_URSHIFT))
     {
-        tk_type op = previous(parser).type; // Get the shift operator
+        tk_type op = previous(parser).type;
         token_t op_token = previous(parser);
-        equality_expr(parser); // Parse the right-hand side expression
+        equality_expr(parser);
         set_pos(parser, op_token);
 
-        // Emit the bytecode for the corresponding shift operation
         switch (op)
         {
         case TK_LSHIFT:
-            emit_8u(parser->comp, OP_BINARY, bin_ops[11], 11); // Emit bytecode for <<
+            emit_8u(parser->comp, OP_BINARY, bin_ops[11], 11);
             break;
         case TK_RSHIFT:
-            emit_8u(parser->comp, OP_BINARY, bin_ops[12], 12); // Emit bytecode for >>
+            emit_8u(parser->comp, OP_BINARY, bin_ops[12], 12);
             break;
         case TK_URSHIFT:
-            emit_8u(parser->comp, OP_BINARY, bin_ops[13], 13); // Emit bytecode for >>>
+            emit_8u(parser->comp, OP_BINARY, bin_ops[13], 13);
             break;
         default:
             break;
@@ -3006,12 +2326,6 @@ static void shift_expr(parser_t *parser)
     }
 }
 
-/**
- * equality_expr -> compare_expr (("!=" | "==" | "is") compare_expr)*
- * Parses an equality expression, which is an expression that compares two
- * values for equality or inequality. The equality operators are != and ==.
- * Emits the corresponding bytecode for the parsed expression.
- */
 
 static void equality_expr(parser_t *parser)
 {
@@ -3037,19 +2351,10 @@ static void equality_expr(parser_t *parser)
     }
 }
 
-/**
- * compare_expr -> add_expr ((">" | "<" | ">=" | "<=") add_expr)*
- * Parses a comparison expression, which is an expression that compares two
- * values. The comparison operators are >, <, >=, and <=. Emits the corresponding
- * bytecode for the parsed expression.
- * @returns nothing
- */
 static void compare_expr(parser_t *parser)
 {
-    // Parse the first expression (e.g., 'a' in 'a < b < c')
     add_expr(parser);
 
-    // Store the current token position so we can reparse intermediate values
     int last_value_pos = -1;
     int comparison_count = 0;
 
@@ -3072,7 +2377,6 @@ static void compare_expr(parser_t *parser)
         add_expr(parser); // parse right-hand side
         set_pos(parser, op_token);
 
-        // Emit the comparison operator
         int op_index = -1;
         switch (op)
         {
@@ -3099,7 +2403,6 @@ static void compare_expr(parser_t *parser)
         }
         emit_8u(parser->comp, OP_COMPARE, comp_ops[op_index], op_index);
 
-        // If this is not the first comparison, chain it with an AND
         if (comparison_count > 0)
             emit_8u(parser->comp, OP_BINARY, bin_ops[5], 5); // logical AND
 
@@ -3107,14 +2410,6 @@ static void compare_expr(parser_t *parser)
     }
 }
 
-/**
- * add_expr -> mult_expr (("+" | "-") mult_expr)*
- * Parses an addition expression, which is an expression that adds or subtracts
- * two values. The syntax for an addition expression is [value1 + value2] or
- * [value1 - value2]. Emits the corresponding bytecode for the parsed
- * expression.
- * @returns nothing
- */
 static void add_expr(parser_t *parser)
 {
     dot_expr(parser);
@@ -3131,34 +2426,18 @@ static void add_expr(parser_t *parser)
     }
 }
 
-/**
- * dot_expr -> mult_expr ( "." mult_expr )*
- * Parses a dot product expression, which is an expression that takes the dot
- * product of two values. The syntax for a dot product expression is
- * [value1 . value2]. Emits the corresponding bytecode for the parsed
- * expression.
- * @returns nothing
- */
 static void dot_expr(parser_t *parser)
 {
-    mult_expr(parser); // Parse the left-hand side of the dot product
+    mult_expr(parser);
     while (match(parser, TK_DOT_PROD))
     {
-        token_t op = previous(parser);                     // Save the dot product operator
-        mult_expr(parser);                                 // Parse the right-hand side of the dot product
-        set_pos(parser, op);                               // Set the position to the dot product operator
-        emit_8u(parser->comp, OP_BINARY, bin_ops[14], 14); // Emit the bytecode
+        token_t op = previous(parser);
+        mult_expr(parser);
+        set_pos(parser, op);
+        emit_8u(parser->comp, OP_BINARY, bin_ops[14], 14);
     }
 }
 
-/**
- * mult_expr -> exp_expr (("*" | "/" | "%") exp_expr)*
- * Parses a multiplication expression, which is an expression that multiplies,
- * divides, or takes the modulus of two values. The syntax for a multiplication
- * expression is [value1 * value2], [value1 / value2], or [value1 % value2].
- * Emits the corresponding bytecode for the parsed expression.
- * @returns nothing
- */
 static void mult_expr(parser_t *parser)
 {
     exp_expr(parser);
@@ -3170,15 +2449,12 @@ static void mult_expr(parser_t *parser)
         switch (op.type)
         {
         case TK_MULT:
-            // Emit bytecode for the * operator
             emit_8u(parser->comp, OP_BINARY, bin_ops[2], 2);
             break;
         case TK_DIV:
-            // Emit bytecode for the / operator
             emit_8u(parser->comp, OP_BINARY, bin_ops[3], 3);
             break;
         case TK_MOD:
-            // Emit bytecode for the % operator
             emit_8u(parser->comp, OP_BINARY, bin_ops[4], 4);
             break;
         default:
@@ -3187,32 +2463,18 @@ static void mult_expr(parser_t *parser)
     }
 }
 
-/**
- * exp_expr -> unary_expr ("**" exp_expr)*
- * Parses an exponentiation expression. It consists of a unary expression
- * that can be followed by one or more exponentiation operations.
- * The right-hand side of the "**" operator is recursively parsed as another
- * exponentiation expression.
- */
 static void exp_expr(parser_t *parser)
 {
-    unary_expr(parser);             // Parse the base unary expression
-    while (match(parser, TK_POWER)) // Check for the exponentiation operator
+    unary_expr(parser);
+    while (match(parser, TK_POWER))
     {
         token_t op = previous(parser);
-        exp_expr(parser); // Recursively parse the exponent
+        exp_expr(parser);
         set_pos(parser, op);
-        emit_8u(parser->comp, OP_BINARY, bin_ops[7], 7); // Emit bytecode for exponentiation
+        emit_8u(parser->comp, OP_BINARY, bin_ops[7], 7);
     }
 }
 
-/**
- * unary_expr -> ("+" | "-" | "!" | "~" | "#" | "typeof")* ("++" | "--")? member_expr
- * An unary expression is a single value that can be either a primary (e.g.
- * a number, a string) or a single-expression expression (e.g. a variable, a
- * function call). The value of the unary expression is the value of the
- * expression.
- */
 static void unary_expr(parser_t *parser)
 {
     tk_type op;
@@ -3323,7 +2585,7 @@ static void unary_expr(parser_t *parser)
                 parser->current = current;
                 parser->is_store = true;
                 member_expr(parser);
-                advance(parser); // Skip over the ++ or --
+                advance(parser);
 
                 parser->is_store = false;
             }
@@ -3331,13 +2593,6 @@ static void unary_expr(parser_t *parser)
     }
 }
 
-/**
- * slice_expr -> (expr? ":" expr? (":" expr?)?)?
- * Parses a slice expression, which is a form of indexing a list or tuple.
- * The syntax for a slice expression is [start:stop:step], where start, stop, and
- * step are optional and default to 0, the size of the list, and 1, respectively.
- * @returns nothing
- */
 static bool slice_expr(parser_t *parser)
 {
     int index;
@@ -3346,7 +2601,7 @@ static bool slice_expr(parser_t *parser)
 
     if (check(parser, TK_COLON))
     {
-        // Missing start → emit INFINITY so get_slice's isinf() check fires
+        // Missing start: emit INFINITY so get_slice's isinf() check fires.
         emit_16u(parser->comp, OP_LOAD_CONST, "inf", 1);
         is_slice = true;
         next(parser); // consume the leading ':'
@@ -3363,7 +2618,7 @@ static bool slice_expr(parser_t *parser)
         if (!check(parser, TK_RBRACKET) && !check(parser, TK_COLON) && !check(parser, TK_COMMA))
             cond_expr(parser);
         else
-            emit_16u(parser->comp, OP_LOAD_CONST, "inf", 1); // missing end → INFINITY
+            emit_16u(parser->comp, OP_LOAD_CONST, "inf", 1); // missing end: INFINITY
 
         if (match(parser, TK_COLON))
         {
@@ -3387,15 +2642,9 @@ static bool slice_expr(parser_t *parser)
     return is_slice;
 }
 
-/**
- * Parses a member expression, which is an expression that accesses a property
- * or method of an object. A member expression can include property access
- * using a dot (.) or bracket ([]) notation, as well as function calls.
- * @returns nothing
- */
 static void member_expr(parser_t *parser)
 {
-    primary(parser); // Parse the primary expression (e.g., variable or literal)
+    primary(parser);
 
     while (true)
     {
@@ -3407,20 +2656,20 @@ static void member_expr(parser_t *parser)
         set_pos(parser, token);
         if (match(parser, TK_DOT))
         {
-            token_t token = previous(parser); // For position tracking
+            token_t token = previous(parser);
             // Handle property access using dot notation
             token_t name = consume(parser, TK_ID, "Expect property name after '.'");
 
-            int index = store_const(parser->comp, new_value(name)); // Store the property name as a constant
+            int index = store_const(parser->comp, new_value(name));
             emit_16u(parser->comp, OP_LOAD_CONST, token_value(name), index);
 
             bool is_chained_access = parser->is_store && parser->force_store &&
                                      has_accessContinuation(parser, name);
 
             if (!is_chained_access && is_assign(parser))
-                emit(parser->comp, OP_SET_MEMBER); // Emit bytecode to set the property value
+                emit(parser->comp, OP_SET_MEMBER);
             else
-                emit(parser->comp, OP_GET_MEMBER); // Emit bytecode to get the property value
+                emit(parser->comp, OP_GET_MEMBER);
         }
 
 
@@ -3463,7 +2712,7 @@ static void member_expr(parser_t *parser)
                 bool is_chained_access = parser->is_store && parser->force_store &&
                                          has_accessContinuation(parser, previous(parser));
 
-                // Always emit GET_ITEM or SET_ITEM – the slice object is already on the stack
+                // Always emit GET_ITEM or SET_ITEM - the slice object is already on the stack
                 bool assign = !is_chained_access && is_assign(parser);
                 emit(parser->comp, assign ? OP_SET_ITEM : OP_GET_ITEM);
             }
@@ -3562,29 +2811,19 @@ static void member_expr(parser_t *parser)
             }
         }
         else
-            break; // Exit the loop if no member expression is found
+            break;
     }
 }
 
-/**
- * Helper to parse the body of an arrow function
- *
- * This function parses the body of an arrow function, which can be either
- * an expression or a block of code. If the body is a block of code, it
- * emits the bytecode for the block and a final return statement. If the
- * body is an expression, it simply emits the bytecode for the expression.
- *
- * @param parser The parser structure containing the tokens to be parsed.
- */
 static void arrow_func(parser_t *parser)
 {
     if (match(parser, TK_LBRACE))
     {
-        token_t token = previous(parser); // Save position for setting later
+        token_t token = previous(parser);
 
         if (check(parser, TK_RBRACE))
         {
-            set_pos(parser, token); // Set position at '{' for empty arrow block
+            set_pos(parser, token);
 
             if (is_constructor(parser->comp))
                 emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
@@ -3602,7 +2841,7 @@ static void arrow_func(parser_t *parser)
 
         if (!parser->is_return)
         {
-            token_t token = peek(parser); // Set position before final return
+            token_t token = peek(parser);
 
             set_pos(parser, token);
 
@@ -3616,26 +2855,19 @@ static void arrow_func(parser_t *parser)
         }
 
         token_t rbrace = consume(parser, TK_RBRACE, "Expect '}' after function body.");
-        set_pos(parser, rbrace); // Set position at '}'
+        set_pos(parser, rbrace);
     }
     else
     {
-        token_t token = peek(parser); // Likely the token just before expression
+        token_t token = peek(parser);
         expr(parser);
 
-        set_pos(parser, token); // Set position of single-expression arrow function
+        set_pos(parser, token);
         emit(parser->comp, OP_RETURN);
     }
 }
-/**
- * primary -> NUMBER | STRING | "true" | "false" | "nil" | "(" expr ")" |
- * Parses a primary expression, which could be a literal, a grouped expression,
- * a variable, a list literal, or a map literal. Emits the corresponding bytecode
- * for the parsed expression.
- */
 static void primary(parser_t *parser)
 {
-    // Check for literal values (numbers, strings, boolean, nil)
     if (match_n(parser, 7, TK_NUM, TK_STR, TK_TRUE, TK_FALSE, TK_NIL, TK_INF, TK_NAN))
     {
         token_t token = previous(parser);
@@ -3651,7 +2883,6 @@ static void primary(parser_t *parser)
             emit_16u(parser->comp, OP_LOAD_CONST, token_value(token), index);
         }
     }
-    // Check for grouped expressions, arrow functions, or tuple literals
     else if (match(parser, TK_LPAREN))
     {
         int _current = parser->current;
@@ -3660,11 +2891,10 @@ static void primary(parser_t *parser)
         if (is_lookUp(parser->comp))
         {
             // Lookahead mode: scan past the parenthesized expression without emitting
-            // Empty parens () are valid in lookahead — just skip past them
+            // Empty parens () are valid in lookahead - just skip past them
             if (check(parser, TK_RPAREN))
             {
-                next(parser); // consume ')'
-                // Check if it's an arrow function: () -> ...
+                next(parser);
                 if (match(parser, TK_RARROW))
                 {
                     if (match(parser, TK_LBRACE))
@@ -3755,7 +2985,7 @@ static void primary(parser_t *parser)
                 }
                 else
                 {
-                    // Bare () with no arrow → empty tuple
+                    // Bare () with no arrow: empty tuple.
                     emit_16u(parser->comp, OP_PUSH_TUPLE, "", 0);
                 }
                 return;
@@ -3765,7 +2995,7 @@ static void primary(parser_t *parser)
             while (!check(parser, TK_RPAREN))
                 next(parser);
 
-            next(parser); // consume ')'
+            next(parser);
 
             if (match(parser, TK_RARROW))
             {
@@ -3798,12 +3028,11 @@ static void primary(parser_t *parser)
                 //  Grouped expression or tuple literal
                 parser->current = _current;
 
-                // Parse the first element/expression
                 cond_expr(parser);
 
                 if (match(parser, TK_COMMA))
                 {
-                    // At least one comma seen → tuple literal.
+                    // At least one comma means tuple literal.
                     // (expr,)  is a single-element tuple.
                     // (expr, expr, ...) is a multi-element tuple.
                     // A trailing comma after the last element is allowed.
@@ -3820,19 +3049,17 @@ static void primary(parser_t *parser)
                 }
                 else
                 {
-                    //  Grouped expression: (expr) ─
+                    //  Grouped expression: (expr) -
                     consume(parser, TK_RPAREN, "Expect ')' after expression.");
                 }
             }
         }
     }
-    // Check for variable identifiers
     else if (match(parser, TK_SUPER))
     {
         set_pos(parser, previous(parser));
         emit(parser->comp, OP_LOAD_SUPER);
     }
-    // Check for variable identifiers
     else if (match(parser, TK_ID))
     {
         char *name = tk_string(previous(parser));
@@ -3919,7 +3146,6 @@ static void primary(parser_t *parser)
                 load_variable(parser->comp, name);
         }
     }
-    // Check for list literals
     else if (match(parser, TK_LBRACKET))
     {
         int size = 0;
@@ -3950,7 +3176,6 @@ static void primary(parser_t *parser)
             emit_16u(parser->comp, OP_PUSH_LIST, "", size);
         }
     }
-    // Check for map / set / object literals
     else if (match(parser, TK_LBRACE))
     {
         set_pos(parser, previous(parser));
@@ -4011,11 +3236,6 @@ static void primary(parser_t *parser)
                     if (match(parser, TK_LPAREN))
                     {
                         // Method shorthand: { key(params) { body } }
-                        /**
-                         * Parse a function expression as a value in the map.
-                         * The function expression is parsed as a lambda function
-                         * so it can be used as a value in the map.
-                         */
                         list_t *params = param_list(parser);
                         int param_size = list_size(params);
                         consume(parser, TK_RPAREN, "Expect ')' before function body.");
@@ -4131,12 +3351,6 @@ static void primary(parser_t *parser)
 
             return;
         }
-
-        /**
-         * Parses an anonymous function expression.
-         * Anonymous functions are functions that are declared without a name.
-         * They can be used as values in expressions.
-         */
         compiler_t *comp = parser->comp;
         // Function expressions do not have their name set until we parse the parameter list, since the name may be needed for recursion within the function body. So we use a placeholder name for now and set the actual name after parsing the parameters.
         consume(parser, TK_LPAREN, "Expect '(' after function name.");
@@ -4152,15 +3366,13 @@ static void primary(parser_t *parser)
 
         if (method_value)
             add_local(comp, "this");
-        // Add the parameters to the local scope
         for (int i = 0; i < size; i++)
             add_local(comp, string_get(params, i));
-        add_local(comp, "args"); // Add the "args" variable to the local scope
+        add_local(comp, "args");
         add_local(comp, "kw_args");
 
         if (check(parser, TK_RBRACE))
         {
-            // If the anonymous function expression is empty, return nil
             if (is_constructor(comp))
                 emit_8u(comp, OP_LOAD_LOCAL, "this", 0);
             else
@@ -4170,13 +3382,11 @@ static void primary(parser_t *parser)
         }
         else
         {
-            // Parse the function body
             while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
                 declaration(parser);
 
             if (!parser->is_return)
             {
-                // If the anonymous function expression has a return statement
                 if (is_constructor(comp))
                     emit_8u(comp, OP_LOAD_LOCAL, "this", 0);
                 else
@@ -4186,7 +3396,7 @@ static void primary(parser_t *parser)
             }
         }
 
-        pop_function(comp, size); // Pop the function from the stack
+        pop_function(comp, size);
         parser->is_return = false;
         parser->object_member = method_value;
 
@@ -4196,15 +3406,8 @@ static void primary(parser_t *parser)
         p_error("Expect expression.", previous(parser).line, previous(parser).column);
 }
 
-/**
- * Frees the memory allocated for the parser.
- * This function releases all resources held by the parser, including tokens,
- * the associated compiler, and the parser structure itself.
- *
- * @param parser the parser object to free
- */
 void free_parser(parser_t *parser)
 {
-    free(parser->tokens); // Free the memory allocated for tokens
-    free(parser);         // Free the parser structure itself
+    free(parser->tokens);
+    free(parser);
 }

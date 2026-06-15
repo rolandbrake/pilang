@@ -607,32 +607,22 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
 }
 
 /**
- * Resets an existing virtual machine to run new code.
- *
- * This function reinitializes the VM's execution state (PC, stack, etc.)
- * and loads new bytecode from a compiler. It intentionally preserves the
- * global variables table, allowing state to persist between script runs.
- *
- * @param vm The virtual machine instance to reset.
- * @param comp The compiler containing the new code to load.
+ * Reuse an existing VM for new bytecode while preserving globals.
  */
 void vm_reset(vm_t *vm, compiler_t *comp)
 {
-    // Reset program counter, stack pointer, and base pointer to 0
     vm->pc = 0;
     vm->sp = 0;
     vm->bp = 0;
     vm->ip = 0;
 
-    // Set the code, constants, and names from the compiler to the VM
     vm->code = comp->code;
     vm->constants = comp->constants;
     vm->names = comp->names;
     vm->instrs = comp->instrs;
     vm->current_instr = NULL;
 
-    // Note: vm->globals is NOT reset. This is intentional to allow
-    // persistence of global state between script executions in the shell.
+    /* Preserve vm->globals so shell state survives resets. */
 
     vm->iter_sp = -1;
     vm->comp_sp = 0;
@@ -653,30 +643,19 @@ void vm_reset(vm_t *vm, compiler_t *comp)
 }
 
 /**
- * Adds an object to the VM's object list.
- *
- * This function takes in a newly allocated object and adds it to the
- * front of the list of objects in the virtual machine. It returns the
- * newly added object.
- *
- * @param vm The virtual machine instance.
- * @param obj The object to add to the object list.
- * @return The newly added object.
+ * Add a newly created object to the VM's GC tracking list.
  */
 inline Object *add_obj(vm_t *vm, Object *obj)
 {
     if (obj->in_gcList)
-        return obj; // Already in the list, skip
+        return obj;
 
-    // Mark as added
     obj->in_gcList = true;
+    obj->gc_color = GC_WHITE;
 
-    obj->gc_color = GC_WHITE; // New objects start as white
-
-    // Add to the front of the list
     obj->next = vm->objects;
     vm->objects = obj;
-    vm->counter++; // Track new allocations (GC trigger is allocation-driven).
+    vm->counter++;
     vm->obj_count++;
 
     return obj;
@@ -744,16 +723,7 @@ static inline int count_objs(vm_t *vm)
 #endif
 
 /**
- * Reports a virtual machine error with a specified message.
- *
- * This function outputs an error message to the standard error stream,
- * indicating a critical error in the virtual machine operation. It attempts
- * to provide context by displaying the line number and function name where
- * the error occurred, if available. The program will terminate immediately
- * after displaying the error message.
- *
- * @param vm The virtual machine instance containing execution information.
- * @param message The error message to be displayed.
+ * Report a runtime error and terminate execution.
  */
 
 void vm_error(vm_t *vm, const char *message)
@@ -800,14 +770,7 @@ void vm_error(vm_t *vm, const char *message)
 }
 
 /**
- * Reports a virtual machine error with a formatted message.
- *
- * This function constructs a formatted error message using a variable
- * argument list and passes it to the vm_error function for reporting.
- *
- * @param vm The virtual machine instance containing execution information.
- * @param fmt The format string for the error message.
- * @param ... The variable arguments to be formatted into the message.
+ * Format and report a runtime error.
  */
 #include <stdarg.h>
 
@@ -863,13 +826,7 @@ void vm_errorf(vm_t *vm, const char *fmt, ...)
 }
 
 /**
- * Pops a value from the stack and returns it.
- *
- * This function retrieves the top element from the stack and
- * decrements the stack pointer. If the stack is empty, it will
- * raise an error.
- *
- * @return A Value object representing the popped value.
+ * Pop the top value from the VM stack.
  */
 static inline Value pop_stack(vm_t *vm)
 {
@@ -880,13 +837,7 @@ static inline Value pop_stack(vm_t *vm)
 }
 
 /**
- * Pushes a value onto the stack.
- *
- * This function adds a new value to the top of the stack and increments the
- * stack pointer. If the stack is full, it will not push the value and instead
- * raise an error.
- *
- * @param value The value to be pushed onto the stack.
+ * Push a value onto the VM stack.
  */
 static inline void push_stack(vm_t *vm, Value value)
 {
@@ -897,12 +848,7 @@ static inline void push_stack(vm_t *vm, Value value)
 }
 
 /**
- * Peeks at the top element on the stack without modifying the stack pointer.
- *
- * This function returns the top element from the stack without modifying the
- * stack pointer. If the stack is empty, it will raise an error.
- *
- * @return A Value object representing the top value on the stack.
+ * Return the top VM stack value without popping it.
  */
 static inline Value peek_stack(vm_t *vm)
 {
@@ -934,12 +880,7 @@ static Value bind_nativeMethod(Object *instance, NativeMethod *method)
 }
 
 /**
- * Checks if the stack is empty relative to the current base pointer.
- *
- * This function compares the stack pointer to the base pointer. If the stack
- * pointer is equal to the base pointer, it means that the stack is empty.
- *
- * @return true if the stack is empty, false otherwise
+ * True if no values exist above the current base pointer.
  */
 static bool stack_isEmpty(vm_t *vm)
 {
@@ -947,11 +888,7 @@ static bool stack_isEmpty(vm_t *vm)
 }
 
 /**
- * Refreshes the metadata of a list.
- *
- * This function iterates over the elements of a list and determines if it is a numeric list, a matrix list, or neither. It then updates the metadata of the list accordingly.
- *
- * @param plist The list to refresh the metadata of.
+ * Refresh list metadata flags for numeric/matrix optimizations.
  */
 static void refresh_listMeta(PiList *plist)
 {
@@ -1020,28 +957,16 @@ static void refresh_listMeta(PiList *plist)
 }
 
 /**
- * Extends a list with elements from an iterable object.
- *
- * This function takes a list and an iterable object as arguments. It iterates over
- * the elements of the iterable object and adds them to the end of the list.
- *
- * @param vm The virtual machine instance.
- * @param plist The list to extend with elements from the iterable object.
- * @param iterable The iterable object to extend the list with.
+ * Append all values from an iterable into the target list.
  */
 static void list_extendFromIterable(vm_t *vm, PiList *plist, Value iterable)
 {
-    // Check if the value is an iterable object
     if (!IS_OBJ(iterable) || !is_iterable(AS_OBJ(iterable)))
         vm_error(vm, "Spread expects an iterable value.");
 
-    // Get the iterable object
     Object *iter = AS_OBJ(iterable);
-
-    // Reset the iterator
     iter_reset(iter);
 
-    // Iterate over the elements of the iterable object and add them to the list
     while (iter_hasNext(iter))
     {
         Value value = iter_next(iter);
@@ -1052,15 +977,7 @@ static void list_extendFromIterable(vm_t *vm, PiList *plist, Value iterable)
 }
 
 /**
- * Finalizes a map literal by adding methods to its prototype chain.
- *
- * This function takes a map literal and adds methods to its prototype chain. It
- * iterates over the key-value pairs of the map literal and checks if the value is
- * a function. If the value is a function, it sets the `is_method` property of the
- * function to true and sets the `owner` property of the function to the map literal.
- *
- * @param vm The virtual machine instance.
- * @param map The map literal to finalize.
+ * Mark function values found in a map literal as methods and attach the map prototype.
  */
 static void finalize_mapLiteral(vm_t *vm, PiMap *map)
 {
@@ -1093,16 +1010,7 @@ static void finalize_mapLiteral(vm_t *vm, PiMap *map)
 }
 
 /**
- * Extends a map from another map.
- *
- * This function extends a map by copying key-value pairs from another map.
- * The source map is iterated over and each key-value pair is added to the target map.
- * If the source map contains any objects, they are added to the virtual machine's object
- * graph.
- *
- * @param vm The virtual machine instance.
- * @param target The map to extend.
- * @param source The map to copy key-value pairs from.
+ * Copy entries from source map into target map, preserving object references.
  */
 static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
 {
@@ -1134,18 +1042,7 @@ static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
 }
 
 /**
- * Calls a function with a list of arguments.
- *
- * This function calls a function with a list of arguments. If the function is a user-defined
- * function, it is called with the given arguments. If the function is a native function, it
- * is called with the given arguments.
- *
- * @param vm The virtual machine instance.
- * @param callee The function to call.
- * @param arg_list The list of arguments to pass to the function.
- * @param kw_args The named arguments to pass to the function.
- * @param has_named Whether the argument list contains named arguments.
- * @return The return value of the function.
+ * Attempt an object instance call via its `call` method.
  */
 
 static bool object_instanceCall(vm_t *vm, PiMap *map, size_t argc, Value *args, Value kw_args, Value *result)
@@ -1217,14 +1114,7 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
 }
 
 /**
- * Pushes a frame onto the stack.
- *
- * This function increments the frame stack pointer and assigns the
- * given frame to the frame stack at the new index. If the frame
- * stack is full, it will raise an error.
- *
- * @param vm The virtual machine instance.
- * @param frame The frame to push onto the stack.
+ * Push a VM frame onto the call stack.
  */
 void push_frame(vm_t *vm, Frame *frame)
 {
@@ -1235,12 +1125,7 @@ void push_frame(vm_t *vm, Frame *frame)
 }
 
 /**
- * Pops a frame from the stack.
- *
- * This function retrieves the top element from the stack and decrements the
- * frame stack pointer. If the stack is empty, it will raise an error.
- *
- * @return A Frame object representing the popped frame.
+ * Pop a frame from the call stack.
  */
 Frame *pop_frame(vm_t *vm)
 {
@@ -1292,15 +1177,7 @@ static inline int _read_short(uint8_t *code, int pc)
 }
 
 /**
- * Checks if the given function uses an argument slot.
- *
- * This function checks the bytecode of the given function to see if it uses the
- * given argument slot. It checks for the OP_LOAD_LOCAL and OP_STORE_LOCAL
- * instructions and sees if the argument slot matches the given slot.
- *
- * @param body The function's bytecode
- * @param args_slot The argument slot to check
- * @return true if the function uses the argument slot, false otherwise
+ * Scan function bytecode for local access of a specific argument slot.
  */
 static bool fun_scanSlot(ObjCode *body, uint8_t args_slot)
 {
@@ -1326,15 +1203,7 @@ static bool fun_scanSlot(ObjCode *body, uint8_t args_slot)
 }
 
 /**
- * Captures an upvalue from the given index in the stack.
- *
- * This function iterates through the linked list of open upvalues and finds
- * the upvalue with the given index. If the upvalue does not exist, it
- * creates a new upvalue and appends it to the linked list.
- *
- * @param vm The virtual machine instance.
- * @param index The index of the upvalue to capture.
- * @return A pointer to the captured upvalue.
+ * Capture or reuse an open upvalue for a stack slot.
  */
 static UpValue *capture_upvalue(vm_t *vm, int index)
 {

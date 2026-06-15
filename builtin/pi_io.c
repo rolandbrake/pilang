@@ -9,27 +9,15 @@
 #include "pi_builtin.h"
 #include "../pi_func.h"
 
-/**
- * @brief Appends a string to the given buffer.
- *
- * This function appends a string to the given buffer. It takes care to not
- * overflow the buffer. If the buffer is full, it does nothing.
- *
- * @param buffer The buffer to append to.
- * @param offset A pointer to the offset of the buffer.
- * @param text The string to append.
- */
 static void append(char *buffer, int *offset, const char *text)
 {
     int remaining = BUFFER_SIZE - *offset - 1;
     if (remaining <= 0)
         return;
 
-    // Calculate how much of the string can be written into the buffer
     int written = snprintf(buffer + *offset, remaining, "%s", text);
     if (written > 0)
     {
-        // Update the offset to reflect the amount of characters written
         if (written >= remaining)
             *offset = BUFFER_SIZE - 1;
         else
@@ -37,28 +25,13 @@ static void append(char *buffer, int *offset, const char *text)
     }
 }
 
-/**
- * @brief Appends a single character to the given buffer.
- *
- * This function appends a single character to the given buffer. It takes
- * care to not overflow the buffer. If the buffer is full, it does
- * nothing.
- *
- * @param buffer The buffer to append to.
- * @param offset A pointer to the offset of the buffer.
- * @param c The character to append.
- */
 static void append_char(char *buffer, int *offset, char c)
 {
-    // Check if the buffer is full
     if (*offset >= BUFFER_SIZE - 1)
         return;
 
-    // Append the character
     buffer[*offset] = c;
     (*offset)++;
-
-    // Null terminate the buffer
     buffer[*offset] = '\0';
 }
 
@@ -180,6 +153,7 @@ static char *display_tupleString(vm_t *vm, PiTuple *tuple)
         free(text);
     }
 
+    // Keep Python-style single-item tuple output: (value,)
     if (size == 1)
         builder_append(&builder, ",");
 
@@ -211,10 +185,10 @@ static char *display_setString(vm_t *vm, PiSet *set)
     return builder_finish(&builder);
 }
 
-
-
 char *pi_displayString(vm_t *vm, Value value)
 {
+    // Instances can customize their printed representation by defining format().
+    // Returning the same instance avoids infinite recursion.
     if (IS_MAP(value) && AS_MAP(value)->is_instance)
     {
         Value formatted = vm_callMethodNoArgs(vm, value, "format");
@@ -266,6 +240,8 @@ static void format_text(vm_t *vm, int argc, Value *argv, char *out)
                 j++;
             }
 
+            // Accept and skip a reserved "{index:...}" format section.
+            // The current console output ignores style/color metadata.
             if (fmt[j] == ':')
             {
                 j++;
@@ -302,19 +278,6 @@ static void format_text(vm_t *vm, int argc, Value *argv, char *out)
     }
 }
 
-/**
- * @brief Prints a string on the screen.
- *
- * This function takes one or three arguments: the text to be printed, and
- * optionally the x and y coordinates of the text position, and the text
- * color index. The text color index is wrapped within 32. An error is
- * raised if less than one argument is provided.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (1 to 3).
- * @param argv The arguments: text (string), x (integer, optional), y (integer, optional), and text_color (integer, optional).
- * @return A nil value indicating completion.
- */
 Value pi_print(vm_t *vm, int argc, Value *argv)
 {
     char *text;
@@ -333,19 +296,6 @@ Value pi_print(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Prints a string on the screen followed by a newline character.
- *
- * This function takes one or four arguments: the text to be printed, and
- * optionally the x and y coordinates of the text position, and the text
- * color index. The text color index is wrapped within 32. An error is
- * raised if less than one argument is provided.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (1 to 4).
- * @param argv The arguments: text (string), x (integer, optional), y (integer, optional), and text_color (integer, optional).
- * @return A nil value indicating completion.
- */
 Value pi_println(vm_t *vm, int argc, Value *argv)
 {
     pi_print(vm, argc, argv);
@@ -355,26 +305,6 @@ Value pi_println(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Prints a formatted string on the screen.
- *
- * This function takes one or more arguments: the format string, and
- * optionally any number of values to be formatted into the string.
- * The format string is expected to contain placeholders in the form of
- * {index:color} where index is the 0-based index of the value to be
- * formatted, and color is the text color index to use for the formatted
- * value.
- *
- * The format string is also expected to contain newline characters (\n) which
- * will move the cursor to the next line.
- *
- * The function is case-insensitive.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (1 to N).
- * @param argv The arguments: format (string), and optionally values to be formatted.
- * @return A nil value indicating completion.
- */
 Value pi_printf(vm_t *vm, int argc, Value *argv)
 {
     char out[BUFFER_SIZE];
@@ -388,21 +318,6 @@ Value pi_printf(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Prints a message to the console.
- *
- * This function takes a message as a string and prints it to the console.
- * It also takes an optional flag string that specifies the type of log message:
- *   - "e" for error log messages
- *   - "w" for warning log messages
- *
- * If no flag is provided, the message is simply printed to the console.
- *
- * @param vm The virtual machine instance.
- * @param argc The argument count; expects at least 1 argument.
- * @param argv The argument values; expects the first argument to be a string.
- * @return A nil value indicating completion.
- */
 Value pi_log(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1)
@@ -415,28 +330,17 @@ Value pi_log(vm_t *vm, int argc, Value *argv)
     if (argc >= 2 && IS_STRING(argv[1]))
         flag = AS_CSTRING(argv[1]);
 
-    // Error log message
     if (strcmp(flag, "e") == 0)
         printf(ANSI_RED "%s" ANSI_RESET "\n", msg);
-    // Warning log message
     else if (strcmp(flag, "w") == 0)
         printf(ANSI_YELLOW "%s" ANSI_RESET "\n", msg);
-    // Normal log message
     else
         printf("%s\n", msg);
-    free(msg);
 
+    free(msg);
     return NEW_NIL();
 }
 
-/**
- * @brief Prompts the user for input and returns it as a string.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments (should be 1).
- * @param argv Arguments: [prompt string]
- * @return The input line as a string.
- */
 Value pi_input(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
@@ -450,7 +354,6 @@ Value pi_input(vm_t *vm, int argc, Value *argv)
     if (!fgets(buffer, BUFFER_SIZE, stdin))
         vm_error(vm, "[input] Failed to read input.");
 
-    // Remove trailing newline if exists
     size_t len = strlen(buffer);
     if (len > 0 && buffer[len - 1] == '\n')
         buffer[len - 1] = '\0';

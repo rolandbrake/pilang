@@ -31,13 +31,6 @@ static inline uint64_t FNV_1a(const char *key)
 /**
  * Creates a new table with the specified item size and initial capacity.
  *
- * This function allocates memory for the table structure and initializes its
- * members. It sets the initial capacity to a fixed constant and allocates
- * memory for the items array to store the key-value pairs and the _keys array
- * to store the key pointers in insertion order.
- *
- * @param i_size The size of each item to be stored in the table.
- * @return A pointer to the newly created table.
  */
 table_t *ht_create(size_t i_size)
 {
@@ -231,7 +224,7 @@ bool ht_expand(table_t *table)
     free(table->items);
     table->items = new_items;
 
-    // ✅ Reallocate _keys to match new capacity
+    // Reallocate _keys to match new capacity
     char **new_keys = realloc(table->_keys, new_cap * sizeof(char *));
     if (!new_keys)
         return false;

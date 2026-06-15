@@ -7,7 +7,7 @@ import plot
 
 const TRAIN_LIMIT = 1000
 const TEST_LIMIT = 200
-const EPOCHS = 100
+const EPOCHS = 40
 const LEARNING_RATE = 0.03
 const SHOW_PLOTS = true
 

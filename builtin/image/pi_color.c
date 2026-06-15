@@ -10,8 +10,8 @@
 
 #include <SDL2/SDL.h>
 
-// helper to create a same-format surface (from pi_image.c)
-static SDL_Surface *create_surface_same_format(SDL_Surface *src, int w, int h)
+// helper to create a same-format surface
+static SDL_Surface *create_surfaceSameFormat(SDL_Surface *src, int w, int h)
 {
     Uint32 fmt = src->format->format;
     int bpp = src->format->BitsPerPixel;
@@ -76,11 +76,11 @@ Value im_gray2rgb(vm_t *vm, int argc, Value *argv)
 {
     // For our representation grayscale images are RGB with equal channels,
     // so just return a copy.
-    if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
+    if (argc < 1 || !IS_IMAGE(argv[0]))
         vm_error(vm, "[image.color.gray2rgb] expects an image.");
 
     ObjImage *img = AS_IMAGE(argv[0]);
-    SDL_Surface *dst = create_surface_same_format(img->surface, img->surface->w, img->surface->h);
+    SDL_Surface *dst = create_surfaceSameFormat(img->surface, img->surface->w, img->surface->h);
     if (!dst)
         vm_error(vm, "[image.color.gray2rgb] failed to create surface.");
 

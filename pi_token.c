@@ -123,16 +123,6 @@ char *tk_string(const token_t token)
 
 bool tk_bool(const token_t token)
 {
-    // if (strncmp(token.start, "true", 4) == 0)
-    //     return true;
-    // else if (strncmp(token.start, "false", 5) == 0)
-    //     return false;
-    // else
-    // {
-    //     fprintf(stderr, "Invalid boolean token: %.*s\n", token.length, token.start);
-    //     return false; // Default return value for invalid input
-    // }
-
     char *str = token_value(token);
     if (strcmp(str, "true") == 0)
         return true;

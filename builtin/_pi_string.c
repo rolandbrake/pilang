@@ -6,14 +6,7 @@
 #include "../pi_object.h"
 #include "pi_builtin.h"
 
-/**
- * @brief Return a single character string based on the given numeric argument.
- *
- * @param vm The virtual machine.
- * @param argc The number of arguments.
- * @param argv The arguments.
- * @return A single character string.
- */
+// Return a single character string based on the given numeric argument.
 Value pi_char(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0 || !is_numeric(argv[0]))
@@ -40,6 +33,7 @@ Value pi_ord(vm_t *vm, int argc, Value *argv)
     if (str->length == 0)
         vm_error(vm, "[ord] cannot operate on an empty string.");
 
+    // Cast to unsigned char before widening to avoid sign-extension on chars > 127.
     unsigned char ch = str->chars[0];
     return NEW_NUM((double)ch);
 }
@@ -58,17 +52,15 @@ Value pi_trim(vm_t *vm, int argc, Value *argv)
     int start = 0;
     int end = str->length - 1;
 
-    // Skip leading whitespace
     while (start <= end && isspace((unsigned char)s[start]))
         start++;
 
-    // Skip trailing whitespace
     while (end >= start && isspace((unsigned char)s[end]))
         end--;
 
     int new_length = end - start + 1;
     if (new_length <= 0)
-        return NEW_OBJ(copy_pistring("", 0)); // All spaces
+        return NEW_OBJ(copy_pistring("", 0));
 
     return NEW_OBJ(copy_pistring(&s[start], new_length));
 }
@@ -143,6 +135,7 @@ Value st_replace(vm_t *vm, int argc, Value *argv)
     if (old_sub->length == 0)
         vm_error(vm, "[replace] 'old' string must not be empty.");
 
+    // Pre-count matches to allocate the result buffer in one shot.
     size_t count = 0;
     const char *scan = src;
     while ((scan = strstr(scan, old_str)) != NULL)
@@ -177,11 +170,12 @@ Value st_replace(vm_t *vm, int argc, Value *argv)
 
 /**
  * Returns true if all alphabetic characters in the string are uppercase.
+ * Non-alphabetic characters (digits, punctuation) are ignored.
  *
  * Example:
- *   is_upper("HELLO") => true
- *   is_upper("Hello") => false
- *   is_upper("123!")  => true (no lowercase letters)
+ *   is_upper("HELLO") -> true
+ *   is_upper("Hello") -> false
+ *   is_upper("123!")  -> true (no lowercase letters)
  */
 Value st_isUpper(vm_t *vm, int argc, Value *argv)
 {
@@ -202,11 +196,12 @@ Value st_isUpper(vm_t *vm, int argc, Value *argv)
 
 /**
  * Returns true if all alphabetic characters in the string are lowercase.
+ * Non-alphabetic characters (digits, punctuation) are ignored.
  *
  * Example:
- *   is_lower("hello") => true
- *   is_lower("Hello") => false
- *   is_lower("123!")  => true (no uppercase letters)
+ *   is_lower("hello") -> true
+ *   is_lower("Hello") -> false
+ *   is_lower("123!")  -> true (no uppercase letters)
  */
 Value st_isLower(vm_t *vm, int argc, Value *argv)
 {
@@ -229,9 +224,9 @@ Value st_isLower(vm_t *vm, int argc, Value *argv)
  * Returns true if all characters in the string are digits (0-9).
  *
  * Example:
- *   is_digit("12345") => true
- *   is_digit("123a5") => false
- *   is_digit("")      => false (empty string)
+ *   is_digit("12345") -> true
+ *   is_digit("123a5") -> false
+ *   is_digit("")      -> false
  */
 Value st_isDigit(vm_t *vm, int argc, Value *argv)
 {
@@ -257,10 +252,10 @@ Value st_isDigit(vm_t *vm, int argc, Value *argv)
  * Returns true if the given string represents a valid numeric value (integer or floating point).
  *
  * Examples:
- *   is_numeric("123")    => true
- *   is_numeric("-45.67") => true
- *   is_numeric("abc123") => false
- *   is_numeric("")       => false
+ *   is_numeric("123")    -> true
+ *   is_numeric("-45.67") -> true
+ *   is_numeric("abc123") -> false
+ *   is_numeric("")       -> false
  */
 Value st_isNumeric(vm_t *vm, int argc, Value *argv)
 {
@@ -277,11 +272,10 @@ Value st_isNumeric(vm_t *vm, int argc, Value *argv)
     int i = 0;
     int dot_count = 0;
 
-    // Optional leading sign
     if (s[i] == '+' || s[i] == '-')
         i++;
 
-    if (i == len) // Only sign, no digits
+    if (i == len) // Sign character with no following digits.
         return NEW_BOOL(false);
 
     for (; i < len; i++)
@@ -290,7 +284,7 @@ Value st_isNumeric(vm_t *vm, int argc, Value *argv)
         {
             dot_count++;
             if (dot_count > 1)
-                return NEW_BOOL(false); // More than one dot
+                return NEW_BOOL(false);
         }
         else if (!isdigit((unsigned char)s[i]))
             return NEW_BOOL(false);
@@ -303,9 +297,9 @@ Value st_isNumeric(vm_t *vm, int argc, Value *argv)
  * Returns true if the given string contains only alphabetic characters (A-Z, a-z).
  *
  * Examples:
- *   is_alpha("Hello")  => true
- *   is_alpha("abc123") => false
- *   is_alpha("")       => false
+ *   is_alpha("Hello")  -> true
+ *   is_alpha("abc123") -> false
+ *   is_alpha("")       -> false
  */
 Value st_isAlpha(vm_t *vm, int argc, Value *argv)
 {
@@ -322,9 +316,7 @@ Value st_isAlpha(vm_t *vm, int argc, Value *argv)
     for (int i = 0; i < len; i++)
     {
         if (!isalpha((unsigned char)s[i]))
-        {
             return NEW_BOOL(false);
-        }
     }
 
     return NEW_BOOL(true);
@@ -334,9 +326,9 @@ Value st_isAlpha(vm_t *vm, int argc, Value *argv)
  * Returns true if the given string contains only alphanumeric characters (A-Z, a-z, 0-9).
  *
  * Examples:
- *   is_alnum("Hello123") => true
- *   is_alnum("abc_123")  => false
- *   is_alnum("")         => false
+ *   is_alnum("Hello123") -> true
+ *   is_alnum("abc_123")  -> false
+ *   is_alnum("")         -> false
  */
 Value st_isAlnum(vm_t *vm, int argc, Value *argv)
 {
@@ -353,9 +345,7 @@ Value st_isAlnum(vm_t *vm, int argc, Value *argv)
     for (int i = 0; i < len; i++)
     {
         if (!isalnum((unsigned char)s[i]))
-        {
             return NEW_BOOL(false);
-        }
     }
 
     return NEW_BOOL(true);
@@ -375,6 +365,7 @@ Value st_split(vm_t *vm, int argc, Value *argv)
     if (len == 0)
         return NEW_OBJ(new_list(result));
 
+    // Empty delimiter splits into individual characters.
     if (delim[0] == '\0')
     {
         for (size_t i = 0; i < len; i++)
@@ -386,6 +377,7 @@ Value st_split(vm_t *vm, int argc, Value *argv)
         return NEW_OBJ(new_list(result));
     }
 
+    // strtok modifies the string in place, so work on a copy.
     char *copy = strdup(str);
     if (!copy)
         vm_error(vm, "[split] Memory allocation failed.");
@@ -402,8 +394,7 @@ Value st_split(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_list(result));
 }
 
-// Module Definition
-BuiltinFunc string_funcs[] = {
+static BuiltinFunc string_funcs[] = {
     {"replace", st_replace},
     {"is_upper", st_isUpper},
     {"is_lower", st_isLower},

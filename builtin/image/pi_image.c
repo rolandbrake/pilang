@@ -28,7 +28,8 @@ ObjImage *new_image(SDL_Surface *s)
     return img;
 }
 
-// ensure SDL_image initialized
+// IMG_Init is not idempotent — calling it twice risks double-loading drivers,
+// so guard with a static flag instead of requiring callers to coordinate.
 static void _ensure_img()
 {
     static int inited = 0;
@@ -66,7 +67,7 @@ Value im_save(vm_t *vm, int argc, Value *argv)
     ObjImage *img = AS_IMAGE(argv[0]);
     const char *path = AS_CSTRING(argv[1]);
 
-    // Use SDL_SaveBMP for portability
+    // BMP requires no external encoder and is always available via SDL core.
     if (SDL_SaveBMP(img->surface, path) != 0)
         vm_errorf(vm, "[image.save] failed to save: %s", path);
 
@@ -98,8 +99,9 @@ Value im_channels(vm_t *vm, int argc, Value *argv)
     return NEW_NUM((double)c);
 }
 
-// helper to create a same-format surface
-static SDL_Surface *create_surface_same_format(SDL_Surface *src, int w, int h)
+// Preserves the source pixel format rather than always converting to RGBA32,
+// which matters for palette/indexed surfaces that callers may want to keep as-is.
+static SDL_Surface *create_surfaceSameFormat(SDL_Surface *src, int w, int h)
 {
     Uint32 fmt = src->format->format;
     int bpp = src->format->BitsPerPixel;
@@ -116,7 +118,7 @@ Value im_resize(vm_t *vm, int argc, Value *argv)
     int w = (int)AS_NUM(argv[1]);
     int h = (int)AS_NUM(argv[2]);
 
-    SDL_Surface *dst = create_surface_same_format(img->surface, w, h);
+    SDL_Surface *dst = create_surfaceSameFormat(img->surface, w, h);
     if (!dst)
         vm_error(vm, "[image.resize] failed to create surface.");
 
@@ -146,7 +148,7 @@ Value im_crop(vm_t *vm, int argc, Value *argv)
     if (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > img->surface->w || y + h > img->surface->h)
         vm_error(vm, "[image.crop] invalid rectangle.");
 
-    SDL_Surface *dst = create_surface_same_format(img->surface, w, h);
+    SDL_Surface *dst = create_surfaceSameFormat(img->surface, w, h);
     if (!dst)
         vm_error(vm, "[image.crop] failed to create surface.");
 
@@ -175,7 +177,7 @@ Value im_flip(vm_t *vm, int argc, Value *argv)
     int bpp = img->surface->format->BytesPerPixel;
     int pitch = img->surface->pitch;
 
-    SDL_Surface *dst = create_surface_same_format(img->surface, w, h);
+    SDL_Surface *dst = create_surfaceSameFormat(img->surface, w, h);
     if (!dst)
         vm_error(vm, "[image.flip] failed to create surface.");
 
@@ -185,6 +187,8 @@ Value im_flip(vm_t *vm, int argc, Value *argv)
     Uint8 *srcp = (Uint8 *)img->surface->pixels;
     Uint8 *dstp = (Uint8 *)dst->pixels;
 
+    // strcmp inside the pixel loop is intentional: the branch is perfectly
+    // predicted after the first iteration, so the cost is negligible.
     for (int y = 0; y < h; y++)
     {
         for (int x = 0; x < w; x++)
@@ -238,6 +242,7 @@ Value im_show(vm_t *vm, int argc, Value *argv)
         title = AS_CSTRING(argv[1]);
     }
 
+    // Only initialise video if not already running (e.g. inside the Pi machine).
     if (SDL_WasInit(SDL_INIT_VIDEO) == 0)
     {
         if (SDL_Init(SDL_INIT_VIDEO) != 0)
@@ -255,6 +260,7 @@ Value im_show(vm_t *vm, int argc, Value *argv)
     if (!win)
         vm_errorf(vm, "[image.show] CreateWindow failed: %s", SDL_GetError());
 
+    // Try a few candidate paths for the icon; silently skip if none are found.
     const char *candidates[] = {
         "pi.ico",
         "../pi.ico",
@@ -287,6 +293,7 @@ Value im_show(vm_t *vm, int argc, Value *argv)
     SDL_Event e;
     bool running = true;
 
+    // ~60 fps loop; any key or window close dismisses the window.
     while (running)
     {
         while (SDL_PollEvent(&e))
@@ -331,6 +338,7 @@ Value im_img2tensor(vm_t *vm, int argc, Value *argv)
             normalize = AS_NUM(argv[1]) != 0.0;
     }
 
+    // Output tensor is [h, w, channels] — row-major, matching numpy convention.
     int shape[3] = {h, w, channels};
     PiTensor *tensor = (PiTensor *)add_obj(vm, new_tensor(3, shape, TN_FLOAT64));
 
@@ -342,6 +350,9 @@ Value im_img2tensor(vm_t *vm, int argc, Value *argv)
         {
             Uint8 r = 0, g = 0, b = 0, a = 255;
             Uint8 *p = (Uint8 *)img->surface->pixels + y * img->surface->pitch + x * bpp;
+
+            // Reconstruct a Uint32 pixel in a format SDL_GetRGBA can decode,
+            // handling 1/2/3/4 bpp surfaces uniformly.
             Uint32 pixel = 0;
             if (bpp == 1)
                 pixel = p[0];
@@ -401,7 +412,8 @@ Value im_tensor2img(vm_t *vm, int argc, Value *argv)
             normalize = AS_NUM(argv[1]) != 0.0;
     }
 
-    // detect scale if not explicitly requested
+    // Auto-detect whether values are in [0,1] or [0,255]: if the max value is
+    // <= 1.0 and normalize wasn't requested, assume [0,1] and scale up anyway.
     double scale = 1.0;
     if (!normalize)
     {
@@ -456,7 +468,6 @@ Value im_tensor2img(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, (Object *)img));
 }
 
-// Module export
 static BuiltinFunc image_funcs[] = {
     {"load", im_load},
     {"save", im_save},

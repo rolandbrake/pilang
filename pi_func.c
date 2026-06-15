@@ -3,27 +3,12 @@
 #include "pi_object.h"
 #include "pi_string.h"
 
-/**
- * Create a new function object.
- *
- * This function creates and initializes a new function object, which can be
- * either a user-defined function or a method bound to an instance.
- *
- * @param name The name of the function.
- * @param body The bytecode instructions of the function.
- * @param params The list of parameters for the function.
- * @param upvalues The list of upvalues used by the function.
- * @param instance The bound instance for methods, or NULL for standalone functions.
- * @return A pointer to the newly created function object.
- */
 Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, Object *instance)
 {
 
-    // Allocate and verify memory
-    Object *object = (Object *)malloc(sizeof(Function));
+        Object *object = (Object *)malloc(sizeof(Function));
 
-    // Initialize object header
-    object->type = OBJ_FUN;
+        object->type = OBJ_FUN;
     object->is_marked = false;
     object->in_gcList = false;
     object->gc_color = GC_WHITE;
@@ -31,35 +16,30 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
 
     Function *fn = (Function *)object;
 
-    // Handle function name (make copy if needed)
-    fn->name = name ? strdup(name) : strdup("<FUN>");
+        fn->name = name ? strdup(name) : strdup("<FUN>");
 
-    // Handle parameters
-    fn->params = params ? params : list_create(sizeof(Value));
+        fn->params = params ? params : list_create(sizeof(Value));
+    // Parameter names are shared with the compiled function body.
     fn->param_names = (body && body->param_names) ? body->param_names : NULL;
     fn->owns_params = true;
 
-    // Set function body
-    fn->body = body;
+        fn->body = body;
     fn->constants = NULL;
     fn->names = NULL;
     fn->instrs = NULL;
 
-    // Set function flags
-    fn->is_native = false;
+        fn->is_native = false;
     fn->is_method = false;
     fn->need_args = true;
     fn->need_kwargs = true;
     fn->native = NULL;
     fn->globals = NULL;
 
-    // Handle upvalues
-    fn->upvalues = upvalues;
+        fn->upvalues = upvalues;
     fn->instance = instance;
     fn->owner = NULL;
 
-    // Count upvalues
-    int count = 0;
+        int count = 0;
     if (upvalues)
         while (upvalues[count] != NULL)
             count++;
@@ -69,16 +49,6 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     return object;
 }
 
-/**
- * Create a new native function.
- *
- * A native function is a function that is not user-defined. It is a function
- * that is defined by the interpreter itself. Native functions are used to
- * implement the built-in functions of the language.
- *
- * @param name The name of the native function.
- * @return A new native function.
- */
 Value *new_native(const char *name, native_func func)
 {
 
@@ -92,11 +62,9 @@ Value *new_native(const char *name, native_func func)
     val->data.object->gc_color = GC_WHITE;
     val->data.object->next = NULL;
 
-    // Cast the allocated object to Function
-    Function *fn = (Function *)val->data.object;
+        Function *fn = (Function *)val->data.object;
 
-    // Assign function properties
-    fn->name = strdup(name); // Allocate and copy name string
+        fn->name = strdup(name); // Allocate and copy name string
 
     fn->params = NULL;
     fn->param_names = NULL;
@@ -112,9 +80,7 @@ Value *new_native(const char *name, native_func func)
     fn->is_native = true;
     fn->is_method = false;
 
-    fn->need_args = false; // Native functions don't use the args slot
-    fn->need_kwargs = false; // Native functions don't use the kw_args slot
-
+    fn->need_args = false;     fn->need_kwargs = false; 
     fn->native = func;
 
     fn->upvalues = NULL;
@@ -125,21 +91,9 @@ Value *new_native(const char *name, native_func func)
     return val;
 }
 
-// Call a Function (default user-defined implementation)
-/**
- * Calls a user-defined or native function. The function is either a native
- * function defined by the interpreter or a user-defined function.
- *
- * @param vm The current VM state.
- * @param function The function to call.
- * @param argc The number of arguments to pass to the function.
- * @param argv The arguments to pass to the function.
- * @return The return value of the function.
- */
 Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw_args)
 {
-    // If the function is a native function, call it directly
-    if (function->is_native)
+        if (function->is_native)
     {
         Object *prev_function = vm->function;
         Value prev_kwargs = vm->_kw_args;
@@ -147,6 +101,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         vm->function = (Object *)function;
         vm->_kw_args = kw_args;
 
+        // Native methods receive the bound instance as argv[0].
         if (function->is_method && function->instance != NULL)
         {
             Value *method_argv = malloc(sizeof(Value) * (argc + 1));
@@ -173,8 +128,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
 
     Object *prev_function = vm->function;
 
-    // Push the current frame onto the call stack
-    Frame frame = {
+        Frame frame = {
         .pc = vm->pc,
         .sp = vm->sp,
         .bp = vm->bp,
@@ -188,8 +142,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         .function = (Function *)prev_function};
     push_frame(vm, &frame);
 
-    // Update the VM state with the function's bytecode and defining globals
-    vm->function = (Object *)function;
+        vm->function = (Object *)function;
     vm->code = function->body->data;
     if (function->constants)
         vm->constants = function->constants;
@@ -209,13 +162,12 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     size_t param_offset = 0;
     Value instance = NEW_NIL();
 
-    // Bind the function instance (if present)
-    if (function->is_method)
+        if (function->is_method)
     {
         instance = function->instance == NULL ? NEW_NIL() : NEW_OBJ(add_obj(vm, function->instance));
     }
 
-    // check if [this] instance is part of the parameters list
+    // Detect whether 'this' is explicitly declared in the parameter list.
     bool param_this = false;
     if (function->is_method && function->param_names &&
         list_size(function->param_names) + 1 == (int)param_count)
@@ -245,8 +197,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     if (param_this && param_count > 0)
         vm->stack[param_base] = instance;
 
-    // Positional arguments
-    size_t positional_count = argc;
+        size_t positional_count = argc;
     if (positional_count > param_count)
         positional_count = param_count;
     for (size_t i = 0; i < positional_count; i++)
@@ -258,6 +209,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         }
     }
 
+    // Keyword arguments override defaults but cannot override positional arguments.
     if (IS_MAP(kw_args) && function->param_names)
     {
         PiMap *kw_map = AS_MAP(kw_args);
@@ -281,6 +233,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         }
     }
 
+    // Inject implicit args/kwargs locals when requested by the function.
     if (function->need_args)
     {
         list_t *_args = list_create(sizeof(Value));
@@ -307,24 +260,11 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
 
     run(vm);
 
-    // Pop and return the value pushed by OP_RETURN in the caller frame.
-    if (vm->sp <= 0)
+        if (vm->sp <= 0)
         vm_error(vm, "Stack underflow: Attempted to pop from an empty stack");
     return vm->stack[--vm->sp];
 }
 
-/**
- * Call a function with variable arguments.
- *
- * This function is a wrapper around the regular call_func function that takes
- * a variable number of arguments.
- *
- * @param vm The current VM state.
- * @param function The function to call.
- * @param argc The number of arguments to pass to the function.
- * @param ... The arguments to pass to the function.
- * @return The return value of the function.
- */
 Value call_funcv(vm_t *vm, Function *function, size_t argc, ...)
 {
     va_list args;
@@ -336,23 +276,16 @@ Value call_funcv(vm_t *vm, Function *function, size_t argc, ...)
 
     va_end(args);
 
-    // Call the function with the prepared arguments
-    Value result = call_func(vm, function, argc, argv, NEW_NIL());
+        Value result = call_func(vm, function, argc, argv, NEW_NIL());
 
-    // Clean up after ourselves
-    free(argv);
+        free(argv);
 
     return result;
 }
-/**
- * Free the memory allocated for a function.
- *
- * @param fn The function to free.
- */
+// Frees only resources owned directly by the Function object.
 void free_func(Function *fn)
 {
-    free(fn->name);        // Free the function name
-    if (fn->owns_params && fn->params)
+    free(fn->name);            if (fn->owns_params && fn->params)
         list_free(fn->params); // Free the parameter list
 }
 

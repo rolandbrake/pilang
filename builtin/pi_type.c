@@ -2,27 +2,15 @@
 #include "pi_builtin.h"
 #include "../pi_object.h"
 
-/**
- * @brief Returns the type of the given value as a string.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments passed to the function.
- * @param argv The arguments provided to the function.
- * @return A string representing the type of the argument.
- */
 Value _pi_type(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[type] expects at least one argument.");
 
-    // Get the type name of the argument
     char *type = type_name(argv[0]);
-
-    // Return the type name as a string object
     return NEW_OBJ(new_pistring(strdup(type)));
 }
 
-// Returns true if the argument is numeric (integer or float)
 Value pi_isNum(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -31,7 +19,6 @@ Value pi_isNum(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(is_numeric(argv[0]));
 }
 
-// Returns true if the argument is a string
 Value pi_isStr(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -40,7 +27,6 @@ Value pi_isStr(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(IS_STRING(argv[0]));
 }
 
-// Returns true if the argument is a boolean
 Value pi_isBool(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -72,9 +58,8 @@ Value pi_num(vm_t *vm, int argc, Value *argv)
 
     if (is_numeric(argv[0]))
         return NEW_NUM(as_number(argv[0]));
-    else
-        vm_error(vm, "[num] argument is not numeric.");
 
+    vm_error(vm, "[num] argument is not numeric.");
     return NEW_NIL();
 }
 
@@ -108,7 +93,6 @@ Value tp_is(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(strcmp(typeName, givenTypeName) == 0);
 }
 
-// Returns the type name of any value.
 Value tp_of(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -118,7 +102,6 @@ Value tp_of(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_pistring(strdup(type)));
 }
 
-// Returns memory size of a value in bytes.
 Value tp_size(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -140,22 +123,16 @@ Value tp_size(vm_t *vm, int argc, Value *argv)
         case OBJ_TENSOR:
             return NEW_NUM((double)AS_TENSOR(arg)->size);
         case OBJ_RANGE:
-            // For range, return the number of elements in the range
             return NEW_NUM((double)(((AS_RANGE(arg)->end - AS_RANGE(arg)->start) / AS_RANGE(arg)->step) + 1));
         default:
-            // For other object types, return the size of the Object header.
-            // A more precise size would require inspecting the specific struct.
+            // For unknown object layouts, report only the base object header size.
             return NEW_NUM((double)sizeof(Object));
         }
     }
-    else
-    {
-        // For primitive types, return the size of the Value struct.
-        return NEW_NUM((double)VALUE_SIZE);
-    }
+
+    return NEW_NUM((double)VALUE_SIZE);
 }
 
-// Returns true if x is nil.
 Value tp_nil(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -164,7 +141,6 @@ Value tp_nil(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(IS_NIL(argv[0]));
 }
 
-// Converts x to int. Parses strings, truncates floats.
 Value tp_int(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -178,20 +154,17 @@ Value tp_int(vm_t *vm, int argc, Value *argv)
     {
         char *endptr;
         long val = strtol(AS_CSTRING(argv[0]), &endptr, 10);
+
         if (*endptr != '\0')
-        {
             vm_error(vm, "[int] cannot parse string to integer.");
-        }
+
         return NEW_NUM((double)val);
     }
-    else
-    {
-        vm_error(vm, "[int] argument must be a number or a string.");
-    }
+
+    vm_error(vm, "[int] argument must be a number or a string.");
     return NEW_NIL();
 }
 
-// Converts x to a floating-point number.
 Value tp_float(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -211,13 +184,11 @@ Value tp_float(vm_t *vm, int argc, Value *argv)
 
         return NEW_NUM(val);
     }
-    else
-        vm_error(vm, "[float] argument must be a number or a string.");
 
+    vm_error(vm, "[float] argument must be a number or a string.");
     return NEW_NIL();
 }
 
-// Converts x to its string representation.
 Value tp_string(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -226,7 +197,6 @@ Value tp_string(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_pistring(pi_displayString(vm, argv[0])));
 }
 
-// Converts x to a boolean value.
 Value tp_bool(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -235,7 +205,6 @@ Value tp_bool(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(as_bool(argv[0]));
 }
 
-// Converts an iterable to a list.
 Value tp_list(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -246,18 +215,16 @@ Value tp_list(vm_t *vm, int argc, Value *argv)
 
     if (IS_LIST(arg))
     {
-        // If it's already a list, create a shallow copy
+        // list(x) creates a shallow copy; contained objects are shared.
         list_t *original_items = AS_LIST(arg)->items;
         for (int i = 0; i < original_items->size; i++)
-        {
             list_add(new_items, list_getAt(original_items, i));
-        }
     }
     else if (IS_OBJ(arg) && is_iterable(AS_OBJ(arg)))
     {
-        // If it's an iterable object, iterate and add elements
         Object *iterable_obj = AS_OBJ(arg);
         iter_reset(iterable_obj);
+
         while (iter_hasNext(iterable_obj))
         {
             Value item = iter_next(iterable_obj);
@@ -270,7 +237,6 @@ Value tp_list(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_list(new_items));
 }
 
-// Converts a string or int list to a bytes object.
 Value tp_bytes(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -292,29 +258,25 @@ Value tp_bytes(vm_t *vm, int argc, Value *argv)
     {
         PiList *plist = AS_LIST(arg);
         if (!plist->is_numeric)
-        {
             vm_error(vm, "[bytes] list argument must contain only numbers.");
-        }
+
         for (int i = 0; i < plist->items->size; i++)
         {
             Value *element = (Value *)list_getAt(plist->items, i);
             Value value = *element;
+
+            // Bytes are represented as numeric values, but must be exact integers in [0, 255].
             if (!IS_NUM(value) || AS_NUM(value) < 0 || AS_NUM(value) > 255 || AS_NUM(value) != (long)AS_NUM(value))
-            {
                 vm_error(vm, "[bytes] list elements must be integers between 0 and 255.");
-            }
+
             list_add(byte_items, &value);
         }
     }
     else
-    {
         vm_error(vm, "[bytes] argument must be a string or a list of numbers.");
-    }
 
     return NEW_OBJ(new_list(byte_items));
 }
-
-// Module Registration
 
 static BuiltinFunc type_funcs[] = {
     {"is", tp_is},

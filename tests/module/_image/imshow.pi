@@ -11,9 +11,9 @@ plot.title(chart, "Loaded image")
 plot.xlabel(chart, "x pixel")
 plot.ylabel(chart, "y pixel")
 
-let img = image.load("../imgs/baboon.bmp")
+let img = image.load("baboon.bmp")
 plot.imshow(chart, img)
 
 
-plot.show(chart)
-draw.run(ctx)
+// plot.show(chart)
+// draw.run(ctx)

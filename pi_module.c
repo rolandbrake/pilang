@@ -17,36 +17,16 @@
 #define getcwd _getcwd
 #endif
 
-/**
- * Checks if the given file exists.
- *
- * @param path The path to the file to check.
- * @return True if the file exists, false otherwise.
- */
 static bool file_exists(const char *path)
 {
-    // Open the file in read-only binary mode
     FILE *f = fopen(path, "rb");
     if (!f)
         return false; // Return false if the file could not be opened
-
-    // Close the file
     fclose(f);
     return true; // Return true if the file exists
 }
 
-/**
- * Reads the contents of a file and returns it as a null-terminated string.
- *
- * This function opens the given file in binary read mode, seeks to the end of the file to determine its length,
- * allocates memory to store the file contents, reads the file contents into the allocated memory, and closes the file.
- * The allocated memory is returned as a null-terminated string.
- *
- * If any error occurs during the file operations, the function returns NULL.
- *
- * @param path The path to the file to read.
- * @return The contents of the file as a null-terminated string, or NULL if an error occurs.
- */
+// Reads the entire file into a NUL-terminated buffer.
 static char *file_readText(const char *path)
 {
     FILE *file = fopen(path, "rb");
@@ -92,12 +72,6 @@ static char *file_readText(const char *path)
     return source;
 }
 
-/**
- * Copies the directory name from a given path.
- *
- * @param path The path from which to copy the directory name.
- * @return A newly allocated string containing the directory name. If the path is empty or does not contain a directory name, returns a newly allocated string containing ".".
- */
 static char *copy_dirName(const char *path)
 {
     if (!path)
@@ -105,19 +79,13 @@ static char *copy_dirName(const char *path)
 
     char *dir = strdup(path);
     int len = (int)strlen(dir);
-
-    // Find the last directory separator in the path
     while (len > 0 && dir[len - 1] != '/' && dir[len - 1] != '\\')
         len--;
-
-    // If the path is empty or does not contain a directory name, return "."
     if (len == 0)
     {
         free(dir);
         return strdup(".");
     }
-
-    // Null-terminate the string at the last directory separator
     dir[len - 1] = '\0';
     return dir;
 }
@@ -153,22 +121,12 @@ static bool is_browserUnsupportedBuiltin(const char *name)
 }
 #endif
 
-/**
- * Checks if a built-in module has children (i.e. if it has a dot in its name).
- *
- * @param name The name of the built-in module to check.
- * @return True if the built-in module has children, false otherwise.
- */
 static bool builtin_hasChildren(const char *name)
 {
     size_t prefix_len = strlen(name);
-
-    // Iterate over all built-in modules
     for (int i = 0; i < BUILTIN_MODULE_COUNT; i++)
     {
         const char *builtin_name = builtin_modules[i]->name;
-        // Check if the built-in module has the given name as prefix
-        // and if it has a dot after the prefix
         if (strncmp(builtin_name, name, prefix_len) == 0 &&
             builtin_name[prefix_len] == '.')
             return true;
@@ -179,16 +137,7 @@ static bool builtin_hasChildren(const char *name)
 
 static Value load_builtinNamed(vm_t *vm, const char *name);
 
-/**
- * Attaches the children of a built-in module to its exports map.
- *
- * A child of a built-in module is a built-in module that has a name that is a prefix of the given name.
- * For example, if the given name is "tensor", the children of the built-in module could be "tensor.sort", "tensor.reduce", etc.
- *
- * @param vm The VM to use.
- * @param module The module to attach the children to.
- * @param name The name of the module to use as prefix to find children.
- */
+// Exposes nested builtin modules as fields on the parent package.
 static void attach_builtinChildren(vm_t *vm, ObjModule *module, const char *name)
 {
     size_t prefix_len = strlen(name);
@@ -242,39 +191,22 @@ static void attach_builtinChildren(vm_t *vm, ObjModule *module, const char *name
     ht_free(seen);
 }
 
-/**
- * Loads a built-in module from the given built-in module definition.
- *
- * Checks if the module is already cached in the VM. If so, returns the cached value.
- * Otherwise, creates a new module object, caches it, and populates its exports map with the given built-in module's functions and constants.
- *
- * @param vm The VM to use.
- * @param builtin The built-in module definition to load.
- * @return The loaded module as a value.
- */
+// Builtin modules are cached once and reused across imports.
 static Value load_builtinModule(vm_t *vm, const BuiltinModule *builtin)
 {
-    // Create a cache key for the module
     char cache_key[256];
     snprintf(cache_key, sizeof(cache_key), "@builtin:%s", builtin->name);
-
-    // Check if the module is already cached in the VM
     Value *cached = ht_get(vm->modules, cache_key);
     if (cached)
         return *cached;
-
-    // Create a new module object and cache it
     Object *module_obj = new_module(vm, builtin->name, "<builtin>", true, false);
     Value module_val = NEW_OBJ(module_obj);
     ht_put(vm->modules, cache_key, &module_val);
-
-    // Populate the module's exports map with the given built-in module's functions and constants
     ObjModule *module = AS_MODULE(module_val);
     PiMap *exports = module->exports;
 
     for (int i = 0; i < builtin->const_count; i++)
     {
-        // Add the built-in module's constants to the module's exports map
         BuiltinConst *c = &builtin->consts[i];
         Value key_val = NEW_OBJ(add_obj(vm, new_pistring(strdup(c->name))));
         map_set(exports, key_val, c->value);
@@ -282,19 +214,14 @@ static Value load_builtinModule(vm_t *vm, const BuiltinModule *builtin)
 
     for (int i = 0; i < builtin->func_count; i++)
     {
-        // Add the built-in module's functions to the module's exports map
         BuiltinFunc *f = &builtin->functions[i];
         Value *fn_val = new_native(f->name, f->func);
         Value key_val = NEW_OBJ(add_obj(vm, new_pistring(strdup(f->name))));
         map_set(exports, key_val, *fn_val);
         free(fn_val);
     }
-
-    // If the built-in module has children, attach them to the module
     if (builtin_hasChildren(builtin->name))
         attach_builtinChildren(vm, module, builtin->name);
-
-    // Mark the module as loaded
     module->state = MODULE_LOADED;
 
     return module_val;
@@ -340,68 +267,31 @@ static Value load_builtinNamed(vm_t *vm, const char *name)
     return NEW_NIL();
 }
 
-/**
- * Creates a new module object.
- *
- * @param vm The virtual machine.
- * @param name The name of the module.
- * @param path The path to the module file.
- * @param builtin Whether the module is a builtin module.
- * @param is_main Whether the module is the entry point of the program.
- *
- * @return The new module object.
- */
+// Creates a module object in the LOADING state. It becomes LOADED after execution completes.
 Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin, bool is_main)
 {
-    // Allocate memory for the module object
     ObjModule *module = (ObjModule *)malloc(sizeof(ObjModule));
     if (!module)
-        // Out of memory
         vm_error(vm, "Out of memory while creating module object.");
-
-    // Initialize the module object
     module->object.type = OBJ_MODULE;
     module->object.is_marked = false;
     module->object.in_gcList = false;
     module->object.gc_color = GC_WHITE;
     module->object.next = NULL;
-
-    // Set the module name and path
     module->name = strdup(name ? name : "");
     module->path = strdup(path ? path : "");
-
-    // Set whether the module is a builtin module or the entry point
     module->builtin = builtin;
     module->is_main = is_main;
-
-    // Set the initial state of the module
     module->state = MODULE_LOADING;
-
-    // Initialize the constants and names tables
     module->constants = NULL;
     module->names = NULL;
     module->instrs = NULL;
     module->globals = NULL;
-
-    // Create a new map to store the module's exports
     Object *exports_obj = add_obj(vm, new_map(ht_create(sizeof(Value)), false));
     module->exports = (PiMap *)exports_obj;
-
-    // Add the module object to the VM
     return add_obj(vm, (Object *)module);
 }
 
-/**
- * Creates a new BuiltinModule.
- *
- * @param name The name of the module.
- * @param functions An array of BuiltinFuncs that will be exposed by the module.
- * @param func_count The number of functions in the functions array.
- * @param consts An array of BuiltinConsts that will be exposed by the module.
- * @param const_count The number of constants in the consts array.
- *
- * @return A new BuiltinModule.
- */
 BuiltinModule *new_builtinModule(const char *name, BuiltinFunc *functions,
                                  int func_count, BuiltinConst *consts, int const_count)
 {
@@ -451,6 +341,7 @@ static table_t *collect_definedGlobals(compiler_t *comp)
     return defined;
 }
 
+// Resolution order: current module directory -> local file -> libs/ directory.
 char *module_resolvePath(vm_t *vm, const char *name)
 {
     if (!name || !*name)
@@ -510,18 +401,7 @@ char *module_resolvePath(vm_t *vm, const char *name)
     return NULL;
 }
 
-/**
- * Loads a module from a file path.
- *
- * Resolves the given module name relative to the current module path, if any.
- * If the module has already been loaded, returns the cached value.
- * Otherwise, reads the module file, parses it, and runs it in a new VM.
- * The module's globals are then exposed as a map.
- *
- * @param vm The current VM.
- * @param name The name of the module to load.
- * @return A value representing the loaded module.
- */
+// Modules are cached before execution to support recursive/cyclic imports.
 Value load_module(vm_t *vm, const char *name)
 {
     char *resolved = module_resolvePath(vm, name);

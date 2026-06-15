@@ -21,6 +21,7 @@ typedef struct set_table
     list_t *values;
 } set_table;
 
+// Monotonically increasing runtime object identifier.
 static uint64_t _ID = 1;
 
 static Object *create_obj(size_t size, o_type type)
@@ -37,22 +38,7 @@ static Object *create_obj(size_t size, o_type type)
     return obj;
 }
 
-/**
- * Calculates the hash of a string.
- *
- * The hash is calculated by the djb2 algorithm, which is a simple string
- * hashing algorithm. The algorithm is as follows:
- *
- * 1. Set the hash to a prime number (here, 2166136261).
- * 2. Iterate through the string and for each character:
- *    a. XOR the hash with the character.
- *    b. Multiply the hash with a prime number (here, 16777619).
- * 3. Return the hash.
- *
- * @param chars The string to hash.
- * @param length The length of the string.
- * @return The hash of the string.
- */
+// FNV-1a hash used for string interning, maps and sets.
 uint32_t string_hash(char *chars, size_t length)
 {
     uint32_t hash = 2166136261u;
@@ -64,49 +50,21 @@ uint32_t string_hash(char *chars, size_t length)
     return hash;
 }
 
-/**
- * Creates a new PiString object from a given C-string.
- *
- * This function creates a new PiString object, which is a wrapper around
- * a C-string with additional metadata like length and hash. It calculates
- * the length and hash of the provided string and sets the initial state
- * for iteration.
- *
- * @param str The C-string to wrap in a PiString object.
- * @return A pointer to the newly created PiString object, cast as Object.
- */
 Object *new_pistring(char *str)
 {
-    // Allocate memory for the PiString object and initialize its type
     PiString *string = CREATE_OBJ(PiString, OBJ_STRING);
 
-    // Set the string characters to the input C-string
     string->chars = str;
 
-    // Calculate and store the length of the string
     string->length = strlen(str);
 
-    // Calculate and store the hash of the string
     string->hash = string_hash(str, string->length);
 
-    // Initialize the current position for iteration
     string->current = 0;
 
-    // Return the PiString object cast as a generic Object
     return (Object *)string;
 }
 
-/**
- * Copies a given C-string into a new PiString object.
- *
- * This function allocates a new PiString object and copies the
- * given C-string into it. It also calculates the hash of the
- * string and sets the initial state for iteration.
- *
- * @param chars The C-string to copy into the new PiString object.
- * @param length The length of the input C-string.
- * @return A pointer to the newly created PiString object.
- */
 PiString *copy_pistring(char *chars, int length)
 {
     PiString *string = CREATE_OBJ(PiString, OBJ_STRING);
@@ -117,25 +75,16 @@ PiString *copy_pistring(char *chars, int length)
     if (!string->chars)
         error("[copy_pistring] Memory allocation failed.");
 
-    // Copy the input C-string into the new PiString object
     memcpy(string->chars, chars, length);
     string->chars[length] = '\0';
 
-    // Calculate the hash of the string
     string->hash = string_hash(chars, length);
 
-    // Initialize the current position for iteration
     string->current = 0;
 
     return string;
 }
 
-/**
- * Creates a new PiList object containing the given list of items.
- *
- * @param items The list of items to contain in the new PiList object.
- * @return The newly created PiList object.
- */
 Object *new_list(list_t *items)
 {
     PiList *list = CREATE_OBJ(PiList, OBJ_LIST);
@@ -163,6 +112,7 @@ static int tensor_elemSize(TN_TYPE type)
     return sizeof(double);
 }
 
+// Shared tensor constructor used by both initialized and uninitialized allocations.
 static Object *new_tensorWithInit(int ndim, int *shape, TN_TYPE type, bool zero_initialize)
 {
     PiTensor *tensor = CREATE_OBJ(PiTensor, OBJ_TENSOR);
@@ -305,18 +255,10 @@ Object *tensor_rowAsList(PiTensor *tensor, int row)
     return (Object *)list;
 }
 
-/**
- * Creates a new PiMap object from a given table.
- *
- * @param table The underlying table that this object wraps.
- * @param is_instance Whether this object is an instance of another object.
- * @return The newly created PiMap object.
- */
 Object *new_map(table_t *table, bool is_instance)
 {
     PiMap *map = CREATE_OBJ(PiMap, OBJ_MAP);
 
-    // Store the given table in the object
     map->table = table;
     map->intrinsic_name = NULL;
     map->locked = false;
@@ -324,14 +266,11 @@ Object *new_map(table_t *table, bool is_instance)
     map->has_compute = false;
     map->has_rcompute = false;
 
-    // Initialize the iterator for the object
     map->it = ht_iterator(table);
 
-    // Store whether this object is an instance of another object
     map->is_instance = is_instance;
     map->super_instance = NULL;
 
-    // Set the prototype to NULL
     map->proto = NULL;
 
     return (Object *)map;
@@ -341,7 +280,6 @@ Object *new_set(void)
 {
     PiSet *set = CREATE_OBJ(PiSet, OBJ_SET);
 
-    // Store the given table in the object and initialize iterator state
     set_table *table = malloc(sizeof(set_table));
     if (!table)
         error("[new_set] Memory allocation for set table failed.");
@@ -358,10 +296,12 @@ Object *new_set(void)
     return (Object *)set;
 }
 
+// Open-addressing hash set with linear probing.
 static bool _set_insert(PiSet *set, Value value, bool append)
 {
     set_table *table = set->table;
 
+    // Grow when load factor exceeds 75%.
     if ((table->size + 1) * 4 > table->capacity * 3)
     {
         int old_capacity = table->capacity;
@@ -519,14 +459,6 @@ Object *new_tuple(list_t *items)
     return (Object *)tuple;
 }
 
-/**
- * Creates a new ObjFile object that represents a file stream.
- *
- * @param file The underlying FILE * that this object wraps.
- * @param filename The name of the file.
- * @param mode The mode string that was used to open the file.
- * @return The newly created ObjFile object.
- */
 Object *new_file(FILE *file, char *filename, char *mode)
 {
     ObjFile *f = CREATE_OBJ(ObjFile, OBJ_FILE);
@@ -539,19 +471,7 @@ Object *new_file(FILE *file, char *filename, char *mode)
     return (Object *)f;
 }
 
-/**
- * Finds the owner of a given key in a PiMap.
- *
- * This function searches for the specified key in the map's
- * underlying table, and if found, it returns the map itself.
- * If the key does not exist in the map, it searches up the prototype
- * chain until it finds the key or reaches the root of the prototype
- * chain.
- *
- * @param map The map to search for the given key.
- * @param key_str The key to search for.
- * @return The owner of the key if found, NULL otherwise.
- */
+// Walks the prototype chain and returns the map that owns the key.
 static PiMap *map_findOwner(PiMap *map, const char *key_str)
 {
     // Search for the key in the map's underlying table
@@ -569,17 +489,6 @@ static PiMap *map_findOwner(PiMap *map, const char *key_str)
     return NULL;
 }
 
-/**
- * Retrieves a value from a PiMap by a given key.
- *
- * This function searches for the specified key in the map's
- * underlying table. If the key exists, it returns the associated
- * value. Otherwise, it returns nil.
- *
- * @param map The map to search for the given key.
- * @param key The key to search for.
- * @return The associated value if the key exists, nil otherwise.
- */
 Value map_get(PiMap *map, Value key)
 {
     // Convert the key to a string
@@ -611,17 +520,6 @@ Value map_getValueByKey(PiMap *map, const char *key)
     return item == NULL ? NEW_NIL() : *(Value *)item;
 }
 
-/**
- * Checks if a given key exists in a PiMap.
- *
- * This function searches for the specified key in the map's
- * underlying table. If the key exists, it returns true.
- * Otherwise, it returns false.
- *
- * @param map The map to search for the given key.
- * @param key The key to search for.
- * @return true if the key exists in the map, false otherwise.
- */
 bool map_has(PiMap *map, Value key)
 {
     char *key_str = as_string(key);
@@ -643,18 +541,7 @@ bool map_delete(PiMap *map, Value key)
     return removed;
 }
 
-/**
- * Sets the value associated with a given key in a PiMap.
- *
- * This function either creates a new key-value pair in the map's
- * underlying table or updates the value associated with an existing
- * key. If the key does not exist in the table, it is added. If the
- * key already exists, its associated value is updated.
- *
- * @param map The map in which to set the value.
- * @param key The key with which to associate the value.
- * @param value The value to associate with the given key.
- */
+// Updates an existing prototype owner when possible; otherwise inserts into the current map.
 void map_set(PiMap *map, Value key, Value value)
 {
     char *key_str = as_string(key);
@@ -662,10 +549,8 @@ void map_set(PiMap *map, Value key, Value value)
     if (owner == NULL)
         owner = map;
 
-    // Attempt to set the item in the hash table using the key
     bool updated = ht_set(owner->table, key_str, &value);
 
-    // If the key does not exist in the table, add it
     if (!updated && !owner->locked)
         ht_put(owner->table, key_str, &value);
 
@@ -688,29 +573,11 @@ PiMap *map_owner(PiMap *map, Value key)
     return owner;
 }
 
-/**
- * Returns the size of a PiMap.
- *
- * This function returns the number of key-value pairs in the map's
- * underlying table.
- *
- * @param map The map for which to return the size.
- * @return The number of key-value pairs in the map.
- */
 int map_size(PiMap *map)
 {
     return map->table->size;
 }
 
-/**
- * Computes a hash value for a given block of code using a variant of the FNV-1a hash algorithm.
- *
- * This function processes the first 16 bytes of the input code array and
- * returns a 32-bit hash value. It's designed for quick hashing of small data blocks.
- *
- * @param code A pointer to the code block (array of bytes) to be hashed.
- * @return A 32-bit hash value representing the input code block.
- */
 uint32_t code_hash(uint8_t *code)
 {
     uint32_t hash = 2166136261u; // FNV offset basis
@@ -722,25 +589,12 @@ uint32_t code_hash(uint8_t *code)
     return hash;
 }
 
-/**
- * Creates a new ObjCode object containing the given code.
- *
- * This function creates a new ObjCode object containing the given
- * code list and computes a hash value for the code using the
- * code_hash() function. The hash value is stored in the object for
- * quick comparison.
- *
- * @param code A pointer to the code list to be stored in the object.
- * @return The newly created ObjCode object.
- */
 Object *new_code(list_t *code)
 {
     ObjCode *c = CREATE_OBJ(ObjCode, OBJ_CODE);
 
-    // Compute the hash value of the code
     c->hash = code_hash((uint8_t *)code->data);
 
-    // Store the code list in the object
     c->data = code;
     c->param_names = NULL;
 
@@ -867,18 +721,6 @@ Object *new_event(const char *type, EventType event_type)
     return (Object *)e;
 }
 
-/**
- * Creates a new ObjRange object with the given start, end, and step values.
- *
- * This function allocates a new ObjRange object and initializes its
- * start, end, and step fields with the given values. The current value
- * of the range is set to the start value.
- *
- * @param start The start value of the range (inclusive).
- * @param end The end value of the range (exclusive).
- * @param step The step value of the range.
- * @return The newly created ObjRange object.
- */
 Object *new_range(double start, double end, double step)
 {
     PiRange *range = CREATE_OBJ(PiRange, OBJ_RANGE);
@@ -903,16 +745,7 @@ Object *new_slice(double start, double stop, double step)
     return (Object *)slice;
 }
 
-/**
- * Resets the given iterable object to its initial state.
- *
- * This function resets the current item in the given iterable object
- * to its initial state. For ranges, this means the start value. For
- * lists and strings, this means the first element. For maps, this
- * means the first key-value pair.
- *
- * @param col The iterable object to be reset.
- */
+// Resets iterator state for all supported iterable types.
 void iter_reset(Object *col)
 {
     switch (col->type)
@@ -956,19 +789,7 @@ void iter_reset(Object *col)
     }
 }
 
-/**
- * Checks if the given iterable object has more items to iterate.
- *
- * This function takes an iterable object and checks if there are more
- * items to iterate. If the object is a range, it checks if the current
- * value is less than (or greater than, if the step is negative) the end
- * value. If the object is a list or string, it checks if the current index
- * is less than the length of the list or string. If the object is a map, it
- * checks if there are more key-value pairs to iterate.
- *
- * @param col The iterable object to be checked.
- * @return true if the object has more items to iterate, false otherwise.
- */
+// Iterator protocol: checks whether another value can be produced.
 bool iter_hasNext(Object *col)
 {
     o_type type = col->type;
@@ -1015,18 +836,7 @@ bool iter_hasNext(Object *col)
     return false;
 }
 
-/**
- * Retrieves the next item from the iterable object.
- *
- * This function takes an iterable object and returns the next item in the
- * iteration. If the object is a list or string, it returns the item at the
- * current index. If the object is a range, it returns the current value and
- * increments the current value by the step. If the object is a map, it returns
- * the value associated with the current key.
- *
- * @param col The iterable object to retrieve the next item from.
- * @return The next item in the iteration.
- */
+// Iterator protocol: returns the next value and advances state.
 Value iter_next(Object *col)
 {
     o_type type = col->type;
@@ -1084,15 +894,6 @@ Value iter_next(Object *col)
     exit(EXIT_FAILURE);
 }
 
-/**
- * @brief Check if an object is iterable.
- *
- * This function determines whether a given object can be iterated over.
- * Supported iterable types include lists, strings, ranges, and maps.
- *
- * @param obj The object to check for iterability.
- * @return true if the object is iterable, false otherwise.
- */
 bool is_iterable(Object *obj)
 {
     if (!obj)
@@ -1113,19 +914,6 @@ bool is_iterable(Object *obj)
     }
 }
 
-/**
- * @brief Converts a given index to a valid index within a sequence.
- *
- * @details This function takes an index and a sequence length as input, and
- * returns a valid index within the sequence. If the index is negative, it is
- * converted to a positive index by adding the sequence length. If the index is
- * greater than the sequence length, it is wrapped around to the beginning of
- * the sequence by taking the modulo of the sequence length.
- *
- * @param index The index to convert.
- * @param length The length of the sequence.
- * @return A valid index within the sequence.
- */
 int get_index(int index, int length)
 {
     if (length == 0)
@@ -1136,6 +924,7 @@ int get_index(int index, int length)
     return _index;
 }
 
+// Implements Python-style slice bound normalization.
 int slice_index(int index, int length, int step)
 {
 
@@ -1163,16 +952,6 @@ int slice_index(int index, int length, int step)
     return index;
 }
 
-/**
- * Retrieves a slice of a sequence (list or string) from the specified start
- * index to the specified end index with the specified step.
- *
- * @param sequence The sequence (list or string) to retrieve the slice from.
- * @param start The index to start the slice from.
- * @param end The index to end the slice at.
- * @param step The increment between each element in the slice.
- * @return A new sequence containing the sliced elements.
- */
 Value get_slice(Object *sequence, double start, double end, double step)
 {
     int size = 0;

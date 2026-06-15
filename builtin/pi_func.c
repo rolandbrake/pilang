@@ -31,6 +31,7 @@ static PiList *require_list(vm_t *vm, Value value, const char *name)
     return AS_LIST(value);
 }
 
+// Function wrappers store their closed-over data in a small map attached to Function::instance.
 static Value state_get(vm_t *vm, PiMap *state, const char *key, const Value fallback)
 {
     Value *value = (Value *)ht_get(state->table, key);
@@ -43,6 +44,7 @@ static void state_set(PiMap *state, const char *key, Value value)
         ht_put(state->table, key, &value);
 }
 
+// Native wrapper callbacks recover their closure state from the currently executing function.
 static PiMap *current_stateMap(vm_t *vm, const char *name)
 {
     if (vm->function == NULL || vm->function->type != OBJ_FUN)
@@ -55,6 +57,7 @@ static PiMap *current_stateMap(vm_t *vm, const char *name)
     return (PiMap *)fn->instance;
 }
 
+// Creates a native Function object that behaves like a normal callable but carries state.
 static Value make_nativeWrapper(vm_t *vm, const char *name, native_func func, Object *state)
 {
     Object *obj = new_func((char *)name, NULL, NULL, NULL, state);
@@ -67,6 +70,7 @@ static Value make_nativeWrapper(vm_t *vm, const char *name, native_func func, Ob
     return NEW_OBJ(obj);
 }
 
+// Builds a VM-owned list from raw Value arguments and preserves numeric-list metadata.
 static Value new_valueList(vm_t *vm, int count, Value *items)
 {
     list_t *list = list_create(sizeof(Value));
@@ -97,17 +101,6 @@ static int inferred_arity(Function *fn)
     return fn->params ? list_size(fn->params) : 0;
 }
 
-/**
- * @brief Maps a function to every item in a list.
- *
- * This function takes two arguments: a function and a list. It applies the
- * function to each item in the list and returns a new list with the results.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments passed to the function.
- * @param argv The arguments provided to the function.
- * @return A new list with the results of the function applied to each item.
- */
 Value _pi_map(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_LIST(argv[0]) || !IS_FUN(argv[1]))
@@ -145,14 +138,6 @@ Value _pi_map(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-/**
- * @brief Returns a new list containing the items for which the callback function returns true.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments (should be 2).
- * @param argv Arguments: [callback, list]
- * @return A new list with the filtered items.
- */
 Value pi_filter(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_LIST(argv[0]) || !IS_FUN(argv[1]))
@@ -178,14 +163,6 @@ Value pi_filter(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-/**
- * @brief Applies a function against an accumulator and each value of the list (from left to right) to reduce it to a single value.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments (should be 2 or 3).
- * @param argv Arguments: [callback, list, optional initial value]
- * @return The accumulated value after applying the function across all elements.
- */
 Value pi_reduce(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_LIST(argv[0]) || !IS_FUN(argv[1]))
@@ -209,14 +186,6 @@ Value pi_reduce(vm_t *vm, int argc, Value *argv)
     return acc;
 }
 
-/**
- * @brief Finds the index of the first element in a collection that satisfies a callback.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments.
- * @param argv Arguments: [callback, collection]
- * @return Index of the first matching item, or -1 if none match.
- */
 Value pi_find(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_FUN(argv[1]))
@@ -255,6 +224,7 @@ Value pi_find(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(-1);
 }
 
+// compose(f, g, h)(x) calls h first, then g, then f.
 static Value fn_composeCall(vm_t *vm, int argc, Value *argv)
 {
     PiList *fns = require_list(vm, state_get(vm, current_stateMap(vm, "compose"), "fns", NEW_NIL()), "compose");
@@ -288,6 +258,7 @@ Value fn_compose(vm_t *vm, int argc, Value *argv)
     return make_nativeWrapper(vm, "compose", fn_composeCall, (Object *)state);
 }
 
+// pipe(f, g, h)(x) calls f first, then g, then h.
 static Value fn_pipeCall(vm_t *vm, int argc, Value *argv)
 {
     PiList *fns = require_list(vm, state_get(vm, current_stateMap(vm, "pipe"), "fns", NEW_NIL()), "pipe");
@@ -359,6 +330,7 @@ Value fn_juxt(vm_t *vm, int argc, Value *argv)
     return make_nativeWrapper(vm, "juxt", fn_juxtCall, (Object *)state);
 }
 
+// Each partial curry call returns a new wrapper until the required arity is reached.
 static Value fn_curryCall(vm_t *vm, int argc, Value *argv)
 {
     PiMap *state = current_stateMap(vm, "curry");
@@ -494,6 +466,7 @@ Value fn_unspread(vm_t *vm, int argc, Value *argv)
     return make_nativeWrapper(vm, "unspread", fn_unspreadCall, (Object *)state);
 }
 
+// Cache keys are generated either by key_fn(...) or by stringifying the argument list.
 static Value fn_memoizeCall(vm_t *vm, int argc, Value *argv)
 {
     PiMap *state = current_stateMap(vm, "memoize");
@@ -593,6 +566,7 @@ Value fn_throttle(vm_t *vm, int argc, Value *argv)
     return make_nativeWrapper(vm, "throttle", fn_throttleCall, (Object *)state);
 }
 
+// This debounce is synchronous: rapid calls reuse the previous result instead of scheduling a delayed call.
 static Value fn_debounceCall(vm_t *vm, int argc, Value *argv)
 {
     PiMap *state = current_stateMap(vm, "debounce");
@@ -657,6 +631,7 @@ Value fn_thunk(vm_t *vm, int argc, Value *argv)
     return make_nativeWrapper(vm, "thunk", fn_thunkCall, (Object *)state);
 }
 
+// Returns the current value, then advances the stored state with fn(current).
 static Value fn_iterateCall(vm_t *vm, int argc, Value *argv)
 {
     (void)argc;
@@ -707,7 +682,7 @@ Value fn_noop(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-// Module Registration
+// Expose the higher-order function helpers as the `func` builtin module.
 static BuiltinFunc func_funcs[] = {
     {"compose", fn_compose},
     {"pipe", fn_pipe},

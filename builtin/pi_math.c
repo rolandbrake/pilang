@@ -1,23 +1,17 @@
 #include <math.h>
 #include <time.h>
-#include <stdlib.h> // For qsort
+#include <stdlib.h>
 
 #include "pi_math.h"
 #include "pi_builtin.h"
 #include "../common.h"
 
-static uint32_t state = 2463534242; // Initial seed
-// --- Random State ---
+static uint32_t state = 2463534242;
+
+// xoshiro32** uses four 32-bit state values. splitmix32 expands a single seed into this state.
 static uint32_t rng_state[4];
 static int rng_initialized = 0;
 
-/**
- * @brief Returns the rounded value of a number or each number in a list.
- *
- * This function accepts either a single numeric value or a list of numeric values.
- * If a single number is passed, it returns its rounded value.
- * If a list is passed, it returns a new list with each number rounded.
- */
 Value pi_round(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -54,17 +48,7 @@ Value pi_round(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * A Xorshift PRNG, specifically the SplitMix32 algorithm as described by
- * Sebastiano Vigna in his paper "An experimental exploration of the
- * Xorshift generators" (2016). The SplitMix32 algorithm is a 32-bit
- * version of the Xorshift algorithm that is suitable for use in
- * applications where memory is a concern. It has a period of 2^32 and
- * passes the PractRand random number generator test suite.
- *
- * This function takes a pointer to a seed value and returns a random
- * 32-bit integer.
- */
+// Used only for seeding xoshiro32**; it spreads nearby seeds into different internal states.
 static uint32_t splitmix32(uint32_t *seed)
 {
     uint32_t z = (*seed += 0x9e3779b9);
@@ -73,109 +57,61 @@ static uint32_t splitmix32(uint32_t *seed)
     return z ^ (z >> 16);
 }
 
-/**
- * Seeds the random number generator with a given 32-bit integer.
- *
- * @param seed A 32-bit integer to use as the seed.
- */
 void rng_seed(uint32_t seed)
 {
-    // Initialize the state array with the seed value
     for (int i = 0; i < 4; i++)
         rng_state[i] = splitmix32(&seed);
     rng_initialized = 1;
 }
 
-// --- xoshiro32** next function ---
-// This function implements the xoshiro32** PRNG algorithm.
-// It returns a random 32-bit integer.
+// xoshiro32** PRNG step. Fast and deterministic once seeded.
 uint32_t xoshiro32(void)
 {
-    // The state array is an array of four 32-bit integers.
     uint32_t *s = rng_state;
 
-    // Compute the result based on the current state.
     uint32_t result = s[1] * 5;
     result = ((result << 7) | (result >> (32 - 7))) * 9;
 
-    // Compute the temporary value t.
     uint32_t t = s[1] << 9;
 
-    // Update the state array.
     s[2] ^= s[0];
     s[3] ^= s[1];
     s[1] ^= s[2];
     s[0] ^= s[3];
 
-    // Update the state array using the temporary value.
     s[2] ^= t;
     s[3] = (s[3] << 11) | (s[3] >> (32 - 11));
 
-    // Return the result.
     return result;
 }
 
-/**
- * Generates a random double in the range [0.0, 1.0).
- *
- * This function uses the xoshiro32** PRNG algorithm to generate a random
- * 32-bit integer, then divides it by UINT32_MAX to produce a double
- * between 0.0 (inclusive) and 1.0 (exclusive).
- *
- * If the random number generator is not initialized, it seeds it using
- * the current time.
- *
- * @return A random double in the range [0.0, 1.0).
- */
+// Returns a floating-point value in [0.0, 1.0). Auto-seeds on first use.
 double rand_num()
 {
-    // Check if the random number generator has been initialized
     if (!rng_initialized)
-        rng_seed((uint32_t)time(NULL)); // Seed with current time if not initialized
+        rng_seed((uint32_t)time(NULL));
 
-    // Generate a random double in [0.0, 1.0)
     return xoshiro32() / (double)UINT32_MAX;
 }
 
-/**
- * @brief Seeds the random number generator with a given numeric value.
- *
- * This function initializes the RNG using a single numeric argument.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments, expected to be 1.
- * @param argv The argument values, expected to contain a single numeric value.
- * @return A NIL value indicating the operation was performed.
- */
 Value pi_seed(vm_t *vm, int argc, Value *argv)
 {
-    // Check if exactly one numeric argument is provided
     if (argc < 1 || !is_numeric(argv[0]))
         vm_error(vm, "[seed] expects a single numeric argument.");
 
-    // Seed the RNG with the provided numeric value
     rng_seed((uint32_t)as_number(argv[0]));
 
-    // Return NIL to indicate successful seeding
     return NEW_NIL();
 }
 
-/**
- * Generates a random number between 0 and 1.
- *
- * @param vm The virtual machine instance.
- * @param argc The argument count; expected to be 0.
- * @param argv The argument values; expected to be empty.
- * @return A new Value containing the random number.
- */
-
+// rand() -> float in [0, 1), rand(max) -> integer in [0, max], rand(min, max) -> integer in [min, max].
 Value pi_rand(vm_t *vm, int argc, Value *argv)
 {
     if (!rng_initialized)
-        rng_seed((uint32_t)time(NULL)); // Still safe to call once here
+        rng_seed((uint32_t)time(NULL));
 
     if (argc == 0)
-        return NEW_NUM(rand_num()); // [0.0, 1.0)
+        return NEW_NUM(rand_num());
 
     else if (argc == 1 && is_numeric(argv[0]))
     {
@@ -207,14 +143,6 @@ Value pi_rand(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[rand] expects 0, 1, or 2 numeric arguments.");
 }
 
-/**
- * @brief Generates a list of random floating-point numbers between 0 and 1.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (expects exactly 1).
- * @param argv The arguments (expects one numeric argument for size).
- * @return A list of random numbers of length `size`.
- */
 Value pi_rand_n(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !is_numeric(argv[0]))
@@ -228,7 +156,7 @@ Value pi_rand_n(vm_t *vm, int argc, Value *argv)
 
     for (int i = 0; i < size; i++)
     {
-        double r = (double)rand() / RAND_MAX; // random float between 0 and 1
+        double r = (double)rand() / RAND_MAX;
         Value val = NEW_NUM(r);
         list_add(list, &val);
     }
@@ -240,14 +168,6 @@ Value pi_rand_n(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-/**
- * @brief Returns the minimum value in a list of numeric values.
- *
- * Accepts a single argument which must be a list or set of numeric values
- * or multiple numeric arguments.
- *
- * Returns the smallest number in the list.
- */
 Value pi_min(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -258,7 +178,6 @@ Value pi_min(vm_t *vm, int argc, Value *argv)
 
     if (argc > 1 && is_numeric(argv[0]))
     {
-        // If multiple numeric arguments are provided, find the minimum among them
         for (int i = 0; i < argc; i++)
         {
             if (!is_numeric(argv[i]))
@@ -322,14 +241,6 @@ Value pi_min(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(min_val);
 }
 
-/**
- * @brief Returns the maximum value in a list of numeric values.
- *
- * Accepts a single argument which must be a list or set of
- * numeric values or multiple numeric arguments
- *
- * Returns the largest number in the list.
- */
 Value pi_max(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -339,7 +250,6 @@ Value pi_max(vm_t *vm, int argc, Value *argv)
     bool initialized = false;
     if (argc > 1 && is_numeric(argv[0]))
     {
-        // If multiple numeric arguments are provided, find the maximum among them
         for (int i = 0; i < argc; i++)
         {
             if (!is_numeric(argv[i]))
@@ -403,12 +313,6 @@ Value pi_max(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(max_val);
 }
 
-/**
- * @brief Returns the absolute value of a number or a list of numbers.
- *
- * Accepts a single numeric value or a list of numeric values.
- * If a list is passed, returns a new list with the absolute value of each element.
- */
 Value pi_abs(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -446,14 +350,6 @@ Value pi_abs(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Return the floor of a number or each element in a list.
- *
- * @param vm The virtual machine.
- * @param argc The number of arguments.
- * @param argv The arguments.
- * @return The floor of a number or a new list of floors.
- */
 Value mt_floor(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -490,13 +386,6 @@ Value mt_floor(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Returns the ceiling of a number or each number in a list.
- *
- * This function accepts either a single numeric value or a list of numeric values.
- * If a single number is passed, it returns its ceiling.
- * If a list is passed, it returns a new list with the ceiling of each number.
- */
 Value mt_ceil(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -533,13 +422,6 @@ Value mt_ceil(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Returns the square root of a number or each number in a list.
- *
- * Accepts either a single numeric value or a list of numeric values.
- * If a number is passed, returns its square root.
- * If a list is passed, returns a new list with the square root of each element.
- */
 Value mt_sqrt(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -576,13 +458,6 @@ Value mt_sqrt(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Returns the sine of a number or each number in a list (in radians).
- *
- * Accepts either a single numeric value or a list of numeric values.
- * If a number is passed, returns its sine.
- * If a list is passed, returns a new list with the sine of each element.
- */
 Value mt_sin(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -619,13 +494,6 @@ Value mt_sin(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Returns the cosine of a number or each number in a list (in radians).
- *
- * Accepts either a single numeric value or a list of numeric values.
- * If a number is passed, returns its cosine.
- * If a list is passed, returns a new list with the cosine of each element.
- */
 Value mt_cos(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -662,14 +530,6 @@ Value mt_cos(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Computes the arcsine (inverse sine) of a number or a list of numbers.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (expects exactly 1).
- * @param argv The arguments (a single numeric value or a list of numeric values).
- * @return The arcsine of the number or a list of arcsines.
- */
 Value mt_asin(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -716,13 +576,6 @@ Value mt_asin(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Returns the tangent of a number or each number in a list (in radians).
- *
- * Accepts either a single numeric value or a list of numeric values.
- * If a number is passed, returns its tangent.
- * If a list is passed, returns a new list with the tangent of each element.
- */
 Value mt_tan(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -759,14 +612,6 @@ Value mt_tan(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Computes the arccosine (inverse cosine) of a number or a list of numbers.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (expects exactly 1).
- * @param argv The arguments (a single numeric value or a list of numeric values).
- * @return The arccosine of the number or a list of arccosines.
- */
 Value mt_acos(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -811,17 +656,9 @@ Value mt_acos(vm_t *vm, int argc, Value *argv)
     else
         vm_error(vm, "[acos] expects a numeric value or a list of numeric values.");
 
-    return NEW_NIL(); // Unreachable
+    return NEW_NIL();
 }
 
-/**
- * @brief Computes the arctangent (inverse tangent) of a number or a list of numbers.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (expects exactly 1).
- * @param argv The arguments (a single numeric value or a list of numeric values).
- * @return The arctangent of the number or a list of arctangents.
- */
 Value mt_atan(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -862,14 +699,6 @@ Value mt_atan(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Converts radians to degrees for a number or a list of numbers.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (expects exactly 1).
- * @param argv The arguments (a single numeric value or a list of numeric values).
- * @return The degrees equivalent of the input radians or a list of such values.
- */
 Value mt_deg(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -911,14 +740,6 @@ Value mt_deg(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Converts degrees to radians for a number or a list of numbers.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (expects exactly 1).
- * @param argv The arguments (a single numeric value or a list of numeric values).
- * @return The radians equivalent of the input degrees or a list of such values.
- */
 Value mt_rad(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -960,17 +781,6 @@ Value mt_rad(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Calculates the sum of all numeric elements in a list.
- *
- * This function takes a list of numeric values and returns their total sum.
- * If any element in the list is not numeric, an error is raised.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (expects exactly 1).
- * @param argv The arguments (a list of numeric values).
- * @return The sum of all numbers in the list.
- */
 Value mt_sum(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_LIST(argv[0]))
@@ -990,18 +800,6 @@ Value mt_sum(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(total);
 }
 
-/**
- * @brief Calculates the exponential (e^x) of a number or each element in a list.
- *
- * This function accepts either a single numeric value or a list of numeric values.
- * It returns e raised to the power of the number(s).
- * If a list is provided, the result is a new list containing the exponential of each element.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (expects exactly 1).
- * @param argv The arguments (a numeric value or a list of numeric values).
- * @return The exponential of the number or a list of exponentials.
- */
 Value mt_exp(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -1039,18 +837,6 @@ Value mt_exp(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Calculates the base-2 logarithm of a number or each element in a list.
- *
- * This function accepts a single numeric value or a list of numeric values.
- * It returns the base-2 logarithm (log2) of the number(s).
- * If a list is provided, the result is a new list containing the log2 of each element.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (expects exactly 1).
- * @param argv The arguments (a numeric value or a list of numeric values).
- * @return The base-2 logarithm of the number or a list of logarithms.
- */
 Value mt_log2(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -1094,18 +880,6 @@ Value mt_log2(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Calculates the base-10 logarithm of a number or each element in a list.
- *
- * This function accepts a single numeric value or a list of numeric values.
- * It returns the base-10 logarithm (log10) of the number(s).
- * If a list is provided, the result is a new list containing the log10 of each element.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (expects exactly 1).
- * @param argv The arguments (a numeric value or a list of numeric values).
- * @return The base-10 logarithm of the number or a list of logarithms.
- */
 Value mt_log10(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -1149,14 +923,6 @@ Value mt_log10(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * Computes the power of a number or each element in a list raised to the given exponent.
- *
- * @param vm The virtual machine.
- * @param argc Number of arguments (expects exactly 2).
- * @param argv The arguments: base (number or list), exponent (number).
- * @return The result of base^exponent (number or list).
- */
 Value pi_pow(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -1204,16 +970,6 @@ Value pi_pow(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Computes the natural logarithm of a number.
- *
- * This function accepts a single numeric value and returns its natural logarithm.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments (expects exactly 1 numeric argument).
- * @param argv The arguments (a single numeric value).
- * @return The natural logarithm of the number.
- */
 Value mt_logE(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0 || !is_numeric(argv[0]))
@@ -1261,6 +1017,7 @@ Value mt_linspace(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
+// Produces values in [start, end), matching Python/NumPy arange semantics.
 Value mt_arange(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2 || !is_numeric(argv[0]) || !is_numeric(argv[1]) || (argc >= 3 && !is_numeric(argv[2])))
@@ -1288,7 +1045,7 @@ Value mt_arange(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-// Module Defenition
+// Module definition
 static BuiltinConst math_consts[] = {
     {"PI", {VAL_NUM, {.number = PI}}},
     {"E", {VAL_NUM, {.number = E}}},

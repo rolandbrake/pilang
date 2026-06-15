@@ -10,7 +10,8 @@
 
 #include <SDL2/SDL.h>
 
-// Ensure an image is converted to RGBA32 for easy processing.
+// Convert to RGBA32 only if needed; caller must check whether a new surface
+// was allocated (src != returned pointer) and free it after use.
 static SDL_Surface *to_rgba32(SDL_Surface *src)
 {
     if (!src)
@@ -21,7 +22,8 @@ static SDL_Surface *to_rgba32(SDL_Surface *src)
     return conv;
 }
 
-// Apply a convolution kernel (ksize x ksize) to src (RGBA32) -> dst (RGBA32).
+// General convolution using float kernel. Alpha is preserved from src.
+// Border pixels are clamped (edge-extend), not zero-padded.
 static void apply_convolutionRGBA(SDL_Surface *src, SDL_Surface *dst, const float *kernel, int ksize)
 {
     int w = src->w;
@@ -91,6 +93,7 @@ static int clamp_u8(double value)
     return (int)lrint(value);
 }
 
+
 typedef struct
 {
     const char *name;
@@ -139,6 +142,7 @@ static int parse_listKernel(vm_t *vm, Value value, double **kernel, int *rows, i
         return 0;
     }
 
+    // Column count is fixed by the first row; all subsequent rows must match.
     int ccount = LIST_SIZE(AS_LIST(*first)->items);
     if (ccount <= 0)
     {
@@ -192,6 +196,7 @@ static int parse_listKernel(vm_t *vm, Value value, double **kernel, int *rows, i
     return 1;
 }
 
+// Accepts either a numeric builtin id or a nested pi list [[...], ...].
 static int parse_kernelValue(vm_t *vm, Value value, double **kernel, int *rows, int *cols)
 {
     *kernel = NULL;
@@ -213,6 +218,8 @@ static int parse_kernelValue(vm_t *vm, Value value, double **kernel, int *rows, 
     return parse_listKernel(vm, value, kernel, rows, cols);
 }
 
+// General convolution using double kernel. Alpha is carried through from src.
+// Border pixels are clamped (edge-extend), not zero-padded.
 static void apply_kernelRGBA(SDL_Surface *src, SDL_Surface *dst, const double *kernel, int krows, int kcols)
 {
     int w = src->w;
@@ -328,14 +335,13 @@ typedef struct
     int id;
 } KernelAlias;
 
+// Multiple aliases map to the same kernel id (e.g. "sobel" and "sobelx" both -> KERNEL_SOBEL_X).
 static const KernelAlias kernel_aliases[] = {
     {"identity", KERNEL_IDENTITY},
     {"sharpen", KERNEL_SHARPEN},
-    {"edge", KERNEL_EDGE},
-    {"edge8", KERNEL_EDGE},
+    {"edge", KERNEL_EDGE},    
     {"emboss", KERNEL_EMBOSS},
     {"gaussian", KERNEL_GAUSSIAN},
-    {"gaussian3", KERNEL_GAUSSIAN},
     {"sobel", KERNEL_SOBEL_X},
     {"sobel_x", KERNEL_SOBEL_X},
     {"sobelx", KERNEL_SOBEL_X},
@@ -361,6 +367,8 @@ static int find_kernelId(const char *name)
     return -1;
 }
 
+// Returns a numeric Value holding the builtin kernel id, which parse_kernelValue
+// can later resolve. This avoids copying kernel data until filter() is called.
 static Value make_namedKernel(vm_t *vm, const char *name)
 {
     int id = find_kernelId(name);
@@ -476,7 +484,6 @@ Value im_boxKernel(vm_t *vm, int argc, Value *argv)
     return result;
 }
 
-// Builtin: invert(image)
 Value im_invert(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
@@ -524,7 +531,7 @@ Value im_invert(vm_t *vm, int argc, Value *argv)
     return out;
 }
 
-// Builtin: brightness(image, delta)
+// delta is added to each channel before clamping; positive brightens, negative darkens.
 Value im_brightness(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE) || !IS_NUM(argv[1]))
@@ -574,7 +581,8 @@ Value im_brightness(vm_t *vm, int argc, Value *argv)
     return out;
 }
 
-// Builtin: contrast(image, factor)
+// Scales each channel around the midpoint (128): factor > 1 increases contrast,
+// 0 < factor < 1 reduces it, factor = 0 produces a flat grey image.
 Value im_contrast(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE) || !IS_NUM(argv[1]))
@@ -624,7 +632,6 @@ Value im_contrast(vm_t *vm, int argc, Value *argv)
     return out;
 }
 
-// Builtin: blur(image, radius)
 Value im_blur(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
@@ -636,6 +643,7 @@ Value im_blur(vm_t *vm, int argc, Value *argv)
     if (radius < 1)
         radius = 1;
 
+    // kernel size grows as (2*radius+1)^2; large radii can be slow.
     int ksize = radius * 2 + 1;
     int kcount = ksize * ksize;
     float *kernel = (float *)malloc(sizeof(float) * kcount);
@@ -666,7 +674,6 @@ Value im_blur(vm_t *vm, int argc, Value *argv)
     return out;
 }
 
-// Builtin: sharpen(image)
 Value im_sharpen(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
@@ -694,13 +701,13 @@ Value im_sharpen(vm_t *vm, int argc, Value *argv)
     return out;
 }
 
-// Builtin: sobel(image) -> grayscale edge image
+// Produces a grayscale magnitude image. Applies Sobel X and Y separately then
+// combines as sqrt(gx^2 + gy^2), weighted by luminance rather than per channel.
 Value im_sobel(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.filters.sobel] expects an image.");
 
-    // Sobel kernels
     float kx[9] = {-1, 0, 1, -2, 0, 2, -1, 0, 1};
     float ky[9] = {-1, -2, -1, 0, 0, 0, 1, 2, 1};
 
@@ -745,7 +752,6 @@ Value im_sobel(vm_t *vm, int argc, Value *argv)
                         sx = w - 1;
 
                     Uint8 *pp = sp + sy * spitch + sx * 4;
-                    // luminance
                     float lum = 0.299f * pp[0] + 0.587f * pp[1] + 0.114f * pp[2];
                     int ki = (kyoff + 1) * 3 + (kxoff + 1);
                     gx += lum * kx[ki];
@@ -770,7 +776,6 @@ Value im_sobel(vm_t *vm, int argc, Value *argv)
     return out;
 }
 
-// Builtin: threshold(image, thresh=128)
 Value im_threshold(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
@@ -802,6 +807,7 @@ Value im_threshold(vm_t *vm, int argc, Value *argv)
         for (int x = 0; x < w; x++)
         {
             Uint8 *ps = sp + y * src->pitch + x * 4;
+            // Threshold on luminance, not per channel, to avoid colour fringing.
             float lum = 0.299f * ps[0] + 0.587f * ps[1] + 0.114f * ps[2];
             Uint8 *pd = dp + y * dst->pitch + x * 4;
             if (lum >= thresh)
@@ -823,6 +829,7 @@ Value im_threshold(vm_t *vm, int argc, Value *argv)
 
 static void gaussian_blurGray(const float *in, float *out, int w, int h)
 {
+    // 5x5 Gaussian kernel (sigma ≈ 1.0), normalised to sum = 1.
     const float kernel[25] = {
         1 / 273.0f, 4 / 273.0f, 7 / 273.0f, 4 / 273.0f, 1 / 273.0f,
         4 / 273.0f,16 / 273.0f,26 / 273.0f,16 / 273.0f, 4 / 273.0f,
@@ -880,6 +887,7 @@ static void compute_gradient(const float *gray, float *mag, float *ang, int w, i
                 }
             }
             mag[y * w + x] = sqrtf(gx * gx + gy * gy);
+            // Angle stored in [0, 180) — direction only, not orientation.
             ang[y * w + x] = atan2f(gy, gx) * 180.0f / M_PI;
             if (ang[y * w + x] < 0.0f)
                 ang[y * w + x] += 180.0f;
@@ -887,6 +895,8 @@ static void compute_gradient(const float *gray, float *mag, float *ang, int w, i
     }
 }
 
+// Suppress any pixel that is not the local maximum along the gradient direction.
+// The angle is quantised to 4 directions (0°, 45°, 90°, 135°).
 static void non_max_suppression(const float *mag, const float *ang, float *out, int w, int h)
 {
     for (int y = 0; y < h; y++)
@@ -948,6 +958,10 @@ static void non_max_suppression(const float *mag, const float *ang, float *out, 
     }
 }
 
+// Double-threshold hysteresis: pixels above `high` are kept, pixels between
+// `low` and `high` are kept only if they touch a strong (>= high) neighbour,
+// pixels below `low` are discarded. Single-pass, so chains of weak pixels
+// are only followed one hop — sufficient for typical images.
 static void hysteresis(float *edges, int w, int h, int low, int high)
 {
     for (int y = 0; y < h; y++)
@@ -1015,9 +1029,9 @@ Value im_canny(vm_t *vm, int argc, Value *argv)
 
     float *gray = (float *)malloc(sizeof(float) * (size_t)(w * h));
     float *blur = (float *)malloc(sizeof(float) * (size_t)(w * h));
-    float *mag = (float *)malloc(sizeof(float) * (size_t)(w * h));
-    float *ang = (float *)malloc(sizeof(float) * (size_t)(w * h));
-    float *nms = (float *)malloc(sizeof(float) * (size_t)(w * h));
+    float *mag  = (float *)malloc(sizeof(float) * (size_t)(w * h));
+    float *ang  = (float *)malloc(sizeof(float) * (size_t)(w * h));
+    float *nms  = (float *)malloc(sizeof(float) * (size_t)(w * h));
 
     if (!gray || !blur || !mag || !ang || !nms)
     {
@@ -1043,6 +1057,7 @@ Value im_canny(vm_t *vm, int argc, Value *argv)
     }
     SDL_UnlockSurface(src_surface);
 
+    // Pipeline: greyscale -> gaussian blur -> gradient -> NMS -> hysteresis
     gaussian_blurGray(gray, blur, w, h);
     compute_gradient(blur, mag, ang, w, h);
     non_max_suppression(mag, ang, nms, w, h);
@@ -1090,7 +1105,6 @@ Value im_canny(vm_t *vm, int argc, Value *argv)
     return out;
 }
 
-// Module export
 static BuiltinFunc filter_funcs[] = {
     {"filter", im_filter},
     {"kernel", im_kernel},

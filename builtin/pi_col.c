@@ -7,51 +7,23 @@
 #include "../pi_list.h"
 #include "pi_builtin.h"
 
-/**
- * @brief Compares two values and returns a negative, zero, or positive value.
- *
- * This function compares two values and returns a negative value if the first
- * value is less than the second, zero if they are equal, and a positive value if
- * the first value is greater than the second.
- *
- * @param a The first value to compare.
- * @param b The second value to compare.
- * @return A negative value if the first value is less than the second, zero if
- *         they are equal, and a positive value if the first value is greater
- *         than the second.
- */
 static int _compare(const void *a, const void *b)
 {
     const Value *va = (const Value *)a;
     const Value *vb = (const Value *)b;
 
-    // Compare two numbers
     if (IS_NUM(*va) && IS_NUM(*vb))
     {
         double diff = AS_NUM(*va) - AS_NUM(*vb);
         return (diff < 0) ? -1 : (diff > 0);
     }
-    // Compare two strings
+
     else if (IS_STRING(*va) && IS_STRING(*vb))
         return strcmp(AS_CSTRING(*va), AS_CSTRING(*vb));
 
-    // Should not reach here due to earlier type check
     return 0;
 }
 
-/**
- * @brief Removes the last element from a list or character from a string and returns it.
- *
- * This function takes a list or string as input and removes the last element/character.
- * If the input is a list, the last element is removed and returned.
- * If the input is a string, the last character is removed and returned as a new string.
- * If the input is neither, an error is raised.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments passed to the function.
- * @param argv The arguments provided to the function.
- * @return The last element or character from the list or string.
- */
 Value pi_pop(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -74,10 +46,9 @@ Value pi_pop(vm_t *vm, int argc, Value *argv)
         if (len == 0)
             vm_error(vm, "[pop] Cannot pop from an empty string.");
 
-        // Return the last character as a new string
         char ch[2] = {str->chars[len - 1], '\0'};
 
-        // Resize the original string in place (if desired), or just return the popped character
+        // Mutates the original string and returns the removed character.
         str->length -= 1;
         str->chars[len - 1] = '\0';
 
@@ -89,19 +60,6 @@ Value pi_pop(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Adds elements to the end of a list or characters to the end of a string.
- *
- * This function takes a list or string as the first argument and appends additional
- * elements/characters to it. If the first argument is a list, all subsequent arguments
- * are appended as elements. If it's a string, each argument must be a string of length 1,
- * which will be appended as characters. If the first argument is neither, an error is raised.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments passed to the function.
- * @param argv The arguments provided to the function.
- * @return The new length of the list or string after pushing.
- */
 Value pi_push(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -130,9 +88,8 @@ Value pi_push(vm_t *vm, int argc, Value *argv)
             if (_arg->length != 1)
                 vm_error(vm, "[push] Only single-character strings can be pushed to a string.");
 
-            // Append the character
             char ch = _arg->chars[0];
-            str->chars = realloc(str->chars, str->length + 2); // +1 for new char, +1 for '\0'
+            str->chars = realloc(str->chars, str->length + 2);
             str->chars[str->length] = ch;
             str->length += 1;
             str->chars[str->length] = '\0';
@@ -146,17 +103,6 @@ Value pi_push(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Checks if a list, string, or map is empty.
- *
- * This function takes one argument and returns true if the list, string, or map is empty,
- * false otherwise. If the input is not a list, string, or map, an error is raised.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments passed to the function.
- * @param argv The arguments provided to the function.
- * @return true if the input is empty, false otherwise.
- */
 Value pi_empty(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -190,17 +136,6 @@ Value pi_empty(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Inserts a value into a list or string at a specified index.
- *
- * For lists, the value is inserted directly.
- * For strings, only single-character strings can be inserted.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments passed.
- * @param argv Arguments (collection, index, value).
- * @return The modified collection (same reference).
- */
 Value pi_insert(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 3)
@@ -232,21 +167,17 @@ Value pi_insert(vm_t *vm, int argc, Value *argv)
 
         index = get_index(index, str->length);
 
-        // Allocate new space for +1 character
         int new_len = str->length + strlen(_str);
-        char *new_chars = malloc(new_len + 1); // +1 for null terminator
+        char *new_chars = malloc(new_len + 1);
 
-        // Copy before index
         memcpy(new_chars, str->chars, index);
-        // Insert new char
+
         for (int i = 0; i < strlen(_str); i++)
             new_chars[index + i] = _str[i];
 
-        // Copy after index
         memcpy(new_chars + index + strlen(_str), str->chars + index, str->length - index);
         new_chars[new_len] = '\0';
 
-        // Replace original string content
         free(str->chars);
         str->chars = new_chars;
         str->length = new_len;
@@ -256,20 +187,9 @@ Value pi_insert(vm_t *vm, int argc, Value *argv)
     }
 
     vm_error(vm, "[insert] First argument must be a list or string.");
-    return NEW_NIL(); // unreachable
+    return NEW_NIL();
 }
 
-/**
- * @brief Removes an element from a list or a character from a string at the given index.
- *
- * For lists: returns the removed element.
- * For strings: returns the removed character as a new string.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments passed (must be 2).
- * @param argv Arguments: collection, index.
- * @return The removed element or character.
- */
 Value pi_remove(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -281,15 +201,13 @@ Value pi_remove(vm_t *vm, int argc, Value *argv)
     if ((IS_LIST(collection) || IS_STRING(collection)) && !IS_NUM(_index))
         vm_error(vm, "[remove] index must be a number.");
 
-    // Handle list removal
     if (IS_LIST(collection))
     {
         int index = as_number(_index);
         list_t *list = AS_CLIST(collection);
-        return *(Value *)list_remove(list, index); // Assumes list_removeAt returns a pointer to Value
+        return *(Value *)list_remove(list, index);
     }
 
-    // Handle string character removal
     else if (IS_STRING(collection))
     {
         int index = as_number(_index);
@@ -297,17 +215,15 @@ Value pi_remove(vm_t *vm, int argc, Value *argv)
 
         index = get_index(index, str->length);
 
-        // Get the character being removed
         char removed = str->chars[index];
 
-        // Create a new string with the character
         char ch[2] = {removed, '\0'};
         Value removed_val = NEW_OBJ(new_pistring(strdup(ch)));
 
-        // Shift string content left to remove character
+        // Move the terminator too, so the buffer stays null-terminated.
         memmove(&str->chars[index], &str->chars[index + 1], str->length - index);
         str->length--;
-        str->chars[str->length] = '\0'; // Null-terminate
+        str->chars[str->length] = '\0';
 
         return removed_val;
     }
@@ -390,14 +306,14 @@ Value pi_range(vm_t *vm, int argc, Value *argv)
 
     if (argc == 1)
     {
-        // range(end)
+
         if (!IS_NUM(argv[0]))
             vm_error(vm, "[range] Expected a number as the end value.");
         end = AS_NUM(argv[0]);
     }
     else if (argc == 2)
     {
-        // range(start, end)
+
         if (!IS_NUM(argv[0]) || !IS_NUM(argv[1]))
             vm_error(vm, "[range] Expected numbers for start and end values.");
 
@@ -406,7 +322,7 @@ Value pi_range(vm_t *vm, int argc, Value *argv)
     }
     else if (argc >= 3)
     {
-        // range(start, end, step)
+
         if (!IS_NUM(argv[0]) || !IS_NUM(argv[1]) || !IS_NUM(argv[2]))
             vm_error(vm, "[range] Expected numbers for start, end, and step values.");
 
@@ -452,9 +368,6 @@ Value pi_peek(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * Returns the union of sets.
- */
 Value pi_union(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -478,9 +391,6 @@ Value pi_union(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)result);
 }
 
-/**
- * Returns the intersection of sets.
- */
 Value pi_intersection(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -514,9 +424,6 @@ Value pi_intersection(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)result);
 }
 
-/**
- * Returns the difference of two sets.
- */
 Value pi_difference(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -539,9 +446,6 @@ Value pi_difference(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)result);
 }
 
-/**
- * Returns the symmetric difference of two sets.
- */
 Value pi_symmetricDiff(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -574,9 +478,6 @@ Value pi_symmetricDiff(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)result);
 }
 
-/**
- * Checks if one set is a subset of another.
- */
 Value pi_issubset(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -597,9 +498,6 @@ Value pi_issubset(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(true);
 }
 
-/**
- * Checks if one set is a superset of another.
- */
 Value pi_issuperset(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -620,9 +518,6 @@ Value pi_issuperset(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(true);
 }
 
-/**
- * Checks if two sets are disjoint.
- */
 Value pi_isdisjoint(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -643,9 +538,6 @@ Value pi_isdisjoint(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(true);
 }
 
-/**
- * Creates a new set from an iterable, removing duplicates.
- */
 Value _pi_set(vm_t *vm, int argc, Value *argv)
 {
     if (argc >= 1 && !IS_COLLECTION(argv[0]))
@@ -820,9 +712,6 @@ Value pi_copy(vm_t *vm, int argc, Value *argv)
     }
 }
 
-/**
- * Adds elements to a set.
- */
 Value cl_add(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -838,12 +727,12 @@ Value cl_add(vm_t *vm, int argc, Value *argv)
         Value elem = argv[i];
         if (!IS_COLLECTION(elem))
         {
-            // Single element
+
             set_add(set, elem);
         }
         else
         {
-            // Bulk from iterable
+
             Object *iterable = AS_OBJ(elem);
             iter_reset(iterable);
             while (iter_hasNext(iterable))
@@ -857,9 +746,6 @@ Value cl_add(vm_t *vm, int argc, Value *argv)
     return argv[0];
 }
 
-/**
- * Removes all elements from a set.
- */
 Value cl_clear(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1)
@@ -888,19 +774,6 @@ Value cl_clear(vm_t *vm, int argc, Value *argv)
     return argv[0];
 }
 
-/**
- * @brief Retrieves the last element from a list or character from a string without removing it.
- *
- * This function takes a list or string as input and returns the last element/character
- * without modifying the input. If the input is a list, the last element is returned.
- * If the input is a string, the last character is returned as a one-character string.
- * If the input is neither, or is empty, an error is raised.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments passed to the function.
- * @param argv The arguments provided to the function.
- * @return The last element or character.
- */
 Value cl_peek(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -922,7 +795,6 @@ Value cl_peek(vm_t *vm, int argc, Value *argv)
         if (len == 0)
             vm_error(vm, "[peek] Cannot peek from an empty string.");
 
-        // Return the last character as a one-character string
         char ch[2] = {str->chars[len - 1], '\0'};
         return NEW_OBJ(new_pistring(strdup(ch)));
     }
@@ -932,18 +804,6 @@ Value cl_peek(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Sorts a list in-place in ascending order.
- *
- * This function takes one argument: a list. It sorts the list in-place using the default
- * comparison for supported types (numbers and strings). All elements must be of the same
- * type and either all numbers or all strings. Mixed types or unsupported types will raise an error.
- *
- * @param vm The virtual machine instance.
- * @param argc The number of arguments passed to the function.
- * @param argv The arguments provided to the function.
- * @return nil
- */
 Value cl_sort(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -957,7 +817,7 @@ Value cl_sort(vm_t *vm, int argc, Value *argv)
     list_t *list = AS_CLIST(arg);
 
     if (list->size <= 1)
-        return NEW_NIL(); // Nothing to sort
+        return NEW_NIL();
 
     Value first = (*(Value *)list_getAt(list, 0));
 
@@ -971,24 +831,11 @@ Value cl_sort(vm_t *vm, int argc, Value *argv)
             vm_error(vm, "[sort] List elements must all be of the same type.");
     }
 
-    // Comparator for qsort
-
     qsort(list->data, list->size, sizeof(Value), _compare);
 
     return NEW_NIL();
 }
 
-/**
- * @brief Prepends one or more values to the beginning of a collection.
- *
- * Supports both lists and strings. For lists, any type of value is allowed.
- * For strings, all values must be strings or characters.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments.
- * @param argv Arguments: collection followed by values to prepend.
- * @return The new size of the collection.
- */
 Value cl_unshift(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -1000,9 +847,8 @@ Value cl_unshift(vm_t *vm, int argc, Value *argv)
     {
         list_t *list = AS_CLIST(target);
 
-        // Shift items right and insert in reverse order to maintain input order
         for (int i = 1; i < argc; i++)
-            list_addFirst(list, &argv[i]); // Prepend each item at index 0
+            list_addFirst(list, &argv[i]);
 
         return NEW_NUM(list->size);
     }
@@ -1010,7 +856,6 @@ Value cl_unshift(vm_t *vm, int argc, Value *argv)
     {
         PiString *str = AS_STRING(target);
 
-        // Calculate total new length
         int total_len = str->length;
         for (int i = argc - 1; i >= 1; i--)
         {
@@ -1019,11 +864,9 @@ Value cl_unshift(vm_t *vm, int argc, Value *argv)
             total_len += AS_STRING(argv[i])->length;
         }
 
-        // Allocate new string
         char *new_chars = malloc(total_len + 1);
         int offset = 0;
 
-        // Copy new items first
         for (int i = argc - 1; i >= 1; i--)
         {
             PiString *s = AS_STRING(argv[i]);
@@ -1031,11 +874,9 @@ Value cl_unshift(vm_t *vm, int argc, Value *argv)
             offset += s->length;
         }
 
-        // Copy old string content
         memcpy(new_chars + offset, str->chars, str->length);
         new_chars[total_len] = '\0';
 
-        // Replace original string content
         free(str->chars);
         str->chars = new_chars;
         str->length = total_len;
@@ -1048,17 +889,6 @@ Value cl_unshift(vm_t *vm, int argc, Value *argv)
     return NEW_NIL(); // Unreachable
 }
 
-/**
- * @brief Appends one or more values to the end of a collection.
- *
- * Supports both lists and strings. For lists, any type of value is allowed.
- * For strings, all values must be strings or characters.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments.
- * @param argv Arguments: collection followed by values to append.
- * @return The new size of the collection.
- */
 Value cl_append(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -1071,7 +901,7 @@ Value cl_append(vm_t *vm, int argc, Value *argv)
         list_t *list = AS_CLIST(target);
 
         for (int i = 1; i < argc; i++)
-            list_add(list, &argv[i]); // Append each value to the end
+            list_add(list, &argv[i]);
 
         return NEW_NUM(list->size);
     }
@@ -1079,7 +909,6 @@ Value cl_append(vm_t *vm, int argc, Value *argv)
     {
         PiString *str = AS_STRING(target);
 
-        // Calculate new total length
         int total_len = str->length;
         for (int i = 1; i < argc; i++)
         {
@@ -1088,7 +917,6 @@ Value cl_append(vm_t *vm, int argc, Value *argv)
             total_len += AS_STRING(argv[i])->length;
         }
 
-        // Allocate new buffer
         char *new_chars = malloc(total_len + 1);
         memcpy(new_chars, str->chars, str->length);
 
@@ -1102,7 +930,6 @@ Value cl_append(vm_t *vm, int argc, Value *argv)
 
         new_chars[total_len] = '\0';
 
-        // Replace old string
         free(str->chars);
         str->chars = new_chars;
         str->length = total_len;
@@ -1115,18 +942,6 @@ Value cl_append(vm_t *vm, int argc, Value *argv)
     return NEW_NIL(); // Unreachable
 }
 
-/**
- * @brief Checks whether a collection contains a given value or key.
- *
- * For lists, checks if the value is present.
- * For strings, checks if the value is a substring.
- * For maps, checks if the value is a key.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments.
- * @param argv Arguments: [collection, value]
- * @return A boolean indicating whether the collection contains the value.
- */
 Value cl_contains(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -1189,16 +1004,6 @@ Value cl_contains(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(false);
 }
 
-/**
- * @brief Returns the index of the first occurrence of a value in a collection.
- *
- * Works for both lists and strings. Returns -1 if the value is not found.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments.
- * @param argv Arguments: [collection, value]
- * @return The index of the value in the collection, or -1 if not found.
- */
 Value cl_indexOf(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
@@ -1245,7 +1050,7 @@ Value cl_indexOf(vm_t *vm, int argc, Value *argv)
     else
         vm_error(vm, "[index_of] First argument must be a list, tuple, or string.");
 
-    return NEW_NUM(-1); // Not found
+    return NEW_NUM(-1);
 }
 
 Value cl_count(vm_t *vm, int argc, Value *argv)
@@ -1440,11 +1245,6 @@ Value cl_repeat(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @param argc Number of arguments (should be 1).
- * @param argv Arguments: [collection]
- * @return The reversed collection.
- */
 Value cl_reverse(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1)
@@ -1467,7 +1267,7 @@ Value cl_reverse(vm_t *vm, int argc, Value *argv)
             *b = tmp;
         }
 
-        return NEW_OBJ(new_list(copy)); // reversed in-place
+        return NEW_OBJ(new_list(copy));
     }
     else if (IS_STRING(input))
     {
@@ -1489,14 +1289,6 @@ Value cl_reverse(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-/**
- * @brief Shuffles a list in-place using Fisher–Yates algorithm.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments (should be 1).
- * @param argv Arguments: [list]
- * @return The shuffled list.
- */
 Value cl_shuffle(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1)
@@ -1509,6 +1301,7 @@ Value cl_shuffle(vm_t *vm, int argc, Value *argv)
     int size = list->items->size;
 
     // Seed RNG once
+    // Seed once so repeated shuffle calls do not reset randomness.
     static bool seeded = false;
     if (!seeded)
     {
@@ -1526,17 +1319,9 @@ Value cl_shuffle(vm_t *vm, int argc, Value *argv)
         *b = tmp;
     }
 
-    return argv[0]; // shuffled in-place
+    return argv[0];
 }
 
-/**
- * @brief Returns a deep copy of a list or a string.
- *
- * @param vm The virtual machine instance.
- * @param argc Number of arguments (should be 1).
- * @param argv Arguments: [collection]
- * @return A new copy of the collection.
- */
 Value cl_copy(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1)
@@ -1557,7 +1342,8 @@ Value cl_copy(vm_t *vm, int argc, Value *argv)
         for (int i = 0; i < orig->items->size; i++)
         {
             Value *item = (Value *)list_getAt(orig->items, i);
-            list_add(copied_items, item); // shallow copy of elements
+            // Collection method copy is shallow; pi_copy() above is the deep-copy builtin.
+            list_add(copied_items, item);
         }
 
         PiList *result = (PiList *)new_list(copied_items);
@@ -1589,7 +1375,6 @@ Value cl_zip(vm_t *vm, int argc, Value *argv)
     Value *iterables = argv;
     int numIterables = argc;
 
-    // Check if all iterables are of the same length
     int minLength = INT_MAX;
     for (int i = 0; i < numIterables; i++)
     {
@@ -1607,7 +1392,6 @@ Value cl_zip(vm_t *vm, int argc, Value *argv)
             minLength = length;
     }
 
-    // Create a new list to hold the zipped values
     list_t *zippedItems = list_create(sizeof(Value));
     for (int i = 0; i < minLength; i++)
     {
@@ -1719,7 +1503,7 @@ Value cl_isIterable(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(IS_OBJ(argv[0]) && is_iterable(AS_OBJ(argv[0])));
 }
 
-// Module definition
+// Functions exported by the col module.
 static BuiltinFunc col_functions[] = {
     {"peek", cl_peek},
     {"sort", cl_sort},
