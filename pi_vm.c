@@ -4766,6 +4766,15 @@ void run(vm_t *vm)
             printf("[DEBUG] Current PC: %d\n", pc);
             break;
 
+        case OP_PRINT:
+        {         
+            Value value = pop_stack(vm);
+            char *str = as_string(value);            
+            printf("%s\n", str);
+            free(str);
+            break;
+        }
+
         // Add more cases for other opcodes as needed
         default:
             vm_errorf(vm, "Unknown opcode: [%d]\n", op);

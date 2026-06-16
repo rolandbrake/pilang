@@ -662,7 +662,6 @@ static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
         compile_segmentExpr(parser, comp->result, "Invalid list comprehension expression.");
         emit_8u(parser->comp, OP_COMP_APPEND, "<comp>", acc_slot);
 
-
         for (int i = 0; i < jump_count; i++)
             patch_jump(parser->comp, jumps[i]);
         return;
@@ -728,7 +727,6 @@ static token_t peek(parser_t *parser)
 {
     return parser->tokens[parser->current];
 }
-
 
 static token_t peek_next(parser_t *parser)
 {
@@ -1029,6 +1027,8 @@ parser_t *init_parser(compiler_t *comp, token_t *tokens, ParserMode mode)
     if (mode == MODE_REPL)
         parser->comp->is_repl = true;
 
+    parser->had_error = false;
+
     return parser;
 }
 
@@ -1037,8 +1037,12 @@ void parse(parser_t *parser)
     if (parser->mode == MODE_REPL)
     {
         // In REPL mode, parse only a single expression statement.
+        // if (!is_atEnd(parser))
+        //     expr_state(parser);
+
+        // In REPL mode, parse a full declaration (fun, class, let, or expression)
         if (!is_atEnd(parser))
-            expr_state(parser);
+            declaration(parser);
     }
     else
     {
@@ -1554,7 +1558,6 @@ static char *import_joinParts(token_t *parts, int count)
     return path;
 }
 
-
 static void emit_importModule(parser_t *parser, token_t *parts, int count)
 {
     char *module_path = import_joinParts(parts, count);
@@ -2036,7 +2039,9 @@ static void expr_state(parser_t *parser)
     // The assignment expression is handled separately
     if (!is_assign)
     {
-        if (!parser->comp->is_repl)
+        if (parser->comp->is_repl)
+            emit(parser->comp, OP_PRINT);
+        else
             emit(parser->comp, OP_POP);
     }
 
@@ -2168,7 +2173,6 @@ static void assignment(parser_t *parser, bool emit_load)
                     break;
                 }
             }
-
 
             parser->current = left;
             parser->is_store = true;
@@ -2325,7 +2329,6 @@ static void shift_expr(parser_t *parser)
         }
     }
 }
-
 
 static void equality_expr(parser_t *parser)
 {
@@ -2671,7 +2674,6 @@ static void member_expr(parser_t *parser)
             else
                 emit(parser->comp, OP_GET_MEMBER);
         }
-
 
         // Handle property access using bracket notation and slicing for lists and tensors
         else if (match(parser, TK_LBRACKET))

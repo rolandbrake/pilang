@@ -260,7 +260,6 @@ int main(int argc, char *argv[])
 #else // Native version below
 
 // Native (non-Emscripten) includes and main
-// Native (non-Emscripten) includes and main
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -284,7 +283,7 @@ int main(int argc, char *argv[])
 
 static void print_usage(const char *program)
 {
-    printf("Pilangv0.0.1\n");
+    printf("Pilangv0.0.3\n");
     printf("Usage:\n");
     printf("  %s run <file> [args...]       Run the specified Pilang file\n", program);
     printf("  %s <file> [args...]           Shorthand for 'run <file>'\n", program);
@@ -513,6 +512,236 @@ static int run_utilsTool(const char *mode, const char *filename)
     return status == 0 ? 0 : 1;
 }
 
+/* Returns the brace depth of a buffer: > 0 means input is incomplete. */
+static int repl_braceDepth(const char *buf)
+{
+    int depth = 0;
+    bool in_string = false;
+    char string_char = 0;
+
+    for (const char *c = buf; *c; c++)
+    {
+        if (in_string)
+        {
+            if (*c == '\\')
+            {
+                c++;
+                continue;
+            } /* skip escape */
+            if (*c == string_char)
+                in_string = false;
+            continue;
+        }
+        if (*c == '"' || *c == '\'')
+        {
+            in_string = true;
+            string_char = *c;
+            continue;
+        }
+        if (*c == '{')
+            depth++;
+        else if (*c == '}')
+            depth--;
+    }
+    return depth;
+}
+
+// Runs a REPL.
+static int run_repl(void)
+{
+#define C_RESET  "\033[0m"
+#define C_BOLD   "\033[1m"
+#define C_RED    "\033[31m"
+#define C_GREEN  "\033[32m"
+#define C_YELLOW "\033[33m"
+#define C_CYAN   "\033[36m"
+
+    printf(
+        C_CYAN C_BOLD "Pilang v0.0.3" C_RESET
+        "  " C_YELLOW "(type 'exit' or press ^C to quit)" C_RESET "\n");
+
+    compiler_t *comp = init_compiler();
+    comp->source_name = strdup("<repl>");
+    comp->is_repl     = true;
+
+    /* Bootstrap with an empty program so init_vm has a valid chunk. */
+    init_scanner("");
+    token_t  *boot_tokens = scan();
+    parser_t *boot_parser = init_parser(comp, boot_tokens, MODE_REPL);
+    parse(boot_parser);
+    free_parser(boot_parser);
+
+    vm_t *repl_vm = init_vm(comp, "<repl>", false);
+
+    /* Drain the bootstrap - hits OP_HALT immediately. */
+    while (repl_vm->running)
+        run(repl_vm);
+
+    size_t buf_cap = 8192;
+    char  *buf     = malloc(buf_cap);
+    if (!buf)
+    {
+        fprintf(stderr, C_RED "Out of memory starting REPL.\n" C_RESET);
+        free_vm(repl_vm);
+        free_compiler(comp);
+        return 1;
+    }
+
+    buf[0]  = '\0';
+    size_t buf_len  = 0;
+    bool   continuing = false;   /* true while inside an open block */
+
+    char line[4096];
+
+    for (;;)
+    {
+        fputs(
+            continuing
+                ? C_YELLOW "... " C_RESET
+                : C_GREEN  ">>> " C_RESET,
+            stdout);
+        fflush(stdout);
+
+        if (!fgets(line, sizeof(line), stdin))
+        {
+            putchar('\n');
+            break;
+        }
+
+        size_t len = strlen(line);
+        if (len > 0 && line[len - 1] == '\n')
+            line[--len] = '\0';
+
+        /* Explicit backslash continuation (separate from brace tracking). */
+        bool has_backslash = (len > 0 && line[len - 1] == '\\');
+        if (has_backslash)
+        {
+            line[--len] = '\0';
+            line[len++] = ' ';
+            line[len]   = '\0';
+        }
+
+        /* Grow accumulation buffer. */
+        if (buf_len + len + 2 > buf_cap)
+        {
+            buf_cap = (buf_len + len + 2) * 2;
+            char *tmp = realloc(buf, buf_cap);
+            if (!tmp)
+            {
+                fprintf(stderr, C_RED "Out of memory.\n" C_RESET);
+                break;
+            }
+            buf = tmp;
+        }
+
+        /* Append line (with a newline separator so the lexer sees line breaks). */
+        memcpy(buf + buf_len, line, len);
+        buf_len += len;
+        buf[buf_len++] = '\n';
+        buf[buf_len]   = '\0';
+
+        /* Keep accumulating if the user ended with a backslash. */
+        if (has_backslash)
+        {
+            continuing = true;
+            continue;
+        }
+
+        /* Keep accumulating while there are unclosed braces. */
+        if (repl_braceDepth(buf) > 0)
+        {
+            continuing = true;
+            continue;
+        }
+
+        continuing = false;
+
+        /* Skip blank input. */
+        const char *p = buf;
+        while (*p == ' ' || *p == '\t' || *p == '\n') p++;
+        if (*p == '\0')
+        {
+            buf[0]  = '\0';
+            buf_len = 0;
+            continue;
+        }
+
+        /* ---- Built-in REPL commands ---- */
+        /* Trim trailing newline for comparison. */
+        char cmd[64] = {0};
+        strncpy(cmd, buf, sizeof(cmd) - 1);
+        /* Strip trailing whitespace/newline from cmd. */
+        int cmd_len = (int)strlen(cmd);
+        while (cmd_len > 0 && (cmd[cmd_len-1] == '\n' || cmd[cmd_len-1] == ' '))
+            cmd[--cmd_len] = '\0';
+
+        if (strcmp(cmd, "exit") == 0 || strcmp(cmd, "quit") == 0)
+            break;
+
+        if (strcmp(cmd, "help") == 0)
+        {
+            printf(C_CYAN C_BOLD "REPL commands:\n" C_RESET);
+            printf(C_GREEN "  exit / quit" C_RESET "   Leave the REPL\n");
+            printf(C_GREEN "  help"        C_RESET "          Show this message\n");
+            printf(C_GREEN "  clear"       C_RESET "         Clear the screen\n");
+            buf[0]  = '\0';
+            buf_len = 0;
+            continue;
+        }
+
+        if (strcmp(cmd, "clear") == 0)
+        {
+            fputs("\033[2J\033[H", stdout);
+            buf[0]  = '\0';
+            buf_len = 0;
+            continue;
+        }
+
+        /* ------------------------------------------------------------------
+         * Compile the accumulated input into the persistent compiler chunk,
+         * then run only the newly appended bytecode.
+         * ------------------------------------------------------------------ */
+        int entry_pc = comp->code->size;
+
+        init_scanner(buf);
+        token_t  *tokens = scan();
+        parser_t *parser = init_parser(comp, tokens, MODE_REPL);
+        parse(parser);
+
+        bool had_error = parser->had_error;
+        free_parser(parser);
+
+        if (!had_error)
+        {
+            repl_vm->code      = comp->code;
+            repl_vm->constants = comp->constants;
+            repl_vm->names     = comp->names;
+            repl_vm->instrs    = comp->instrs;
+            repl_vm->pc        = entry_pc;
+            repl_vm->running   = true;
+
+            while (repl_vm->running)
+                run(repl_vm);
+        }
+
+        buf[0]  = '\0';
+        buf_len = 0;
+    }
+
+    free(buf);
+    free_vm(repl_vm);
+    free_compiler(comp);
+
+#undef C_RESET
+#undef C_BOLD
+#undef C_RED
+#undef C_GREEN
+#undef C_YELLOW
+#undef C_CYAN
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     pi_cli_argc = 0;
@@ -524,11 +753,9 @@ int main(int argc, char *argv[])
     if (TTF_Init() != 0)
         error("TTF_Init failed: %s", TTF_GetError());
 
+    /* No arguments -> drop into the interactive REPL */
     if (argc < 2)
-    {
-        print_usage(argv[0]);
-        return 1;
-    }
+        return run_repl();
 
     const char *command = argv[1];
 
@@ -540,7 +767,7 @@ int main(int argc, char *argv[])
 
     if (strcmp(command, "--version") == 0 || strcmp(command, "-v") == 0)
     {
-        printf("Pilangv0.0.1\n");
+        printf("Pilangv0.0.3\n");
         return 0;
     }
 
@@ -594,7 +821,7 @@ int main(int argc, char *argv[])
         return run_utilsTool(command, argv[2]);
     }
 
-    // Shorthand: allow `pi <file>` as equivalent to `pi run <file>`.
+    /* Shorthand: `pi <file>` is equivalent to `pi run <file>` */
     if (argc >= 2)
     {
         pi_cli_argc = argc - 1;

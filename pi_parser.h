@@ -39,6 +39,8 @@ typedef struct
 
     ParserMode mode; // The current parsing mode (file or REPL).
 
+    bool had_error; // Flag indicating if an error has occurred during parsing.
+
 } parser_t;
 
 /**

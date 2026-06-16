@@ -67,7 +67,7 @@ export default class PiParser {
     while (!this.isAtEnd()) {
       let current = this.current;
 
-      // If only comments till EOF → stop cleanly
+      // If only comments till EOF -> stop cleanly
       if (this.isAtEnd()) {
         this.current = current;
         break;

@@ -7,7 +7,7 @@ import tensor:t
 //
 // Architecture:
 //   input 1x32x32
-//   C1: 6 kernels, 5x5, tanh          -> 6x28x28
+//   C1: 6 kernels, 5x5, tanh           -> 6x28x28
 //   S2: 2x2 average pooling, stride 2  -> 6x14x14
 //   C3: 16 kernels, 5x5, tanh          -> 16x10x10
 //   S4: 2x2 average pooling, stride 2  -> 16x5x5

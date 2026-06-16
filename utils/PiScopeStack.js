@@ -35,7 +35,7 @@ export default class PiScopeStack {
    * @param {string} name
    * @return {?string} Returns the original name if found in the scope stack, otherwise null.
    */
-  // search from innermost → outermost
+  // search from innermost -> outermost
   getValue(name) {
     for (let i = this.stack.length - 1; i >= 0; i--) {
       let val = this.stack[i].getValue(name);

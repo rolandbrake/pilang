@@ -40,7 +40,7 @@ export default class PiContext {
     const current = this.scopeStack.peek();
     const global = this.scopeStack.peekFirst();
 
-    // If mangling disabled → always store identity mapping
+    // If mangling disabled -> always store identity mapping
     if (!this.mangler) {
       current.setValue(name, name);
       return name;
@@ -75,7 +75,7 @@ export default class PiContext {
   getValue(name) {
 
 
-    // If mangling is disabled → always return the original name
+    // If mangling is disabled -> always return the original name
     if (!this.mangler) return name;
 
     // If declared anywhere, return the mapping
