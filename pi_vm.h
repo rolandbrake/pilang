@@ -17,7 +17,7 @@
 #define RUN_STEPS 1024 // max number of instructions to run
 
 // Initial GC threshold (number of newly allocated VM objects).
-#define NEXT_GC (1024 * 1024 * 8)
+#define NEXT_GC (1024 * 64)
 
 
 // Macros for computed-goto opcode dispatch.
@@ -47,7 +47,7 @@
 
 
 #define GC_MIN_THRESHOLD 4096
-#define GC_MAX_THRESHOLD (1024 * 1024 * 8)
+#define GC_MAX_THRESHOLD (1024 * 512)
 #define BROWSER_YIELD_STEPS 50000
 
 

@@ -39,6 +39,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     fn->globals = NULL;
 
     fn->upvalues = upvalues;
+    fn->owns_upvalues = upvalues != NULL;
     fn->instance = instance;
     fn->owner = NULL;
 
@@ -92,6 +93,7 @@ Value *new_native(const char *name, native_func func)
 
     fn->upvalues = NULL;
     fn->upvalue_count = 0;
+    fn->owns_upvalues = false;
     fn->instance = NULL;
     fn->owner = NULL;
 
@@ -322,4 +324,6 @@ void free_func(Function *fn)
     free(fn->name);
     if (fn->owns_params && fn->params)
         list_free(fn->params); // Free the parameter list
+    if (fn->owns_upvalues && fn->upvalues)
+        free(fn->upvalues);
 }

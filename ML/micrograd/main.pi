@@ -12,7 +12,7 @@ const xs = [
 
 const ys = [1.0, -1.0, -1.0, 1.0]
 
-const model = MLP(3, [4, 4, 1])
+const model = MLP(3, [4, 400, 1])
 
 let loss_steps = []
 let loss_values = []

@@ -27,6 +27,7 @@ typedef struct Function
 
     UpValue **upvalues; // PiList of upvalues used in the function body
     int upvalue_count;  // Number of upvalues
+    bool owns_upvalues;
     Object *instance;   // Instance for bound methods
     Object *owner;      // Defining object for methods
 

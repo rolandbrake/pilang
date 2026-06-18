@@ -653,8 +653,16 @@ inline Object *add_obj(vm_t *vm, Object *obj)
 
     obj->next = vm->objects;
     vm->objects = obj;
-    vm->counter++;
     vm->obj_count++;
+
+    int gc_cost = 1;
+    if (obj->type == OBJ_TENSOR)
+    {
+        PiTensor *tensor = (PiTensor *)obj;
+        size_t data_bytes = (size_t)tensor->size * sizeof(double);
+        gc_cost += (int)(data_bytes / (32 * 1024));
+    }
+    vm->counter += gc_cost;
 
     return obj;
 }
@@ -1282,6 +1290,7 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
     ((Function *)fn)->owns_params = false;
     ((Function *)fn)->upvalues = function->upvalues;
     ((Function *)fn)->upvalue_count = function->upvalue_count;
+    ((Function *)fn)->owns_upvalues = false;
     ((Function *)fn)->need_args = function->need_args;
     ((Function *)fn)->need_kwargs = function->need_kwargs;
     ((Function *)fn)->owner = function->owner;
@@ -5049,7 +5058,7 @@ void run(vm_t *vm)
 
             // Adapt threshold to avoid over-collecting in long-running loops.
             if (collected <= 0)
-                vm->next_gc += vm->next_gc / 2; // GC reclaimed nothing: back off.
+                vm->next_gc += vm->next_gc / 4; // GC reclaimed nothing: back off.
             else
                 vm->next_gc = after + (after / 2); // Target ~1.5x live set allocations.
             vm->obj_count = after;
