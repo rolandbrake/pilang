@@ -728,6 +728,7 @@ static inline int count_objs(vm_t *vm)
 
 void vm_error(vm_t *vm, const char *message)
 {
+    
     instr_t *instr = vm_currentInstr(vm);
     const char *module_label = vm_moduleLabel(vm);
 
@@ -2103,7 +2104,7 @@ void run(vm_t *vm)
     while (pc < length && vm->running)
     {
         vm->pc = pc;
-        vm->current_instr = vm_instrForOffset(vm, pc);
+        // vm->current_instr = vm_instrForOffset(vm, pc);
         op = code[pc++];
 
         vm->ip++; // Advance instruction index
@@ -3384,50 +3385,72 @@ void run(vm_t *vm)
 
             break;
         }
+        
         // regular call, zero kwargs overhead
         case OP_CALL_FUNCTION:
         {
-
-            // Read the number of arguments from the bytecode
             uint8_t num_args = code[pc++];
 
-            // Copy arguments before changing the stack; callees reuse these slots.
-            Value args[num_args];
+            /*
+             * Collect arguments into a fixed-size buffer.
+             * 8 covers the vast majority of call sites with zero heap cost.
+             * Larger arg lists fall back to a heap allocation.
+             */
+            Value stack_args[8];
+            Value *args = num_args <= 8
+                              ? stack_args
+                              : (Value *)malloc(num_args * sizeof(Value));
 
+            if (num_args > 8 && !args)
+                vm_error(vm, "Memory allocation failed for argument list.");
+
+            /* Pop args in reverse order so args[0] is the first argument. */
             for (int i = num_args - 1; i >= 0; i--)
                 args[i] = pop_stack(vm);
 
             Value callee = pop_stack(vm);
+            vm->pc = pc; /* sync before any call that may re-enter run() */
 
             if (IS_FUN(callee))
             {
-                vm->pc = pc;
-                // Call native function if it's a built-in
                 Value result = call_func(vm, AS_FUN(callee), num_args, args, NEW_NIL());
-                if (IS_OBJ(result))
-                    add_obj(vm, AS_OBJ(result));
                 push_stack(vm, result);
             }
             else if (IS_MAP(callee))
             {
                 PiMap *map = AS_MAP(callee);
                 Value result;
+
                 if (map->is_instance)
                 {
+                    /* Callable object instance — look for a `call` method. */
                     if (object_instanceCall(vm, map, num_args, args, NEW_NIL(), &result))
                     {
                         push_stack(vm, result);
-                        break;
                     }
-                    vm_error(vm, "Attempt to call an Object instance.");
+                    else
+                    {
+                        if (num_args > 8)
+                            free(args);
+                        vm_error(vm, "Attempt to call an Object instance with no `call` method.");
+                    }
                 }
-
-                Value constructor = map_getValueByKey(map, "constructor");
-                push_stack(vm, NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, NEW_NIL()))));
+                else
+                {
+                    /* Map used as a constructor/class. */
+                    result = NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, NEW_NIL())));
+                    push_stack(vm, result);
+                }
             }
             else
-                vm_error(vm, "Attempt to call a non-function object.");
+            {
+                if (num_args > 8)
+                    free(args);
+                vm_error(vm, "Attempt to call a non-function value.");
+            }
 
+            if (num_args > 8)
+                free(args);
             break;
         }
 
@@ -4767,9 +4790,9 @@ void run(vm_t *vm)
             break;
 
         case OP_PRINT:
-        {         
+        {
             Value value = pop_stack(vm);
-            char *str = as_string(value);            
+            char *str = as_string(value);
             printf("%s\n", str);
             free(str);
             break;

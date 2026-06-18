@@ -1,0 +1,19 @@
+import random
+
+fun monte_carlo(nsamples)
+{
+    let acc = 0
+    let i = nsamples
+    while (i -= 1) > 0
+    {
+        let x = random.random()
+        let y = random.random()
+        if (x ** 2 + y ** 2) < 1.0
+        {
+            acc += 1
+        }
+    }
+    return 4.0 * acc / nsamples
+}
+
+println(monte_carlo(10000))

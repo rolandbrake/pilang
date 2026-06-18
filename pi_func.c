@@ -6,9 +6,9 @@
 Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, Object *instance)
 {
 
-        Object *object = (Object *)malloc(sizeof(Function));
+    Object *object = (Object *)malloc(sizeof(Function));
 
-        object->type = OBJ_FUN;
+    object->type = OBJ_FUN;
     object->is_marked = false;
     object->in_gcList = false;
     object->gc_color = GC_WHITE;
@@ -16,30 +16,30 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
 
     Function *fn = (Function *)object;
 
-        fn->name = name ? strdup(name) : strdup("<FUN>");
+    fn->name = name ? strdup(name) : strdup("<FUN>");
 
-        fn->params = params ? params : list_create(sizeof(Value));
+    fn->params = params ? params : list_create(sizeof(Value));
     // Parameter names are shared with the compiled function body.
     fn->param_names = (body && body->param_names) ? body->param_names : NULL;
     fn->owns_params = true;
 
-        fn->body = body;
+    fn->body = body;
     fn->constants = NULL;
     fn->names = NULL;
     fn->instrs = NULL;
 
-        fn->is_native = false;
+    fn->is_native = false;
     fn->is_method = false;
     fn->need_args = true;
     fn->need_kwargs = true;
     fn->native = NULL;
     fn->globals = NULL;
 
-        fn->upvalues = upvalues;
+    fn->upvalues = upvalues;
     fn->instance = instance;
     fn->owner = NULL;
 
-        int count = 0;
+    int count = 0;
     if (upvalues)
         while (upvalues[count] != NULL)
             count++;
@@ -62,9 +62,9 @@ Value *new_native(const char *name, native_func func)
     val->data.object->gc_color = GC_WHITE;
     val->data.object->next = NULL;
 
-        Function *fn = (Function *)val->data.object;
+    Function *fn = (Function *)val->data.object;
 
-        fn->name = strdup(name); // Allocate and copy name string
+    fn->name = strdup(name); // Allocate and copy name string
 
     fn->params = NULL;
     fn->param_names = NULL;
@@ -80,7 +80,8 @@ Value *new_native(const char *name, native_func func)
     fn->is_native = true;
     fn->is_method = false;
 
-    fn->need_args = false;     fn->need_kwargs = false; 
+    fn->need_args = false;
+    fn->need_kwargs = false;
     fn->native = func;
 
     fn->upvalues = NULL;
@@ -91,9 +92,22 @@ Value *new_native(const char *name, native_func func)
     return val;
 }
 
+/**
+ * Calls a Pilang function, setting up the call frame, stack layout,
+ * parameter defaults, positional args, and implicit args/kwargs locals.
+ *
+ * Stack layout on entry to the callee:
+ *
+ *   bp+0          : this (methods only, when !param_this)
+ *   bp+arg_offset : param_0 ... param_N   (defaults then overwritten by args)
+ *   aux_base+0    : args  (list, or NIL if need_args is false)
+ *   aux_base+1    : kwargs (map, or NIL if need_kwargs is false)
+ */
 Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw_args)
 {
-        if (function->is_native)
+
+    // Native fast path
+    if (function->is_native)
     {
         Object *prev_function = vm->function;
         Value prev_kwargs = vm->_kw_args;
@@ -101,12 +115,13 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         vm->function = (Object *)function;
         vm->_kw_args = kw_args;
 
-        // Native methods receive the bound instance as argv[0].
+        /* Bound native methods receive the instance as argv[0]. */
         if (function->is_method && function->instance != NULL)
         {
             Value *method_argv = malloc(sizeof(Value) * (argc + 1));
             if (!method_argv)
                 vm_error(vm, "Memory allocation failed for native method arguments.");
+
             method_argv[0] = NEW_OBJ(add_obj(vm, function->instance));
             for (size_t i = 0; i < argc; i++)
                 method_argv[i + 1] = argv[i];
@@ -116,7 +131,6 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
 
             vm->_kw_args = prev_kwargs;
             vm->function = prev_function;
-
             return result;
         }
 
@@ -126,24 +140,28 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         return result;
     }
 
-    Object *prev_function = vm->function;
+    // save caller frame
+    if (vm->frame_sp >= STACK_MAX)
+        vm_error(vm, "[frame] Stack overflow.");
 
-        Frame frame = {
-        .pc = vm->pc,
-        .sp = vm->sp,
-        .bp = vm->bp,
-        .ip = vm->ip,
-        .code = vm->code,
-        .constants = vm->constants,
-        .names = vm->names,
-        .instrs = vm->instrs,
-        .iters_top = vm->iter_sp,
-        .globals = vm->globals,
-        .function = (Function *)prev_function};
-    push_frame(vm, &frame);
+    Frame *frame = &vm->frames[vm->frame_sp++];
+    frame->pc = vm->pc;
+    frame->sp = vm->sp;
+    frame->bp = vm->bp;
+    frame->ip = vm->ip;
+    frame->code = vm->code;
+    frame->constants = vm->constants;
+    frame->names = vm->names;
+    frame->instrs = vm->instrs;
+    frame->iters_top = vm->iter_sp;
+    frame->globals = vm->globals;
+    frame->function = (Function *)vm->function; /* save BEFORE overwrite */
 
-        vm->function = (Object *)function;
+    // switch to callee context
+    vm->function = (Object *)function;
     vm->code = function->body->data;
+
+    /* Only override if the function carries its own tables. */
     if (function->constants)
         vm->constants = function->constants;
     if (function->names)
@@ -156,61 +174,58 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     vm->pc = 0;
     vm->ip = 0;
     vm->bp = vm->sp;
-    size_t param_count = list_size(function->params);
 
-    size_t arg_offset = 0;
-    size_t param_offset = 0;
+    // Resolve param count and stack layout offsets
+    size_t param_count = (size_t)function->params->size;
+    size_t arg_offset = 0;   /* extra leading slot for implicit `this` */
+    size_t param_offset = 0; /* skip slot 0 when `this` is a named param */
     Value instance = NEW_NIL();
 
-        if (function->is_method)
+    if (function->is_method)
     {
-        instance = function->instance == NULL ? NEW_NIL() : NEW_OBJ(add_obj(vm, function->instance));
+        if (function->instance != NULL)
+            instance = NEW_OBJ(add_obj(vm, function->instance));
+
+        /* param_this: user declared `this` explicitly in the param list. */
+        bool param_this = function->param_names &&
+                          (size_t)list_size(function->param_names) + 1 == param_count;
+
+        if (!param_this)
+        {
+            vm->stack[vm->bp] = instance; /* implicit this at slot 0 */
+            arg_offset = 1;
+        }
+        else
+            param_offset = 1; /* named this occupies param slot 0; skip for positionals */
     }
 
-    // Detect whether 'this' is explicitly declared in the parameter list.
-    bool param_this = false;
-    if (function->is_method && function->param_names &&
-        list_size(function->param_names) + 1 == (int)param_count)
-        param_this = true;
-
-    if (function->is_method && !param_this)
-    {
-        vm->stack[vm->bp] = instance;
-        arg_offset = 1;
-    }
-    else if (param_this)
-    {
-        arg_offset = 0;
-        param_offset = 1;
-    }
-
-    size_t local_count = param_count + arg_offset;
-    size_t aux_base = vm->bp + local_count;
-    vm->sp = aux_base;
-
+    // set up stack frame
     size_t param_base = vm->bp + arg_offset;
+    size_t aux_base = param_base + param_count;
 
-    // Set function parameters and arguments directly in their stack slots.
+    /* Write defaults into parameter slots (direct pointer, no bounds check). */
+    Value *defaults = (Value *)function->params->data;
     for (size_t i = 0; i < param_count; i++)
-        vm->stack[param_base + i] = *(Value *)list_getAt(function->params, i);
+        vm->stack[param_base + i] = defaults[i];
 
-    if (param_this && param_count > 0)
+    /* Overwrite slot 0 with instance when this is a named param. */
+    if (function->is_method && param_offset == 1 && param_count > 0)
         vm->stack[param_base] = instance;
 
-        size_t positional_count = argc;
-    if (positional_count > param_count)
-        positional_count = param_count;
-    for (size_t i = 0; i < positional_count; i++)
+    // Copy positional arguments
+    if (argc > 0)
     {
-        size_t slot = i + param_offset;
-        if (slot < param_count)
+        size_t positional_count = argc < param_count ? argc : param_count;
+        for (size_t i = 0; i < positional_count; i++)
         {
-            vm->stack[param_base + slot] = argv[i];
+            size_t slot = i + param_offset;
+            if (slot < param_count)
+                vm->stack[param_base + slot] = argv[i];
         }
     }
 
-    // Keyword arguments override defaults but cannot override positional arguments.
-    if (IS_MAP(kw_args) && function->param_names)
+    // Apply keyword arguments overrides
+    if (!IS_NIL(kw_args) && IS_MAP(kw_args) && function->param_names)
     {
         PiMap *kw_map = AS_MAP(kw_args);
         int name_count = list_size(function->param_names);
@@ -226,14 +241,15 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
             if (slot >= param_count)
                 continue;
 
-            if (slot < positional_count + param_offset)
+            /* Reject: same slot already filled by a positional arg. */
+            if (slot < argc + param_offset)
                 vm_error(vm, "Function argument got multiple values.");
 
             vm->stack[param_base + slot] = *kw_value;
         }
     }
 
-    // Inject implicit args/kwargs locals when requested by the function.
+    // Implicit args and kwargs locals
     if (function->need_args)
     {
         list_t *_args = list_create(sizeof(Value));
@@ -246,22 +262,20 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     else
         vm->stack[aux_base] = NEW_NIL();
 
-    if (function->need_kwargs)
-    {
-        if (IS_OBJ(kw_args) && OBJ_TYPE(kw_args) == OBJ_MAP)
-            vm->stack[aux_base + 1] = kw_args;
-        else
-            vm->stack[aux_base + 1] = NEW_OBJ(add_obj(vm, new_map(ht_create(sizeof(Value)), false)));
-    }
-    else
-        vm->stack[aux_base + 1] = NEW_NIL();
+    vm->stack[aux_base + 1] = function->need_kwargs
+                                  ? ((IS_OBJ(kw_args) && OBJ_TYPE(kw_args) == OBJ_MAP)
+                                         ? kw_args
+                                         : NEW_OBJ(add_obj(vm, new_map(ht_create(sizeof(Value)), false))))
+                                  : NEW_NIL();
 
     vm->sp = aux_base + 2;
 
+    // Execute callee
     run(vm);
 
-        if (vm->sp <= 0)
-        vm_error(vm, "Stack underflow: Attempted to pop from an empty stack");
+    /* Return value sits on top of stack after run() returns. */
+    if (vm->sp <= 0)
+        vm_error(vm, "Stack underflow after function return.");
     return vm->stack[--vm->sp];
 }
 
@@ -276,17 +290,16 @@ Value call_funcv(vm_t *vm, Function *function, size_t argc, ...)
 
     va_end(args);
 
-        Value result = call_func(vm, function, argc, argv, NEW_NIL());
+    Value result = call_func(vm, function, argc, argv, NEW_NIL());
 
-        free(argv);
+    free(argv);
 
     return result;
 }
 // Frees only resources owned directly by the Function object.
 void free_func(Function *fn)
 {
-    free(fn->name);            if (fn->owns_params && fn->params)
+    free(fn->name);
+    if (fn->owns_params && fn->params)
         list_free(fn->params); // Free the parameter list
 }
-
-

@@ -265,6 +265,7 @@ int main(int argc, char *argv[])
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <signal.h>
 #include "pi_lex.h"
 #include "pi_parser.h"
 #include "pi_stack.h"
@@ -292,6 +293,14 @@ static void print_usage(const char *program)
     printf("  %s fmt <file>                 Format a file in place using utils/PiCli.js\n", program);
     printf("  %s min <file>                 Minimize a file in place using utils/PiCli.js\n", program);
     printf("  %s help                       Display this help message\n", program);
+}
+
+static volatile bool g_interrupted = false;
+
+static void handle_sigint(int sig)
+{
+    (void)sig;
+    g_interrupted = true;
 }
 
 char *read_file(const char *filename)
@@ -363,8 +372,15 @@ static int run_source(const char *source, ParserMode mode, const char *entry_nam
     vm_t *vm = init_vm(comp, entry_name, is_main);
 
     clock_t start = clock();
-    while (vm->running)
+    while (vm->running && !g_interrupted)
         run(vm);
+
+    if (g_interrupted)
+    {
+        fprintf(stderr, "\nInterrupted.\n");
+        g_interrupted = false;
+    }
+
     clock_t end = clock();
 
     double time_taken = ((double)(end - start)) * 1000.0 / CLOCKS_PER_SEC;
@@ -549,24 +565,24 @@ static int repl_braceDepth(const char *buf)
 // Runs a REPL.
 static int run_repl(void)
 {
-#define C_RESET  "\033[0m"
-#define C_BOLD   "\033[1m"
-#define C_RED    "\033[31m"
-#define C_GREEN  "\033[32m"
+#define C_RESET "\033[0m"
+#define C_BOLD "\033[1m"
+#define C_RED "\033[31m"
+#define C_GREEN "\033[32m"
 #define C_YELLOW "\033[33m"
-#define C_CYAN   "\033[36m"
+#define C_CYAN "\033[36m"
 
     printf(
         C_CYAN C_BOLD "Pilang v0.0.3" C_RESET
-        "  " C_YELLOW "(type 'exit' or press ^C to quit)" C_RESET "\n");
+                      "  " C_YELLOW "(type 'exit' or press ^C to quit)" C_RESET "\n");
 
     compiler_t *comp = init_compiler();
     comp->source_name = strdup("<repl>");
-    comp->is_repl     = true;
+    comp->is_repl = true;
 
     /* Bootstrap with an empty program so init_vm has a valid chunk. */
     init_scanner("");
-    token_t  *boot_tokens = scan();
+    token_t *boot_tokens = scan();
     parser_t *boot_parser = init_parser(comp, boot_tokens, MODE_REPL);
     parse(boot_parser);
     free_parser(boot_parser);
@@ -574,11 +590,11 @@ static int run_repl(void)
     vm_t *repl_vm = init_vm(comp, "<repl>", false);
 
     /* Drain the bootstrap - hits OP_HALT immediately. */
-    while (repl_vm->running)
+    while (repl_vm->running && !g_interrupted)
         run(repl_vm);
 
     size_t buf_cap = 8192;
-    char  *buf     = malloc(buf_cap);
+    char *buf = malloc(buf_cap);
     if (!buf)
     {
         fprintf(stderr, C_RED "Out of memory starting REPL.\n" C_RESET);
@@ -587,9 +603,9 @@ static int run_repl(void)
         return 1;
     }
 
-    buf[0]  = '\0';
-    size_t buf_len  = 0;
-    bool   continuing = false;   /* true while inside an open block */
+    buf[0] = '\0';
+    size_t buf_len = 0;
+    bool continuing = false; /* true while inside an open block */
 
     char line[4096];
 
@@ -598,7 +614,7 @@ static int run_repl(void)
         fputs(
             continuing
                 ? C_YELLOW "... " C_RESET
-                : C_GREEN  ">>> " C_RESET,
+                : C_GREEN ">>> " C_RESET,
             stdout);
         fflush(stdout);
 
@@ -618,7 +634,7 @@ static int run_repl(void)
         {
             line[--len] = '\0';
             line[len++] = ' ';
-            line[len]   = '\0';
+            line[len] = '\0';
         }
 
         /* Grow accumulation buffer. */
@@ -638,7 +654,7 @@ static int run_repl(void)
         memcpy(buf + buf_len, line, len);
         buf_len += len;
         buf[buf_len++] = '\n';
-        buf[buf_len]   = '\0';
+        buf[buf_len] = '\0';
 
         /* Keep accumulating if the user ended with a backslash. */
         if (has_backslash)
@@ -658,10 +674,11 @@ static int run_repl(void)
 
         /* Skip blank input. */
         const char *p = buf;
-        while (*p == ' ' || *p == '\t' || *p == '\n') p++;
+        while (*p == ' ' || *p == '\t' || *p == '\n')
+            p++;
         if (*p == '\0')
         {
-            buf[0]  = '\0';
+            buf[0] = '\0';
             buf_len = 0;
             continue;
         }
@@ -672,7 +689,7 @@ static int run_repl(void)
         strncpy(cmd, buf, sizeof(cmd) - 1);
         /* Strip trailing whitespace/newline from cmd. */
         int cmd_len = (int)strlen(cmd);
-        while (cmd_len > 0 && (cmd[cmd_len-1] == '\n' || cmd[cmd_len-1] == ' '))
+        while (cmd_len > 0 && (cmd[cmd_len - 1] == '\n' || cmd[cmd_len - 1] == ' '))
             cmd[--cmd_len] = '\0';
 
         if (strcmp(cmd, "exit") == 0 || strcmp(cmd, "quit") == 0)
@@ -682,9 +699,9 @@ static int run_repl(void)
         {
             printf(C_CYAN C_BOLD "REPL commands:\n" C_RESET);
             printf(C_GREEN "  exit / quit" C_RESET "   Leave the REPL\n");
-            printf(C_GREEN "  help"        C_RESET "          Show this message\n");
-            printf(C_GREEN "  clear"       C_RESET "         Clear the screen\n");
-            buf[0]  = '\0';
+            printf(C_GREEN "  help" C_RESET "          Show this message\n");
+            printf(C_GREEN "  clear" C_RESET "         Clear the screen\n");
+            buf[0] = '\0';
             buf_len = 0;
             continue;
         }
@@ -692,7 +709,7 @@ static int run_repl(void)
         if (strcmp(cmd, "clear") == 0)
         {
             fputs("\033[2J\033[H", stdout);
-            buf[0]  = '\0';
+            buf[0] = '\0';
             buf_len = 0;
             continue;
         }
@@ -704,7 +721,7 @@ static int run_repl(void)
         int entry_pc = comp->code->size;
 
         init_scanner(buf);
-        token_t  *tokens = scan();
+        token_t *tokens = scan();
         parser_t *parser = init_parser(comp, tokens, MODE_REPL);
         parse(parser);
 
@@ -713,18 +730,28 @@ static int run_repl(void)
 
         if (!had_error)
         {
-            repl_vm->code      = comp->code;
+            repl_vm->code = comp->code;
             repl_vm->constants = comp->constants;
-            repl_vm->names     = comp->names;
-            repl_vm->instrs    = comp->instrs;
-            repl_vm->pc        = entry_pc;
-            repl_vm->running   = true;
+            repl_vm->names = comp->names;
+            repl_vm->instrs = comp->instrs;
+            repl_vm->pc = entry_pc;
+            repl_vm->running = true;
 
-            while (repl_vm->running)
+            while (repl_vm->running && !g_interrupted)
                 run(repl_vm);
+
+            if (g_interrupted)
+            {
+                fprintf(stderr, "\nInterrupted.\n");
+                g_interrupted = false;
+                // clear the buffer so stale input isn't re-executed
+                buf[0] = '\0';
+                buf_len = 0;
+                continuing = false;
+            }
         }
 
-        buf[0]  = '\0';
+        buf[0] = '\0';
         buf_len = 0;
     }
 
@@ -752,6 +779,8 @@ int main(int argc, char *argv[])
 
     if (TTF_Init() != 0)
         error("TTF_Init failed: %s", TTF_GetError());
+
+    signal(SIGINT, handle_sigint);
 
     /* No arguments -> drop into the interactive REPL */
     if (argc < 2)

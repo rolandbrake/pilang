@@ -7,6 +7,22 @@ fun fib(n = 0) {
 
 println(fib(10));
 
+let cache = {}
+
+fun fib(n = 0)
+{
+    if n < 2 { return n }
+
+    if(n in cache) 
+        return cache[n]
+    
+    cache[n] = fib(n - 1) + fib(n - 2)
+    return cache[n]    
+}
+
+println(fib(64))
+
+
 fun fib(n = 0) {    
   
     if(n <= 1)

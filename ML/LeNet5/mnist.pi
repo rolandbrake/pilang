@@ -49,8 +49,8 @@ fun one_hot(label, classes = 10) {
 }
 
 
-fun read_samples(path, limit = nil) {
-    let lines = limit == nil ? fs.read_lines(path) : fs.read_lines(path, limit + 1)
+fun read_samples(path, limit = 0) {
+    let lines = limit == 0 ? fs.read_lines(path) : fs.read_lines(path, limit + 1)
     let samples = []
 
     // Skip row 0, which is the CSV header.
@@ -67,12 +67,12 @@ fun read_samples(path, limit = nil) {
 }
 
 
-fun read_train(limit = nil) {
+fun read_train(limit = 0) {
     return read_samples(fs.join(DATA_DIR, "mnist_train.csv"), limit)
 }
 
 
-fun read_test(limit = nil) {
+fun read_test(limit = 0) {
     return read_samples(fs.join(DATA_DIR, "mnist_test.csv"), limit)
 }
 

@@ -44,10 +44,10 @@ fun softmax(xs) {
             max_x = xs[i]
 
     let exps = []
-    let total = 0
+    let total = 0, v
 
     for x in xs {
-        let v = exp(x - max_x)
+        v = exp(x - max_x)
         exps += v
         total += v
     }
@@ -249,7 +249,7 @@ class LeNet5 {
         return flatten(x)   // 120x1x1 -> [120]
     }
 
-    logits_from_features(features) {
+    logits_fromFeatures(features) {
         let x = this.f6(features)
         return this.output(x)
     }
@@ -257,7 +257,7 @@ class LeNet5 {
     // Raw pre-softmax scores. Separated out so callers can compute
     // cross-entropy loss directly against logits if needed.
     logits(x) {
-        return this.logits_from_features(this.features(x))
+        return this.logits_fromFeatures(this.features(x))
     }
 
     // Full forward pass returning a probability distribution over classes.
@@ -271,14 +271,14 @@ class LeNet5 {
     }
 
     call_features(features) {
-        return softmax(this.logits_from_features(features))
+        return softmax(this.logits_fromFeatures(features))
     }
 
     predict_features(features) {
         return argmax(this.call_features(features))
     }
 
-    train_classifier_features(features, label, learning_rate = 0.01) {
+    train_classifierFeatures(features, label, learning_rate = 0.01) {
         return t.train_classifierHead(
             features,
             this.f6.weights,
@@ -291,7 +291,7 @@ class LeNet5 {
     }
 
     train_classifier(x, label, learning_rate = 0.01) {
-        return this.train_classifier_features(
+        return this.train_classifierFeatures(
             this.features(x),
             label,
             learning_rate
