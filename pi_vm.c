@@ -2134,7 +2134,14 @@ void run(vm_t *vm)
             char *name = read_name(vm, index);
 
             Value _newValue = pop_stack(vm);
+            Value *oldValue = ht_get(vm->globals, name);
+            if (oldValue && IS_FUN(*oldValue))
+                AS_FUN(*oldValue)->self_global_valid = false;
+
             ht_put(vm->globals, name, &_newValue); // Store directly, no malloc!
+            if (IS_FUN(_newValue) && AS_FUN(_newValue)->name &&
+                strcmp(AS_FUN(_newValue)->name, name) == 0)
+                AS_FUN(_newValue)->self_global_valid = true;
 
             break;
         }
@@ -2143,6 +2150,14 @@ void run(vm_t *vm)
         {
             index = code[pc++];
             char *name = string_get(vm->names, index);
+            if (function && function->self_global_valid &&
+                function->globals == vm->globals &&
+                function->name && strcmp(function->name, name) == 0)
+            {
+                push_stack(vm, NEW_OBJ((Object *)function));
+                break;
+            }
+
             Value *_value = ht_get(vm->globals, name);
             if (_value == NULL)
             {
@@ -4704,8 +4719,16 @@ void run(vm_t *vm)
                 if (OBJ_TYPE(module) == OBJ_MODULE && is_private_moduleName(key))
                     continue;
 
+                Value *oldValue = ht_get(vm->globals, key);
+                if (oldValue && IS_FUN(*oldValue))
+                    AS_FUN(*oldValue)->self_global_valid = false;
+
                 if (!ht_set(vm->globals, key, value))
                     ht_put(vm->globals, key, value);
+
+                if (IS_FUN(*value) && AS_FUN(*value)->name &&
+                    strcmp(AS_FUN(*value)->name, key) == 0)
+                    AS_FUN(*value)->self_global_valid = true;
             }
 
             break;
@@ -4742,8 +4765,11 @@ void run(vm_t *vm)
             // Handle return operation
             Value retval = pop_stack(vm);
 
-            for (int i = vm->sp - 1; i >= vm->bp; i--)
-                remove_upvalue(vm, i);
+            if (vm->openUpvalues)
+            {
+                for (int i = vm->sp - 1; i >= vm->bp; i--)
+                    remove_upvalue(vm, i);
+            }
 
             Frame *frame = pop_frame(vm);
 

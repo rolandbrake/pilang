@@ -32,6 +32,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     fn->is_method = false;
     fn->need_args = true;
     fn->need_kwargs = true;
+    fn->self_global_valid = false;
     fn->native = NULL;
     fn->globals = NULL;
 
@@ -82,6 +83,7 @@ Value *new_native(const char *name, native_func func)
 
     fn->need_args = false;
     fn->need_kwargs = false;
+    fn->self_global_valid = false;
     fn->native = func;
 
     fn->upvalues = NULL;
@@ -203,10 +205,17 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     size_t param_base = vm->bp + arg_offset;
     size_t aux_base = param_base + param_count;
 
-    /* Write defaults into parameter slots (direct pointer, no bounds check). */
-    Value *defaults = (Value *)function->params->data;
-    for (size_t i = 0; i < param_count; i++)
-        vm->stack[param_base + i] = defaults[i];
+    /*
+     * Defaults are only needed for parameters not supplied positionally.
+     * Recursive numeric functions commonly pass every parameter, so avoid
+     * rewriting those slots on the hot path.
+     */
+    if (argc < param_count)
+    {
+        Value *defaults = (Value *)function->params->data;
+        for (size_t i = argc + param_offset; i < param_count; i++)
+            vm->stack[param_base + i] = defaults[i];
+    }
 
     /* Overwrite slot 0 with instance when this is a named param. */
     if (function->is_method && param_offset == 1 && param_count > 0)
@@ -249,6 +258,12 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         }
     }
 
+    if (!function->need_args && !function->need_kwargs)
+    {
+        vm->sp = aux_base + 2;
+        goto execute;
+    }
+
     // Implicit args and kwargs locals
     if (function->need_args)
     {
@@ -270,6 +285,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
 
     vm->sp = aux_base + 2;
 
+execute:
     // Execute callee
     run(vm);
 

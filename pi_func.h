@@ -33,6 +33,7 @@ typedef struct Function
     bool is_method;     // Flag to check if it's a part of an object method
     bool need_args; // Whether this function ever reads local 'args'
     bool need_kwargs; // Whether this function ever reads local 'kw_args'
+    bool self_global_valid; // Whether a same-named global still points at this function
     native_func native; // Pointer to the native function (NULL for bytecode)
 } Function;
 
