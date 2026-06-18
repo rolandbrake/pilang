@@ -2078,7 +2078,8 @@ static bool is_private_moduleName(const char *name)
  * @param vm The virtual machine to run.
  */
 void run(vm_t *vm)
-{
+{    
+    int frame_sp = vm->frame_sp; // entry frame sp
     int length = vm->code->size;
     int pc = vm->pc;
 #ifdef __EMSCRIPTEN__
@@ -2136,12 +2137,12 @@ void run(vm_t *vm)
             Value _newValue = pop_stack(vm);
             Value *oldValue = ht_get(vm->globals, name);
             if (oldValue && IS_FUN(*oldValue))
-                AS_FUN(*oldValue)->self_global_valid = false;
+                AS_FUN(*oldValue)->global_valid = false;
 
             ht_put(vm->globals, name, &_newValue); // Store directly, no malloc!
             if (IS_FUN(_newValue) && AS_FUN(_newValue)->name &&
                 strcmp(AS_FUN(_newValue)->name, name) == 0)
-                AS_FUN(_newValue)->self_global_valid = true;
+                AS_FUN(_newValue)->global_valid = true;
 
             break;
         }
@@ -2150,7 +2151,7 @@ void run(vm_t *vm)
         {
             index = code[pc++];
             char *name = string_get(vm->names, index);
-            if (function && function->self_global_valid &&
+            if (function && function->global_valid &&
                 function->globals == vm->globals &&
                 function->name && strcmp(function->name, name) == 0)
             {
@@ -3405,6 +3406,72 @@ void run(vm_t *vm)
         case OP_CALL_FUNCTION:
         {
             uint8_t num_args = code[pc++];
+            int arg_base = vm->sp - num_args;
+            int callee_slot = arg_base - 1;
+
+            if (callee_slot < 0)
+                vm_error(vm, "Stack underflow while preparing function call.");
+
+            Value callee = vm->stack[callee_slot];
+            vm->pc = pc; /* sync before any call that may re-enter run() */
+
+            if (IS_FUN(callee))
+            {
+                Function *callee_fn = AS_FUN(callee);
+                size_t param_count = (!callee_fn->is_native && callee_fn->params)
+                                         ? (size_t)callee_fn->params->size
+                                         : 0;
+
+                if (!callee_fn->is_native &&
+                    !callee_fn->is_method &&
+                    !callee_fn->need_args &&
+                    !callee_fn->need_kwargs &&
+                    (size_t)num_args == param_count)
+                {
+                    if (vm->frame_sp >= STACK_MAX)
+                        vm_error(vm, "[frame] Stack overflow.");
+
+                    Frame *frame = &vm->frames[vm->frame_sp++];
+                    frame->pc = pc;
+                    frame->sp = callee_slot;
+                    frame->bp = vm->bp;
+                    frame->ip = vm->ip;
+                    
+                    frame->code = vm->code;
+                    frame->constants = vm->constants;
+                    frame->names = vm->names;
+                    frame->instrs = vm->instrs;
+                    frame->iters_top = vm->iter_sp;
+                    frame->globals = vm->globals;
+                    frame->function = function;
+
+                    vm->function = (Object *)callee_fn;
+                    vm->code = callee_fn->body->data;
+                    if (callee_fn->constants)
+                        vm->constants = callee_fn->constants;
+                    if (callee_fn->names)
+                        vm->names = callee_fn->names;
+                    if (callee_fn->instrs)
+                        vm->instrs = callee_fn->instrs;
+                    if (callee_fn->globals)
+                        vm->globals = callee_fn->globals;
+
+                    vm->pc = 0;
+                    vm->ip = 0;
+                    vm->bp = callee_slot;
+
+                    for (uint8_t i = 0; i < num_args; i++)
+                        vm->stack[vm->bp + i] = vm->stack[arg_base + i];
+
+                    vm->sp = vm->bp + (int)param_count + 2;
+
+                    code = (uint8_t *)vm->code->data;
+                    length = vm->code->size;
+                    pc = vm->pc;
+                    function = callee_fn;
+                    break;
+                }
+            }
 
             /*
              * Collect arguments into a fixed-size buffer.
@@ -3423,12 +3490,12 @@ void run(vm_t *vm)
             for (int i = num_args - 1; i >= 0; i--)
                 args[i] = pop_stack(vm);
 
-            Value callee = pop_stack(vm);
-            vm->pc = pc; /* sync before any call that may re-enter run() */
+            callee = pop_stack(vm);
 
             if (IS_FUN(callee))
             {
-                Value result = call_func(vm, AS_FUN(callee), num_args, args, NEW_NIL());
+                Function *callee_fn = AS_FUN(callee);
+                Value result = call_func(vm, callee_fn, num_args, args, NEW_NIL());
                 push_stack(vm, result);
             }
             else if (IS_MAP(callee))
@@ -4721,14 +4788,14 @@ void run(vm_t *vm)
 
                 Value *oldValue = ht_get(vm->globals, key);
                 if (oldValue && IS_FUN(*oldValue))
-                    AS_FUN(*oldValue)->self_global_valid = false;
+                    AS_FUN(*oldValue)->global_valid = false;
 
                 if (!ht_set(vm->globals, key, value))
                     ht_put(vm->globals, key, value);
 
                 if (IS_FUN(*value) && AS_FUN(*value)->name &&
                     strcmp(AS_FUN(*value)->name, key) == 0)
-                    AS_FUN(*value)->self_global_valid = true;
+                    AS_FUN(*value)->global_valid = true;
             }
 
             break;
@@ -4793,7 +4860,15 @@ void run(vm_t *vm)
 
             push_stack(vm, retval);
 
-            return;
+            code = (uint8_t *)vm->code->data;
+            length = vm->code->size;
+            pc = vm->pc;
+            function = frame->function;
+
+            if (vm->frame_sp < frame_sp)
+                return;
+
+            break;
         }
 
         case OP_HALT:

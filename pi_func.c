@@ -32,7 +32,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     fn->is_method = false;
     fn->need_args = true;
     fn->need_kwargs = true;
-    fn->self_global_valid = false;
+    fn->global_valid = false;
     fn->native = NULL;
     fn->globals = NULL;
 
@@ -83,7 +83,7 @@ Value *new_native(const char *name, native_func func)
 
     fn->need_args = false;
     fn->need_kwargs = false;
-    fn->self_global_valid = false;
+    fn->global_valid = false;
     fn->native = func;
 
     fn->upvalues = NULL;
