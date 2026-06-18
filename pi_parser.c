@@ -2790,8 +2790,8 @@ static void member_expr(parser_t *parser)
                     }
                 } while (match(parser, TK_COMMA));
             }
-            token_t _token = consume(parser, TK_RPAREN, "Expect ')' after function call");
-            set_pos(parser, _token);
+            consume(parser, TK_RPAREN, "Expect ')' after function call");
+            set_pos(parser, token);
             char *name = strcmp(token_value(token), ")") == 0 ? "<FUN>" : token_value(token);
             if (saw_spread)
                 emit(parser->comp, OP_LIST_FINALIZE);

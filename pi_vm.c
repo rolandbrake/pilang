@@ -494,7 +494,7 @@ static instr_t *vm_currentInstr(vm_t *vm)
     if (vm->current_instr)
         return vm->current_instr;
 
-    return vm_instrForOffset(vm, vm->pc);
+    return vm_instrForOffset(vm, vm->error_pc);
 }
 
 /**
@@ -510,6 +510,7 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
 
     // Initialize program counter, stack pointer, and base pointer to 0
     vm->pc = 0;
+    vm->error_pc = 0;
     vm->sp = 0;
     vm->bp = 0;
     vm->ip = 0;
@@ -608,6 +609,7 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
 void vm_reset(vm_t *vm, compiler_t *comp)
 {
     vm->pc = 0;
+    vm->error_pc = 0;
     vm->sp = 0;
     vm->bp = 0;
     vm->ip = 0;
@@ -2074,7 +2076,8 @@ void run(vm_t *vm)
     while (pc < length && vm->running)
     {
         vm->pc = pc;
-        // vm->current_instr = vm_instrForOffset(vm, pc);
+        vm->error_pc = pc;
+        vm->current_instr = NULL;
         op = code[pc++];
 
         vm->ip++; // Advance instruction index
@@ -2093,8 +2096,7 @@ void run(vm_t *vm)
             // Get the constant from the constants list using the index
             Value constant = ((Value *)vm->constants->data)[index];
 
-            // Push the constant onto the stack
-            push_stack(vm, constant);
+            vm->stack[vm->sp++] = constant;
 
             break;
         }
@@ -2131,7 +2133,7 @@ void run(vm_t *vm)
                 function->globals == vm->globals)
             {
 
-                push_stack(vm, NEW_OBJ((Object *)function));
+                vm->stack[vm->sp++] = NEW_OBJ((Object *)function);
                 break;
             }
 
@@ -2141,7 +2143,7 @@ void run(vm_t *vm)
                 function->name && strcmp(function->name, name) == 0)
             {
 
-                push_stack(vm, NEW_OBJ((Object *)function));
+                vm->stack[vm->sp++] = NEW_OBJ((Object *)function);
                 break;
             }
 
@@ -2165,7 +2167,7 @@ void run(vm_t *vm)
             
 
             Value value = vm->stack[slot];
-            push_stack(vm, value);
+            vm->stack[vm->sp++] = value;
             break;
         }
 
@@ -3509,9 +3511,16 @@ void run(vm_t *vm)
             int callee_slot = arg_base - 1;
 
             if (callee_slot < 0)
-                vm_error(vm, "Stack underflow while preparing function call.");
+                vm_errorf(vm,
+                          "Invalid function call: expected a callable plus %u argument value%s, "
+                          "but only %d stack value%s available.",
+                          num_args,
+                          num_args == 1 ? "" : "s",
+                          vm->sp,
+                          vm->sp == 1 ? " is" : "s are");
 
             Value callee = vm->stack[callee_slot];
+            vm->error_pc = vm->pc;
             vm->pc = pc; /* sync before any call that may re-enter run() */
 
             if (IS_FUN(callee))
@@ -3660,6 +3669,7 @@ void run(vm_t *vm)
 
             if (IS_FUN(callee))
             {
+                vm->error_pc = vm->pc;
                 vm->pc = pc;
                 Function *callee_fn = AS_FUN(callee);
                 result = call_func(vm, callee_fn, num_args, args, kw_args);
@@ -3718,6 +3728,7 @@ void run(vm_t *vm)
                 vm_error(vm, "Spread call arguments must be collected in a list.");
 
             Value callee = pop_stack(vm);
+            vm->error_pc = vm->pc;
             vm->pc = pc;
             push_stack(vm, call_withArgList(vm, callee, AS_LIST(arg_list_value), kw_args, has_named));
             break;

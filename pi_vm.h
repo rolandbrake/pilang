@@ -33,6 +33,7 @@
         if (pc >= length || !vm->running)   \
             goto L_VM_DONE;                 \
         vm->pc = pc;                        \
+        vm->error_pc = pc;                  \
         uint8_t _op = code[pc++];           \
         if (!dispatch[_op])                 \
             vm_error(vm, "Invalid opcode"); \
@@ -62,6 +63,7 @@ typedef struct vm_t
     int sp; // Stack Pointer: Tracks the top of the stack.
     int bp; // Base Pointer: Used for managing function call frames.
     int ip; // Instruction Pointer: Points to the current instruction being executed.
+    int error_pc; // Bytecode offset used for runtime error source mapping.
 
     Value stack[STACK_MAX]; // Operand stack for storing temporary values and function calls.
 

@@ -12,6 +12,7 @@ const LEARNING_RATE = 0.03
 const SHOW_PLOTS = true
 
 
+
 fun accuracy(model, samples) {
     let correct = 0
 
