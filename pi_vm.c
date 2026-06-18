@@ -2137,12 +2137,18 @@ void run(vm_t *vm)
             Value _newValue = pop_stack(vm);
             Value *oldValue = ht_get(vm->globals, name);
             if (oldValue && IS_FUN(*oldValue))
+            {
                 AS_FUN(*oldValue)->global_valid = false;
+                AS_FUN(*oldValue)->glonal_index = -1;
+            }
 
             ht_put(vm->globals, name, &_newValue); // Store directly, no malloc!
             if (IS_FUN(_newValue) && AS_FUN(_newValue)->name &&
                 strcmp(AS_FUN(_newValue)->name, name) == 0)
+            {
                 AS_FUN(_newValue)->global_valid = true;
+                AS_FUN(_newValue)->glonal_index = index;
+            }
 
             break;
         }
@@ -2150,6 +2156,14 @@ void run(vm_t *vm)
         case OP_LOAD_GLOBAL:
         {
             index = code[pc++];
+            if (function && function->global_valid &&
+                function->glonal_index == index &&
+                function->globals == vm->globals)
+            {
+                push_stack(vm, NEW_OBJ((Object *)function));
+                break;
+            }
+
             char *name = string_get(vm->names, index);
             if (function && function->global_valid &&
                 function->globals == vm->globals &&
@@ -3419,7 +3433,7 @@ void run(vm_t *vm)
             {
                 Function *callee_fn = AS_FUN(callee);
                 size_t param_count = (!callee_fn->is_native && callee_fn->params)
-                                         ? (size_t)callee_fn->params->size
+                                         ? (size_t)callee_fn->arity
                                          : 0;
 
                 if (!callee_fn->is_native &&
@@ -4788,14 +4802,20 @@ void run(vm_t *vm)
 
                 Value *oldValue = ht_get(vm->globals, key);
                 if (oldValue && IS_FUN(*oldValue))
+                {
                     AS_FUN(*oldValue)->global_valid = false;
+                    AS_FUN(*oldValue)->glonal_index = -1;
+                }
 
                 if (!ht_set(vm->globals, key, value))
                     ht_put(vm->globals, key, value);
 
                 if (IS_FUN(*value) && AS_FUN(*value)->name &&
                     strcmp(AS_FUN(*value)->name, key) == 0)
+                {
                     AS_FUN(*value)->global_valid = true;
+                    AS_FUN(*value)->glonal_index = -1;
+                }
             }
 
             break;

@@ -16,6 +16,7 @@ typedef struct Function
 
     char *name;     // Function name
     list_t *params; // PiList of parameters    
+    int arity;      // Cached positional parameter count
     list_t *param_names; // PiList of parameter names
     bool owns_params;
     ObjCode *body;
@@ -34,6 +35,7 @@ typedef struct Function
     bool need_args; // Whether this function ever reads local 'args'
     bool need_kwargs; // Whether this function ever reads local 'kw_args'
     bool global_valid; // Whether a same-named global still points at this function object
+    int glonal_index; // Names-table index for a valid same-named global binding
     native_func native; // Pointer to the native function (NULL for bytecode)
 } Function;
 

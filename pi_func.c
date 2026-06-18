@@ -19,6 +19,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     fn->name = name ? strdup(name) : strdup("<FUN>");
 
     fn->params = params ? params : list_create(sizeof(Value));
+    fn->arity = fn->params ? fn->params->size : 0;
     // Parameter names are shared with the compiled function body.
     fn->param_names = (body && body->param_names) ? body->param_names : NULL;
     fn->owns_params = true;
@@ -33,6 +34,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     fn->need_args = true;
     fn->need_kwargs = true;
     fn->global_valid = false;
+    fn->glonal_index = -1;
     fn->native = NULL;
     fn->globals = NULL;
 
@@ -68,6 +70,7 @@ Value *new_native(const char *name, native_func func)
     fn->name = strdup(name); // Allocate and copy name string
 
     fn->params = NULL;
+    fn->arity = 0;
     fn->param_names = NULL;
     fn->owns_params = false;
 
@@ -84,6 +87,7 @@ Value *new_native(const char *name, native_func func)
     fn->need_args = false;
     fn->need_kwargs = false;
     fn->global_valid = false;
+    fn->glonal_index = -1;
     fn->native = func;
 
     fn->upvalues = NULL;
@@ -178,7 +182,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     vm->bp = vm->sp;
 
     // Resolve param count and stack layout offsets
-    size_t param_count = (size_t)function->params->size;
+    size_t param_count = (size_t)function->arity;
     size_t arg_offset = 0;   /* extra leading slot for implicit `this` */
     size_t param_offset = 0; /* skip slot 0 when `this` is a named param */
     Value instance = NEW_NIL();
