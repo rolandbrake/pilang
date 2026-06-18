@@ -20,23 +20,34 @@
 #define NEXT_GC (1024 * 1024 * 8)
 
 
-// Macros for handling opcodes [for future use]
+// Macros for computed-goto opcode dispatch.
+// Requires GCC/Clang labels-as-values support.
 #define VM_LABEL(name) L_##name
 #define VM_TARGET(name) &&L_##name
-#define VM_DISPATCH(op) goto *dispatch[op]
+#define VM_DISPATCH(op) goto *dispatch[(op)]
 #define VM_CASE(name) VM_LABEL(name)
 
 #define VM_DISPATCH_SAFE()                  \
     do                                      \
     {                                       \
+        if (pc >= length || !vm->running)   \
+            goto L_VM_DONE;                 \
+        vm->pc = pc;                        \
         uint8_t _op = code[pc++];           \
         if (!dispatch[_op])                 \
             vm_error(vm, "Invalid opcode"); \
+        vm->ip++;                           \
         goto *dispatch[_op];                \
     } while (0)
 
-#define BEGIN_VM_LOOP() VM_DISPATCH()
-#define END_INSTR() VM_DISPATCH()
+#define BEGIN_VM_LOOP() VM_DISPATCH_SAFE()
+#define END_INSTR() goto L_VM_AFTER_INSTR
+
+
+
+#define GC_MIN_THRESHOLD 4096
+#define GC_MAX_THRESHOLD (1024 * 1024 * 8)
+#define BROWSER_YIELD_STEPS 50000
 
 
 #define TO_PRIM(vm, v, is_str) (IS_MAP(v) ? to_primitive(vm, v, is_str) : (v))

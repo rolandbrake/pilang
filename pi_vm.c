@@ -21,10 +21,6 @@
 #include "builtin/pi_builtin.h"
 #include "builtin/pi_methods.h"
 
-#define GC_MIN_THRESHOLD 4096
-#define GC_MAX_THRESHOLD (1024 * 1024 * 8)
-#define BROWSER_YIELD_STEPS 50000
-
 static PiMap *create_objectProto(vm_t *vm);
 static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value kw_args);
 static Value bind(vm_t *vm, Function *function, Object *instance);
@@ -728,7 +724,7 @@ static inline int count_objs(vm_t *vm)
 
 void vm_error(vm_t *vm, const char *message)
 {
-    
+
     instr_t *instr = vm_currentInstr(vm);
     const char *module_label = vm_moduleLabel(vm);
 
@@ -2051,7 +2047,7 @@ static bool is_private_moduleName(const char *name)
  * @param vm The virtual machine to run.
  */
 void run(vm_t *vm)
-{    
+{
     int frame_sp = vm->frame_sp; // entry frame sp
     int length = vm->code->size;
     int pc = vm->pc;
@@ -2083,6 +2079,7 @@ void run(vm_t *vm)
 
         vm->ip++; // Advance instruction index
 
+
         // printf("OP: %d, PC: %d, IP: %d\n", op, pc, vm->ip);
 
         // Cast the opcode to the OpCode enum
@@ -2094,7 +2091,7 @@ void run(vm_t *vm)
             index = (code[pc++] << 8);
             index |= code[pc++];
             // Get the constant from the constants list using the index
-            Value constant = *(Value *)list_getAt(vm->constants, index);
+            Value constant = ((Value *)vm->constants->data)[index];
 
             // Push the constant onto the stack
             push_stack(vm, constant);
@@ -2133,6 +2130,7 @@ void run(vm_t *vm)
                 function->glonal_index == index &&
                 function->globals == vm->globals)
             {
+
                 push_stack(vm, NEW_OBJ((Object *)function));
                 break;
             }
@@ -2142,9 +2140,11 @@ void run(vm_t *vm)
                 function->globals == vm->globals &&
                 function->name && strcmp(function->name, name) == 0)
             {
+
                 push_stack(vm, NEW_OBJ((Object *)function));
                 break;
             }
+
 
             Value *_value = ht_get(vm->globals, name);
             if (_value == NULL)
@@ -2159,7 +2159,12 @@ void run(vm_t *vm)
         case OP_LOAD_LOCAL:
         {
             op = code[pc++];
-            Value value = vm->stack[resolve_localSlot(vm, op)];
+            int slot = vm->bp + op;
+            if (vm->comp_sp > 0)            
+                slot = resolve_localSlot(vm, op);
+            
+
+            Value value = vm->stack[slot];
             push_stack(vm, value);
             break;
         }
@@ -2182,7 +2187,12 @@ void run(vm_t *vm)
         case OP_STORE_LOCAL:
         {
             op = code[pc++];
-            int slot = resolve_localSlot(vm, op);
+            int slot = vm->bp + op;
+            if (vm->comp_sp > 0)
+                slot = resolve_localSlot(vm, op);
+            
+
+
             vm->stack[slot] = pop_stack(vm);
 
             // Ensure the stack pointer reserves space for locals.
@@ -2217,7 +2227,8 @@ void run(vm_t *vm)
             int offset = (int16_t)((code[pc] << 8) | code[pc + 1]); // Signed 16-bit offset
 
             Value value = pop_stack(vm);
-            if (!as_bool(value))
+            bool condition = IS_BOOL(value) ? AS_BOOL(value) : as_bool(value);
+            if (!condition)
                 pc += offset - 1; // relative jump
             else
                 pc += 2;
@@ -2236,7 +2247,8 @@ void run(vm_t *vm)
             int offset = (int16_t)((code[pc] << 8) | code[pc + 1]); // Signed 16-bit offset
 
             Value value = pop_stack(vm);
-            if (as_bool(value))
+            bool condition = IS_BOOL(value) ? AS_BOOL(value) : as_bool(value);
+            if (condition)
                 pc += offset - 1; // relative jump
             else
                 pc += 2;
@@ -2246,16 +2258,52 @@ void run(vm_t *vm)
         case OP_COMPARE:
         {
             uint8_t op = code[pc++];
-            Value right = pop_stack(vm);
-            Value left = pop_stack(vm);
 
-            // Fast path: both plain numbers (most common case)
-            // Zero hash lookups, zero overload checks, zero to_primitive calls
+            Value right = vm->stack[vm->sp - 1];
+            Value left = vm->stack[vm->sp - 2];
+
+            // Plain-number path for tight numeric loops.
+            // Keep fallback unpopped so uncommon operators/types retain old behavior.
+            if (op <= 5 && IS_NUM(left) && IS_NUM(right))
+            {
+                double l = AS_NUM(left);
+                double r = AS_NUM(right);
+                bool result = false;
+                switch (op)
+                {
+                case 0: // "=="
+                    result = (l == r);
+                    break;
+                case 1: // "!="
+                    result = (l != r);
+                    break;
+                case 2: // ">"
+                    result = (l > r);
+                    break;
+                case 3: // "<"
+                    result = (l < r);
+                    break;
+                case 4: // ">="
+                    result = (l >= r);
+                    break;
+                case 5: // "<="
+                    result = (l <= r);
+                    break;
+                }
+                vm->sp--;
+                vm->stack[vm->sp - 1] = NEW_BOOL(result);
+
+                break;
+            }
+
+            right = pop_stack(vm);
+            left = pop_stack(vm);
+
             if (is_numeric(left) && is_numeric(right))
             {
                 double l = as_number(left);
                 double r = as_number(right);
-                bool result;
+                bool result = false;
                 switch (op)
                 {
                 case 0: // "=="
@@ -2543,8 +2591,72 @@ void run(vm_t *vm)
         case OP_BINARY:
         {
             uint8_t op = code[pc++];
-            Value right = pop_stack(vm);
-            Value left = pop_stack(vm);
+            Value right = vm->stack[vm->sp - 1];
+            Value left = vm->stack[vm->sp - 2];
+
+            // Plain-number path for tight numeric loops.
+            // It avoids pop_stack(), is_numeric(), as_number(), and overload checks.
+            if (op <= 13 && IS_NUM(left) && IS_NUM(right))
+            {
+                double l = AS_NUM(left);
+                double r = AS_NUM(right);
+                vm->sp--;
+                switch (op)
+                {
+                case 0:
+                    vm->stack[vm->sp - 1] = NEW_NUM(l + r);
+                    break;
+                case 1:
+                    vm->stack[vm->sp - 1] = NEW_NUM(l - r);
+                    break;
+                case 2:
+                    vm->stack[vm->sp - 1] = NEW_NUM(l * r);
+                    break;
+                case 3:
+                    vm->stack[vm->sp - 1] = NEW_NUM(r == 0.0 ? INFINITY : l / r);
+                    break;
+                case 4:
+                {
+                    int ir = (int)r;
+                    vm->stack[vm->sp - 1] = ir == 0 ? NEW_NAN() : NEW_NUM((int)l % ir);
+                    break;
+                }
+                case 5:
+                    vm->stack[vm->sp - 1] = NEW_BOOL(l && r);
+                    break;
+                case 6:
+                    vm->stack[vm->sp - 1] = NEW_BOOL(l || r);
+                    break;
+                case 7:
+                    vm->stack[vm->sp - 1] = NEW_NUM(pow(l, r));
+                    break;
+                case 8:
+                    vm->stack[vm->sp - 1] = NEW_NUM((int)l & (int)r);
+                    break;
+                case 9:
+                    vm->stack[vm->sp - 1] = NEW_NUM((int)l | (int)r);
+                    break;
+                case 10:
+                    vm->stack[vm->sp - 1] = NEW_NUM((int)l ^ (int)r);
+                    break;
+                case 11:
+                    vm->stack[vm->sp - 1] = NEW_NUM((int)l << (int)r);
+                    break;
+                case 12:
+                    vm->stack[vm->sp - 1] = NEW_NUM((int)l >> (int)r);
+                    break;
+                case 13:
+                    vm->stack[vm->sp - 1] = NEW_NUM((uint32_t)l >> (uint32_t)r);
+                    break;
+                }
+#ifdef PI_PROFILE_OPS
+                vm_profile.binary_num_fast++;
+#endif
+                break;
+            }
+
+            right = pop_stack(vm);
+            left = pop_stack(vm);
 
             // Global numeric fast path
             // Covers the vast majority of arithmetic — zero hash lookups, zero
@@ -3388,7 +3500,7 @@ void run(vm_t *vm)
 
             break;
         }
-        
+
         // regular call, zero kwargs overhead
         case OP_CALL_FUNCTION:
         {
@@ -3423,7 +3535,7 @@ void run(vm_t *vm)
                     frame->sp = callee_slot;
                     frame->bp = vm->bp;
                     frame->ip = vm->ip;
-                    
+
                     frame->code = vm->code;
                     frame->constants = vm->constants;
                     frame->names = vm->names;
@@ -3549,7 +3661,8 @@ void run(vm_t *vm)
             if (IS_FUN(callee))
             {
                 vm->pc = pc;
-                result = call_func(vm, AS_FUN(callee), num_args, args, kw_args);
+                Function *callee_fn = AS_FUN(callee);
+                result = call_func(vm, callee_fn, num_args, args, kw_args);
                 if (IS_OBJ(result))
                     add_obj(vm, AS_OBJ(result));
             }
