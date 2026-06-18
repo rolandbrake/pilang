@@ -1178,32 +1178,6 @@ static inline int _read_short(uint8_t *code, int pc)
 }
 
 /**
- * Scan function bytecode for local access of a specific argument slot.
- */
-static bool fun_scanSlot(ObjCode *body, uint8_t args_slot)
-{
-    uint8_t *bytecode = (uint8_t *)body->data->data;
-    int length = body->data->size;
-
-    // Iterate through the bytecode of the function
-    for (int i = 0; i < length;)
-    {
-        uint8_t op = bytecode[i++]; // Get the opcode at the current index
-
-        // Check if the opcode is either OP_LOAD_LOCAL or OP_STORE_LOCAL
-        if ((op == OP_LOAD_LOCAL || op == OP_STORE_LOCAL) &&
-            // Check if the argument slot matches the given slot
-            i < length && bytecode[i] == args_slot)
-            return true;
-
-        // Advance the index by the number of operands the instruction has
-        i += operand_count(op);
-    }
-
-    return false;
-}
-
-/**
  * Capture or reuse an open upvalue for a stack slot.
  */
 static UpValue *capture_upvalue(vm_t *vm, int index)
@@ -1317,9 +1291,8 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
     // Set the is_method flag to true
     ((Function *)fn)->is_method = true;
 
-    int param_count = list_size(function->params);
-    ((Function *)fn)->need_args = fun_scanSlot(function->body, (uint8_t)(param_count + 1));
-    ((Function *)fn)->need_kwargs = fun_scanSlot(function->body, (uint8_t)(param_count + 2));
+    ((Function *)fn)->need_args = function->body ? function->body->method_need_args : false;
+    ((Function *)fn)->need_kwargs = function->body ? function->body->method_need_kwargs : false;
 
     add_obj(vm, fn); // Critical - adds to GC tracking
 
@@ -4066,8 +4039,8 @@ void run(vm_t *vm)
 
             // Create a new function object
             Object *function = new_func(name, body, defaults, NULL, NULL);
-            ((Function *)function)->need_args = fun_scanSlot(body, (uint8_t)numParams);
-            ((Function *)function)->need_kwargs = fun_scanSlot(body, (uint8_t)(numParams + 1));
+            ((Function *)function)->need_args = body->need_args;
+            ((Function *)function)->need_kwargs = body->need_kwargs;
             ((Function *)function)->constants = vm->constants;
             ((Function *)function)->names = vm->names;
             ((Function *)function)->instrs = vm->instrs;
@@ -4119,8 +4092,8 @@ void run(vm_t *vm)
             }
 
             Object *fun_obj = new_func(name, body, defaults, upvalues, NULL);
-            ((Function *)fun_obj)->need_args = fun_scanSlot(body, (uint8_t)numParams);
-            ((Function *)fun_obj)->need_kwargs = fun_scanSlot(body, (uint8_t)(numParams + 1));
+            ((Function *)fun_obj)->need_args = body->need_args;
+            ((Function *)fun_obj)->need_kwargs = body->need_kwargs;
             ((Function *)fun_obj)->constants = vm->constants;
             ((Function *)fun_obj)->names = vm->names;
             ((Function *)fun_obj)->instrs = vm->instrs;

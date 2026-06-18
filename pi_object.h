@@ -281,6 +281,10 @@ typedef struct
     Object object;
     list_t *data;
     list_t *param_names; // Parameter names for functions using this code
+    bool need_args;
+    bool need_kwargs;
+    bool method_need_args;
+    bool method_need_kwargs;
 
     uint32_t hash;
 } ObjCode;

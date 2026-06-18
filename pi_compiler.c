@@ -750,6 +750,25 @@ int loop_depth(compiler_t *comp)
     return current_loop(comp)->depth;
 }
 
+static bool code_usesLocalSlot(list_t *code, uint8_t slot)
+{
+    uint8_t *bytecode = (uint8_t *)code->data;
+    int length = code->size;
+
+    for (int i = 0; i < length;)
+    {
+        uint8_t op = bytecode[i++];
+
+        if ((op == OP_LOAD_LOCAL || op == OP_STORE_LOCAL) &&
+            i < length && bytecode[i] == slot)
+            return true;
+
+        i += operand_count(op);
+    }
+
+    return false;
+}
+
 void push_function(compiler_t *comp, char *name)
 {
     if (!comp->is_lookUp)
@@ -776,6 +795,11 @@ void pop_function(compiler_t *comp, int params)
         list_t *upvalues = comp->current->upvalues;
 
         ObjCode *code = (ObjCode *)new_code(comp->code);
+        code->need_args = code_usesLocalSlot(comp->code, (uint8_t)params);
+        code->need_kwargs = code_usesLocalSlot(comp->code, (uint8_t)(params + 1));
+        code->method_need_args = code_usesLocalSlot(comp->code, (uint8_t)(params + 1));
+        code->method_need_kwargs = code_usesLocalSlot(comp->code, (uint8_t)(params + 2));
+
         int c_index = store_const(comp, NEW_OBJ(code));
 
         context_t *context = pop_context(comp);

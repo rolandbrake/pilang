@@ -597,6 +597,10 @@ Object *new_code(list_t *code)
 
     c->data = code;
     c->param_names = NULL;
+    c->need_args = false;
+    c->need_kwargs = false;
+    c->method_need_args = false;
+    c->method_need_kwargs = false;
 
     return (Object *)c;
 }
