@@ -295,12 +295,10 @@ static void print_usage(const char *program)
     printf("  %s help                       Display this help message\n", program);
 }
 
-static volatile bool g_interrupted = false;
-
 static void handle_sigint(int sig)
 {
     (void)sig;
-    g_interrupted = true;
+    interrupt_requested = 1;
 }
 
 char *read_file(const char *filename)
@@ -372,13 +370,14 @@ static int run_source(const char *source, ParserMode mode, const char *entry_nam
     vm_t *vm = init_vm(comp, entry_name, is_main);
 
     clock_t start = clock();
-    while (vm->running && !g_interrupted)
+    while (vm->running && !interrupt_requested)
         run(vm);
 
-    if (g_interrupted)
+    bool interrupted = interrupt_requested != 0;
+    if (interrupted)
     {
-        fprintf(stderr, "\nInterrupted.\n");
-        g_interrupted = false;
+        fprintf(stderr, "\n[ctrl+c] exectuion interrupted\n");
+        interrupt_requested = 0;
     }
 
     clock_t end = clock();
@@ -391,7 +390,7 @@ static int run_source(const char *source, ParserMode mode, const char *entry_nam
     free_vm(vm);
     free_compiler(comp);
 
-    return 0;
+    return interrupted ? 130 : 0;
 }
 
 static int run_file(const char *filename)
@@ -590,7 +589,7 @@ static int run_repl(void)
     vm_t *repl_vm = init_vm(comp, "<repl>", false);
 
     /* Drain the bootstrap - hits OP_HALT immediately. */
-    while (repl_vm->running && !g_interrupted)
+    while (repl_vm->running && !interrupt_requested)
         run(repl_vm);
 
     size_t buf_cap = 8192;
@@ -737,13 +736,13 @@ static int run_repl(void)
             repl_vm->pc = entry_pc;
             repl_vm->running = true;
 
-            while (repl_vm->running && !g_interrupted)
+            while (repl_vm->running && !interrupt_requested)
                 run(repl_vm);
 
-            if (g_interrupted)
+            if (interrupt_requested)
             {
-                fprintf(stderr, "\nInterrupted.\n");
-                g_interrupted = false;
+                fprintf(stderr, "\n[ctrl+c] exectuion interrupted\n");
+                interrupt_requested = 0;
                 // clear the buffer so stale input isn't re-executed
                 buf[0] = '\0';
                 buf_len = 0;

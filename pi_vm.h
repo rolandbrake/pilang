@@ -3,6 +3,7 @@
 
 #include <pthread.h>
 #include <stdarg.h>
+#include <signal.h>
 
 #include "pi_compiler.h"
 #include "pi_table.h"
@@ -49,6 +50,7 @@
 #define GC_MIN_THRESHOLD 4096
 #define GC_MAX_THRESHOLD (1024 * 512)
 #define BROWSER_YIELD_STEPS 50000
+#define INTERRUPT_CHECK_STEPS 4096
 
 
 #define TO_PRIM(vm, v, is_str) (IS_MAP(v) ? to_primitive(vm, v, is_str) : (v))
@@ -117,6 +119,8 @@ typedef struct vm_t
     PiMap *object_proto; // Shared default prototype for object-style maps
 
 } vm_t;
+
+extern volatile sig_atomic_t interrupt_requested;
 
 vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main);
 void vm_reset(vm_t *vm, compiler_t *comp);

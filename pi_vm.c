@@ -21,6 +21,8 @@
 #include "builtin/pi_builtin.h"
 #include "builtin/pi_methods.h"
 
+volatile sig_atomic_t interrupt_requested = 0;
+
 static PiMap *create_objectProto(vm_t *vm);
 static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value kw_args);
 static Value bind(vm_t *vm, Function *function, Object *instance);
@@ -2064,6 +2066,8 @@ void run(vm_t *vm)
     int pc = vm->pc;
 #ifdef __EMSCRIPTEN__
     int browser_steps = 0;
+#else
+    int interrupt_steps = 0;
 #endif
 
     uint8_t op;
@@ -2084,6 +2088,14 @@ void run(vm_t *vm)
 
     while (pc < length && vm->running)
     {
+#ifndef __EMSCRIPTEN__
+        if ((++interrupt_steps & (INTERRUPT_CHECK_STEPS - 1)) == 0 && interrupt_requested)
+        {
+            vm->pc = pc;
+            vm->running = false;
+            break;
+        }
+#endif
         vm->pc = pc;
         vm->error_pc = pc;
         vm->current_instr = NULL;
