@@ -3,6 +3,10 @@
 #include "pi_func.h"
 #include "pi_module.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 // Non-recursive marking stack used during graph traversal.
 static Object **mark_stack = NULL;
 
@@ -12,6 +16,14 @@ static int stack_capacity = 0;
 static bool stack_tracing = false;
 
 static void mark_references(Object *obj);
+
+void gc_trimHeap(void)
+{
+#ifdef _WIN32
+    HeapCompact(GetProcessHeap(), 0);
+    SetProcessWorkingSetSize(GetCurrentProcess(), (SIZE_T)-1, (SIZE_T)-1);
+#endif
+}
 
 // Uses an explicit stack to avoid deep recursive marking.
 static void push_stack(Object *obj)
@@ -291,6 +303,7 @@ void sweep(vm_t *vm)
     Object *obj = vm->objects;
     Object *prev = NULL;
     int live_count = 0;
+    int collected = 0;
 
     while (obj != NULL)
     {
@@ -301,6 +314,7 @@ void sweep(vm_t *vm)
             obj->in_gcList = false;
 
             free_object(obj);
+            collected++;
 
             if (prev != NULL)
                 prev->next = next;
@@ -319,6 +333,13 @@ void sweep(vm_t *vm)
     }
 
     vm->obj_count = live_count;
+
+#ifdef _WIN32
+    // MinGW allocations use the process heap. Compact it after a substantial
+    // sweep so pages from an autograd tape can be returned to the OS.
+    if (collected >= 4096)
+        gc_trimHeap();
+#endif
 }
 
 void free_object(Object *obj)

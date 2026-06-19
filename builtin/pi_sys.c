@@ -170,6 +170,7 @@ Value sy_gc(vm_t *vm, int argc, Value *argv)
     (void)argv;
 
     run_gc(vm);
+    gc_trimHeap();
     return NEW_BOOL(true);
 }
 

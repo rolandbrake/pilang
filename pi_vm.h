@@ -104,6 +104,7 @@ typedef struct vm_t
     Value _kw_args; // Keyword arguments visible to the currently running native function.
 
     int counter;
+    int gc_pending_depth; // Frame depth at which released object fields become collectible.
 
     table_t *instrs; // PiList of instruction metadata
     instr_t *current_instr; // Source metadata for the opcode currently executing.

@@ -126,6 +126,9 @@ void *list_remove(list_t *list, int index)
 
     // Allocate temporary buffer to hold the removed item
     void *removed_item = malloc(list->i_size);
+    if (!removed_item)
+        error("[list_remove] Memory allocation failed.");
+    memcpy(removed_item, target, list->i_size);
 
     void *next = (byte *)list->data + (index + 1) * list->i_size;
     memmove(target, next, (list->size - index - 1) * list->i_size);

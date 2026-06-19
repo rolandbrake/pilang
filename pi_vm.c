@@ -26,7 +26,7 @@ volatile sig_atomic_t interrupt_requested = 0;
 static PiMap *create_objectProto(vm_t *vm);
 static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value kw_args);
 static Value bind(vm_t *vm, Function *function, Object *instance);
-static Value bind_nativeMethod(Object *instance, NativeMethod *method);
+static Value bind_nativeMethod(vm_t *vm, Object *instance, NativeMethod *method);
 
 /**
  * Return a newly allocated string containing only the directory portion
@@ -549,6 +549,7 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     mark_constants(vm);
 
     vm->counter = 0;
+    vm->gc_pending_depth = -1;
 
     vm->openUpvalues = NULL;
 
@@ -632,6 +633,7 @@ void vm_reset(vm_t *vm, compiler_t *comp)
 
     // Reset GC stats to trigger collection sooner if needed
     vm->counter = 0;
+    vm->gc_pending_depth = -1;
     vm->next_gc = NEXT_GC;
 
     vm->openUpvalues = NULL;
@@ -896,12 +898,21 @@ static inline int resolve_localSlot(vm_t *vm, int local)
     return vm->bp + local;
 }
 
-static Value bind_nativeMethod(Object *instance, NativeMethod *method)
+static Value bind_nativeMethod(vm_t *vm, Object *instance, NativeMethod *method)
 {
-    Value native = *new_native(method->name, method->func);
+    (void)vm;
+
+    if (!method->has_cached_bound)
+    {
+        method->cached_bound = *new_native(method->name, method->func);
+        method->has_cached_bound = true;
+    }
+
+    Value native = method->cached_bound;
     Function *bound = AS_FUN(native);
     bound->instance = instance;
     bound->is_method = true;
+
     return native;
 }
 
@@ -1118,15 +1129,7 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
             vm_error(vm, "Attempt to call an Object instance.");
         }
 
-        Value constructor = map_getValueByKey(map, "constructor");
-        if (IS_FUN(constructor))
-        {
-            result = NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, kw_args)));
-        }
-        else
-        {
-            result = NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, kw_args)));
-        }
+        result = NEW_OBJ(construct(vm, map, num_args, args, kw_args));
     }
     else
     {
@@ -1731,7 +1734,7 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value k
     // Create a new map instance and set its prototype.
     // Members stay on the prototype map by default; only `this.*`
     // assignments create instance-local state.
-    Object *instance = new_map(table, true);
+    Object *instance = add_obj(vm, new_map(table, true));
 
     ((PiMap *)instance)->proto = map;
     ((PiMap *)instance)->bracket_access = map->bracket_access;
@@ -1747,7 +1750,9 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value k
     if (IS_FUN(constructor))
     {
         Value bound = bind(vm, AS_FUN(constructor), instance);
+        push_stack(vm, NEW_OBJ(instance));
         call_func(vm, AS_FUN(bound), argc, argv, kw_args);
+        pop_stack(vm);
     }
 
     return instance;
@@ -2137,7 +2142,6 @@ void run(vm_t *vm)
 
         vm->ip++; // Advance instruction index
 
-
         // printf("OP: %d, PC: %d, IP: %d\n", op, pc, vm->ip);
 
         // Cast the opcode to the OpCode enum
@@ -2202,7 +2206,6 @@ void run(vm_t *vm)
                 break;
             }
 
-
             Value *_value = ht_get(vm->globals, name);
             if (_value == NULL)
             {
@@ -2217,9 +2220,8 @@ void run(vm_t *vm)
         {
             op = code[pc++];
             int slot = vm->bp + op;
-            if (vm->comp_sp > 0)            
+            if (vm->comp_sp > 0)
                 slot = resolve_localSlot(vm, op);
-            
 
             Value value = vm->stack[slot];
             vm->stack[vm->sp++] = value;
@@ -2247,8 +2249,6 @@ void run(vm_t *vm)
             int slot = vm->bp + op;
             if (vm->comp_sp > 0)
                 slot = resolve_localSlot(vm, op);
-            
-
 
             vm->stack[slot] = pop_stack(vm);
 
@@ -3683,7 +3683,7 @@ void run(vm_t *vm)
                 else
                 {
                     /* Map used as a constructor/class. */
-                    result = NEW_OBJ(add_obj(vm, construct(vm, map, num_args, args, NEW_NIL())));
+                    result = NEW_OBJ(construct(vm, map, num_args, args, NEW_NIL()));
                     push_stack(vm, result);
                 }
             }
@@ -3750,7 +3750,7 @@ void run(vm_t *vm)
                 }
                 else
                 {
-                    result = NEW_OBJ(add_obj(vm, construct(vm, AS_MAP(callee), num_args, args, kw_args)));
+                    result = NEW_OBJ(construct(vm, AS_MAP(callee), num_args, args, kw_args));
                 }
             }
             else
@@ -4370,7 +4370,7 @@ void run(vm_t *vm)
 
                 if (method)
                 {
-                    push_stack(vm, bind_nativeMethod(AS_OBJ(container), method));
+                    push_stack(vm, bind_nativeMethod(vm, AS_OBJ(container), method));
                     break;
                 }
 
@@ -4707,6 +4707,10 @@ void run(vm_t *vm)
                     map_set(map, index, value);
                 }
 
+                if (IS_NIL(value) &&
+                    (vm->gc_pending_depth == -1 || vm->frame_sp < vm->gc_pending_depth))
+                    vm->gc_pending_depth = vm->frame_sp;
+
                 break;
             }
 
@@ -5039,6 +5043,15 @@ void run(vm_t *vm)
             length = vm->code->size;
             pc = vm->pc;
             function = frame->function;
+
+            // Defer graph collection until the releasing function's locals
+            // have left the operand stack.
+            if (vm->gc_pending_depth != -1 && vm->frame_sp < vm->gc_pending_depth)
+            {
+                run_gc(vm);
+                vm->counter = 0;
+                vm->gc_pending_depth = -1;
+            }
 
             if (vm->frame_sp < frame_sp)
                 return;

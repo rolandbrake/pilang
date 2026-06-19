@@ -18,7 +18,7 @@ let loss_steps = []
 let loss_values = []
 
 // println("parameters: " + #model.parameters())
-for step in range(150) {
+for step in range(150) {    
     let ypred = [model(x) : x in xs]
     let loss = Value(0)
 

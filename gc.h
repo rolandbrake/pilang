@@ -19,5 +19,6 @@ void free_object(Object *obj);
 void free_value(Value *val);
 
 void run_gc(vm_t *vm);
+void gc_trimHeap(void);
 
 #endif // GC_H
