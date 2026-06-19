@@ -325,5 +325,13 @@ void free_func(Function *fn)
     if (fn->owns_params && fn->params)
         list_free(fn->params); // Free the parameter list
     if (fn->owns_upvalues && fn->upvalues)
+    {
+        for (int i = 0; i < fn->upvalue_count; i++)
+        {
+            UpValue *upvalue = fn->upvalues[i];
+            if (upvalue && --upvalue->ref_count <= 0)
+                free(upvalue);
+        }
         free(fn->upvalues);
+    }
 }

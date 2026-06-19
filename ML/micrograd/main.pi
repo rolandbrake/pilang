@@ -19,11 +19,11 @@ let loss_values = []
 
 // println("parameters: " + #model.parameters())
 for step in range(150) {
-    ypred = [model(x) : x in xs]    
-    loss = Value(0)
+    let ypred = [model(x) : x in xs]
+    let loss = Value(0)
 
     for i in range(len(ypred)) {
-        diff = ypred[i] - ys[i]
+        let diff = ypred[i] - ys[i]
         loss += diff * diff
     }
 

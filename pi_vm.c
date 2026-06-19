@@ -1208,6 +1208,7 @@ static UpValue *capture_upvalue(vm_t *vm, int index)
     UpValue *_upvalue = (UpValue *)malloc(sizeof(UpValue));
     _upvalue->value = vm->stack[index]; // Reference stack value
     _upvalue->index = index;
+    _upvalue->ref_count = 0;
 
     // Append the new upvalue to the linked list of open upvalues.
     _upvalue->next = upvalue;
@@ -4216,6 +4217,9 @@ void run(vm_t *vm)
                     upvalue = capture_upvalue(vm, vm->bp + index);
                 else
                     upvalue = function->upvalues[index];
+
+                if (upvalue)
+                    upvalue->ref_count++;
 
                 upvalues[numUpvalues - i - 1] = upvalue;
             }

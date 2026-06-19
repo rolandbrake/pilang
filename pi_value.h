@@ -61,6 +61,7 @@ typedef struct UpValue
 {
     Value value;
     int index;
+    int ref_count;
     struct UpValue *next;
 } UpValue;
 
