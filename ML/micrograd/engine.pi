@@ -192,7 +192,7 @@ class Value  {
         let visited = {}
 
         fun build_topo(v) {
-            let key = str(v.hash())
+            let key = v.hash()
 
             if !(key in visited) {
                 visited[key] = true
@@ -221,7 +221,16 @@ class Value  {
          * is available before propagating it to its parents.
          */
         for v in reverse(topo)
-            v._backward()
+            if v._backward != nil
+                v._backward()
+
+        // Once gradients are propagated, the forward graph is no longer
+        // needed for this training step. Drop graph edges and closure captures
+        // so large models do not retain the full autograd tape.
+        for v in topo {
+            v._prev = ()
+            v._backward = nil
+        }
     }
 
     /*

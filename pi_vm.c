@@ -658,11 +658,28 @@ inline Object *add_obj(vm_t *vm, Object *obj)
     vm->obj_count++;
 
     int gc_cost = 1;
-    if (obj->type == OBJ_TENSOR)
+    switch (obj->type)
+    {
+    case OBJ_MAP:
+        gc_cost = 8;
+        break;
+    case OBJ_FUN:
+        gc_cost = 4;
+        break;
+    case OBJ_LIST:
+    case OBJ_TUPLE:
+    case OBJ_SET:
+        gc_cost = 2;
+        break;
+    case OBJ_TENSOR:
     {
         PiTensor *tensor = (PiTensor *)obj;
         size_t data_bytes = (size_t)tensor->size * sizeof(double);
         gc_cost += (int)(data_bytes / (32 * 1024));
+        break;
+    }
+    default:
+        break;
     }
     vm->counter += gc_cost;
 
@@ -1291,9 +1308,25 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
     ((Function *)fn)->globals = function->globals;
     ((Function *)fn)->param_names = function->param_names;
     ((Function *)fn)->owns_params = false;
-    ((Function *)fn)->upvalues = function->upvalues;
+    if (function->upvalue_count > 0 && function->upvalues)
+    {
+        UpValue **upvalues = ALLOCATE(UpValue *, function->upvalue_count + 1);
+        for (int i = 0; i < function->upvalue_count; i++)
+        {
+            upvalues[i] = function->upvalues[i];
+            if (upvalues[i])
+                upvalues[i]->ref_count++;
+        }
+        upvalues[function->upvalue_count] = NULL;
+        ((Function *)fn)->upvalues = upvalues;
+        ((Function *)fn)->owns_upvalues = true;
+    }
+    else
+    {
+        ((Function *)fn)->upvalues = NULL;
+        ((Function *)fn)->owns_upvalues = false;
+    }
     ((Function *)fn)->upvalue_count = function->upvalue_count;
-    ((Function *)fn)->owns_upvalues = false;
     ((Function *)fn)->need_args = function->need_args;
     ((Function *)fn)->need_kwargs = function->need_kwargs;
     ((Function *)fn)->owner = function->owner;
