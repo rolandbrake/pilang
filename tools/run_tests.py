@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-TEST_DIR = BASE_DIR / "tests"
+TEST_DIR = BASE_DIR / "test"
 
 if sys.platform.startswith("win"):
     PI_COMMAND = BASE_DIR / "release/pilang.exe"

@@ -1,0 +1,12 @@
+// User-function call and return overhead.
+fun transform(value) {
+    return value * 1.000_001 + 0.5;
+}
+
+let i = 0;
+let value = 0;
+
+while i < 500_000 {
+    value = transform(value);
+    i++;
+}

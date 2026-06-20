@@ -1,0 +1,44 @@
+import draw
+import plot
+import random
+
+random.seed(19680801)
+
+let ctx = draw.canvas(720, 520, "Random scatter")
+let chart = plot.chart(ctx)
+
+fun random_points(count) {
+    let xs = []
+    let ys = []
+
+    for i in 0..count {
+        push(xs, random.rand())
+        push(ys, random.rand())
+    }
+
+    return [xs, ys]
+}
+
+let series = [
+    {"label": "blue", "color": draw.COLOR_BLUE},
+    {"label": "orange", "color": draw.COLOR_ORANGE},
+    {"label": "green", "color": draw.COLOR_GREEN}
+]
+
+let labels = []
+
+for item in series {
+    let points = random_points(750)
+    plot.scatter(chart, points[0], points[1], item["color"])
+    push(labels, item["label"])
+}
+
+plot.title(chart, "Random scatter")
+plot.xlabel(chart, "x")
+plot.ylabel(chart, "y")
+plot.grid(chart, true)
+plot.axes(chart, true)
+plot.legend(chart, labels)
+
+plot.show(chart)
+draw.run(ctx)

@@ -1,0 +1,10 @@
+import random
+
+list_ = []
+
+for i in 0..1000000
+    list_.push(random.uniform(-10000, 10000))
+
+
+
+list_.sort()

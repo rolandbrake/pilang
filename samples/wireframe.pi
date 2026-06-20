@@ -1,0 +1,28 @@
+import draw
+import plot3d
+import tensor
+import math.{sin, sqrt}
+
+let ctx = draw.canvas(560, 560, "Sombrero Wireframe")
+let chart = plot3d.chart(ctx)
+
+let size = 40
+let z = tensor.zeros([size, size])
+
+for r in 0..size {
+    for c in 0..size {
+
+        let x = (c - size / 2) / 3
+        let y = (r - size / 2) / 3
+
+        let d = sqrt(x * x + y * y) + 0.001
+
+        z[r, c] = sin(d) / d
+    }
+}
+
+plot3d.wireframe(chart, z, 0xff0000)
+
+plot3d.title(chart, "Sombrero")
+plot3d.show(chart)
+draw.run(ctx)

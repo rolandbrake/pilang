@@ -1,0 +1,15 @@
+// List growth, indexed reads, and numeric accumulation.
+let entries = [];
+let i = 0;
+
+while i < 100_000 {
+    entries.push(i * 3);
+    i++;
+}
+
+let total = 0;
+i = 0;
+while i < #entries {
+    total += entries[i];
+    i++;
+}

@@ -1,0 +1,13 @@
+
+list = []
+
+for i in 0..1000000
+    list.push(i)
+
+
+sum = 0
+for i in list
+    sum += i
+
+
+println(sum)

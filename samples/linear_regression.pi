@@ -1,0 +1,48 @@
+// Sample data: x and y values
+x = [3, 11, 18, 25, 31, 39, 46, 52, 58, 63, 68, 73, 78, 83, 89, 95, 102, 111, 119, 126]
+y = [5, 17, 24, 29, 37, 41, 49, 54, 60, 66, 71, 76, 81, 86, 92, 97, 104, 112, 121, 127]
+
+
+
+// Compute means
+n = #x
+sum_x = 0
+sum_y = 0
+for i in 0..n {
+    sum_x += x[i]
+    sum_y += y[i]
+}
+mean_x = sum_x / n
+mean_y = sum_y / n
+
+// Compute slope (m) and intercept (b) for y = mx + b
+num = 0
+den = 0
+for i in 0..n {
+    dx = x[i] - mean_x
+    dy = y[i] - mean_y
+    num += dx * dy
+    den += dx * dx
+}
+m = num / den
+b = mean_y - m * mean_x
+
+// Function to predict y from x using the regression line
+predict = (x) -> m * x + b
+
+
+// Plot regression line in color 8 (light blue)
+for i in 0..128 {
+    yi = predict(i)
+}
+
+// Plot data points as white (6)
+for i in 0..n {    
+    px = x[i]
+    py = 128 - y[i]  // Flip y for screen coordinates    
+}
+
+// Optionally print slope and intercept
+println("m =", m)
+println("b =", b)
+

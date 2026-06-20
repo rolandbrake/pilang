@@ -282,6 +282,14 @@ Common targets:
 - `make test`: build the native executable and run `python tools/run_tests.py`.
 - `make clean`: remove generated build outputs.
 
+Run the end-to-end benchmark suite after a release build:
+
+```powershell
+python tools/run_benchmarks.py
+```
+
+See [`benchmark/README.md`](benchmark/README.md) for the included workloads and runner options.
+
 The native build expects MinGW GCC and the SDL2 development libraries used by the project. The browser build expects Emscripten's `emcc`.
 
 ## Project Layout
@@ -291,6 +299,7 @@ The native build expects MinGW GCC and the SDL2 development libraries used by th
 - `libs/`: Pilang libraries written in `.pi`.
 - `ML/`: numerical and machine-learning experiments written in Pilang.
 - `release/`: local build outputs.
+- `benchmark/`: end-to-end interpreter benchmark programs.
 - `docs/`: language documentation and reference material.
 - `tests/`: examples and regression tests grouped by language area.
 
