@@ -21,7 +21,7 @@
 #include "builtin/pi_builtin.h"
 #include "builtin/pi_methods.h"
 
-volatile sig_atomic_t interrupt_requested = 0;
+volatile interrupt_flag_t interrupt_requested = 0;
 
 static PiMap *create_objectProto(vm_t *vm);
 static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value kw_args);

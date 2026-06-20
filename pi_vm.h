@@ -3,7 +3,12 @@
 
 #include <pthread.h>
 #include <stdarg.h>
+#ifndef __EMSCRIPTEN__
 #include <signal.h>
+typedef sig_atomic_t interrupt_flag_t;
+#else
+typedef int interrupt_flag_t;
+#endif
 
 #include "pi_compiler.h"
 #include "pi_table.h"
@@ -121,7 +126,7 @@ typedef struct vm_t
 
 } vm_t;
 
-extern volatile sig_atomic_t interrupt_requested;
+extern volatile interrupt_flag_t interrupt_requested;
 
 vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main);
 void vm_reset(vm_t *vm, compiler_t *comp);

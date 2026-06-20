@@ -1388,6 +1388,7 @@ char *as_stringWithFormat(vm_t *vm, Value val)
             snprintf(result, 256, "<file %s>", file->filename ? file->filename : "<anonymous>");
             return result;
         }
+#ifndef __EMSCRIPTEN__
         case OBJ_IMAGE:
         {
             ObjImage *img = AS_IMAGE(val);
@@ -1395,6 +1396,7 @@ char *as_stringWithFormat(vm_t *vm, Value val)
             snprintf(result, 128, "<image %dx%d>", img->surface->w, img->surface->h);
             return result;
         }
+#endif
         case OBJ_RANGE:
         case OBJ_CODE:
             break;
@@ -1691,12 +1693,14 @@ void print_value(Value val, bool is_root)
             printf("<module %s>", module->name ? module->name : "<anonymous>");
             break;
         }
+#ifndef __EMSCRIPTEN__
         case OBJ_IMAGE:
         {
             ObjImage *img = AS_IMAGE(val);
             printf("<image %dx%d>", img->surface->w, img->surface->h);
             break;
         }
+#endif
         case OBJ_MAP:
         case OBJ_CODE:
             break;
