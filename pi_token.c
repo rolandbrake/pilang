@@ -97,12 +97,19 @@ tk_type find_kw(const char *name)
 
 double tk_double(const token_t token)
 {
-    // Allocate a buffer large enough to hold the token string plus a null terminator.
+    // Numeric separators are syntax only; omit them before conversion.
     char *buffer = malloc(token.length + 1);
+    if (!buffer)
+    {
+        perror("Failed to allocate numeric token buffer");
+        exit(EXIT_FAILURE);
+    }
 
-    // Copy the token characters into the buffer and null-terminate it.
-    memcpy(buffer, token.start, token.length);
-    buffer[token.length] = '\0';
+    int length = 0;
+    for (int i = 0; i < token.length; i++)
+        if (token.start[i] != '_')
+            buffer[length++] = token.start[i];
+    buffer[length] = '\0';
 
     // Convert the string to a double.
     double result = strtod(buffer, NULL);

@@ -25,7 +25,15 @@ static void exponent()
         l_error("invalid decimal literal");
 
     while (is_digit(peek(0)))
+    {
         next();
+        if (peek(0) == '_')
+        {
+            if (!is_digit(peek(1)))
+                l_error("numeric separator must be followed by a digit");
+            next();
+        }
+    }
 }
 
 // Function to initialize the scanner instance
@@ -366,8 +374,16 @@ void scan_token()
             }
             else
             {
-                while (is_digit(peek(0)))
+                while (is_digit(peek(0)) || peek(0) == '_')
+                {
+                    if (peek(0) == '_')
+                    {
+                        if (!is_digit(peek(1)))
+                            l_error("numeric separator must be followed by a digit");
+                        scanner->ch = next();
+                    }
                     scanner->ch = next();
+                }
                 if (peek(0) == '.' && peek(1) != '.')
                 {
                     scanner->ch = next();
@@ -574,7 +590,15 @@ double parse_bin(const char *num)
 void decimal()
 {
     while (is_digit(peek(0)))
+    {
         next();
+        if (peek(0) == '_')
+        {
+            if (!is_digit(peek(1)))
+                l_error("numeric separator must be followed by a digit");
+            next();
+        }
+    }
     exponent();
 }
 

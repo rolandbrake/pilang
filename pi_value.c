@@ -37,6 +37,39 @@ static char *dup_cstring(const char *text)
     return copy;
 }
 
+static char *format_number(double number)
+{
+    char *text = malloc(64);
+    if (!text)
+        error("Failed to allocate number string");
+
+    if (isnan(number))
+        snprintf(text, 64, "NAN");
+    else if (isinf(number))
+        snprintf(text, 64, "%s", number < 0 ? "-INF" : "INF");
+    else if (number == 0.0)
+        snprintf(text, 64, "0");
+    else if (fabs(number) >= 1e-15 && fabs(number) < 1e18)
+    {
+        // %g gives concise, human-friendly decimals.  Only expand it when it
+        // would otherwise choose scientific notation for an ordinary number.
+        snprintf(text, 64, "%.15g", number);
+        if (strchr(text, 'e') || strchr(text, 'E'))
+        {
+            snprintf(text, 64, "%.15f", number);
+            char *end = text + strlen(text) - 1;
+            while (end > text && *end == '0')
+                *end-- = '\0';
+            if (*end == '.')
+                *end = '\0';
+        }
+    }
+    else
+        snprintf(text, 64, "%.15g", number);
+
+    return text;
+}
+
 static int compare_ptrs(const void *left, const void *right)
 {
     uintptr_t a = (uintptr_t)left;
@@ -1170,15 +1203,7 @@ char *as_stringWithFormat(vm_t *vm, Value val)
     {
     case VAL_NUM:
     {
-        char *num = (char *)malloc(32); // Allocate space for number-to-string conversion
-
-        if (isnan(val.data.number))
-            snprintf(num, 32, "NAN"); // Handle NaN case
-        else if (val.data.number == INFINITY || val.data.number == -INFINITY)
-            snprintf(num, 32, "%s", val.data.number == INFINITY ? "INF" : "-INF"); // Convert infinity to string
-        else
-            snprintf(num, 32, "%g", val.data.number); // Convert number to string
-        return num;
+        return format_number(val.data.number);
     }
     case VAL_BOOL:
         return val.data.boolean ? dup_cstring("true") : dup_cstring("false");
@@ -1597,12 +1622,12 @@ void print_value(Value val, bool is_root)
     switch (val.type)
     {
     case VAL_NUM:
-        // Check if the number is an integer
-        if (val.data.number == (long long)val.data.number)
-            printf("%lld", (long long)val.data.number);
-        else
-            printf("%.8f", val.data.number);
+    {
+        char *text = format_number(val.data.number);
+        printf("%s", text);
+        free(text);
         break;
+    }
     case VAL_BOOL:
         printf("%s", val.data.boolean ? "true" : "false");
         break;

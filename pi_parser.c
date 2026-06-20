@@ -1783,12 +1783,9 @@ static void print(parser_t *parser)
 
 static void condition(parser_t *parser)
 {
-    bool has_parens = match(parser, TK_LPAREN);
-
+    // Parentheses are ordinary grouping expressions. Parsing the complete
+    // condition here lets `(a == true) && b == false` continue after `)`.
     cond_expr(parser);
-
-    if (has_parens)
-        consume(parser, TK_RPAREN, "Expect ')' after condition.");
 }
 static void if_stmt(parser_t *parser)
 {
