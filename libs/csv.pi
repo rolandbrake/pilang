@@ -123,6 +123,18 @@ fun _csv_escape(value, delimiter = ",") {
     return text;
 }
 
+
+// Joins already-escaped fields with a delimiter.
+fun _csv_join(fields, delimiter) {
+    let text = "";
+    for i in range(0, len(fields)) {
+        if (i > 0)
+        text = concat(text, delimiter);
+        text = concat(text, fields[i]);
+    }
+    return text;
+}
+
 // Parses CSV text.
 //
 // If header is true, the first row becomes map keys and the remaining rows are
@@ -205,13 +217,3 @@ fun stringify(rows, delimiter = ",") {
     return _csv_join(lines, "\n");
 }
 
-// Joins already-escaped fields with a delimiter.
-fun _csv_join(fields, delimiter) {
-    let text = "";
-    for i in range(0, len(fields)) {
-        if (i > 0)
-        text = concat(text, delimiter);
-        text = concat(text, fields[i]);
-    }
-    return text;
-}

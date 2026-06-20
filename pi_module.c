@@ -101,6 +101,65 @@ static char *build_modulePath(const char *base, const char *normalized)
     return candidate;
 }
 
+// Finds libs/<module>.pi in base or one of its parent directories.  This lets
+// examples run from nested folders (for example ML/KNN) while still sharing
+// the project's top-level libraries.
+static char *find_libraryPath(const char *base, const char *normalized)
+{
+    char cwd[4096];
+    if (!getcwd(cwd, sizeof(cwd)))
+        return NULL;
+
+    bool absolute = base[0] == '/' || base[0] == '\\';
+#ifdef _WIN32
+    absolute = absolute || (strlen(base) > 1 && base[1] == ':');
+#endif
+
+    size_t search_len = absolute ? strlen(base) : strlen(cwd) + 1 + strlen(base);
+    char *search = (char *)malloc(search_len + 1);
+    if (!search)
+        return NULL;
+
+    if (absolute)
+        snprintf(search, search_len + 1, "%s", base);
+    else
+        snprintf(search, search_len + 1, "%s/%s", cwd, base);
+
+    while (true)
+    {
+        size_t libs_base_len = strlen(search) + strlen("/libs") + 1;
+        char *libs_base = (char *)malloc(libs_base_len);
+        if (!libs_base)
+            break;
+        snprintf(libs_base, libs_base_len, "%s/libs", search);
+
+        char *path = build_modulePath(libs_base, normalized);
+        free(libs_base);
+        if (path && file_exists(path))
+        {
+            free(search);
+            return path;
+        }
+        free(path);
+
+        size_t len = strlen(search);
+        while (len > 0 && (search[len - 1] == '/' || search[len - 1] == '\\'))
+            len--;
+        while (len > 0 && search[len - 1] != '/' && search[len - 1] != '\\')
+            len--;
+        if (len == 0)
+            break;
+
+        // Keep a drive or POSIX root separator while moving to its parent.
+        if (len > 1)
+            len--;
+        search[len] = '\0';
+    }
+
+    free(search);
+    return NULL;
+}
+
 static const BuiltinModule *find_builtinModule(const char *name)
 {
     for (int i = 0; i < BUILTIN_MODULE_COUNT; i++)
@@ -389,7 +448,7 @@ char *module_resolvePath(vm_t *vm, const char *name)
 
     free(fallback);
 
-    char *libs_path = build_modulePath("libs", normalized);
+    char *libs_path = find_libraryPath(base, normalized);
     free(normalized);
     if (!libs_path)
         return NULL;

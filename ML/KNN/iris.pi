@@ -1,0 +1,145 @@
+import csv
+import draw
+import fs
+import plot3d
+import type:tp
+
+// Iris K-nearest-neighbours example.  The data is split deterministically:
+// every fifth row is held out for testing and the remaining rows train KNN.
+const DATA_PATH = fs.join(fs.dirname(module.path), "Iris.csv")
+
+fun load_iris(path) {
+    let file = fs.open(path, "r")
+    let rows = csv.parse(fs.read(file))
+    fs.close(file)
+    let samples = []
+
+    for row in rows {
+        samples += {
+            features: [
+                tp.float(row.SepalLengthCm),
+                tp.float(row.SepalWidthCm),
+                tp.float(row.PetalLengthCm),
+                tp.float(row.PetalWidthCm)
+            ],
+            label: row.Species
+        }
+    }
+
+    return samples
+}
+
+fun squared_distance(a, b) {
+    let total = 0
+    for i in range(0, #a)
+        total += (a[i] - b[i]) ** 2
+    return total
+}
+
+// Keeps the k nearest candidates in ascending-distance order, then votes.
+fun predict(train, features, k = 5) {
+    let nearest = []
+
+    for sample in train {
+        let candidate = {distance: squared_distance(sample.features, features), label: sample.label}
+        let inserted = false
+
+        for i in range(0, #nearest) {
+            if (candidate.distance < nearest[i].distance) {
+                nearest.insert(i, candidate)
+                inserted = true
+                break
+            }
+        }
+
+        if (!inserted)
+            nearest += candidate
+
+        if (#nearest > k)
+            nearest.pop()
+    }
+
+    let votes = {}
+    let best_label = nil
+    let best_votes = -1
+
+    for neighbor in nearest {
+        if (votes[neighbor.label] == nil)
+            votes[neighbor.label] = 0
+        votes[neighbor.label] += 1
+
+        if (votes[neighbor.label] > best_votes) {
+            best_label = neighbor.label
+            best_votes = votes[neighbor.label]
+        }
+    }
+
+    return best_label
+}
+
+fun scatter_iris(samples) {
+    let setosa_x = [], setosa_y = [], setosa_z = []    
+    let versicolor_x = [], versicolor_y = [], versicolor_z = []    
+    let virginica_x = [], virginica_y = [], virginica_z = []    
+
+    for sample in samples {
+        // X/Y/Z are sepal length, sepal width, and petal length.
+        if (sample.label == "Iris-setosa") {
+            setosa_x += sample.features[0]
+            setosa_y += sample.features[1]
+            setosa_z += sample.features[2]
+        } elif (sample.label == "Iris-versicolor") {
+            versicolor_x += sample.features[0]
+            versicolor_y += sample.features[1]
+            versicolor_z += sample.features[2]
+        } else {
+            virginica_x += sample.features[0]
+            virginica_y += sample.features[1]
+            virginica_z += sample.features[2]
+        }
+    }
+
+    let ctx = draw.canvas(560, 560, "Iris KNN dataset")
+    let chart = plot3d.chart(ctx)
+
+    plot3d.scatter(chart, setosa_x, setosa_y, setosa_z, 0x2563eb, 5)
+    plot3d.scatter(chart, versicolor_x, versicolor_y, versicolor_z, 0xdc2626, 5)
+    plot3d.scatter(chart, virginica_x, virginica_y, virginica_z, 0x16a34a, 5)
+
+    plot3d.title(chart, "Iris dataset: 3D species clusters")
+    plot3d.xlabel(chart, "Sepal length (cm)")
+    plot3d.ylabel(chart, "Sepal width (cm)")
+    plot3d.zlabel(chart, "Petal length (cm)")
+    plot3d.grid(chart, true)
+    plot3d.view(chart, 45, 25, 4)
+    plot3d.show(chart)
+    draw.run(ctx)
+}
+
+fun main(k = 5) {
+    let samples = load_iris(DATA_PATH)
+    let train = []
+    let test = []
+
+    for i in range(0, #samples) {
+        if (i % 5 == 0)
+            test += samples[i]
+        else
+            train += samples[i]
+    }
+
+    let correct = 0
+    for sample in test {
+        let predicted = predict(train, sample.features, k)
+        if (predicted == sample.label)
+            correct += 1
+        println("actual:", sample.label, "predicted:", predicted)
+    }
+
+    println("loaded:", #samples, "train:", #train, "test:", #test)
+    println("K:", k, "accuracy:", correct / #test)
+    scatter_iris(samples)
+}
+
+if module.is_main
+    main()
