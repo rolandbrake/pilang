@@ -489,10 +489,25 @@ static PiMap *map_findOwner(PiMap *map, const char *key_str)
     return NULL;
 }
 
+/* Member names are compiled PiStrings.  Borrow their stable character buffer
+ * instead of allocating a duplicate through as_string(); other key types keep
+ * the existing conversion path and report ownership through owned_out. */
+static inline const char *map_keyChars(Value key, char **owned_out)
+{
+    if (IS_STRING(key))
+    {
+        *owned_out = NULL;
+        return AS_CSTRING(key);
+    }
+
+    *owned_out = as_string(key);
+    return *owned_out;
+}
+
 Value map_get(PiMap *map, Value key)
 {
-    // Convert the key to a string
-    char *key_str = as_string(key);
+    char *owned_key;
+    const char *key_str = map_keyChars(key, &owned_key);
 
     // Find the owner map of this key
     PiMap *owner = map_findOwner(map, key_str);
@@ -501,7 +516,7 @@ Value map_get(PiMap *map, Value key)
     void *item = owner ? ht_get(owner->table, key_str) : NULL;
 
     // Free the allocated key string
-    free(key_str);
+    free(owned_key);
 
     // Check if the item was found; if not, return nil
     if (item == NULL)
@@ -522,29 +537,32 @@ Value map_getValueByKey(PiMap *map, const char *key)
 
 bool map_has(PiMap *map, Value key)
 {
-    char *key_str = as_string(key);
+    char *owned_key;
+    const char *key_str = map_keyChars(key, &owned_key);
     bool found = map_findOwner(map, key_str) != NULL;
-    free(key_str);
+    free(owned_key);
     return found;
 }
 
 bool map_delete(PiMap *map, Value key)
 {
-    char *key_str = as_string(key);
+    char *owned_key;
+    const char *key_str = map_keyChars(key, &owned_key);
     PiMap *owner = map_findOwner(map, key_str);
     bool removed = false;
 
     if (owner != NULL && !owner->locked)
         removed = ht_delete(owner->table, key_str);
 
-    free(key_str);
+    free(owned_key);
     return removed;
 }
 
 // Updates an existing prototype owner when possible; otherwise inserts into the current map.
 void map_set(PiMap *map, Value key, Value value)
 {
-    char *key_str = as_string(key);
+    char *owned_key;
+    const char *key_str = map_keyChars(key, &owned_key);
     PiMap *owner = map_findOwner(map, key_str);
     if (owner == NULL)
         owner = map;
@@ -562,14 +580,15 @@ void map_set(PiMap *map, Value key, Value value)
             owner->has_rcompute = true;
     }
 
-    free(key_str);
+    free(owned_key);
 }
 
 PiMap *map_owner(PiMap *map, Value key)
 {
-    char *key_str = as_string(key);
+    char *owned_key;
+    const char *key_str = map_keyChars(key, &owned_key);
     PiMap *owner = map_findOwner(map, key_str);
-    free(key_str);
+    free(owned_key);
     return owner;
 }
 
@@ -601,6 +620,7 @@ Object *new_code(list_t *code)
     c->need_kwargs = false;
     c->method_need_args = false;
     c->method_need_kwargs = false;
+    memset(&c->global_cache, 0, sizeof(c->global_cache));
 
     return (Object *)c;
 }
@@ -920,12 +940,17 @@ bool is_iterable(Object *obj)
 
 int get_index(int index, int length)
 {
-    if (length == 0)
-        return 0;
-    int _index = index % length;
-    if (_index < 0) // Handle negative indices
-        _index += length;
-    return _index;
+    if (length <= 0)
+        error("Index out of range.");
+
+    /* Python-style negative indexing: -1 is the final element. */
+    if (index < 0)
+        index += length;
+
+    if (index < 0 || index >= length)
+        error("Index out of range.");
+
+    return index;
 }
 
 // Implements Python-style slice bound normalization.

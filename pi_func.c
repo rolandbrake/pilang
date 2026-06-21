@@ -126,16 +126,27 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         /* Bound native methods receive the instance as argv[0]. */
         if (function->is_method && function->instance != NULL)
         {
-            Value *method_argv = malloc(sizeof(Value) * (argc + 1));
+            /*
+             * Methods such as list.push() are commonly called in tight loops.
+             * Do not make each call pay for a heap allocation merely to prepend
+             * the bound instance.  Eight arguments is also the VM call site's
+             * inline-argument capacity; larger, uncommon calls keep the heap
+             * fallback.
+             */
+            Value inline_argv[9];
+            Value *method_argv = argc <= 8
+                                     ? inline_argv
+                                     : malloc(sizeof(Value) * (argc + 1));
             if (!method_argv)
                 vm_error(vm, "Memory allocation failed for native method arguments.");
 
-            method_argv[0] = NEW_OBJ(add_obj(vm, function->instance));
+            method_argv[0] = NEW_OBJ(function->instance);
             for (size_t i = 0; i < argc; i++)
                 method_argv[i + 1] = argv[i];
 
             Value result = function->native(vm, (int)argc + 1, method_argv);
-            free(method_argv);
+            if (argc > 8)
+                free(method_argv);
 
             vm->_kw_args = prev_kwargs;
             vm->function = prev_function;
@@ -163,12 +174,14 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     frame->instrs = vm->instrs;
     frame->iters_top = vm->iter_sp;
     frame->globals = vm->globals;
+    frame->global_cache = vm->global_cache;
     frame->function = (Function *)vm->function; /* save BEFORE overwrite */
     frame->same_context = false;
 
     // switch to callee context
     vm->function = (Object *)function;
     vm->code = function->body->data;
+    vm->global_cache = &function->body->global_cache;
 
     /* Only override if the function carries its own tables. */
     if (function->constants)

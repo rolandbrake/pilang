@@ -276,6 +276,14 @@ typedef struct
     int current;   // Iterator state
 } PiTuple;
 
+/* Resolved global slots belong to compiled code, not to a VM instance. */
+typedef struct GlobalCache
+{
+    Value *slots[UINT8_MAX + 1];
+    table_t *globals;
+    list_t *names;
+} GlobalCache;
+
 typedef struct
 {
     Object object;
@@ -285,6 +293,7 @@ typedef struct
     bool need_kwargs;
     bool method_need_args;
     bool method_need_kwargs;
+    GlobalCache global_cache;
 
     uint32_t hash;
 } ObjCode;

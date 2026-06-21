@@ -19,11 +19,30 @@ static int compare_cstrings(const void *left, const void *right)
     return strcmp(*a, *b);
 }
 
-static int compare_numbers(double left, double right)
+#if defined(__GNUC__)
+#define PI_STRICT_FP __attribute__((optimize("no-fast-math")))
+#else
+#define PI_STRICT_FP
+#endif
+
+/* The VM deliberately uses NaN as a constant-pool sentinel.  These helpers
+ * must retain IEEE NaN semantics even when the application is built -Ofast. */
+static PI_STRICT_FP int compare_numbers(double left, double right)
 {
     if (fabs(left - right) < 1e-9)
         return 0;
     return (left > right) ? 1 : -1;
+}
+
+/* Do not use isnan() here: -ffast-math is permitted to assume it is always
+ * false.  The constant pool uses NaN as a sentinel, so inspect IEEE-754 bits
+ * directly before doing any floating-point equality arithmetic. */
+static inline bool number_isNaN(double value)
+{
+    uint64_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return (bits & UINT64_C(0x7ff0000000000000)) == UINT64_C(0x7ff0000000000000) &&
+           (bits & UINT64_C(0x000fffffffffffff)) != 0;
 }
 
 static char *dup_cstring(const char *text)
@@ -758,7 +777,7 @@ static int event_compare(PiEvent *left, PiEvent *right)
  * @return true if the values are equal, false if they are not.
  */
 
-bool equals(Value left, Value right)
+PI_STRICT_FP bool equals(Value left, Value right)
 {
     // If the types are different, they can't be equal.
     if (left.type != right.type)
@@ -768,6 +787,8 @@ bool equals(Value left, Value right)
     {
     case VAL_NUM:
         // Use a tolerance for floating-point comparisons.
+        if (number_isNaN(left.data.number) || number_isNaN(right.data.number))
+            return false;
         return fabs(left.data.number - right.data.number) < 1e-9;
 
     case VAL_BOOL:

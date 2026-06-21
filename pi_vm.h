@@ -19,6 +19,7 @@ typedef int interrupt_flag_t;
 
 #define STACK_MAX 4096 // max stack size
 #define ITER_MAX 256   // max iterator stack size
+#define COMP_MAX STACK_MAX // max nested list-comprehension contexts
 
 #define RUN_STEPS 1024 // max number of instructions to run
 
@@ -66,6 +67,13 @@ typedef int interrupt_flag_t;
 #define TO_PRIM_NUM(v)    (IS_MAP(v) ? to_primitive(vm, v, false) : (v))
 #define TO_PRIM_STR(v)    (IS_MAP(v) ? to_primitive(vm, v, true)  : (v))
 
+typedef struct
+{
+    int base;       // Stack slot holding the comprehension result list.
+    int local_base; // Compiler local-slot base redirected to that list.
+    int bp;         // Function base pointer active when the frame was opened.
+} CompFrame;
+
 typedef struct vm_t
 {
     int pc; // Program Counter: Points to the current instruction being executed.
@@ -86,15 +94,14 @@ typedef struct vm_t
     list_t *names;     // PiList of variable/function names for identifier lookup.
 
     table_t *globals; // Hash table storing global variables.
+    GlobalCache *global_cache; // resolved globals for the active code unit
 
     Object *objects; // Linked list of dynamically allocated objects (for garbage collection).
 
     Object *iters[STACK_MAX]; // Iterator stack to support loops and iteration constructs.
     int iter_sp;              // Iterator Stack Pointer: Tracks the top of the iterator stack.
 
-    int comp_bases[STACK_MAX]; // Runtime base stack for active list comprehensions.
-    int comp_local_bases[STACK_MAX];
-    int comp_bps[STACK_MAX];
+    CompFrame comp_frames[COMP_MAX]; // Active list-comprehension contexts.
     int comp_sp;
 
     // UpValue *openUpvalues[STACK_MAX]; // Stack of open upvalues used in nested functions.

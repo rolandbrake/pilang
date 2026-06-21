@@ -26,7 +26,7 @@
 #define ERROR_COMPARE -2
 
 typedef uint8_t byte;
-#define INIT_CAP 16 // initial capacity must not be zero
+#define INIT_CAP 32 // initial capacity must not be zero
 
 #define TARGET_FPS 60 // Target frames per second
 

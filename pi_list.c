@@ -32,53 +32,18 @@ list_t *list_create(int i_size)
     return _list_create(i_size, INIT_CAP);
 }
 
-void list_add(list_t *list, const void *item)
-{
-    if (list->size == list->capacity)
-    {
-        // Small lists grow aggressively; large lists grow more conservatively.
-        if (list->capacity < 1024)
-            list_expand(list, list->capacity * 2);
-        else
-            list_expand(list, list->capacity + list->capacity / 4 + 256);
-    }
-
-        void *target = (byte *)list->data + list->size * list->i_size;
-    memcpy(target, item, list->i_size);
-
-        list->size++;
-}
 
 void list_addAt(list_t *list, int index, const void *item)
 {
-        int _index = get_index(index, list->size);
-
-        void *target = (byte *)list->data + _index * list->i_size;
-
-        memmove(target + list->i_size, target, (list->size - _index) * list->i_size);
-
-        memcpy(target, item, list->i_size);
-
-        list->size++;
-}
-
-void *list_getAt(list_t *list, int index)
-{
-        int _index = get_index(index, list->size);
-        return (byte *)list->data + _index * list->i_size;
-}
-
-void list_set(list_t *list, int index, void *item)
-{
     int _index = get_index(index, list->size);
 
-    void *target = (byte *)list->data + (_index * list->i_size);
-    memcpy(target, item, list->i_size);
-}
+    void *target = (byte *)list->data + _index * list->i_size;
 
-int list_size(list_t *list)
-{
-    return list->size;
+    memmove(target + list->i_size, target, (list->size - _index) * list->i_size);
+
+    memcpy(target, item, list->i_size);
+
+    list->size++;
 }
 
 // Performs a shallow copy; referenced objects are shared.
@@ -112,7 +77,7 @@ list_t *list_addAll(list_t *list, list_t *items)
     void *dest = (char *)list->data + list->size * list->i_size;
     memcpy(dest, items->data, items->size * items->i_size);
 
-        list->size = size;
+    list->size = size;
 
     return list;
 }
@@ -177,10 +142,10 @@ void list_expand(list_t *list, int new_cap)
 }
 list_t *list_map(list_t *list, Value *(*func)(Value *))
 {
-        if (!list || !func)
+    if (!list || !func)
         error("Invalid arguments to list_map.");
 
-        list_t *_list = list_create(list->i_size);
+    list_t *_list = list_create(list->i_size);
     for (int i = 0; i < list->size; i++)
     {
         // Get the current item, apply the _transformation, and add to the new list

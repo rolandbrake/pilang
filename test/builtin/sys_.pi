@@ -47,7 +47,7 @@ println("Memory before allocation:", mem_before)
 // allocate some data
 big = []
 for i in range(1000) 
-    big[i] = "data_" + i
+    big += "data_" + i
 
 
 mem_after = sys.mem()

@@ -255,6 +255,7 @@ compiler_t *init_compiler()
     list_add(comp->constants, &NEW_BOOL(false));
 
     comp->names = list_create(sizeof(String));
+    memset(&comp->global_cache, 0, sizeof(comp->global_cache));
     comp->builtin_names = list_create(sizeof(String));
     comp->declared_globals = ht_create(sizeof(bool));
 
@@ -1322,6 +1323,7 @@ void reset_compiler(compiler_t *comp)
 
     comp->code = list_create(sizeof(uint8_t));
     comp->names = list_create(sizeof(String));
+    memset(&comp->global_cache, 0, sizeof(comp->global_cache));
     comp->declared_globals = ht_create(sizeof(bool));
 
     comp->locals = stack_create(sizeof(local_t));

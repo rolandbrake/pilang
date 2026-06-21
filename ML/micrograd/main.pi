@@ -12,11 +12,12 @@ const xs = [
 
 const ys = [1.0, -1.0, -1.0, 1.0]
 
-const model = MLP(3, [4, 40,40, 1])
+const model = MLP(3, [4, 400, 1])
 
 let loss_steps = []
 let loss_values = []
 
+start = time()
 // println("parameters: " + #model.parameters())
 for step in range(150) {    
     let ypred = [model(x) : x in xs]
@@ -39,6 +40,7 @@ for step in range(150) {
     println("step " + step + " loss " + loss.data)
 }
 
+println("running time: " + (time() - start) + " ms")
 
 println("predictions:")
 for x in xs

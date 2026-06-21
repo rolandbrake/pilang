@@ -16,6 +16,7 @@ Frame *create_frame(int pc, int sp, int bp, list_t *code, list_t *constants, lis
 
     // Iterator stack position is preserved across function calls.
     frame->iters_top = iters_top;
+    frame->global_cache = NULL;
 
     frame->function = fn;
     frame->same_context = false;

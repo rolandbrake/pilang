@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+
 typedef struct Value Value;
 
 #define MAX_SIZE 20000
@@ -26,18 +27,53 @@ typedef struct
 // create a new PiList
 list_t *list_create(int i_size);
 
-// add an item to the PiList
-void list_add(list_t *list, const void *item);
-
-void list_addAt(list_t *list, int index, const void *item);
-
 // get an item from the PiList by index
-void *list_getAt(list_t *list, int index);
+static inline void *list_getAt(list_t *list, int index)
+{
+    if (index < 0)
+        index += list->size;
+    if (index < 0 || index >= list->size)
+    {
+        fprintf(stderr, "List index out of range.\n");
+        exit(EXIT_FAILURE);
+    }
+    return (char *)list->data + index * list->i_size;
+}
+
+static inline int list_size(list_t *list)
+{
+    return list->size;
+}
 
 // set an item in the PiList by index
-void list_set(list_t *list, int index, void *item);
+static inline void list_set(list_t *list, int index, void *item)
+{
+    if (index < 0)
+        index += list->size;
+    if (index < 0 || index >= list->size)
+    {
+        fprintf(stderr, "List index out of range.\n");
+        exit(EXIT_FAILURE);
+    }
+    memcpy((char *)list->data + index * list->i_size, item, list->i_size);
+}
 
-int list_size(list_t *list);
+// resize the PiList to a new capacity
+void list_expand(list_t *list, int new_cap);
+
+// add an item to the PiList
+static inline void list_add(list_t *list, const void *item)
+{
+    if (list->size == list->capacity)
+        list_expand(list, list->capacity < 1024
+                              ? list->capacity * 2
+                              : list->capacity + list->capacity / 4 + 256);
+
+    memcpy((char *)list->data + list->size * list->i_size, item, list->i_size);
+    list->size++;
+}
+
+void list_addAt(list_t *list, int index, const void *item);
 
 list_t *list_copy(list_t *list);
 
@@ -48,9 +84,6 @@ void list_addFirst(list_t *list, const void *item);
 
 // remove an item from the PiList by index
 void *list_remove(list_t *list, int index);
-
-// resize the PiList to a new capacity
-void list_expand(list_t *list, int new_cap);
 
 list_t *list_map(list_t *list, Value *(*func)(Value *));
 

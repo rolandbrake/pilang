@@ -1,0 +1,15 @@
+// Bound instance-method call and return overhead.
+class Worker {
+    transform(value) {
+        return value * 1.000_001 + 0.5;
+    }
+}
+
+let worker = Worker();
+let i = 0;
+let value = 0;
+
+while i < 500_000 {
+    value = worker.transform(value);
+    i++;
+}

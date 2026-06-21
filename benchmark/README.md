@@ -20,6 +20,7 @@ The suite includes a variety of common runtime workloads, including:
 
 * Integer arithmetic in tight loops
 * User-defined function calls and returns
+* Bound instance-method calls and returns
 * List creation, growth, indexing, and traversal
 * Recursive algorithms and branch-heavy execution
 * Large-scale numeric accumulation
@@ -100,7 +101,10 @@ python tools/run_benchmarks.py --iterations 10 --warmup 3
 * The runner reports median wall-clock execution times.
 * Every benchmark is executed multiple times to reduce noise.
 * Warm-up runs are excluded from reported results.
-* Benchmark programs intentionally produce no output.
+* Pilang and Python stdout is compared on every measured pair; the runner
+  ignores Pilang's own `Execution Time: … ms` diagnostic line.
+* Runs are interleaved and the execution order alternates to reduce thermal
+  and background-process bias.
 * Matching `.py` files are required for comparison; benchmarks without a Python counterpart are skipped.
 * Results may vary significantly depending on CPU, operating system, Python version, compiler settings, and system load.
 * These benchmarks are intended to track relative performance trends and regressions, not to represent all real-world workloads.

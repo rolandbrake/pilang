@@ -6,6 +6,7 @@
 
 // Forward declare Function to avoid circular include
 typedef struct Function Function;
+typedef struct GlobalCache GlobalCache;
 
 typedef struct
 {
@@ -19,6 +20,7 @@ typedef struct
     list_t *names; // names table for the frame
     table_t *instrs; // instruction metadata for the frame
     table_t *globals; // global environment for the frame
+    GlobalCache *global_cache; // resolved globals for this code unit
 
     int iters_top; // to track the state of iterators stack
 

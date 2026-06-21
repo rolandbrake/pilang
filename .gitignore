@@ -88,3 +88,7 @@ vids/
 
 test.pi
 dt_vm.c
+
+# Ignore Python bytecode and cache recursively
+__pycache__/
+*.pyc

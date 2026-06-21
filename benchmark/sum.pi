@@ -5,3 +5,5 @@ while i < 1_000_000 {
     sum += (i * 3) % 97 - (i % 7);
     i++;
 }
+
+println(sum);

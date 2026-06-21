@@ -13,6 +13,7 @@
 #include "common.h"
 #include "pi_list.h"
 #include "pi_table.h"
+#include "pi_object.h"
 
 // Represents a local variable in the current scope
 typedef struct
@@ -52,6 +53,7 @@ typedef struct
     list_t *constants; // PiList of constant values
 
     list_t *names;         // PiList of variable names
+    GlobalCache global_cache; // resolved globals for the top-level code unit
     list_t *builtin_names; // PiList of built-in names
     table_t *declared_globals; // Tracks globally declared names (let/fun)
 

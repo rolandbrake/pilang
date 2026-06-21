@@ -19,6 +19,7 @@
 #include "gc.h"
 
 #include "builtin/pi_builtin.h"
+#include "builtin/pi_col.h"
 #include "builtin/pi_methods.h"
 
 volatile interrupt_flag_t interrupt_requested = 0;
@@ -527,6 +528,7 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
 
     // Create a hash table to store global variables
     vm->globals = ht_create(sizeof(Value));
+    vm->global_cache = &comp->global_cache;
 
     vm->objects = NULL;
 
@@ -626,6 +628,7 @@ void vm_reset(vm_t *vm, compiler_t *comp)
     vm->current_instr = NULL;
 
     /* Preserve vm->globals so shell state survives resets. */
+    vm->global_cache = &comp->global_cache;
 
     vm->iter_sp = -1;
     vm->comp_sp = 0;
@@ -928,13 +931,41 @@ static inline Value peek_stack(vm_t *vm)
     return vm->stack[vm->sp - 1];
 }
 
+/*
+ * Resolve a bytecode global-name index once per global table.  Values inside
+ * table_t are individually allocated, so their addresses remain stable when
+ * the hash table itself grows.
+ */
+static inline Value *global_slot(vm_t *vm, uint8_t index, const char *name)
+{
+    GlobalCache *cache = vm->global_cache;
+    if (!cache)
+        vm_error(vm, "Missing global cache for active code unit.");
+
+    if (cache->globals != vm->globals || cache->names != vm->names)
+    {
+        memset(cache->slots, 0, sizeof(cache->slots));
+        cache->globals = vm->globals;
+        cache->names = vm->names;
+    }
+
+    Value *slot = cache->slots[index];
+    if (!slot)
+    {
+        slot = ht_get(vm->globals, name);
+        cache->slots[index] = slot;
+    }
+    return slot;
+}
+
 static inline int resolve_localSlot(vm_t *vm, int local)
 {
     if (vm->comp_sp > 0)
     {
         int top = vm->comp_sp - 1;
-        if (vm->bp == vm->comp_bps[top] && local >= vm->comp_local_bases[top])
-            return vm->comp_bases[top] + (local - vm->comp_local_bases[top]);
+        CompFrame *frame = &vm->comp_frames[top];
+        if (vm->bp == frame->bp && local >= frame->local_base)
+            return frame->base + (local - frame->local_base);
     }
 
     return vm->bp + local;
@@ -2208,7 +2239,7 @@ void run(vm_t *vm)
             char *name = read_name(vm, index);
 
             Value _newValue = pop_stack(vm);
-            Value *oldValue = ht_get(vm->globals, name);
+            Value *oldValue = global_slot(vm, (uint8_t)index, name);
             // if (oldValue)
             //     gc_trackReferenceDrop(vm, *oldValue, _newValue);
             if (oldValue && IS_FUN(*oldValue))
@@ -2217,7 +2248,15 @@ void run(vm_t *vm)
                 AS_FUN(*oldValue)->glonal_index = -1;
             }
 
-            ht_put(vm->globals, name, &_newValue); // Store directly, no malloc!
+            if (oldValue)
+            {
+                *oldValue = _newValue;
+            }
+            else
+            {
+                ht_put(vm->globals, name, &_newValue);
+                vm->global_cache->slots[index] = ht_get(vm->globals, name);
+            }
             if (IS_FUN(_newValue) && AS_FUN(_newValue)->name &&
                 strcmp(AS_FUN(_newValue)->name, name) == 0)
             {
@@ -2250,7 +2289,7 @@ void run(vm_t *vm)
                 break;
             }
 
-            Value *_value = ht_get(vm->globals, name);
+            Value *_value = global_slot(vm, (uint8_t)index, name);
             if (_value == NULL)
             {
                 nilValue = NEW_NIL();
@@ -3629,6 +3668,27 @@ void run(vm_t *vm)
             if (IS_FUN(callee))
             {
                 Function *callee_fn = AS_FUN(callee);
+
+                /*
+                 * list.push(...) is the canonical list-growth operation and
+                 * often appears in a tight loop.  Once member lookup has
+                 * produced its bound native function, append directly from
+                 * the operand stack instead of constructing a method argv
+                 * array and entering the generic native-call path.
+                 */
+                if (callee_fn->is_native && callee_fn->is_method &&
+                    callee_fn->native == pi_push && callee_fn->instance &&
+                    callee_fn->instance->type == OBJ_LIST)
+                {
+                    list_t *items = ((PiList *)callee_fn->instance)->items;
+                    for (uint8_t i = 0; i < num_args; i++)
+                        list_add(items, &vm->stack[arg_base + i]);
+
+                    vm->sp = callee_slot;
+                    vm->stack[vm->sp++] = NEW_NUM(items->size);
+                    break;
+                }
+
                 size_t param_count = (!callee_fn->is_native && callee_fn->params)
                                          ? (size_t)callee_fn->arity
                                          : 0;
@@ -3650,6 +3710,7 @@ void run(vm_t *vm)
                     frame->ip = vm->ip;
                     frame->iters_top = vm->iter_sp;
                     frame->same_context = self_recursive;
+                    frame->global_cache = vm->global_cache;
 
                     if (self_recursive)
                     {
@@ -3675,6 +3736,7 @@ void run(vm_t *vm)
                             vm->instrs = callee_fn->instrs;
                         if (callee_fn->globals)
                             vm->globals = callee_fn->globals;
+                        vm->global_cache = &callee_fn->body->global_cache;
                     }
 
                     vm->pc = 0;
@@ -3880,6 +3942,92 @@ void run(vm_t *vm)
                 vm_error(vm, "Error: No active iterator.");
 
             iter = vm->iters[vm->iter_sp];
+
+            /* Lists dominate ordinary for-loops.  Their iterator state is a
+             * simple cursor over contiguous Value storage, so bypass the
+             * generic iterator dispatch and checked list accessor here. */
+            if (iter->type == OBJ_LIST)
+            {
+                PiList *list = (PiList *)iter;
+                list_t *items = list->items;
+                if (list->current < items->size)
+                {
+                    Value value = ((Value *)items->data)[list->current++];
+                    if (IS_OBJ(value))
+                        add_obj(vm, AS_OBJ(value));
+                    push_stack(vm, value);
+                    pc += 2;
+                }
+                else
+                {
+                    vm->iter_sp--;
+                    pc += address - 1;
+                }
+                break;
+            }
+
+            /* Ranges are the other common for-loop source and need only a
+             * bounds check plus an increment. */
+            if (iter->type == OBJ_RANGE)
+            {
+                PiRange *range = (PiRange *)iter;
+                bool has_next = range->step > 0
+                                    ? range->current < range->end
+                                    : range->current > range->end;
+                if (has_next)
+                {
+                    push_stack(vm, NEW_NUM(range->current));
+                    range->current += range->step;
+                    pc += 2;
+                }
+                else
+                {
+                    vm->iter_sp--;
+                    pc += address - 1;
+                }
+                break;
+            }
+
+            if (iter->type == OBJ_TUPLE)
+            {
+                PiTuple *tuple = (PiTuple *)iter;
+                list_t *items = tuple->items;
+                if (tuple->current < items->size)
+                {
+                    Value value = ((Value *)items->data)[tuple->current++];
+                    if (IS_OBJ(value))
+                        add_obj(vm, AS_OBJ(value));
+                    push_stack(vm, value);
+                    pc += 2;
+                }
+                else
+                {
+                    vm->iter_sp--;
+                    pc += address - 1;
+                }
+                break;
+            }
+
+            if (iter->type == OBJ_STRING)
+            {
+                PiString *string = (PiString *)iter;
+                if (string->current < string->length)
+                {
+                    char *chars = malloc(2);
+                    if (!chars)
+                        vm_error(vm, "Out of memory while iterating string.");
+                    chars[0] = string->chars[string->current++];
+                    chars[1] = '\0';
+                    push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(chars))));
+                    pc += 2;
+                }
+                else
+                {
+                    vm->iter_sp--;
+                    pc += address - 1;
+                }
+                break;
+            }
 
             // Check if the iterator has more elements
             if (iter_hasNext(iter))
@@ -4112,7 +4260,7 @@ void run(vm_t *vm)
         case OP_COMP_BEGIN:
         {
             int local_base = code[pc++];
-            if (vm->comp_sp >= STACK_MAX)
+            if (vm->comp_sp >= COMP_MAX)
                 vm_error(vm, "Too many nested list comprehensions.");
 
             list_t *list = list_create(sizeof(Value));
@@ -4125,9 +4273,9 @@ void run(vm_t *vm)
             push_stack(vm, NEW_OBJ(l_obj));
 
             int top = vm->comp_sp++;
-            vm->comp_bases[top] = vm->sp - 1;
-            vm->comp_local_bases[top] = local_base;
-            vm->comp_bps[top] = vm->bp;
+            vm->comp_frames[top].base = vm->sp - 1;
+            vm->comp_frames[top].local_base = local_base;
+            vm->comp_frames[top].bp = vm->bp;
             break;
         }
 
@@ -4139,7 +4287,7 @@ void run(vm_t *vm)
                 vm_error(vm, "List comprehension end expects a list accumulator.");
 
             int top = vm->comp_sp - 1;
-            if (vm->comp_bases[top] != vm->sp - 1)
+            if (vm->comp_frames[top].base != vm->sp - 1)
                 vm_error(vm, "List comprehension stack is unbalanced.");
 
             refresh_listMeta(AS_LIST(peek_stack(vm)));
@@ -4462,13 +4610,20 @@ void run(vm_t *vm)
             }
             case OBJ_LIST:
             {
-                list_t *list = as_list(container);
+                /* This opcode is a frequent inner-loop operation.  Avoid the
+                 * generic list conversion/access helpers after the type check
+                 * above and read the contiguous Value storage directly. */
+                list_t *list = AS_LIST(container)->items;
                 if (list->size == 0)
                     push_stack(vm, NEW_NIL());
                 else
                 {
-                    int _index = as_number(index);
-                    Value item = *(Value *)list_getAt(list, _index);
+                    int _index = (int)as_number(index);
+                    if (_index < 0)
+                        _index += list->size;
+                    if (_index < 0 || _index >= list->size)
+                        vm_error(vm, "List index out of range.");
+                    Value item = ((Value *)list->data)[_index];
                     push_stack(vm, item); // Avoid unsafe memory access
                 }
                 break;
@@ -4486,7 +4641,24 @@ void run(vm_t *vm)
                     vm_error(vm, "Bracket member access is disabled for this object.");
 
                 PiMap *owner = map_owner(map, index);
-                Value item = owner ? map_get(owner, index) : NEW_NIL();
+                /* map_owner() has already walked the prototype chain.  For
+                 * ordinary member names, fetch directly from that owner
+                 * instead of calling map_get() and walking it a second time. */
+                Value item = NEW_NIL();
+                if (owner)
+                {
+                    if (IS_STRING(index))
+                    {
+                        Value *value = ht_get(owner->table, AS_CSTRING(index));
+                        if (value)
+                            item = *value;
+                    }
+                    else
+                    {
+                        /* Preserve coercion semantics for dynamic map keys. */
+                        item = map_get(owner, index);
+                    }
+                }
 
                 bool bind_object_method = owner != NULL &&
                                           IS_FUN(item) &&
@@ -5041,6 +5213,11 @@ void run(vm_t *vm)
                 }
             }
 
+            /* Imports can replace arbitrary names, which are not tied to a
+             * bytecode name index in this opcode. */
+            vm->global_cache->globals = NULL;
+            vm->global_cache->names = NULL;
+
             break;
         }
 
@@ -5096,6 +5273,7 @@ void run(vm_t *vm)
             if (!frame->same_context)
             {
                 vm->globals = frame->globals;
+                vm->global_cache = frame->global_cache;
                 vm->code = frame->code;
                 vm->constants = frame->constants;
                 vm->names = frame->names;
