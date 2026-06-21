@@ -164,6 +164,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     frame->iters_top = vm->iter_sp;
     frame->globals = vm->globals;
     frame->function = (Function *)vm->function; /* save BEFORE overwrite */
+    frame->same_context = false;
 
     // switch to callee context
     vm->function = (Object *)function;

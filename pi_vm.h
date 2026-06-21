@@ -52,8 +52,10 @@ typedef int interrupt_flag_t;
 
 
 
-#define GC_MIN_THRESHOLD 4096
-#define GC_MAX_THRESHOLD (1024 * 64)
+#define GC_MIN_THRESHOLD (1024 * 64)
+#define GC_MAX_THRESHOLD (1024 * 1024)
+#define GC_RECLAIM_THRESHOLD (4096 * 4)
+
 #define BROWSER_YIELD_STEPS 50000
 #define INTERRUPT_CHECK_STEPS 4096
 
@@ -108,8 +110,9 @@ typedef struct vm_t
     Object *function;
     Value _kw_args; // Keyword arguments visible to the currently running native function.
 
-    int counter;
-    int gc_pending_depth; // Frame depth at which released object fields become collectible.
+    int counter; // Allocation debt since the previous collection.
+    int gc_count; // the Reclaim debt is the number of Object references overwritten since the previous collection.
+    bool gc_requested; // A safe-point collection is pending.
 
     table_t *instrs; // PiList of instruction metadata
     instr_t *current_instr; // Source metadata for the opcode currently executing.

@@ -27,6 +27,7 @@ static PiMap *create_objectProto(vm_t *vm);
 static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value kw_args);
 static Value bind(vm_t *vm, Function *function, Object *instance);
 static Value bind_nativeMethod(vm_t *vm, Object *instance, NativeMethod *method);
+static void gc_collect(vm_t *vm);
 
 /**
  * Return a newly allocated string containing only the directory portion
@@ -549,7 +550,8 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     mark_constants(vm);
 
     vm->counter = 0;
-    vm->gc_pending_depth = -1;
+    vm->gc_count = 0;
+    vm->gc_requested = false;
 
     vm->openUpvalues = NULL;
 
@@ -633,7 +635,8 @@ void vm_reset(vm_t *vm, compiler_t *comp)
 
     // Reset GC stats to trigger collection sooner if needed
     vm->counter = 0;
-    vm->gc_pending_depth = -1;
+    vm->gc_count = 0;
+    vm->gc_requested = false;
     vm->next_gc = NEXT_GC;
 
     vm->openUpvalues = NULL;
@@ -684,8 +687,47 @@ inline Object *add_obj(vm_t *vm, Object *obj)
         break;
     }
     vm->counter += gc_cost;
+    if (vm->counter >= vm->next_gc)
+        vm->gc_requested = true;
 
     return obj;
+}
+
+static inline void gc_trackReferenceDrop(vm_t *vm, Value old_value, Value new_value)
+{
+    if (IS_OBJ(old_value) && (!IS_OBJ(new_value) || AS_OBJ(old_value) != AS_OBJ(new_value)))
+    {
+        vm->gc_count++;
+        if (vm->gc_count >= GC_RECLAIM_THRESHOLD)
+            vm->gc_requested = true;
+    }
+}
+
+static void gc_collect(vm_t *vm)
+{
+    int before = vm->obj_count;
+    run_gc(vm);
+    int after = vm->obj_count;
+    int collected = before - after;
+
+    vm->counter = 0;
+    vm->gc_count = 0;
+    vm->gc_requested = false;
+
+    if (collected <= 0)
+        vm->next_gc += vm->next_gc / 4;
+    else
+        vm->next_gc = after + (after / 2);
+
+    if (vm->next_gc < GC_MIN_THRESHOLD)
+        vm->next_gc = GC_MIN_THRESHOLD;
+    else if (vm->next_gc > GC_MAX_THRESHOLD)
+        vm->next_gc = GC_MAX_THRESHOLD;
+
+#ifdef DEBUG
+    printf("[GC] Before: %d, After: %d, Collected: %d, Next threshold: %d\n",
+           before, after, collected, vm->next_gc);
+#endif
 }
 
 Value vm_kwargs(vm_t *vm)
@@ -2167,6 +2209,8 @@ void run(vm_t *vm)
 
             Value _newValue = pop_stack(vm);
             Value *oldValue = ht_get(vm->globals, name);
+            // if (oldValue)
+            //     gc_trackReferenceDrop(vm, *oldValue, _newValue);
             if (oldValue && IS_FUN(*oldValue))
             {
                 AS_FUN(*oldValue)->global_valid = false;
@@ -2250,6 +2294,10 @@ void run(vm_t *vm)
             if (vm->comp_sp > 0)
                 slot = resolve_localSlot(vm, op);
 
+            // Value new_value = pop_stack(vm);
+            // if (slot < vm->sp)
+            //     gc_trackReferenceDrop(vm, vm->stack[slot], new_value);
+            // vm->stack[slot] = new_value;
             vm->stack[slot] = pop_stack(vm);
 
             // Ensure the stack pointer reserves space for locals.
@@ -3594,30 +3642,40 @@ void run(vm_t *vm)
                     if (vm->frame_sp >= STACK_MAX)
                         vm_error(vm, "[frame] Stack overflow.");
 
+                    bool self_recursive = callee_fn == function;
                     Frame *frame = &vm->frames[vm->frame_sp++];
                     frame->pc = pc;
                     frame->sp = callee_slot;
                     frame->bp = vm->bp;
                     frame->ip = vm->ip;
-
-                    frame->code = vm->code;
-                    frame->constants = vm->constants;
-                    frame->names = vm->names;
-                    frame->instrs = vm->instrs;
                     frame->iters_top = vm->iter_sp;
-                    frame->globals = vm->globals;
-                    frame->function = function;
+                    frame->same_context = self_recursive;
 
-                    vm->function = (Object *)callee_fn;
-                    vm->code = callee_fn->body->data;
-                    if (callee_fn->constants)
-                        vm->constants = callee_fn->constants;
-                    if (callee_fn->names)
-                        vm->names = callee_fn->names;
-                    if (callee_fn->instrs)
-                        vm->instrs = callee_fn->instrs;
-                    if (callee_fn->globals)
-                        vm->globals = callee_fn->globals;
+                    if (self_recursive)
+                    {
+                        // A recursive call keeps the same code, constants,
+                        // globals, and function. Do not copy/restore them.
+                    }
+                    else
+                    {
+                        frame->code = vm->code;
+                        frame->constants = vm->constants;
+                        frame->names = vm->names;
+                        frame->instrs = vm->instrs;
+                        frame->globals = vm->globals;
+                        frame->function = function;
+
+                        vm->function = (Object *)callee_fn;
+                        vm->code = callee_fn->body->data;
+                        if (callee_fn->constants)
+                            vm->constants = callee_fn->constants;
+                        if (callee_fn->names)
+                            vm->names = callee_fn->names;
+                        if (callee_fn->instrs)
+                            vm->instrs = callee_fn->instrs;
+                        if (callee_fn->globals)
+                            vm->globals = callee_fn->globals;
+                    }
 
                     vm->pc = 0;
                     vm->ip = 0;
@@ -4309,9 +4367,15 @@ void run(vm_t *vm)
             Value stored = pop_stack(vm);
 
             if (upValue->index != -1)
+            {
+                // gc_trackReferenceDrop(vm, vm->stack[upValue->index], stored);
                 vm->stack[upValue->index] = stored;
+            }
             else
+            {
+                // gc_trackReferenceDrop(vm, function->upvalues[index]->value, stored);
                 function->upvalues[index]->value = stored;
+            }
             break;
         }
 
@@ -4677,6 +4741,7 @@ void run(vm_t *vm)
 
                 list_t *list = pi_list->items;
                 int _index = get_index(as_number(index), list_size(list));
+                // gc_trackReferenceDrop(vm, *(Value *)list_getAt(list, _index), value);
                 list_set(list, _index, &value);
                 if (!IS_NUM(value))
                     pi_list->is_numeric = false;
@@ -4696,6 +4761,9 @@ void run(vm_t *vm)
                 if (map->is_instance)
                 {
                     char *key = as_string(index);
+                    // Value *old_value = ht_get(map->table, key);
+                    // if (old_value)
+                    //     gc_trackReferenceDrop(vm, *old_value, value);
                     if (!ht_set(map->table, key, &value))
                         ht_put(map->table, key, &value);
                     free(key);
@@ -4706,10 +4774,6 @@ void run(vm_t *vm)
                         vm_error(vm, "Cannot add a new key to a locked object.");
                     map_set(map, index, value);
                 }
-
-                if (IS_NIL(value) &&
-                    (vm->gc_pending_depth == -1 || vm->frame_sp < vm->gc_pending_depth))
-                    vm->gc_pending_depth = vm->frame_sp;
 
                 break;
             }
@@ -5029,38 +5093,38 @@ void run(vm_t *vm)
             vm->bp = frame->bp;
             vm->sp = frame->sp;
             vm->ip = frame->ip;
-            vm->globals = frame->globals;
-
-            vm->code = frame->code;
-            vm->constants = frame->constants;
-            vm->names = frame->names;
-            vm->instrs = frame->instrs;
-            vm->function = (Object *)frame->function;
+            if (!frame->same_context)
+            {
+                vm->globals = frame->globals;
+                vm->code = frame->code;
+                vm->constants = frame->constants;
+                vm->names = frame->names;
+                vm->instrs = frame->instrs;
+                vm->function = (Object *)frame->function;
+            }
 
             push_stack(vm, retval);
 
             code = (uint8_t *)vm->code->data;
             length = vm->code->size;
             pc = vm->pc;
-            function = frame->function;
-
-            // Defer graph collection until the releasing function's locals
-            // have left the operand stack.
-            if (vm->gc_pending_depth != -1 && vm->frame_sp < vm->gc_pending_depth)
-            {
-                run_gc(vm);
-                vm->counter = 0;
-                vm->gc_pending_depth = -1;
-            }
+            if (!frame->same_context)
+                function = frame->function;
 
             if (vm->frame_sp < frame_sp)
+            {
+                if (vm->gc_requested)
+                    gc_collect(vm);
                 return;
+            }
 
             break;
         }
 
         case OP_HALT:
         {
+            if (vm->gc_requested)
+                gc_collect(vm);
             vm->running = false;
             // Halt the VM
             return;
@@ -5102,45 +5166,11 @@ void run(vm_t *vm)
             emscripten_sleep(0);
         }
 
-        // Allocation-driven threshold to avoid collecting on instruction-heavy loops.
         if (vm->counter >= vm->next_gc)
-        {
-            run_gc(vm);
-            vm->counter = 0;
-        }
+            vm->gc_requested = true;
 #else
         if (vm->counter >= vm->next_gc)
-        {
-            int before = vm->obj_count;
-            run_gc(vm);
-            int after = vm->obj_count;
-            int collected = before - after;
-
-            vm->counter = 0;
-
-            // Adapt threshold to avoid over-collecting in long-running loops.
-            if (collected <= 0)
-                vm->next_gc += vm->next_gc / 4; // GC reclaimed nothing: back off.
-            else
-                vm->next_gc = after + (after / 2); // Target ~1.5x live set allocations.
-            vm->obj_count = after;
-
-            // Clamp bounds (prevent very frequent or very rare GC).
-            if (vm->next_gc < GC_MIN_THRESHOLD)
-                vm->next_gc = GC_MIN_THRESHOLD;
-            else if (vm->next_gc > GC_MAX_THRESHOLD)
-                vm->next_gc = GC_MAX_THRESHOLD;
-
-#ifdef DEBUG
-            int checked = count_objs(vm);
-            printf("[DEBUG] SP: %d\n", vm->sp);
-            printf("[GC] Running garbage collection...\n");
-            printf("[GC] Before: %d objects in memory\n", before);
-            printf("[GC] After: %d objects in memory\n", after);
-            printf("[GC] Checked live objects: %d\n", checked);
-            printf("[GC] Collected: %d, Next threshold: %d\n", collected, vm->next_gc);
-#endif
-        }
+            vm->gc_requested = true;
 #endif
         vm->pc = pc;
     }

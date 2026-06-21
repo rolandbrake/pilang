@@ -18,6 +18,7 @@ Frame *create_frame(int pc, int sp, int bp, list_t *code, list_t *constants, lis
     frame->iters_top = iters_top;
 
     frame->function = fn;
+    frame->same_context = false;
 
     return frame;
 }

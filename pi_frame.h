@@ -23,6 +23,7 @@ typedef struct
     int iters_top; // to track the state of iterators stack
 
     Function *function;
+    bool same_context; // Self-recursive fast calls reuse the current function context.
 } Frame;
 
 Frame *create_frame(int pc, int sp, int bp, list_t *code, list_t *constants, list_t *names, table_t *instrs, int iters_top, int ip, Function *fn);
