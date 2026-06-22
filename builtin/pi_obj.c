@@ -76,15 +76,14 @@ static bool map_equals(PiMap *left, PiMap *right)
         !map_equals(left->proto, right->proto))
         return false;
 
-    int size = ht_length(left->table);
-    char **left_keys = ht_keys(left->table);
+    // Use iterator over left map
+    ht_iter it = ht_iterator(left->table);
+    while (ht_next(&it)) {
+        char *key = it.key;
+        Value *left_value = (Value*)it.value;
+        Value *right_value = ht_get(right->table, key);
 
-    for (int i = 0; i < size; i++)
-    {
-        Value *left_value = ht_get(left->table, left_keys[i]);
-        Value *right_value = ht_get(right->table, left_keys[i]);
-
-        if (left_value == NULL || right_value == NULL)
+        if (right_value == NULL)
             return false;
 
         if (!value_equals(*left_value, *right_value))
@@ -106,43 +105,51 @@ static int map_compare(PiMap *left, PiMap *right)
     int left_size = ht_length(left->table);
     int right_size = ht_length(right->table);
 
-    char **left_keys = ht_keys(left->table);
-    char **right_keys = ht_keys(right->table);
+    // Collect keys using iterators
+    char **left_keys = malloc(sizeof(char *) * left_size);
+    char **right_keys = malloc(sizeof(char *) * right_size);
+    if (!left_keys || !right_keys) {
+        free(left_keys);
+        free(right_keys);
+        return 0; // fallback (shouldn't happen)
+    }
 
-    char **left_sorted = malloc(sizeof(char *) * left_size);
-    char **right_sorted = malloc(sizeof(char *) * right_size);
+    int idx = 0;
+    ht_iter it = ht_iterator(left->table);
+    while (ht_next(&it))
+        left_keys[idx++] = it.key;
 
-    for (int i = 0; i < left_size; i++)
-        left_sorted[i] = left_keys[i];
-    for (int i = 0; i < right_size; i++)
-        right_sorted[i] = right_keys[i];
+    idx = 0;
+    it = ht_iterator(right->table);
+    while (ht_next(&it))
+        right_keys[idx++] = it.key;
 
-    qsort(left_sorted, left_size, sizeof(char *), compare_cstrings);
-    qsort(right_sorted, right_size, sizeof(char *), compare_cstrings);
+    qsort(left_keys, left_size, sizeof(char *), compare_cstrings);
+    qsort(right_keys, right_size, sizeof(char *), compare_cstrings);
 
     for (int i = 0; i < left_size; i++)
     {
-        int key_cmp = strcmp(left_sorted[i], right_sorted[i]);
+        int key_cmp = strcmp(left_keys[i], right_keys[i]);
         if (key_cmp != 0)
         {
-            free(left_sorted);
-            free(right_sorted);
+            free(left_keys);
+            free(right_keys);
             return normalize_compare(key_cmp);
         }
 
-        Value *left_value = ht_get(left->table, left_sorted[i]);
-        Value *right_value = ht_get(right->table, right_sorted[i]);
+        Value *left_value = ht_get(left->table, left_keys[i]);
+        Value *right_value = ht_get(right->table, right_keys[i]);
         int value_cmp = value_compare(*left_value, *right_value);
         if (value_cmp != 0)
         {
-            free(left_sorted);
-            free(right_sorted);
+            free(left_keys);
+            free(right_keys);
             return value_cmp;
         }
     }
 
-    free(left_sorted);
-    free(right_sorted);
+    free(left_keys);
+    free(right_keys);
 
     if (left->proto == NULL && right->proto == NULL)
         return 0;
@@ -173,13 +180,11 @@ Value pi_clone(vm_t *vm, int argc, Value *argv)
     if (original->intrinsic_name)
         map->intrinsic_name = strdup(original->intrinsic_name);
 
-    char **keys = ht_keys(original->table);
-    int size = ht_length(original->table);
-
-    for (int i = 0; i < size; i++)
-    {
-        char *key = keys[i];
-        Value *value = (Value *)ht_get(original->table, key);
+    // Use iterator to copy all entries
+    ht_iter it = ht_iterator(original->table);
+    while (ht_next(&it)) {
+        char *key = it.key;
+        Value *value = (Value*)it.value;
         if (value)
             ht_put(map->table, key, value);
     }
@@ -193,18 +198,13 @@ Value pi_values(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[values] expects a map as the first argument.");
 
     PiMap *map = AS_MAP(argv[0]);
-    char **keys = ht_keys(map->table);
-    int size = ht_length(map->table);
-
     list_t *list = list_create(sizeof(Value));
 
-    for (int i = 0; i < size; i++)
-    {
-        // char *key = string_get(keys, i);
-        char *key = keys[i];
-        Value *val = ht_get(map->table, key);
+    ht_iter it = ht_iterator(map->table);
+    while (ht_next(&it)) {
+        Value *val = (Value*)it.value;
         if (val)
-            list_add(list, val); // Copy value to the list
+            list_add(list, val);
     }
 
     return NEW_OBJ(new_list(list));
@@ -216,16 +216,11 @@ Value pi_keys(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[keys] expects a map as the first argument.");
 
     PiMap *map = AS_MAP(argv[0]);
-
-    char **keys = ht_keys(map->table);
-    int size = ht_length(map->table);
-
     list_t *list = list_create(sizeof(Value));
 
-    for (int i = 0; i < size; i++)
-    {
-        // char *key = string_get(keys, i);
-        char *key = keys[i];
+    ht_iter it = ht_iterator(map->table);
+    while (ht_next(&it)) {
+        char *key = it.key;
         list_add(list, &NEW_OBJ(new_pistring(key)));
     }
 

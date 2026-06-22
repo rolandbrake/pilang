@@ -1092,24 +1092,21 @@ static void list_extendFromIterable(vm_t *vm, PiList *plist, Value iterable)
 static void finalize_mapLiteral(vm_t *vm, PiMap *map)
 {
     bool has_methods = false;
-    char **keys = ht_keys(map->table);
-    int size = ht_length(map->table);
-
-    for (int i = 0; i < size; i++)
+    ht_iter it = ht_iterator(map->table);
+    while (ht_next(&it))
     {
-        Value *item = ht_get(map->table, keys[i]);
+        char *key = it.key;
+        Value *item = (Value *)it.value; // it.value points to stored Value
 
         if (!item || !IS_FUN(*item))
             continue;
 
         Function *fn = AS_FUN(*item);
-
         fn->is_method = true;
         fn->owner = (Object *)map;
-
-        if (strcmp(keys[i], "compute") == 0)
+        if (strcmp(key, "compute") == 0)
             map->has_compute = true;
-        else if (strcmp(keys[i], "rcompute") == 0)
+        else if (strcmp(key, "rcompute") == 0)
             map->has_rcompute = true;
 
         has_methods = true;
@@ -1128,24 +1125,23 @@ static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
         vm_error(vm, "Map spread expects a map value.");
 
     PiMap *map = AS_MAP(source);
-    char **keys = ht_keys(map->table);
-    int size = ht_length(map->table);
-
-    for (int i = 0; i < size; i++)
+    ht_iter it = ht_iterator(map->table);
+    while (ht_next(&it))
     {
-        Value *item = ht_get(map->table, keys[i]);
+        char *key = it.key;
+        Value *item = (Value *)it.value;
         if (item == NULL)
             continue;
 
         if (IS_OBJ(*item))
             add_obj(vm, AS_OBJ(*item));
 
-        ht_put(target->table, keys[i], item);
+        ht_put(target->table, key, item);
         if (IS_FUN(*item))
         {
-            if (strcmp(keys[i], "compute") == 0)
+            if (strcmp(key, "compute") == 0)
                 target->has_compute = true;
-            else if (strcmp(keys[i], "rcompute") == 0)
+            else if (strcmp(key, "rcompute") == 0)
                 target->has_rcompute = true;
         }
     }
@@ -3693,10 +3689,10 @@ void run(vm_t *vm)
 
                 size_t param_count = (!callee_fn->is_native && callee_fn->params)
                                          ? (size_t)callee_fn->arity
-                                         : 0;                                         
+                                         : 0;
                 bool param_this = callee_fn->is_method && callee_fn->param_names &&
-                                         (size_t)list_size(callee_fn->param_names) + 1 == param_count;
-                // calculate the supplied argument count                         
+                                  (size_t)list_size(callee_fn->param_names) + 1 == param_count;
+                // calculate the supplied argument count
                 size_t _param_count = param_count - (param_this ? 1 : 0);
 
                 if (!callee_fn->is_native &&
@@ -4699,7 +4695,7 @@ void run(vm_t *vm)
                                      IS_FUN(cache->last_bound_method) &&
                                      AS_FUN(cache->last_bound_method)->instance == target)
                                         ? &cache->last_bound_method
-                                        : (cache && IS_STRING(index) && cache->bound_methods)
+                                    : (cache && IS_STRING(index) && cache->bound_methods)
                                         ? ht_get(cache->bound_methods, AS_CSTRING(index))
                                         : NULL;
 
@@ -5243,17 +5239,20 @@ void run(vm_t *vm)
             PiMap *_module = (OBJ_TYPE(module) == OBJ_MODULE) ? AS_MODULE(module)->exports : AS_MAP(module);
             table_t *table = _module->table;
 
-            int size = ht_length(table);
-            char **keys = ht_keys(table);
-            for (int i = 0; i < size; i++)
+            // Use iterator instead of ht_keys + ht_length
+            ht_iter it = ht_iterator(table);
+            while (ht_next(&it))
             {
-                char *key = keys[i];
-                Value *value = (Value *)ht_get(table, key);
+                char *key = it.key;
+                Value *value = (Value *)it.value; // pointer to stored Value
+
                 if (!value)
                     continue;
+
                 if (OBJ_TYPE(module) == OBJ_MODULE && is_private_moduleName(key))
                     continue;
 
+                // Invalidate any existing global function with the same name
                 Value *oldValue = ht_get(vm->globals, key);
                 if (oldValue && IS_FUN(*oldValue))
                 {
@@ -5261,9 +5260,11 @@ void run(vm_t *vm)
                     AS_FUN(*oldValue)->glonal_index = -1;
                 }
 
+                // Import the new value (set if exists, otherwise put)
                 if (!ht_set(vm->globals, key, value))
                     ht_put(vm->globals, key, value);
 
+                // Mark function as a valid global if its name matches
                 if (IS_FUN(*value) && AS_FUN(*value)->name &&
                     strcmp(AS_FUN(*value)->name, key) == 0)
                 {
@@ -5272,8 +5273,7 @@ void run(vm_t *vm)
                 }
             }
 
-            /* Imports can replace arbitrary names, which are not tied to a
-             * bytecode name index in this opcode. */
+            // Invalidate global cache because imports can replace arbitrary names
             vm->global_cache->globals = NULL;
             vm->global_cache->names = NULL;
 

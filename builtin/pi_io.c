@@ -94,11 +94,11 @@ static char *display_mapString(vm_t *vm, PiMap *map)
 
     DisplayBuilder builder;
     builder_init(&builder, "{");
-
-    for (int i = 0; i < size; i++)
+    ht_iter it = ht_iterator(map->table);
+    for (int i = 0; ht_next(&it); i++)
     {
-        char *key = map->table->_keys[i];
-        Value *stored = (Value *)ht_get(map->table, key);
+        char *key = it.key;
+        Value *stored = it.value;
         char *value = stored ? pi_displayString(vm, *stored) : strdup("nil");
 
         if (i > 0)

@@ -491,9 +491,6 @@ Value load_module(vm_t *vm, const char *name)
     parser_t *parser = init_parser(comp, tokens, MODE_FILE);
     parse(parser);
 
-    // printf("Module '%s' loaded from '%s'.\n", name, resolved);
-    // dis(comp);
-
     vm_t *module_vm = init_vm(comp, NULL, false);
 
     // Share the parent VM's module cache with the module VM to allow caching of nested imports.
@@ -516,11 +513,11 @@ Value load_module(vm_t *vm, const char *name)
     PiMap *exports = module->exports;
     table_t *defined_globals = collect_definedGlobals(comp);
 
-    int keys_count = ht_length(defined_globals);
-    char **keys = ht_keys(defined_globals);
-    for (int i = 0; i < keys_count; i++)
+    // Iterate over defined_globals using the new iterator API
+    ht_iter it = ht_iterator(defined_globals);
+    while (ht_next(&it))
     {
-        char *key = keys[i];
+        char *key = it.key;
         if (is_private_moduleName(key))
             continue;
 
@@ -538,6 +535,7 @@ Value load_module(vm_t *vm, const char *name)
     module->constants = comp->constants;
     module->names = comp->names;
     module->instrs = comp->instrs;
+    
     comp->constants = NULL;
     comp->names = NULL;
     comp->instrs = NULL;

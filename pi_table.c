@@ -6,7 +6,13 @@
 #include "pi_table.h"
 #include "pi_value.h"
 #include "pi_string.h"
-#include "common.h"
+
+
+
+
+/* Tombstone marker – a unique address that cannot be a real key */
+static char tombstone_key = 0;
+#define TOMBSTONE ((char *)&tombstone_key)
 
 /**
  * FNV-1a hash function
@@ -17,7 +23,7 @@
  * @param key The string to hash
  * @return The hash value
  */
-static inline uint64_t FNV_1a(const char *key)
+static inline uint64_t fnv_1a(const char *key)
 {
     uint64_t hash = FNV_OFFSET;
     for (const char *p = key; *p; p++)
@@ -28,10 +34,7 @@ static inline uint64_t FNV_1a(const char *key)
     return hash;
 }
 
-/**
- * Creates a new table with the specified item size and initial capacity.
- *
- */
+
 table_t *ht_create(size_t i_size)
 {
     table_t *table = malloc(sizeof(table_t));
@@ -40,18 +43,33 @@ table_t *ht_create(size_t i_size)
 
     table->size = 0;
     table->capacity = INIT_CAP;
-    table->i_size = i_size; // Store value size
+    table->i_size = i_size;
     table->items = calloc(table->capacity, sizeof(ht_item));
     if (!table->items)
     {
         free(table);
         return NULL;
     }
-
-    table->_keys = calloc(INIT_CAP, sizeof(char *)); // allocate space for key pointers
-    table->_last = 0;                                // Initialize _last to the first index
-
     return table;
+}
+
+void *ht_get(table_t *table, const char *key)
+{
+    uint64_t hash = fnv_1a(key);
+    int mask = table->capacity - 1;
+    int index = (int)(hash & mask);
+
+    while (table->items[index].key != NULL)
+    {
+        if (table->items[index].key != TOMBSTONE &&
+            table->items[index].hash == hash &&
+            strcmp(table->items[index].key, key) == 0)
+        {
+            return table->items[index].value;
+        }
+        index = (index + 1) & mask;
+    }
+    return NULL;
 }
 
 bool ht_has(table_t *table, const char *key)
@@ -59,188 +77,138 @@ bool ht_has(table_t *table, const char *key)
     return ht_get(table, key) != NULL;
 }
 
-void *ht_get(table_t *table, const char *key)
-{
-
-    uint64_t hash = FNV_1a(key);
-    int mask = table->capacity - 1;
-    int index = hash & mask;
-
-    while (table->items[index].key != NULL)
-    {
-        if (table->items[index].hash == hash &&
-            strcmp(table->items[index].key, key) == 0)
-            return table->items[index].value;
-
-        index = (index + 1) & mask;
-    }
-
-    return NULL;
-}
 
 bool ht_set(table_t *table, const char *key, const void *value)
 {
-    uint64_t hash = FNV_1a(key);
+    uint64_t hash = fnv_1a(key);
     int mask = table->capacity - 1;
-    int index = hash & mask;
+    int index = (int)(hash & mask);
 
     while (table->items[index].key != NULL)
     {
-        if (table->items[index].hash == hash &&
+        if (table->items[index].key != TOMBSTONE &&
+            table->items[index].hash == hash &&
             strcmp(table->items[index].key, key) == 0)
         {
-            // Update existing value
             memcpy(table->items[index].value, value, table->i_size);
             return true;
         }
         index = (index + 1) & mask;
     }
-
-    return false; // Key not found, no update
+    return false;
 }
+
 
 bool ht_put(table_t *table, const char *key, const void *value)
 {
-
-    // Check if we need to expand (load factor > 0.75)
+    // Expand if load factor > 0.75
     if ((table->size + 1) * 4 > table->capacity * 3)
+    {
         if (!ht_expand(table))
             return false;
+    }
 
-    uint64_t hash = FNV_1a(key);
+    uint64_t hash = fnv_1a(key);
     int mask = table->capacity - 1;
-    int index = hash & mask;
+    int index = (int)(hash & mask);
+    int tombstone_idx = -1;
 
-    // Check for existing key
+    // Search for existing key, remember first tombstone
     while (table->items[index].key != NULL)
     {
-        if (table->items[index].hash == hash &&
-            strcmp(table->items[index].key, key) == 0)
+        if (table->items[index].key == TOMBSTONE)
         {
-            // Update existing value
+            if (tombstone_idx == -1)
+                tombstone_idx = index;
+        }
+        else if (table->items[index].hash == hash &&
+                 strcmp(table->items[index].key, key) == 0)
+        {
+            // Update existing entry
             memcpy(table->items[index].value, value, table->i_size);
             return true;
         }
         index = (index + 1) & mask;
     }
 
-    if (index > table->_last)
-        table->_last = index;
+    // Not found – insert into first tombstone or at empty slot
+    int insert_idx = (tombstone_idx != -1) ? tombstone_idx : index;
 
-    // Insert new key-value pair
-    char *_key = strdup(key);
+    char *new_key = strdup(key);
+    if (!new_key)
+        return false;
+    void *new_value = malloc(table->i_size);
+    if (!new_value)
+    {
+        free(new_key);
+        return false;
+    }
+    memcpy(new_value, value, table->i_size);
 
-    void *_value = malloc(table->i_size); // Allocate memory for the value
-    memcpy(_value, value, table->i_size); // Copy the value
-
-    table->items[index].key = _key;
-    table->items[index].value = _value;
-    table->items[index].hash = hash;
-
-    // Store key in _keys array in insertion order
-    table->_keys[table->size] = _key;
-
+    table->items[insert_idx].key = new_key;
+    table->items[insert_idx].value = new_value;
+    table->items[insert_idx].hash = hash;
     table->size++;
-
     return true;
 }
+
 
 bool ht_delete(table_t *table, const char *key)
 {
     if (!table || !key)
         return false;
 
-    if (ht_get(table, key) == NULL)
-        return false;
+    uint64_t hash = fnv_1a(key);
+    int mask = table->capacity - 1;
+    int index = (int)(hash & mask);
 
-    ht_item *old_items = table->items;
-    char **old_keys = table->_keys;
-    int old_capacity = table->capacity;
-
-    table->items = calloc(table->capacity, sizeof(ht_item));
-    table->_keys = calloc(table->capacity, sizeof(char *));
-    table->size = 0;
-    table->_last = 0;
-
-    if (!table->items || !table->_keys)
+    while (table->items[index].key != NULL)
     {
-        free(table->items);
-        free(table->_keys);
-        table->items = old_items;
-        table->_keys = old_keys;
-        table->capacity = old_capacity;
-        return false;
+        if (table->items[index].key != TOMBSTONE &&
+            table->items[index].hash == hash &&
+            strcmp(table->items[index].key, key) == 0)
+        {
+            // Found – mark as tombstone, free resources
+            free(table->items[index].key);
+            free(table->items[index].value);
+            table->items[index].key = TOMBSTONE;
+            table->items[index].value = NULL; // optional
+            table->size--;
+            return true;
+        }
+        index = (index + 1) & mask;
     }
-
-    for (int i = 0; i < old_capacity; i++)
-    {
-        if (old_items[i].key == NULL)
-            continue;
-
-        if (strcmp(old_items[i].key, key) != 0)
-            ht_put(table, old_items[i].key, old_items[i].value);
-
-        free(old_items[i].key);
-        free(old_items[i].value);
-    }
-
-    free(old_items);
-    free(old_keys);
-    return true;
+    return false;
 }
 
-/**
- * Expand the table to double its capacity.
- *
- * @param table The table to be expanded.
- * @return true if the expansion was successful, false otherwise.
- */
+
 bool ht_expand(table_t *table)
 {
-    // Calculate the new capacity and mask
-    const int new_cap = table->capacity * 2;
-    const int new_mask = new_cap - 1;
-
-    // Allocate memory for the new items array
+    int new_cap = table->capacity * 2;
     ht_item *new_items = calloc(new_cap, sizeof(ht_item));
     if (!new_items)
         return false;
 
-    // Rehash using stored hash values
+    int new_mask = new_cap - 1;
+    // Rehash all live entries (skip NULL and tombstone)
     for (int i = 0; i < table->capacity; i++)
     {
         ht_item item = table->items[i];
-        if (item.key != NULL)
-        {
-            // Find the new index for the item
-            int index = item.hash & new_mask;
-            while (new_items[index].key != NULL)
-                index = (index + 1) & new_mask;
-            new_items[index] = item;
-        }
+        if (item.key == NULL || item.key == TOMBSTONE)
+            continue;
+
+        int idx = (int)(item.hash & new_mask);
+        while (new_items[idx].key != NULL)
+            idx = (idx + 1) & new_mask;
+        new_items[idx] = item; // copy the whole item
     }
 
-    // Free the old items array and update the table
     free(table->items);
     table->items = new_items;
-
-    // Reallocate _keys to match new capacity
-    char **new_keys = realloc(table->_keys, new_cap * sizeof(char *));
-    if (!new_keys)
-        return false;
-    table->_keys = new_keys;
-
-    // Update capacity
     table->capacity = new_cap;
-
     return true;
 }
 
-int ht_length(table_t *table) { return table->size; }
-
-int ht_last(table_t *table) { return table->_last; }
-
-char **ht_keys(table_t *table) { return table->_keys; }
 
 void ht_free(table_t *table)
 {
@@ -249,48 +217,54 @@ void ht_free(table_t *table)
 
     for (int i = 0; i < table->capacity; i++)
     {
-        if (table->items[i].key)
+        if (table->items[i].key != NULL && table->items[i].key != TOMBSTONE)
         {
             free(table->items[i].key);
             free(table->items[i].value);
         }
     }
-
-    if (table->_keys)
-        free(table->_keys);
-
     free(table->items);
     free(table);
 }
 
-// Iterator functions
-// TODO: return iterator pointer instead of value!
+
+int ht_length(table_t *table)
+{
+    return table->size;
+}
+
+
 ht_iter ht_iterator(table_t *table)
 {
-    ht_iter it = {0};
-    it._table = table;
-    it._index = 0;
+    ht_iter it = {._table = table, ._index = 0};
     return it;
 }
 
 bool ht_next(ht_iter *it)
 {
     table_t *table = it->_table;
-
-    if (it->_index >= table->size)
-        return false; // End of iteration
-
-    char *key = table->_keys[it->_index++]; // Get key by insertion order
-    void *value = ht_get(table, key);       // Find corresponding value
-
-    it->key = key;
-    it->value = value;
-    return true;
+    while (it->_index < table->capacity)
+    {
+        ht_item *item = &table->items[it->_index++];
+        if (item->key != NULL && item->key != TOMBSTONE)
+        {
+            it->key = item->key;
+            it->value = item->value;
+            return true;
+        }
+    }
+    return false;
 }
 
 bool ht_hasNext(ht_iter *it)
 {
-    return it->_index < it->_table->size; // Stop at actual number of keys
+    table_t *table = it->_table;
+    for (int i = it->_index; i < table->capacity; i++)
+    {
+        if (table->items[i].key != NULL && table->items[i].key != TOMBSTONE)
+            return true;
+    }
+    return false;
 }
 
 void ht_reset(ht_iter *it)

@@ -283,15 +283,14 @@ static bool map_equals(PiMap *left, PiMap *right)
     if (left->super_instance != right->super_instance)
         return false;
 
-    int size = ht_length(left->table);
-    char **left_keys = ht_keys(left->table);
+    // Iterate over left table entries
+    ht_iter it = ht_iterator(left->table);
+    while (ht_next(&it)) {
+        char *key = it.key;
+        Value *left_value = (Value*)it.value;
+        Value *right_value = ht_get(right->table, key);
 
-    for (int i = 0; i < size; i++)
-    {
-        Value *left_value = ht_get(left->table, left_keys[i]);
-        Value *right_value = ht_get(right->table, left_keys[i]);
-
-        if (left_value == NULL || right_value == NULL)
+        if (right_value == NULL)
             return false;
 
         if (!equals(*left_value, *right_value))
@@ -323,14 +322,22 @@ static int map_compare(PiMap *left, PiMap *right)
 
     char **left_sorted = malloc(sizeof(char *) * left_size);
     char **right_sorted = malloc(sizeof(char *) * right_size);
+    if (!left_sorted || !right_sorted) {
+        free(left_sorted);
+        free(right_sorted);
+        return 0; // fallback
+    }
 
-    char **left_keys = ht_keys(left->table);
-    char **right_keys = ht_keys(right->table);
+    // Collect keys using iterators
+    int idx = 0;
+    ht_iter it = ht_iterator(left->table);
+    while (ht_next(&it))
+        left_sorted[idx++] = it.key;
 
-    for (int i = 0; i < left_size; i++)
-        left_sorted[i] = left_keys[i];
-    for (int i = 0; i < right_size; i++)
-        right_sorted[i] = right_keys[i];
+    idx = 0;
+    it = ht_iterator(right->table);
+    while (ht_next(&it))
+        right_sorted[idx++] = it.key;
 
     qsort(left_sorted, left_size, sizeof(char *), compare_cstrings);
     qsort(right_sorted, right_size, sizeof(char *), compare_cstrings);
@@ -1148,12 +1155,29 @@ bool as_bool(Value val)
  * @param val The Pi value to be converted
  * @return A string representation of the value
  */
-static void append_text(char **result, size_t *buffer_size, const char *text)
+static void append_text(char **result, size_t *buffer_size, size_t *capacity, const char *text)
 {
     size_t len = strlen(text);
-    *result = realloc(*result, *buffer_size + len + 1);
-    if (!*result)
-        error("[as_string] Memory allocation failed.");
+    size_t required = *buffer_size + len + 1;
+
+    if (required > *capacity)
+    {
+        size_t new_capacity = *capacity ? *capacity : 16;
+        while (new_capacity < required)
+        {
+            size_t grown = new_capacity < 1024
+                               ? new_capacity * 2
+                               : new_capacity + new_capacity / 4 + 256;
+            new_capacity = grown > new_capacity ? grown : required;
+        }
+
+        char *resized = realloc(*result, new_capacity);
+        if (!resized)
+            error("[as_string] Memory allocation failed.");
+        *result = resized;
+        *capacity = new_capacity;
+    }
+
     memcpy(*result + *buffer_size, text, len + 1);
     *buffer_size += len;
 }
@@ -1170,18 +1194,18 @@ static bool tensor_shouldPrintIndex(PiTensor *tensor, int dim, int index)
     return index < 3 || index >= tensor->shape[dim] - 3;
 }
 
-static void tensor_appendString(char **result, size_t *buffer_size, PiTensor *tensor, int dim, int *indices)
+static void tensor_appendString(char **result, size_t *buffer_size, size_t *capacity, PiTensor *tensor, int dim, int *indices)
 {
     if (dim == tensor->ndim)
     {
         Value cell = NEW_NUM(tensor_get(tensor, indices));
         char *item = as_string(cell);
-        append_text(result, buffer_size, item);
+        append_text(result, buffer_size, capacity, item);
         free(item);
         return;
     }
 
-    append_text(result, buffer_size, "[");
+    append_text(result, buffer_size, capacity, "[");
 
     bool wrote_item = false;
     bool wrote_ellipsis = false;
@@ -1192,8 +1216,8 @@ static void tensor_appendString(char **result, size_t *buffer_size, PiTensor *te
             if (!wrote_ellipsis)
             {
                 if (wrote_item)
-                    append_text(result, buffer_size, ", ");
-                append_text(result, buffer_size, "...");
+                    append_text(result, buffer_size, capacity, ", ");
+                append_text(result, buffer_size, capacity, "...");
                 wrote_item = true;
                 wrote_ellipsis = true;
             }
@@ -1201,14 +1225,14 @@ static void tensor_appendString(char **result, size_t *buffer_size, PiTensor *te
         }
 
         if (wrote_item)
-            append_text(result, buffer_size, ", ");
+            append_text(result, buffer_size, capacity, ", ");
 
         indices[dim] = i;
-        tensor_appendString(result, buffer_size, tensor, dim + 1, indices);
+        tensor_appendString(result, buffer_size, capacity, tensor, dim + 1, indices);
         wrote_item = true;
     }
 
-    append_text(result, buffer_size, "]");
+    append_text(result, buffer_size, capacity, "]");
 }
 
 char *as_stringWithFormat(vm_t *vm, Value val)
@@ -1242,29 +1266,22 @@ char *as_stringWithFormat(vm_t *vm, Value val)
         case OBJ_LIST:
         {
             list_t *list = as_list(val);
-            size_t buffer_size = 2; // Start with "[]"
+            size_t buffer_size = 1;
+            size_t capacity = 2;
             char *result = dup_cstring("[");
 
             int size = list->size;
             for (size_t i = 0; i < size; i++)
             {
                 if (i > 0)
-                {
-                    buffer_size += 2; // For ", "
-                    result = realloc(result, buffer_size);
-                    strcat(result, ", ");
-                }
+                    append_text(&result, &buffer_size, &capacity, ", ");
 
                 char *item = as_stringWithFormat(vm, *(Value *)list_getAt(list, i));
-                buffer_size += strlen(item);
-                result = realloc(result, buffer_size);
-                strcat(result, item);
+                append_text(&result, &buffer_size, &capacity, item);
                 free(item);
             }
 
-            buffer_size++; // For the closing "]"
-            result = realloc(result, buffer_size);
-            strcat(result, "]");
+            append_text(&result, &buffer_size, &capacity, "]");
 
             return result;
         }
@@ -1272,48 +1289,37 @@ char *as_stringWithFormat(vm_t *vm, Value val)
         case OBJ_MAP:
         {
             PiMap *map = AS_MAP(val);
-            char **keys = map->table->_keys;
-            int size = ht_length(map->table);
-
-            if (size == 0)
-                return dup_cstring("{}");
-
-            size_t buffer_size = 2; // Start with "{}"
+            size_t buffer_size = 1;
+            size_t capacity = 2;
             char *result = dup_cstring("{");
+            bool first = true;
 
-            for (int i = 0; i < size; i++)
-            {
-                char *key = keys[i];
-                char *value = as_stringWithFormat(vm, *(Value *)ht_get(map->table, key));
+            ht_iter it = ht_iterator(map->table);
+            while (ht_next(&it)) {
+                char *key = it.key;
+                Value *value = (Value*)it.value;
+                char *value_str = as_stringWithFormat(vm, *value);
 
-                // Add comma and space if not the first entry
-                if (i > 0)
-                {
-                    buffer_size += 2;
-                    result = realloc(result, buffer_size);
-                    strcat(result, ", ");
-                }
+                if (!first)
+                    append_text(&result, &buffer_size, &capacity, ", ");
+                first = false;
 
-                buffer_size += strlen(key) + 2 + strlen(value) + 1; // key + ": " + value + null
-                result = realloc(result, buffer_size);
-                strcat(result, key);
-                strcat(result, ": ");
-                strcat(result, value);
+                append_text(&result, &buffer_size, &capacity, key);
+                append_text(&result, &buffer_size, &capacity, ": ");
+                append_text(&result, &buffer_size, &capacity, value_str);
 
-                free(value);
+                free(value_str);
             }
 
-            buffer_size += 2;
-            result = realloc(result, buffer_size);
-            strcat(result, "}");
-
+            append_text(&result, &buffer_size, &capacity, "}");
             return result;
         }
 
         case OBJ_SET:
         {
             PiSet *set = AS_SET(val);
-            size_t buffer_size = 2; // Start with "{}"
+            size_t buffer_size = 1;
+            size_t capacity = 2;
             char *result = dup_cstring("{");
             int size = set_size(set);
 
@@ -1324,57 +1330,38 @@ char *as_stringWithFormat(vm_t *vm, Value val)
             {
                 char *item = as_stringWithFormat(vm, set_get(set, i));
                 if (i > 0)
-                {
-                    buffer_size += 2;
-                    result = realloc(result, buffer_size);
-                    strcat(result, ", ");
-                }
-                buffer_size += strlen(item) + 1; // item + null
-                result = realloc(result, buffer_size);
-                strcat(result, item);
+                    append_text(&result, &buffer_size, &capacity, ", ");
+                append_text(&result, &buffer_size, &capacity, item);
                 free(item);
             }
 
-            buffer_size += 2;
-            result = realloc(result, buffer_size);
-            strcat(result, "}");
+            append_text(&result, &buffer_size, &capacity, "}");
 
             return result;
         }
         case OBJ_TUPLE:
         {
             PiTuple *tuple = AS_TUPLE(val);
-            size_t buffer_size = 2; // start with "()"
+            size_t buffer_size = 1;
+            size_t capacity = 2;
             char *result = dup_cstring("(");
             int size = LIST_SIZE(tuple->items);
 
             for (int i = 0; i < size; i++)
             {
                 if (i > 0)
-                {
-                    buffer_size += 2;
-                    result = realloc(result, buffer_size);
-                    strcat(result, ", ");
-                }
+                    append_text(&result, &buffer_size, &capacity, ", ");
 
                 Value item = *(Value *)list_getAt(tuple->items, i);
                 char *str = as_stringWithFormat(vm, item);
-                buffer_size += strlen(str);
-                result = realloc(result, buffer_size);
-                strcat(result, str);
+                append_text(&result, &buffer_size, &capacity, str);
                 free(str);
             }
 
             if (size == 1)
-            {
-                buffer_size += 1;
-                result = realloc(result, buffer_size);
-                strcat(result, ",");
-            }
+                append_text(&result, &buffer_size, &capacity, ",");
 
-            buffer_size++;
-            result = realloc(result, buffer_size);
-            strcat(result, ")");
+            append_text(&result, &buffer_size, &capacity, ")");
             return result;
         }
         case OBJ_TENSOR:
@@ -1382,8 +1369,9 @@ char *as_stringWithFormat(vm_t *vm, Value val)
             PiTensor *tensor = AS_TENSOR(val);
             char *result = dup_cstring("");
             size_t buffer_size = 0;
+            size_t capacity = 1;
             int indices[MAX_TENSOR_DIMS] = {0};
-            tensor_appendString(&result, &buffer_size, tensor, 0, indices);
+            tensor_appendString(&result, &buffer_size, &capacity, tensor, 0, indices);
             return result;
         }
 

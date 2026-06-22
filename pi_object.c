@@ -50,6 +50,7 @@ uint32_t string_hash(char *chars, size_t length)
     return hash;
 }
 
+
 Object *new_pistring(char *str)
 {
     PiString *string = CREATE_OBJ(PiString, OBJ_STRING);

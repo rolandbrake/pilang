@@ -959,7 +959,6 @@ int code_size(compiler_t *comp)
 
 void dis(compiler_t *comp)
 {
-
     dis_emit("disassembling...\n");
 
     if (stack_size(comp->contexts) > 0)
@@ -968,14 +967,12 @@ void dis(compiler_t *comp)
         ht_put(comp->instrs, "<global>", global_ctx->instrs);
     }
 
-    char **scope_names = ht_keys(comp->instrs);
-
-    int size = ht_length(comp->instrs);
-
-    for (int i = 0; i < size; i++)
+    // Use iterator over the instruction table
+    ht_iter it = ht_iterator(comp->instrs);
+    while (ht_next(&it))
     {
-        char *scope_name = scope_names[i];
-        list_t *instrs = ht_get(comp->instrs, scope_name);
+        char *scope_name = it.key;
+        list_t *instrs = (list_t*)it.value;  // stored as void*, cast back
 
         char header_buf[256];
 #ifdef __EMSCRIPTEN__

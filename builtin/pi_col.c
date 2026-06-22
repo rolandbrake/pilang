@@ -656,16 +656,15 @@ Value pi_copy(vm_t *vm, int argc, Value *argv)
         if (original->intrinsic_name)
             copy->intrinsic_name = strdup(original->intrinsic_name);
 
-        char **keys = ht_keys(original->table);
-        int size = ht_length(original->table);
-        for (int i = 0; i < size; i++)
+        ht_iter it = ht_iterator(original->table);
+        while (ht_next(&it))
         {
-            Value *item = (Value *)ht_get(original->table, keys[i]);
+            Value *item = it.value;
             if (!item)
                 continue;
 
             Value copied = pi_copy(vm, 1, item);
-            ht_put(copy->table, keys[i], &copied);
+            ht_put(copy->table, it.key, &copied);
         }
 
         return NEW_OBJ(obj);
