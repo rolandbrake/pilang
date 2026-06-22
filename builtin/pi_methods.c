@@ -142,10 +142,40 @@ static int native_methodCount = sizeof(native_methods) / sizeof(NativeMethod);
 
 NativeMethod *pi_nativeMethodFor(o_type type, const char *name)
 {
-    for (int i = 0; i < native_methodCount; i++)
+    /* Methods are grouped by receiver type.  Start in the relevant group so
+     * a hot `list.push()` lookup does not scan the string-method group (and
+     * every other type) first. */
+    int first = 0;
+    int last = native_methodCount;
+    switch (type)
+    {
+    case OBJ_STRING:
+        first = 0;
+        last = 17;
+        break;
+    case OBJ_LIST:
+        first = 17;
+        last = 36;
+        break;
+    case OBJ_TUPLE:
+        first = 36;
+        last = 45;
+        break;
+    case OBJ_SET:
+        first = 45;
+        last = 62;
+        break;
+    case OBJ_TENSOR:
+        first = 62;
+        break;
+    default:
+        return NULL;
+    }
+
+    for (int i = first; i < last; i++)
     {
         NativeMethod *method = &native_methods[i];
-        if (method->type == type && strcmp(method->name, name) == 0)
+        if (strcmp(method->name, name) == 0)
             return method;
     }
 
