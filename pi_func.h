@@ -30,6 +30,7 @@ typedef struct Function
     bool owns_upvalues;
     Object *instance;   // Instance for bound methods
     Object *owner;      // Defining object for methods
+    Object *bound_source; // Unbound function this bound method was created from
 
     bool is_native;     // Flag to check if it's a native function
     bool is_method;     // Flag to check if it's a part of an object method

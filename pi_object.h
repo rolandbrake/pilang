@@ -235,6 +235,12 @@ typedef struct PiMap
 {
     Object object;
     table_t *table;
+    // Lazily-created cache of bound prototype methods.  Keeping it separate
+    // from `table` prevents method caching from changing visible properties.
+    table_t *bound_methods;
+    // Most hot loops repeatedly call one method; avoid a second hash lookup.
+    Object *last_bound_source;
+    Value last_bound_method;
 
     char *intrinsic_name;
 

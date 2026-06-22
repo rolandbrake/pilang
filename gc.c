@@ -174,6 +174,9 @@ static void mark_references(Object *obj)
             mark_object((Object *)map->proto);
         if (map->super_instance)
             mark_object(map->super_instance);
+        if (map->last_bound_source)
+            mark_object(map->last_bound_source);
+        mark_value(map->last_bound_method);
 
         table_t *table = map->table;
         if (!table)
@@ -189,6 +192,12 @@ static void mark_references(Object *obj)
             if (val && IS_OBJ(*val))
                 mark_object(AS_OBJ(*val));
         }
+
+        table = map->bound_methods;
+        if (table)
+            for (int i = 0; i < table->capacity; i++)
+                if (table->items[i].key != NULL && table->items[i].value != NULL)
+                    mark_value(*(Value *)table->items[i].value);
         break;
     }
 
@@ -400,6 +409,8 @@ void free_object(Object *obj)
         if (map->intrinsic_name)
             free(map->intrinsic_name);
         ht_free(map->table);
+        if (map->bound_methods)
+            ht_free(map->bound_methods);
         break;
     }
 

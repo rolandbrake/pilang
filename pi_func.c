@@ -42,6 +42,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     fn->owns_upvalues = upvalues != NULL;
     fn->instance = instance;
     fn->owner = NULL;
+    fn->bound_source = NULL;
 
     int count = 0;
     if (upvalues)
@@ -96,6 +97,7 @@ Value *new_native(const char *name, native_func func)
     fn->owns_upvalues = false;
     fn->instance = NULL;
     fn->owner = NULL;
+    fn->bound_source = NULL;
 
     return val;
 }

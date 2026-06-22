@@ -260,6 +260,9 @@ Object *new_map(table_t *table, bool is_instance)
     PiMap *map = CREATE_OBJ(PiMap, OBJ_MAP);
 
     map->table = table;
+    map->bound_methods = NULL;
+    map->last_bound_source = NULL;
+    map->last_bound_method = NEW_NIL();
     map->intrinsic_name = NULL;
     map->locked = false;
     map->bracket_access = true;

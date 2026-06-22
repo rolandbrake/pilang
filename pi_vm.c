@@ -1371,6 +1371,7 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
         Function *bound = AS_FUN(*native);
         bound->instance = instance;
         bound->owner = function->owner;
+        bound->bound_source = (Object *)function;
         bound->is_method = true;
         return *native;
     }
@@ -1406,6 +1407,7 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
     ((Function *)fn)->need_args = function->need_args;
     ((Function *)fn)->need_kwargs = function->need_kwargs;
     ((Function *)fn)->owner = function->owner;
+    ((Function *)fn)->bound_source = (Object *)function;
 
     // Set the is_method flag to true
     ((Function *)fn)->is_method = true;
@@ -3691,13 +3693,17 @@ void run(vm_t *vm)
 
                 size_t param_count = (!callee_fn->is_native && callee_fn->params)
                                          ? (size_t)callee_fn->arity
-                                         : 0;
+                                         : 0;                                         
+                bool param_this = callee_fn->is_method && callee_fn->param_names &&
+                                         (size_t)list_size(callee_fn->param_names) + 1 == param_count;
+                // calculate the supplied argument count                         
+                size_t _param_count = param_count - (param_this ? 1 : 0);
 
                 if (!callee_fn->is_native &&
-                    !callee_fn->is_method &&
+                    (!callee_fn->is_method || callee_fn->instance != NULL) &&
                     !callee_fn->need_args &&
                     !callee_fn->need_kwargs &&
-                    (size_t)num_args == param_count)
+                    (size_t)num_args == _param_count)
                 {
                     if (vm->frame_sp >= STACK_MAX)
                         vm_error(vm, "[frame] Stack overflow.");
@@ -3743,10 +3749,23 @@ void run(vm_t *vm)
                     vm->ip = 0;
                     vm->bp = callee_slot;
 
-                    for (uint8_t i = 0; i < num_args; i++)
-                        vm->stack[vm->bp + i] = vm->stack[arg_base + i];
+                    if (callee_fn->is_method)
+                    {
+                        /* Slot zero is always `this` for a method frame. */
+                        vm->stack[vm->bp] = NEW_OBJ(callee_fn->instance);
+                        int param_base = vm->bp + (param_this ? 0 : 1);
+                        for (uint8_t i = 0; i < num_args; i++)
+                            vm->stack[param_base + (int)i + (param_this ? 1 : 0)] =
+                                vm->stack[arg_base + i];
 
-                    vm->sp = vm->bp + (int)param_count + 2;
+                        vm->sp = vm->bp + (int)param_count + (param_this ? 2 : 3);
+                    }
+                    else
+                    {
+                        for (uint8_t i = 0; i < num_args; i++)
+                            vm->stack[vm->bp + i] = vm->stack[arg_base + i];
+                        vm->sp = vm->bp + (int)param_count + 2;
+                    }
 
                     code = (uint8_t *)vm->code->data;
                     length = vm->code->size;
@@ -4667,7 +4686,47 @@ void run(vm_t *vm)
                 if ((map->is_instance && owner != NULL && IS_FUN(item)) || bind_object_method)
                 {
                     Object *target = map->super_instance ? map->super_instance : AS_OBJ(container);
-                    item = bind(vm, AS_FUN(item), target);
+                    /* Instance fields can hold short-lived closures (for
+                     * example micrograd's `_backward`).  Caching a bound copy
+                     * of one retains its captured graph after the field is
+                     * cleared, so only cache functions inherited from a
+                     * prototype. */
+                    bool cacheable_bound_method = owner != map;
+                    PiMap *cache = cacheable_bound_method && target->type == OBJ_MAP
+                                       ? (PiMap *)target
+                                       : NULL;
+                    Value *cached = (cache && cache->last_bound_source == AS_OBJ(item) &&
+                                     IS_FUN(cache->last_bound_method) &&
+                                     AS_FUN(cache->last_bound_method)->instance == target)
+                                        ? &cache->last_bound_method
+                                        : (cache && IS_STRING(index) && cache->bound_methods)
+                                        ? ht_get(cache->bound_methods, AS_CSTRING(index))
+                                        : NULL;
+
+                    if (cached && IS_FUN(*cached) &&
+                        AS_FUN(*cached)->bound_source == AS_OBJ(item) &&
+                        AS_FUN(*cached)->instance == target)
+                    {
+                        item = *cached;
+                    }
+                    else
+                    {
+                        item = bind(vm, AS_FUN(item), target);
+                        if (cache && IS_STRING(index))
+                        {
+                            if (!cache->bound_methods)
+                                cache->bound_methods = ht_create(sizeof(Value));
+                            ht_put(cache->bound_methods, AS_CSTRING(index), &item);
+                        }
+                    }
+
+                    if (cache)
+                    {
+                        cache->last_bound_source = AS_OBJ(item)->type == OBJ_FUN
+                                                       ? AS_FUN(item)->bound_source
+                                                       : NULL;
+                        cache->last_bound_method = item;
+                    }
                 }
 
                 push_stack(vm, item); // Push NIL if key not found
