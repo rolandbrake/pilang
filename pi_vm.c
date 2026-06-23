@@ -215,7 +215,7 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
                                    : new_capacity + new_capacity / 4 + 256;
             }
 
-            list_expand(items, new_capacity);
+            _list_expand(items, new_capacity);
         }
 
         /*
