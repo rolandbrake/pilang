@@ -495,7 +495,7 @@ void add_token(tk_type type)
     case TK_LBRACE:
     case TK_LBRACKET:
         // Push opening bracket position (token index)
-        push(scanner->brackets, &index);
+        stack_push(scanner->brackets, &index);
         token.openAt = index;
         break;
 
@@ -503,14 +503,11 @@ void add_token(tk_type type)
     case TK_RBRACE:
     case TK_RBRACKET:
     {
-        // Pop matching opening bracket
-        if (!is_empty(scanner->brackets))
+        if (!stack_isEmpty(scanner->brackets))
         {
-            int *open_pos_ptr = pop(scanner->brackets);
-            int open_pos = *open_pos_ptr;
-            free(open_pos_ptr);
+            // stack stores int values - pop returns pointer to the int slot
+            int open_pos = *(int *)stack_pop(scanner->brackets);
 
-            // Link the brackets
             token.openAt = open_pos;
             scanner->tokens[open_pos].closeAt = index;
         }

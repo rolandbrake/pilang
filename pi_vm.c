@@ -990,14 +990,6 @@ static Value bind_nativeMethod(vm_t *vm, Object *instance, NativeMethod *method)
 }
 
 /**
- * True if no values exist above the current base pointer.
- */
-static bool stack_isEmpty(vm_t *vm)
-{
-    return vm->sp == vm->bp;
-}
-
-/**
  * Refresh list metadata flags for numeric/matrix optimizations.
  */
 static void refresh_listMeta(PiList *plist)

@@ -1,60 +1,83 @@
 #ifndef PI_STACK_H
 #define PI_STACK_H
 
-// Define macros for pushing and popping integers
-#define PUSH_INT(stack, value) \
-    do                         \
-    {                          \
-        int temp = value;      \
-        push(stack, &temp);    \
-    } while (0)
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
-#define POP_INT(stack) *(int *)pop(stack)
+typedef unsigned char byte;
 
-// Define the structure for the stack
 typedef struct
 {
-    void *data;   // Pointer to the array holding the stack items
-    int i_size;   // Size of each individual item in the stack
-    int top;      // Index of the top element in the stack (starts at -1 when empty)
-    int capacity; // Total capacity of the stack (max number of items before expansion)
+    void *data;   // flat element buffer
+    int i_size;   // size of each element in bytes
+    int top;      // index of top element; -1 when empty
+    int capacity; // allocated slot count
 } stack_t;
 
-// Function to create a new stack with a given item size
+static inline int stack_isEmpty(const stack_t *stack)
+{
+    return stack->top == -1;
+}
+
+static inline int stack_isFull(const stack_t *stack)
+{
+    return stack->top == stack->capacity - 1;
+}
+
+static inline int stack_size(const stack_t *stack)
+{
+    return stack->top + 1;
+}
+
+static inline void *stack_peek(const stack_t *stack)
+{
+    if (stack->top < 0)
+        return NULL;
+    return (byte *)stack->data + stack->top * stack->i_size;
+}
+
+void stack_expand(stack_t *stack);
+
+static inline void stack_push(stack_t *stack, const void *item)
+{
+    if (stack_isFull(stack))
+        stack_expand(stack);
+    stack->top++;
+    memcpy((byte *)stack->data + stack->top * stack->i_size, item, stack->i_size);
+}
+
+static inline void *stack_pop(stack_t *stack)
+{
+    if (stack->top < 0)
+        return NULL;
+    void *slot = (byte *)stack->data + stack->top * stack->i_size;
+    stack->top--;
+    return slot;
+}
+
+// Convenience macros for int-typed stacks.
+// Safe now that stack_pop returns an interior pointer (no leak).
+#define PUSH_INT(stack, value)      \
+    do                              \
+    {                               \
+        int _tmp = (value);         \
+        stack_push((stack), &_tmp); \
+    } while (0)
+
+#define POP_INT(stack) (*(int *)stack_pop(stack))
+
 stack_t *stack_create(int i_size);
+stack_t *stack_createCap(int i_size, int capacity);
 
-// Function to expand the stack's capacity to a new size
-void stack_expand(stack_t *stack, int new_cap);
+void stack_push(stack_t *stack, const void *item);
+void *stack_pop(stack_t *stack);
 
-// Function to push an item onto the stack
-void push(stack_t *stack, void *item);
+void *stack_peek(const stack_t *stack);
 
-// Function to pop the top item from the stack
-// Returns a pointer to the popped item
-void *pop(stack_t *stack);
+void *stack_getAt(const stack_t *stack, int index);
 
-// Function to return the top item from the stack without removing it
-void *top(stack_t *stack);
-
-// Function to check if the stack is empty
-// Returns 1 if empty, 0 otherwise
-int is_empty(stack_t *stack);
-
-// Function to check if the stack is full
-// Returns 1 if full, 0 otherwise
-int is_full(stack_t *stack);
-
-// Function to get an item from the stack at a specific index
-// Returns a pointer to the item
-void *stack_getAt(stack_t *stack, int index);
-
-// Function to get the current number of items in the stack
-int stack_size(stack_t *stack);
-
-// Function to free the memory allocated for the stack
 void stack_free(stack_t *stack);
-
-
 void stack_print(stack_t *stack, void (*print_item)(void *));
 
-#endif // PI_STACK_H
+#endif /* PI_STACK_H */

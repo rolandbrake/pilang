@@ -164,11 +164,14 @@ static void free_context(context_t *context)
 {
     list_free(context->upvalues);
 
-    while (!is_empty(context->locals))
+    // locals stack stores local_t* pointer VALUES
+    // stack_pop returns pointer to the slot holding the local_t*
+    // dereference to get the actual local_t*, then free that
+    while (!stack_isEmpty(context->locals))
     {
-        local_t *local = (local_t *)pop(context->locals);
+        local_t *local = *(local_t **)stack_pop(context->locals);
         free(local->name);
-        free(local);
+        free(local); // local_t was heap-alloc'd in add_localConst — safe to free
     }
     stack_free(context->locals);
 
@@ -199,7 +202,7 @@ static void free_loop(loop_t *loop);
 
 static context_t *current_context(compiler_t *comp)
 {
-    context_t **context = (context_t **)top(comp->contexts);
+    context_t **context = (context_t **)stack_peek(comp->contexts);
     return context ? *context : NULL;
 }
 
@@ -211,24 +214,20 @@ static context_t *context_at(compiler_t *comp, int depth)
 
 static context_t *pop_context(compiler_t *comp)
 {
-    context_t **context = (context_t **)pop(comp->contexts);
-    context_t *result = context ? *context : NULL;
-    free(context);
-    return result;
+    context_t **context = (context_t **)stack_pop(comp->contexts);
+    return context ? *context : NULL;
 }
 
 static loop_t *current_loop(compiler_t *comp)
 {
-    loop_t **loop = (loop_t **)top(comp->loops);
+    loop_t **loop = (loop_t **)stack_peek(comp->loops);
     return loop ? *loop : NULL;
 }
 
-static loop_t *pop_loop_context(compiler_t *comp)
+static loop_t *pop_loopContext(compiler_t *comp)
 {
-    loop_t **loop = (loop_t **)pop(comp->loops);
-    loop_t *result = loop ? *loop : NULL;
-    free(loop);
-    return result;
+    loop_t **loop = (loop_t **)stack_pop(comp->loops);
+    return loop ? *loop : NULL;
 }
 
 static upvalue_t *create_upvalue(int index, bool is_local)
@@ -280,7 +279,7 @@ compiler_t *init_compiler()
     comp->is_repl = false;
     comp->source_name = NULL;
 
-    push(comp->contexts, &comp->current);
+    stack_push(comp->contexts, &comp->current);
 
     return comp;
 }
@@ -329,18 +328,18 @@ bool is_localScope(compiler_t *comp)
 void push_object(compiler_t *comp)
 {
     if (!comp->is_lookUp)
-        push(comp->objects, new_string(comp->name));
+        stack_push(comp->objects, new_string(comp->name));
 }
 
 void pop_object(compiler_t *comp)
 {
     if (!comp->is_lookUp)
-        pop(comp->objects);
+        stack_pop(comp->objects);
 }
 
 bool is_object(compiler_t *comp)
 {
-    return !is_empty(comp->objects);
+    return !stack_isEmpty(comp->objects);
 }
 
 bool is_constructor(compiler_t *comp)
@@ -368,7 +367,7 @@ void print_locals(compiler_t *comp)
 {
     printf("Locals stack (top to bottom):\n");
 
-    local_t *local = (local_t *)top(comp->current->locals);
+    local_t *local = (local_t *)stack_peek(comp->current->locals);
     printf("Local: name = %s, depth = %d, is_captured = %s\n",
            local->name,
            local->depth,
@@ -411,7 +410,7 @@ void add_localConst(compiler_t *comp, char *name, bool is_const)
     local->is_captured = false;
     local->is_const = is_const;
 
-    push(locals, local);
+    stack_push(locals, local);
 }
 
 void add_local(compiler_t *comp, char *name)
@@ -681,7 +680,7 @@ int store_name(compiler_t *comp, char *name)
 void remove_locals(compiler_t *comp, int size)
 {
     while (size-- > 0)
-        pop(comp->current->locals);
+        stack_pop(comp->current->locals);
 }
 
 void push_scope(compiler_t *comp)
@@ -707,19 +706,19 @@ void push_loop(compiler_t *comp, int address, bool is_for)
     loop->breaks = stack_create(sizeof(int));
     loop->is_for = is_for;
 
-    push(comp->loops, &loop);
+    stack_push(comp->loops, &loop);
 }
 
 void pop_loop(compiler_t *comp, int address)
 {
-    loop_t *loop = pop_loop_context(comp);
+    loop_t *loop = pop_loopContext(comp);
     stack_t *breaks = loop->breaks;
 
     int16_t offset = address - comp->code->size;
 
     emit_16u(comp, OP_JUMP, "", offset);
 
-    while (is_empty(breaks) == false)
+    while (stack_isEmpty(breaks) == false)
         patch_jump(comp, POP_INT(breaks));
 
     stack_free(loop->breaks);
@@ -743,7 +742,7 @@ bool is_forLoop(compiler_t *comp)
 
 bool in_loop(compiler_t *comp)
 {
-    return !is_empty(comp->loops);
+    return !stack_isEmpty(comp->loops);
 }
 
 int loop_depth(compiler_t *comp)
@@ -776,7 +775,7 @@ void push_function(compiler_t *comp, char *name)
     {
         current_context(comp)->depth = comp->current->depth;
         context_t *context = create_context(true, list_create(sizeof(uint8_t)), name);
-        push(comp->contexts, &context);
+        stack_push(comp->contexts, &context);
 
         comp->current = current_context(comp);
         comp->code = comp->current->code;
@@ -956,7 +955,6 @@ int code_size(compiler_t *comp)
     return comp->code->size;
 }
 
-
 void dis(compiler_t *comp)
 {
     dis_emit("disassembling...\n");
@@ -972,7 +970,7 @@ void dis(compiler_t *comp)
     while (ht_next(&it))
     {
         char *scope_name = it.key;
-        list_t *instrs = (list_t*)it.value;  // stored as void*, cast back
+        list_t *instrs = (list_t *)it.value; // stored as void*, cast back
 
         char header_buf[256];
 #ifdef __EMSCRIPTEN__
@@ -1245,7 +1243,6 @@ void p_errorf(int line, int column, const char *format, ...)
     {
         fflush(stdout);
 
-
         if (error_source && error_source[0] != '\0')
             fprintf(stderr, "\n\033[1;31m[PARSE ERROR] in %s at line %d, column %d:\033[0m %s",
                     error_source, line, column, buffer);
@@ -1271,16 +1268,16 @@ void free_compiler(compiler_t *comp)
         ht_free(comp->declared_globals);
     free(comp->source_name);
 
-    while (!is_empty(comp->contexts))
+    while (!stack_isEmpty(comp->contexts))
     {
         context_t *context = pop_context(comp);
         free_context(context);
     }
     stack_free(comp->contexts);
 
-    while (!is_empty(comp->loops))
+    while (!stack_isEmpty(comp->loops))
     {
-        loop_t *loop = pop_loop_context(comp);
+        loop_t *loop = pop_loopContext(comp);
         free_loop(loop);
     }
     stack_free(comp->loops);
@@ -1299,16 +1296,16 @@ void reset_compiler(compiler_t *comp)
     if (comp->declared_globals)
         ht_free(comp->declared_globals);
 
-    while (!is_empty(comp->contexts))
+    while (!stack_isEmpty(comp->contexts))
     {
         context_t *context = pop_context(comp);
         free_context(context);
     }
     stack_free(comp->contexts);
 
-    while (!is_empty(comp->loops))
+    while (!stack_isEmpty(comp->loops))
     {
-        loop_t *loop = pop_loop_context(comp);
+        loop_t *loop = pop_loopContext(comp);
         free_loop(loop);
     }
     stack_free(comp->loops);
@@ -1338,5 +1335,5 @@ void reset_compiler(compiler_t *comp)
     comp->is_repl = false;
     comp->source_name = NULL;
 
-    push(comp->contexts, &comp->current);
+    stack_push(comp->contexts, &comp->current);
 }

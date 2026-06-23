@@ -2082,7 +2082,7 @@ static void assignment(parser_t *parser, bool emit_load)
 
         right = parser->current;
 
-        push(assigns, init_assign(left, right, op));
+        stack_push(assigns, init_assign(left, right, op));
 
         cond_expr(parser);
         left = right;
@@ -2090,7 +2090,7 @@ static void assignment(parser_t *parser, bool emit_load)
 
     look_up(parser->comp, prev_lookUp);
 
-    if (is_empty(assigns))
+    if (stack_isEmpty(assigns))
     {
         parser->current = left;
         cond_expr(parser); // Re-evaluate as a non-assignment expression
@@ -2101,10 +2101,10 @@ static void assignment(parser_t *parser, bool emit_load)
         assign_t *assign;
 
         // Second pass: pop each assignment and generate bytecode
-        while (!is_empty(assigns))
+        while (!stack_isEmpty(assigns))
         {
 
-            assign = pop(assigns);
+            assign = stack_pop(assigns);
 
             op = assign->op;
             left = assign->left;
@@ -2174,6 +2174,8 @@ static void assignment(parser_t *parser, bool emit_load)
             parser->current = left;
             parser->is_store = true;
             cond_expr(parser);
+
+            // free(assign);
         }
 
         if (emit_load)
