@@ -272,7 +272,7 @@ typedef struct
 {
     Object object;
     void *table; // private hash table backing this PiSet
-    int current;      // iterator state for traversing the set
+    int current; // iterator state for traversing the set
 } PiSet;
 
 typedef struct
@@ -295,10 +295,13 @@ typedef struct
     Object object;
     list_t *data;
     list_t *param_names; // Parameter names for functions using this code
+
     bool need_args;
     bool need_kwargs;
+
     bool method_need_args;
     bool method_need_kwargs;
+
     GlobalCache global_cache;
 
     uint32_t hash;
@@ -337,7 +340,7 @@ typedef struct PiContext
     int width, height;
     bool running;
     float tx, ty, sx, sy, angle, alpha;
-    void *font;            // default font
+    void *font;             // default font
     void *_transform_stack; // stack of _transformState
 
     void *userdata; /* PiDraw extra state (_transform stack, font, fps); owned by builtin/pi_draw.c */

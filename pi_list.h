@@ -71,7 +71,7 @@ static inline void *list_peek(list_t *list)
 }
 
 list_t *list_create(int i_size);
-list_t *list_create_cap(int i_size, int capacity); /* pre-sized allocation   */
+list_t *list_createCap(int i_size, int capacity); /* pre-sized allocation   */
 
 void list_addAt(list_t *list, int index, const void *item);
 void list_addFirst(list_t *list, const void *item);

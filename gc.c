@@ -521,7 +521,7 @@ void mark_roots(vm_t *vm)
     for (int i = 0; i < vm->frame_sp; i++)
     {
         Frame *frame = &vm->frames[i];
-        if (frame->same_context)
+        if (frame->is_recursive)
             continue;
 
         if (frame->function != NULL)

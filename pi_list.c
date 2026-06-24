@@ -31,13 +31,13 @@ list_t *list_create(int i_size)
 }
 
 /* Pre-sized variant - use when the final size is known (avoids grow cycles). */
-list_t *list_create_cap(int i_size, int capacity)
+list_t *list_createCap(int i_size, int capacity)
 {
     if (capacity < INIT_CAP)
         capacity = INIT_CAP;
     list_t *list = _list_alloc(i_size, capacity);
     if (!list)
-        error("[list_create_cap] Out of memory.");
+        error("[list_createCap] Out of memory.");
     return list;
 }
 
@@ -55,7 +55,7 @@ list_t *list_copy(const list_t *list)
     /* Allocate exactly as many slots as there are live elements.
        Use INIT_CAP as minimum so small copies can still grow cheaply. */
     int cap = list->size > INIT_CAP ? list->size : INIT_CAP;
-    list_t *copy = list_create_cap(list->i_size, cap);
+    list_t *copy = list_createCap(list->i_size, cap);
 
     if (list->size > 0)
         memcpy(copy->data, list->data, (size_t)list->size * list->i_size);
@@ -142,7 +142,7 @@ list_t *list_map(list_t *list, Value *(*func)(Value *))
     if (!list || !func)
         error("[list_map] Invalid arguments.");
 
-    list_t *result = list_create_cap(list->i_size, list->size > INIT_CAP ? list->size : INIT_CAP);
+    list_t *result = list_createCap(list->i_size, list->size > INIT_CAP ? list->size : INIT_CAP);
 
     for (int i = 0; i < list->size; i++)
     {

@@ -1,0 +1,105 @@
+
+/**
+ * An "Individual" represents a single candidate solution. The core piece of
+ * information about an individual is its "chromosome", which is an encoding of
+ * a possible solution to the problem at hand. A chromosome can be a string, an
+ * array, a list, etc -- in this class, the chromosome is an integer array. 
+ * 
+ * An individual position in the chromosome is called a gene, and these are the
+ * atomic pieces of the solution that can be manipulated or mutated. When the
+ * chromosome is a string, as in this case, each character or set of characters
+ * can be a gene.
+ * 
+ * An individual also has a "fitness" score this is a number that represents
+ * how good a solution to the problem this individual is. The meaning of the
+ * fitness score will vary based on the problem at hand.
+ * 
+ * @author bkanber
+ *
+ */
+class Individual {
+	/**
+	 * Initializes individual with specific chromosome/chromosome length
+	 * 
+	 */
+	constructor(chromosome, chromosomeLength) {
+		 this.fitness = -1
+
+        if !chromosome {
+            this.chromosome = chromosome
+        }
+        else  {
+            println(chromosomeLength)
+            this.chromosome = [rand() > 0.5 ? 1 : 0 : _ in 1..chromosomeLength]             
+        }
+	}
+
+	/**
+	 * Gets individual's chromosome
+	 * 	 
+	 */
+	get_chromesome() {
+		return this.chromosome
+	}
+
+	/**
+	 * Gets individual's chromosome length
+	 * 	 
+	 */
+	get_chromosomeLength() {
+		return #this.chromosome
+	}
+
+	/**
+	 * Set gene at offset
+	 * 
+	 */
+	set_gene(offset, gene) {
+		this.chromosome[offset] = gene
+	}
+
+	/**
+	 * Get gene at offset
+	 * 
+	 * @param offset
+	 * @return gene
+	 */
+	get_gene(offset) {
+		return this.chromosome[offset]
+	}
+
+	/**
+	 * Store individual's fitness
+	 * 
+	 * @param fitness
+	 *            The individuals fitness
+	 */
+	setFitness(fitness) {
+		this.fitness = fitness
+	}
+
+	/**
+	 * Gets individual's fitness
+	 * 
+	 * @return The individual's fitness
+	 */
+	getFitness() {
+		return this.fitness
+	}
+	
+	
+	/**
+	 * Display the chromosome as a string.
+	 * 	 
+	 */
+	format() {
+		return this.chromosome
+	}
+}
+
+
+individual = Individual(chromosomeLength = 10)
+
+println(individual.chromosome)
+
+

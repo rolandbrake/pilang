@@ -1266,6 +1266,46 @@ static inline int _read_short(uint8_t *code, int pc)
     return (high << 8) | low;      // Combine high and low bytes into a 16-bit short
 }
 
+static inline Value op_binaryNum(int op, double l, double r)
+{
+    switch (op)
+    {
+    case 0:
+        return NEW_NUM(l + r);
+    case 1:
+        return NEW_NUM(l - r);
+    case 2:
+        return NEW_NUM(l * r);
+    case 3:
+        return NEW_NUM(r == 0.0 ? INFINITY : l / r);
+    case 4:
+    {
+        int ir = (int)r;
+        return ir == 0 ? NEW_NAN() : NEW_NUM((int)l % ir);
+    }
+    case 5:
+        return NEW_BOOL(l && r);
+    case 6:
+        return NEW_BOOL(l || r);
+    case 7:
+        return NEW_NUM(pow(l, r));
+    case 8:
+        return NEW_NUM((int)l & (int)r);
+    case 9:
+        return NEW_NUM((int)l | (int)r);
+    case 10:
+        return NEW_NUM((int)l ^ (int)r);
+    case 11:
+        return NEW_NUM((int)l << (int)r);
+    case 12:
+        return NEW_NUM((int)l >> (int)r);
+    case 13:
+        return NEW_NUM((uint32_t)l >> (uint32_t)r);
+    default:
+        return NEW_NUM(0);
+    }
+}
+
 /**
  * Capture or reuse an open upvalue for a stack slot.
  */
@@ -2433,7 +2473,7 @@ void run(vm_t *vm)
             right = pop_stack(vm);
             left = pop_stack(vm);
 
-            if (is_numeric(left) && is_numeric(right))
+            if (op <= 5 && is_numeric(left) && is_numeric(right))
             {
                 double l = as_number(left);
                 double r = as_number(right);
@@ -2458,8 +2498,6 @@ void run(vm_t *vm)
                 case 5: // "<="
                     result = (l <= r);
                     break;
-                default:
-                    goto LABEL_COMPARE; // op 6 = 'in', needs objects
                 }
                 push_stack(vm, NEW_BOOL(result));
                 break;
@@ -2488,7 +2526,7 @@ void run(vm_t *vm)
             }
 
             //  Fast path: both strings
-            if (IS_STRING(left) && IS_STRING(right))
+            if (op <= 5 && IS_STRING(left) && IS_STRING(right))
             {
                 int cmp = strcmp(AS_STRING(left)->chars, AS_STRING(right)->chars);
                 bool result;
@@ -2512,8 +2550,6 @@ void run(vm_t *vm)
                 case 5:
                     result = (cmp <= 0);
                     break;
-                default:
-                    goto LABEL_COMPARE;
                 }
                 push_stack(vm, NEW_BOOL(result));
                 break;
@@ -2553,8 +2589,6 @@ void run(vm_t *vm)
                 push_stack(vm, NEW_BOOL(result));
                 break;
             }
-
-        LABEL_COMPARE:
 
             //  op 6: 'in' operator
             if (op == 6)
@@ -2735,57 +2769,7 @@ void run(vm_t *vm)
                 double l = AS_NUM(left);
                 double r = AS_NUM(right);
                 vm->sp--;
-                switch (op)
-                {
-                case 0:
-                    vm->stack[vm->sp - 1] = NEW_NUM(l + r);
-                    break;
-                case 1:
-                    vm->stack[vm->sp - 1] = NEW_NUM(l - r);
-                    break;
-                case 2:
-                    vm->stack[vm->sp - 1] = NEW_NUM(l * r);
-                    break;
-                case 3:
-                    vm->stack[vm->sp - 1] = NEW_NUM(r == 0.0 ? INFINITY : l / r);
-                    break;
-                case 4:
-                {
-                    int ir = (int)r;
-                    vm->stack[vm->sp - 1] = ir == 0 ? NEW_NAN() : NEW_NUM((int)l % ir);
-                    break;
-                }
-                case 5:
-                    vm->stack[vm->sp - 1] = NEW_BOOL(l && r);
-                    break;
-                case 6:
-                    vm->stack[vm->sp - 1] = NEW_BOOL(l || r);
-                    break;
-                case 7:
-                    vm->stack[vm->sp - 1] = NEW_NUM(pow(l, r));
-                    break;
-                case 8:
-                    vm->stack[vm->sp - 1] = NEW_NUM((int)l & (int)r);
-                    break;
-                case 9:
-                    vm->stack[vm->sp - 1] = NEW_NUM((int)l | (int)r);
-                    break;
-                case 10:
-                    vm->stack[vm->sp - 1] = NEW_NUM((int)l ^ (int)r);
-                    break;
-                case 11:
-                    vm->stack[vm->sp - 1] = NEW_NUM((int)l << (int)r);
-                    break;
-                case 12:
-                    vm->stack[vm->sp - 1] = NEW_NUM((int)l >> (int)r);
-                    break;
-                case 13:
-                    vm->stack[vm->sp - 1] = NEW_NUM((uint32_t)l >> (uint32_t)r);
-                    break;
-                }
-#ifdef PI_PROFILE_OPS
-                vm_profile.binary_num_fast++;
-#endif
+                vm->stack[vm->sp - 1] = op_binaryNum(op, l, r);
                 break;
             }
 
@@ -2796,65 +2780,11 @@ void run(vm_t *vm)
             // Covers the vast majority of arithmetic — zero hash lookups, zero
             // to_primitive calls, no overload check. Falls through to slow path
             // only for objects, strings, matrices, and special ops.
-            if (is_numeric(left) && is_numeric(right))
+            if (op <= 13 && is_numeric(left) && is_numeric(right))
             {
-                double l = as_number(left);
-                double r = as_number(right);
-                switch (op)
-                {
-                case 0:
-                    push_stack(vm, NEW_NUM(l + r));
-                    break;
-                case 1:
-                    push_stack(vm, NEW_NUM(l - r));
-                    break;
-                case 2:
-                    push_stack(vm, NEW_NUM(l * r));
-                    break;
-                case 3:
-                    push_stack(vm, NEW_NUM(r == 0.0 ? INFINITY : l / r));
-                    break;
-                case 4:
-                {
-                    int ir = (int)r;
-                    push_stack(vm, ir == 0 ? NEW_NAN() : NEW_NUM((int)l % ir));
-                    break;
-                }
-                case 5:
-                    push_stack(vm, NEW_BOOL(l && r));
-                    break;
-                case 6:
-                    push_stack(vm, NEW_BOOL(l || r));
-                    break;
-                case 7:
-                    push_stack(vm, NEW_NUM(pow(l, r)));
-                    break;
-                case 8:
-                    push_stack(vm, NEW_NUM((int)l & (int)r));
-                    break;
-                case 9:
-                    push_stack(vm, NEW_NUM((int)l | (int)r));
-                    break;
-                case 10:
-                    push_stack(vm, NEW_NUM((int)l ^ (int)r));
-                    break;
-                case 11:
-                    push_stack(vm, NEW_NUM((int)l << (int)r));
-                    break;
-                case 12:
-                    push_stack(vm, NEW_NUM((int)l >> (int)r));
-                    break;
-                case 13:
-                    push_stack(vm, NEW_NUM((uint32_t)l >> (uint32_t)r));
-                    break;
-                // ops 14 (dot), 15 (is) require objects - fall to LABEL_BINARY
-                default:
-                    goto LABEL_BINARY;
-                }
-                break; // done - exits OP_BINARY
+                push_stack(vm, op_binaryNum(op, as_number(left), as_number(right)));
+                break;
             }
-
-        LABEL_BINARY:
 
             // Overload check - only for flagged instances. Numeric primitives
             // have already exited through the fast path above.
@@ -3639,19 +3569,13 @@ void run(vm_t *vm)
         case OP_CALL_FUNCTION:
         {
             uint8_t num_args = code[pc++];
-            int arg_base = vm->sp - num_args;
-            int callee_slot = arg_base - 1;
+            int args_base = vm->sp - num_args;
+            int obj_slot = args_base - 1; // callee slot position
 
-            if (callee_slot < 0)
-                vm_errorf(vm,
-                          "Invalid function call: expected a callable plus %u argument value%s, "
-                          "but only %d stack value%s available.",
-                          num_args,
-                          num_args == 1 ? "" : "s",
-                          vm->sp,
-                          vm->sp == 1 ? " is" : "s are");
+            if (obj_slot < 0)
+                vm_errorf(vm, "Invalid function call: expected a callable object");
 
-            Value callee = vm->stack[callee_slot];
+            Value callee = vm->stack[obj_slot];
             vm->error_pc = vm->pc;
             vm->pc = pc; /* sync before any call that may re-enter run() */
 
@@ -3666,18 +3590,18 @@ void run(vm_t *vm)
                  * the operand stack instead of constructing a method argv
                  * array and entering the generic native-call path.
                  */
-                if (callee_fn->is_native && callee_fn->is_method &&
-                    callee_fn->native == pi_push && callee_fn->instance &&
-                    callee_fn->instance->type == OBJ_LIST)
-                {
-                    list_t *items = ((PiList *)callee_fn->instance)->items;
-                    for (uint8_t i = 0; i < num_args; i++)
-                        list_add(items, &vm->stack[arg_base + i]);
+                // if (callee_fn->is_native && callee_fn->is_method &&
+                //     callee_fn->native == pi_push && callee_fn->instance &&
+                //     callee_fn->instance->type == OBJ_LIST)
+                // {
+                //     list_t *items = ((PiList *)callee_fn->instance)->items;
+                //     for (uint8_t i = 0; i < num_args; i++)
+                //         list_add(items, &vm->stack[args_base + i]);
 
-                    vm->sp = callee_slot;
-                    vm->stack[vm->sp++] = NEW_NUM(items->size);
-                    break;
-                }
+                //     vm->sp = callee_slot;
+                //     vm->stack[vm->sp++] = NEW_NUM(items->size);
+                //     break;
+                // }
 
                 size_t param_count = (!callee_fn->is_native && callee_fn->params)
                                          ? (size_t)callee_fn->arity
@@ -3699,11 +3623,11 @@ void run(vm_t *vm)
                     bool self_recursive = callee_fn == function;
                     Frame *frame = &vm->frames[vm->frame_sp++];
                     frame->pc = pc;
-                    frame->sp = callee_slot;
+                    frame->sp = obj_slot; // skip callee (callee_slot)
                     frame->bp = vm->bp;
                     frame->ip = vm->ip;
                     frame->iters_top = vm->iter_sp;
-                    frame->same_context = self_recursive;
+                    frame->is_recursive = self_recursive;
                     frame->global_cache = vm->global_cache;
 
                     if (self_recursive)
@@ -3735,7 +3659,7 @@ void run(vm_t *vm)
 
                     vm->pc = 0;
                     vm->ip = 0;
-                    vm->bp = callee_slot;
+                    vm->bp = obj_slot;
 
                     if (callee_fn->is_method)
                     {
@@ -3744,14 +3668,14 @@ void run(vm_t *vm)
                         int param_base = vm->bp + (param_this ? 0 : 1);
                         for (uint8_t i = 0; i < num_args; i++)
                             vm->stack[param_base + (int)i + (param_this ? 1 : 0)] =
-                                vm->stack[arg_base + i];
+                                vm->stack[args_base + i];
 
                         vm->sp = vm->bp + (int)param_count + (param_this ? 2 : 3);
                     }
                     else
                     {
                         for (uint8_t i = 0; i < num_args; i++)
-                            vm->stack[vm->bp + i] = vm->stack[arg_base + i];
+                            vm->stack[vm->bp + i] = vm->stack[args_base + i];
                         vm->sp = vm->bp + (int)param_count + 2;
                     }
 
@@ -5321,7 +5245,7 @@ void run(vm_t *vm)
             vm->bp = frame->bp;
             vm->sp = frame->sp;
             vm->ip = frame->ip;
-            if (!frame->same_context)
+            if (!frame->is_recursive)
             {
                 vm->globals = frame->globals;
                 vm->global_cache = frame->global_cache;
@@ -5337,7 +5261,7 @@ void run(vm_t *vm)
             code = (uint8_t *)vm->code->data;
             length = vm->code->size;
             pc = vm->pc;
-            if (!frame->same_context)
+            if (!frame->is_recursive)
                 function = frame->function;
 
             if (vm->frame_sp < frame_sp)

@@ -178,7 +178,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     frame->globals = vm->globals;
     frame->global_cache = vm->global_cache;
     frame->function = (Function *)vm->function; /* save BEFORE overwrite */
-    frame->same_context = false;
+    frame->is_recursive = false;
 
     // switch to callee context
     vm->function = (Object *)function;

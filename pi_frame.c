@@ -19,7 +19,7 @@ Frame *create_frame(int pc, int sp, int bp, list_t *code, list_t *constants, lis
     frame->global_cache = NULL;
 
     frame->function = fn;
-    frame->same_context = false;
+    frame->is_recursive = false;
 
     return frame;
 }

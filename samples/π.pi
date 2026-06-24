@@ -1,0 +1,19 @@
+const MIN_FLOAT = 1.11e-16
+
+pi = 2.0
+tmp = 2.0
+a = 1
+b = 3
+
+while tmp > MIN_FLOAT
+{
+    tmp *= a / b
+    pi += tmp
+    a += 1
+    b += 2
+}
+
+import math
+
+println("Computed  π value: " + pi)
+println("Teascript π value: " + math.PI)

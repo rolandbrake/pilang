@@ -795,8 +795,10 @@ void pop_function(compiler_t *comp, int params)
         list_t *upvalues = comp->current->upvalues;
 
         ObjCode *code = (ObjCode *)new_code(comp->code);
+        
         code->need_args = code_usesLocalSlot(comp->code, (uint8_t)params);
         code->need_kwargs = code_usesLocalSlot(comp->code, (uint8_t)(params + 1));
+
         code->method_need_args = code_usesLocalSlot(comp->code, (uint8_t)(params + 1));
         code->method_need_kwargs = code_usesLocalSlot(comp->code, (uint8_t)(params + 2));
 
