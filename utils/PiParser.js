@@ -32,6 +32,7 @@ import PiSetExpression from "./PiSetExpression.js";
 import PiSequenceExpression from "./PiSequenceExpression.js";
 import PiImportStatement from "./PiImportStatement.js";
 import PiClassStatement from "./PiClassStatement.js";
+import PiSwitchStatement from "./PiSwitchStatement.js";
 
 export default class PiParser {
   FunctionDeclarations() {
@@ -356,6 +357,8 @@ export default class PiParser {
       }
     } else if (this.match(TokenType.IF)) {
       return this.IfStatement();
+    } else if (this.match(TokenType.SWITCH)) {
+      return this.SwitchStatement();
     } else if (this.match(TokenType.WHILE)) {
       return this.WhileStatement();
     } else if (this.match(TokenType.FOR)) {
@@ -450,6 +453,132 @@ export default class PiParser {
       elseToken,
       elseStmt
     );
+  }
+
+  SwitchStatement() {
+    const switchToken = this.previous();
+    const value = this.Expression();
+    this.consume(TokenType.LBRACE, "Expect '{' before switch cases.");
+
+    const cases = [];
+    let sawDefault = false;
+
+    while (!this.check(TokenType.RBRACE) && !this.isAtEnd()) {
+      if (sawDefault) {
+        throw new ParseError(
+          "Default switch case '_' must be the last case.",
+          this.peek().line,
+          this.peek().column
+        );
+      }
+
+      let label = null;
+      let defaultToken = null;
+
+      if (
+        this.check(TokenType.ID) &&
+        this.peek().value === "_" &&
+        this.checkNext(TokenType.COLON)
+      ) {
+        defaultToken = this.next();
+        sawDefault = true;
+      } else {
+        label = this.SwitchCaseExpression();
+      }
+
+      const colon = this.consume(TokenType.COLON, "Expect ':' after switch case.");
+      let body;
+      if (this.match(TokenType.LBRACE)) {
+        body = this.Block();
+      } else {
+        body = this.Statement();
+      }
+
+      cases.push({ label, defaultToken, colon, body });
+    }
+
+    const endToken = this.consume(TokenType.RBRACE, "Expect '}' after switch cases.");
+    return new PiSwitchStatement(switchToken, value, cases, endToken);
+  }
+
+  SwitchCaseExpression() {
+    const colonIndex = this.findSwitchCaseColon();
+    if (colonIndex < 0) {
+      throw new ParseError(
+        "Expect ':' after switch case condition.",
+        this.peek().line,
+        this.peek().column
+      );
+    }
+
+    const savedCurrent = this.current;
+    const savedType = this.tokens[colonIndex].type;
+    let expression;
+    try {
+      this.tokens[colonIndex].type = TokenType.EOF;
+      expression = this.Expression();
+    } finally {
+      this.tokens[colonIndex].type = savedType;
+    }
+
+    if (this.current !== colonIndex) {
+      const token = this.peek();
+      this.current = savedCurrent;
+      throw new ParseError(
+        "Invalid switch case condition.",
+        token.line,
+        token.column
+      );
+    }
+
+    return expression;
+  }
+
+  findSwitchCaseColon() {
+    let index = this.current;
+    let parenDepth = 0;
+    let bracketDepth = 0;
+    let braceDepth = 0;
+    let ternaryDepth = 0;
+
+    while (this.tokens[index].type !== TokenType.EOF) {
+      const token = this.tokens[index];
+      switch (token.type) {
+        case TokenType.LPAREN:
+          parenDepth++;
+          break;
+        case TokenType.RPAREN:
+          if (parenDepth > 0) parenDepth--;
+          break;
+        case TokenType.LBRACKET:
+          bracketDepth++;
+          break;
+        case TokenType.RBRACKET:
+          if (bracketDepth > 0) bracketDepth--;
+          break;
+        case TokenType.LBRACE:
+          braceDepth++;
+          break;
+        case TokenType.RBRACE:
+          if (braceDepth > 0) braceDepth--;
+          else return -1;
+          break;
+        case TokenType.QUESTION:
+          if (parenDepth === 0 && bracketDepth === 0 && braceDepth === 0) {
+            ternaryDepth++;
+          }
+          break;
+        case TokenType.COLON:
+          if (parenDepth === 0 && bracketDepth === 0 && braceDepth === 0) {
+            if (ternaryDepth > 0) ternaryDepth--;
+            else return index;
+          }
+          break;
+      }
+      index++;
+    }
+
+    return -1;
   }
 
   /**

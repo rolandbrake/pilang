@@ -8,7 +8,7 @@
 // Function to convert a void pointer to an integer
 #define cast_int64(x) ((int64_t)x)
 
-#define KW_NUM 24
+#define KW_NUM 26
 
 /*
 ** Single-char tokens (terminal symbols) are represented by their own
@@ -44,6 +44,8 @@ typedef enum
     TK_PRINT,
     TK_TYPEOF,
     TK_DEBUG,
+    TK_SWITCH,
+    TK_MATCH,
     TK_ID,
     TK_STR,
     TK_NUM,
@@ -118,7 +120,7 @@ typedef enum
 } tk_type;
 
 /* number of reserved words */
-#define NUM_RESERVED (cast_int(TK_DEBUG - FIRST_RESERVED + 1))
+#define NUM_RESERVED (cast_int(TK_MATCH - FIRST_RESERVED + 1))
 
 // Define the keyword structure
 typedef struct
@@ -152,6 +154,8 @@ static keyword_t keywords[KW_NUM] = {
     {"typeof", TK_TYPEOF},
     {"debug", TK_DEBUG},
     {"import", TK_IMPORT},
+    {"switch", TK_SWITCH},
+    {"match", TK_MATCH},
 };
 
 typedef struct
@@ -192,9 +196,10 @@ static const char *token_names[] = {
     "TK_NIL",
     "TK_IS",
     "TK_PRINT",
-    "TK_ASSERT",
     "TK_TYPEOF",
     "TK_DEBUG",
+    "TK_SWITCH",
+    "TK_MATCH",
 
     // Literals
     "TK_ID",

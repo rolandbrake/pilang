@@ -8,4 +8,5 @@
 - [5.5 Continue](5.5-continue.md)
 - [5.6 Return](5.6-return.md)
 - [5.7 Errors and Exceptions](5.7-errors-and-exceptions.md)
+- [5.8 Switch](5.8-switch.md)
 

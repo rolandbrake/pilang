@@ -1,0 +1,54 @@
+let exp = 3
+let result = 0
+
+switch exp {
+    exp == 1:
+        result = 1
+    exp > 2 && exp < 4:
+        result = 2
+    exp in 1..10:
+        result = 3
+    _:
+        result = 5
+}
+
+assert(result == 2, "switch should run the first true explicit condition")
+
+exp = 7
+switch exp {
+    exp == 1: result = 1
+    exp in 1..10: result = 3
+    _: result = 5
+}
+
+assert(result == 3, "switch range membership should be explicit with 'in'")
+
+exp = 99
+switch exp {
+    exp == 1: result = 1
+    1..10: result = 4
+    _: result = 5
+}
+
+assert(result == 4, "bare range case should be evaluated as a truthy condition")
+
+exp = 2
+result = 0
+switch exp {
+    exp == 2: {
+        result = 10
+        result += 1
+    }
+    _: result = 5
+}
+
+assert(result == 11, "switch case block bodies should allow multiple statements")
+
+exp = 42
+switch exp {
+    exp == 1: result = 1
+    _: result = 9
+}
+
+assert(result == 9, "switch default case '_' should run when no condition matches")
+

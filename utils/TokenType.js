@@ -24,6 +24,8 @@ const TokenType = {
   ASSERT: "ASSERT",
   TYPEOF: "TYPEOF",
   DEBUG: "DEBUG",
+  SWITCH: "SWITCH",
+  MATCH: "MATCH",
 
   // Literals
   ID: "ID",

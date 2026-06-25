@@ -195,7 +195,7 @@
       "patterns": [
         {
           "name": "keyword.control.pilang",
-          "match": "\\b(?:if|elif|else|for|while|break|continue|return|goto)\\b"
+          "match": "\\b(?:if|elif|else|switch|for|while|break|continue|return|goto)\\b"
         },
         {
           "name": "keyword.operator.word.pilang",
@@ -212,6 +212,10 @@
         {
           "name": "keyword.other.debug.pilang",
           "match": "\\bdebug\\b"
+        },
+        {
+          "name": "keyword.other.reserved.pilang",
+          "match": "\\bmatch\\b"
         }
       ]
     },
@@ -267,7 +271,7 @@
         },
         {
           "name": "keyword.operator.arrow.pilang",
-          "match": "(?:->|<-)"
+          "match": "(?:->|<-|=>)"
         },
         {
           "name": "keyword.operator.range.pilang",

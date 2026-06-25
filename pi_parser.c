@@ -24,6 +24,7 @@ static void expr_state(parser_t *parser);
 static void destructure_assignStatement(parser_t *parser);
 static void block(parser_t *parser);
 static void if_stmt(parser_t *parser);
+static void switch_stmt(parser_t *parser);
 static void while_stmt(parser_t *parser);
 static void for_stmt(parser_t *parser);
 static void break_stmt(parser_t *parser);
@@ -1742,6 +1743,8 @@ static void statement(parser_t *parser)
     }
     else if (match(parser, TK_IF))
         if_stmt(parser);
+    else if (match(parser, TK_SWITCH))
+        switch_stmt(parser);
     else if (match(parser, TK_WHILE))
         while_stmt(parser);
     else if (match(parser, TK_FOR))
@@ -1897,6 +1900,153 @@ static void if_stmt(parser_t *parser)
 
     for (int i = 0; i < jump_count; i++)
         patch_jump(parser->comp, end_jumps[i]);
+}
+
+static void switch_branchBody(parser_t *parser)
+{
+    if (match(parser, TK_LBRACE))
+        block(parser);
+    else
+    {
+        statement(parser);
+        parser->is_return = false;
+    }
+}
+
+static bool is_defaultSwitchCase(parser_t *parser)
+{
+    if (!check(parser, TK_ID))
+        return false;
+
+    token_t token = peek(parser);
+    return token.length == 1 && token.start[0] == '_' &&
+           parser->tokens[parser->current + 1].type == TK_COLON;
+}
+
+static int find_switchCaseColon(parser_t *parser)
+{
+    int index = parser->current;
+    int paren_depth = 0;
+    int bracket_depth = 0;
+    int brace_depth = 0;
+    int ternary_depth = 0;
+
+    while (parser->tokens[index].type != TK_EOF)
+    {
+        token_t token = parser->tokens[index];
+
+        switch (token.type)
+        {
+        case TK_LPAREN:
+            paren_depth++;
+            break;
+        case TK_RPAREN:
+            if (paren_depth > 0)
+                paren_depth--;
+            break;
+        case TK_LBRACKET:
+            bracket_depth++;
+            break;
+        case TK_RBRACKET:
+            if (bracket_depth > 0)
+                bracket_depth--;
+            break;
+        case TK_LBRACE:
+            brace_depth++;
+            break;
+        case TK_RBRACE:
+            if (brace_depth > 0)
+                brace_depth--;
+            else
+                return -1;
+            break;
+        case TK_QUESTION:
+            if (paren_depth == 0 && bracket_depth == 0 && brace_depth == 0)
+                ternary_depth++;
+            break;
+        case TK_COLON:
+            if (paren_depth == 0 && bracket_depth == 0 && brace_depth == 0)
+            {
+                if (ternary_depth > 0)
+                    ternary_depth--;
+                else
+                    return index;
+            }
+            break;
+        default:
+            break;
+        }
+
+        index++;
+    }
+
+    return -1;
+}
+
+static void switch_stmt(parser_t *parser)
+{
+    token_t switch_tok = previous(parser);
+
+    set_pos(parser, switch_tok);
+    expr(parser);
+    emit(parser->comp, OP_POP);
+
+    consume(parser, TK_LBRACE, "Expect '{' before switch cases.");
+
+    int end_jumps[256];
+    int jump_count = 0;
+    bool has_case = false;
+    bool has_default = false;
+
+    while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
+    {
+        if (has_default)
+            p_error("Default switch case '_' must be the last case.",
+                    peek(parser).line, peek(parser).column);
+
+        has_case = true;
+
+        if (is_defaultSwitchCase(parser))
+        {
+            has_default = true;
+            next(parser); // _
+            consume(parser, TK_COLON, "Expect ':' after switch default case.");
+            switch_branchBody(parser);
+            break;
+        }
+
+        int colon_index = find_switchCaseColon(parser);
+        if (colon_index < 0)
+            p_error("Expect ':' after switch case condition.",
+                    peek(parser).line, peek(parser).column);
+
+        token_t case_tok = peek(parser);
+        segment_t condition = {parser->current, colon_index};
+        compile_segmentExpr(parser, condition, "Invalid switch case condition.");
+        parser->current = colon_index;
+        consume(parser, TK_COLON, "Expect ':' after switch case condition.");
+
+        set_pos(parser, case_tok);
+        int next_case_jump = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
+
+        switch_branchBody(parser);
+        if (jump_count >= 256)
+            p_error("Too many switch cases.", case_tok.line, case_tok.column);
+
+        end_jumps[jump_count++] = emit_16u(parser->comp, OP_JUMP, "", 0);
+        patch_jump(parser->comp, next_case_jump);
+    }
+
+    if (!has_case)
+        p_error("Switch statement requires at least one case.",
+                switch_tok.line, switch_tok.column);
+
+    consume(parser, TK_RBRACE, "Expect '}' after switch cases.");
+
+    for (int i = 0; i < jump_count; i++)
+        patch_jump(parser->comp, end_jumps[i]);
+
+    parser->is_return = false;
 }
 
 static void while_stmt(parser_t *parser)

@@ -37,6 +37,8 @@ export default class PiScanner {
       typeof: TokenType.TYPEOF,
       debug: TokenType.DEBUG,
       import: TokenType.IMPORT,
+      switch: TokenType.SWITCH,
+      match: TokenType.MATCH,
     };
   }
 
