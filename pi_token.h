@@ -85,6 +85,7 @@ typedef enum
     TK_HASH,
     TK_LARROW,
     TK_RARROW,
+    TK_PIPELINE,
     TK_DBDOTS,
     TK_INCR,
     TK_DECR,
@@ -245,6 +246,7 @@ static const char *token_names[] = {
     // Two characters tokens
     "TK_LARROW",
     "TK_RARROW",
+    "TK_PIPELINE",
     "TK_DBDOTS",
     "TK_INCR",
     "TK_DECR",

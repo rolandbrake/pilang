@@ -1,0 +1,24 @@
+fun double(n) {
+    return n * 2
+}
+
+fun add(a, b) {
+    return a + b
+}
+
+let total = [1, 2, 3, 4] =>
+    filter(x -> x % 2 == 0) =>
+    map(x -> x * 2) =>
+    reduce((a, b) -> a + b)
+
+assert(total == 12, "pipeline should pass the previous value as the first call argument")
+
+let direct = 3 => double
+assert(direct == 6, "pipeline should call a function value when the stage has no argument list")
+
+let with_args = 4 => add(5)
+assert(with_args == 9, "pipeline should insert the previous value before explicit call arguments")
+
+let nested = [1, 2, 3, 4] => map(n -> n + 1) => filter(n -> n > 3)
+assert(nested == [4, 5], "pipeline chains should run left to right")
+

@@ -34,6 +34,7 @@ static void print(parser_t *parser);
 static void variable(parser_t *parser, bool is_const);
 static void expr(parser_t *parser);
 static void assignment(parser_t *parser, bool emit_load);
+static void pipeline_expr(parser_t *parser);
 static void cond_expr(parser_t *parser);
 static void or_expr(parser_t *parser);
 static void and_expr(parser_t *parser);
@@ -85,6 +86,24 @@ typedef struct
     int start;
     int end;
 } segment_t;
+
+#define MAX_PIPELINE_STAGES 64
+#define MAX_PIPELINE_ARGS 64
+
+typedef struct
+{
+    token_t op;
+    segment_t callee;
+    segment_t args[MAX_PIPELINE_ARGS];
+    int arg_count;
+} pipeline_stage_t;
+
+typedef struct
+{
+    segment_t input;
+    pipeline_stage_t stages[MAX_PIPELINE_STAGES];
+    int stage_count;
+} pipeline_t;
 
 typedef struct
 {
@@ -481,7 +500,7 @@ static void compile_segmentExpr(parser_t *parser, segment_t segment, const char 
 
     parser->tokens[segment.end].type = TK_EOF;
 
-    cond_expr(parser);
+    pipeline_expr(parser);
 
     parser->tokens[segment.end] = saved_end;
 
@@ -1826,7 +1845,7 @@ static void condition(parser_t *parser)
 {
     // Parentheses are ordinary grouping expressions. Parsing the complete
     // condition here lets `(a == true) && b == false` continue after `)`.
-    cond_expr(parser);
+    pipeline_expr(parser);
 }
 static void if_stmt(parser_t *parser)
 {
@@ -2272,7 +2291,7 @@ static void assignment(parser_t *parser, bool emit_load)
 
         stack_push(assigns, init_assign(left, right, op));
 
-        cond_expr(parser);
+        pipeline_expr(parser);
         left = right;
     }
 
@@ -2281,7 +2300,7 @@ static void assignment(parser_t *parser, bool emit_load)
     if (stack_isEmpty(assigns))
     {
         parser->current = left;
-        cond_expr(parser); // Re-evaluate as a non-assignment expression
+        pipeline_expr(parser); // Re-evaluate as a non-assignment expression
     }
     else
     {
@@ -2322,7 +2341,7 @@ static void assignment(parser_t *parser, bool emit_load)
             if (op == TK_ASSIGN && is_objectLiteral(parser, right))
                 parser->object_name = token_value(lhs);
 
-            cond_expr(parser);
+            pipeline_expr(parser);
             parser->fun_name = prev_fun;
             parser->object_name = prev_obj;
 
@@ -2374,6 +2393,247 @@ static void assignment(parser_t *parser, bool emit_load)
 
         parser->current = current;
     }
+}
+
+static bool is_pipelineBoundary(parser_t *parser, int index, int start,
+                                int paren_depth, int bracket_depth, int brace_depth)
+{
+    if (paren_depth != 0 || bracket_depth != 0 || brace_depth != 0)
+        return false;
+
+    token_t token = parser->tokens[index];
+    if (token.type == TK_PIPELINE)
+        return true;
+
+    if (index > start && token.line > parser->tokens[index - 1].line)
+        return true;
+
+    switch (token.type)
+    {
+    case TK_EOF:
+    case TK_SEMICOLON:
+    case TK_COMMA:
+    case TK_COLON:
+    case TK_RPAREN:
+    case TK_RBRACKET:
+    case TK_RBRACE:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static int find_pipelineStageEnd(parser_t *parser, int start)
+{
+    int paren_depth = 0;
+    int bracket_depth = 0;
+    int brace_depth = 0;
+
+    int index = start;
+    for (; parser->tokens[index].type != TK_EOF; index++)
+    {
+        if (is_pipelineBoundary(parser, index, start, paren_depth, bracket_depth, brace_depth))
+            return index;
+
+        switch (parser->tokens[index].type)
+        {
+        case TK_LPAREN:
+            paren_depth++;
+            break;
+        case TK_RPAREN:
+            if (paren_depth > 0)
+                paren_depth--;
+            break;
+        case TK_LBRACKET:
+            bracket_depth++;
+            break;
+        case TK_RBRACKET:
+            if (bracket_depth > 0)
+                bracket_depth--;
+            break;
+        case TK_LBRACE:
+            brace_depth++;
+            break;
+        case TK_RBRACE:
+            if (brace_depth > 0)
+                brace_depth--;
+            break;
+        default:
+            break;
+        }
+    }
+
+    return index;
+}
+
+static int find_pipelineCallParen(parser_t *parser, int start, int end)
+{
+    if (end <= start || parser->tokens[end - 1].type != TK_RPAREN)
+        return -1;
+
+    for (int index = start; index < end; index++)
+        if (parser->tokens[index].type == TK_LPAREN && parser->tokens[index].closeAt == end - 1)
+            return index;
+
+    return -1;
+}
+
+static int split_pipelineArgs(parser_t *parser, int start, int end,
+                              segment_t *args, int max_args)
+{
+    int count = 0;
+    int arg_start = start;
+    int paren_depth = 0;
+    int bracket_depth = 0;
+    int brace_depth = 0;
+
+    for (int index = start; index <= end; index++)
+    {
+        bool at_end = index == end;
+        token_t token = at_end ? parser->tokens[end] : parser->tokens[index];
+
+        if (!at_end)
+        {
+            switch (token.type)
+            {
+            case TK_LPAREN:
+                paren_depth++;
+                break;
+            case TK_RPAREN:
+                if (paren_depth > 0)
+                    paren_depth--;
+                break;
+            case TK_LBRACKET:
+                bracket_depth++;
+                break;
+            case TK_RBRACKET:
+                if (bracket_depth > 0)
+                    bracket_depth--;
+                break;
+            case TK_LBRACE:
+                brace_depth++;
+                break;
+            case TK_RBRACE:
+                if (brace_depth > 0)
+                    brace_depth--;
+                break;
+            default:
+                break;
+            }
+        }
+
+        if (at_end || (token.type == TK_COMMA && paren_depth == 0 && bracket_depth == 0 && brace_depth == 0))
+        {
+            if (arg_start == index)
+            {
+                arg_start = index + 1;
+                continue;
+            }
+
+            if (count >= max_args)
+                p_error("Too many pipeline stage arguments.",
+                        parser->tokens[arg_start].line, parser->tokens[arg_start].column);
+
+            if (parser->tokens[arg_start].type == TK_ELLIPSIS)
+                p_error("Pipeline stage calls do not support spread arguments yet.",
+                        parser->tokens[arg_start].line, parser->tokens[arg_start].column);
+
+            if (parser->tokens[arg_start].type == TK_ID &&
+                arg_start + 1 < index &&
+                parser->tokens[arg_start + 1].type == TK_ASSIGN)
+                p_error("Pipeline stage calls do not support named arguments yet.",
+                        parser->tokens[arg_start].line, parser->tokens[arg_start].column);
+
+            args[count++] = (segment_t){arg_start, index};
+            arg_start = index + 1;
+        }
+    }
+
+    return count;
+}
+
+static void parse_pipelineStage(parser_t *parser, pipeline_stage_t *stage)
+{
+    int start = parser->current;
+    int end = find_pipelineStageEnd(parser, start);
+
+    if (start >= end)
+        p_error("Expect pipeline stage after '=>'.",
+                parser->tokens[start].line, parser->tokens[start].column);
+
+    int call_paren = find_pipelineCallParen(parser, start, end);
+    if (call_paren >= 0)
+    {
+        stage->callee = (segment_t){start, call_paren};
+        stage->arg_count = split_pipelineArgs(parser, call_paren + 1, end - 1,
+                                              stage->args, MAX_PIPELINE_ARGS);
+    }
+    else
+    {
+        stage->callee = (segment_t){start, end};
+        stage->arg_count = 0;
+    }
+
+    if (stage->callee.start >= stage->callee.end)
+        p_error("Expect callable pipeline stage.",
+                parser->tokens[start].line, parser->tokens[start].column);
+
+    parser->current = end;
+}
+
+static void emit_pipelineNested(parser_t *parser, pipeline_t *pipe, int stage_index)
+{
+    pipeline_stage_t *stage = &pipe->stages[stage_index];
+
+    compile_segmentExpr(parser, stage->callee, "Invalid pipeline stage callable.");
+
+    if (stage_index == 0)
+        compile_segmentExpr(parser, pipe->input, "Invalid pipeline input expression.");
+    else
+        emit_pipelineNested(parser, pipe, stage_index - 1);
+
+    for (int i = 0; i < stage->arg_count; i++)
+        compile_segmentExpr(parser, stage->args[i], "Invalid pipeline stage argument.");
+
+    token_t callee = parser->tokens[stage->callee.start];
+    set_pos(parser, stage->op);
+    emit_8u(parser->comp, OP_CALL_FUNCTION, token_value(callee), (uint8_t)(stage->arg_count + 1));
+}
+
+static void pipeline_expr(parser_t *parser)
+{
+    int start = parser->current;
+    bool prev_lookUp = look_up(parser->comp, true);
+
+    cond_expr(parser);
+    bool has_pipeline = check(parser, TK_PIPELINE);
+    int first_pipeline = parser->current;
+
+    look_up(parser->comp, prev_lookUp);
+    parser->current = start;
+
+    if (!has_pipeline)
+    {
+        cond_expr(parser);
+        return;
+    }
+
+    pipeline_t pipe = {0};
+    pipe.input = (segment_t){start, first_pipeline};
+    parser->current = first_pipeline;
+
+    while (match(parser, TK_PIPELINE))
+    {
+        if (pipe.stage_count >= MAX_PIPELINE_STAGES)
+            p_error("Too many pipeline stages.",
+                    previous(parser).line, previous(parser).column);
+
+        pipeline_stage_t *stage = &pipe.stages[pipe.stage_count++];
+        stage->op = previous(parser);
+        parse_pipelineStage(parser, stage);
+    }
+
+    emit_pipelineNested(parser, &pipe, pipe.stage_count - 1);
 }
 
 static void cond_expr(parser_t *parser)

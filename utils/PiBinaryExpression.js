@@ -38,6 +38,16 @@ export default class PiBinaryExpression extends PiExpression {
     const precedence = PiBinaryExpression.getPrecedence(this.type);
     const maxLineLength = 80;
 
+    if (this.type === TokenType.PIPELINE) {
+      const stages = this.flattenPipeline();
+      const first = stages[0].format(indent, comments, precedence);
+      const rest = stages
+        .slice(1)
+        .map((stage) => this.indent(indent + 2) + stage.format(0, comments, precedence))
+        .join(" =>\n");
+      return rest ? first + " =>\n" + rest : first;
+    }
+
     let op;
     switch (this.type) {
       case TokenType.DOT:
@@ -57,10 +67,13 @@ export default class PiBinaryExpression extends PiExpression {
       indent + leftSingle.length + op.length + rightSingle.length;
 
     const shouldBreak =
-      (this.type === TokenType.AND || this.type === TokenType.OR) &&
+      (this.type === TokenType.AND ||
+        this.type === TokenType.OR ||
+        this.type === TokenType.PIPELINE) &&
       (singleLineLength > maxLineLength ||
         leftSingle.includes("\n") ||
-        rightSingle.includes("\n"));
+        rightSingle.includes("\n") ||
+        this.type === TokenType.PIPELINE);
 
     let result;
 
@@ -95,6 +108,12 @@ export default class PiBinaryExpression extends PiExpression {
   minify(context = {}, parentPrecedence = Infinity) {
     const precedence = PiBinaryExpression.getPrecedence(this.type);
 
+    if (this.type === TokenType.PIPELINE) {
+      const stages = this.flattenPipeline();
+      const result = stages.map((stage) => stage.minify(context, precedence)).join("=>");
+      return precedence >= parentPrecedence ? "(" + result + ")" : result;
+    }
+
     // Recursively minify children
     let left = this.left.minify(context, precedence);
     let right = this.right.minify(context, precedence);
@@ -106,7 +125,11 @@ export default class PiBinaryExpression extends PiExpression {
       op = this.name;
     }
 
-    if (this.type === TokenType.IN || this.type === TokenType.IS) {
+    if (
+      this.type === TokenType.IN ||
+      this.type === TokenType.IS ||
+      this.type === TokenType.PIPELINE
+    ) {
       return left + " " + op + " " + right;
     }
 
@@ -149,7 +172,8 @@ export default class PiBinaryExpression extends PiExpression {
      * 12. Logical AND
      * 13. Logical OR
      * 14. Conditional (ternary)
-     * 15. Assignment
+     * 15. Pipeline
+     * 16. Assignment
      */
     switch (type) {
       case TokenType.DOT:
@@ -214,6 +238,9 @@ export default class PiBinaryExpression extends PiExpression {
       case TokenType.QUESTION: // ternary
         return 14;
 
+      case TokenType.PIPELINE:
+        return 15;
+
       case TokenType.ASSIGN:
       case TokenType.PLUS_ASSIGN:
       case TokenType.MINUS_ASSIGN:
@@ -232,7 +259,7 @@ export default class PiBinaryExpression extends PiExpression {
       case TokenType.OR_ASSIGN:
       case TokenType.LARROW:
       case TokenType.RARROW:
-        return 15;
+        return 16;
 
       default:
         return 100; // lowest (safe fallback)
@@ -245,5 +272,20 @@ export default class PiBinaryExpression extends PiExpression {
 
   getRight() {
     return this.right;
+  }
+
+  flattenPipeline() {
+    const stages = [];
+    const visit = (expr) => {
+      if (expr instanceof PiBinaryExpression && expr.type === TokenType.PIPELINE) {
+        visit(expr.left);
+        visit(expr.right);
+      } else {
+        stages.push(expr);
+      }
+    };
+
+    visit(this);
+    return stages;
   }
 }

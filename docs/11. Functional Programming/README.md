@@ -10,6 +10,7 @@ Pilang supports a practical functional style without forcing every program to be
 - Anonymous functions and arrow functions are useful for small callbacks.
 - Closures can remember variables from their surrounding scope.
 - `map`, `filter`, `reduce`, and `find` are available as global helpers.
+- The `=>` pipeline operator passes a value into the next function call.
 - The `func` module provides composition, currying, partial application, memoization, throttling, debouncing, and iterator-style helpers.
 
 ## Common pattern
@@ -26,6 +27,18 @@ squares = map(evens, n -> n * n)
 total = reduce(squares, fn (acc, n) {
     return acc + n
 }, 0)
+
+print(total) // 20
+```
+
+The same transformation can be written as a pipeline. Each stage receives the
+previous result as its first argument:
+
+```pilang
+total = [1, 2, 3, 4, 5] =>
+    filter(n -> n % 2 == 0) =>
+    map(n -> n * n) =>
+    reduce((acc, n) -> acc + n, 0)
 
 print(total) // 20
 ```

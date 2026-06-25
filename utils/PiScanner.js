@@ -190,7 +190,8 @@ export default class PiScanner {
         this.addToken(TokenType.HASH);
         break;
       case "=":
-        if (this.match("=")) this.addToken(TokenType.EQUAL);
+        if (this.match(">")) this.addToken(TokenType.PIPELINE);
+        else if (this.match("=")) this.addToken(TokenType.EQUAL);
         else this.addToken(TokenType.ASSIGN);
         break;
       case "*":

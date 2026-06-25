@@ -166,7 +166,9 @@ void scan_token()
         add_token(TK_HASH);
         break;
     case '=':
-        if (match('='))
+        if (match('>'))
+            add_token(TK_PIPELINE);
+        else if (match('='))
             add_token(TK_EQUAL);
         else
             add_token(TK_ASSIGN);

@@ -72,6 +72,7 @@ const TokenType = {
   HASH: "HASH",
   LARROW: "LARROW",
   RARROW: "RARROW",
+  PIPELINE: "PIPELINE",
   DBDOTS: "DBDOTS",
   INCR: "INCR",
   DECR: "DECR",

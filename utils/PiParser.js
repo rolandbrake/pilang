@@ -744,7 +744,7 @@ export default class PiParser {
    */
   AssignmentExpression() {
     // Parse the left-hand side of the assignment
-    let expression = this.ConditionalExpression();
+    let expression = this.PipelineExpression();
 
     // Check for assignment operators
     if (
@@ -789,6 +789,18 @@ export default class PiParser {
     }
 
     // Return the parsed expression if not an assignment
+    return expression;
+  }
+
+  PipelineExpression() {
+    let expression = this.ConditionalExpression();
+
+    while (this.match(TokenType.PIPELINE)) {
+      const operator = this.previous();
+      const right = this.ConditionalExpression();
+      expression = new PiBinaryExpression(expression, operator, right);
+    }
+
     return expression;
   }
 
