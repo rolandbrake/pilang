@@ -14,7 +14,10 @@
 #include "../pi_object.h"
 #include "../pi_table.h"
 #include "../pi_func.h"
+#include "../pi_vm.h"
 #include "pi_builtin.h"
+
+#define SLEEP_INTERRUPT_SLICE_MS 25.0
 
 static double now_millis(void)
 {
@@ -229,7 +232,6 @@ static char *replace_millisToken(const char *format, int millis)
 
 Value pi_sleep(vm_t *vm, int argc, Value *argv)
 {
-    (void)vm;
     if (argc < 1 || !IS_NUM(argv[0]))
         vm_error(vm, "[sleep] expects a single millisecond number.");
 
@@ -237,10 +239,21 @@ Value pi_sleep(vm_t *vm, int argc, Value *argv)
     if (ms < 0)
         ms = 0;
 
-    struct timespec req;
-    req.tv_sec = (time_t)(ms / 1000);
-    req.tv_nsec = (long)((ms - (req.tv_sec * 1000)) * 1e6);
-    nanosleep(&req, NULL);
+    while (ms > 0 && !interrupt_requested)
+    {
+        double chunk = ms < SLEEP_INTERRUPT_SLICE_MS ? ms : SLEEP_INTERRUPT_SLICE_MS;
+#ifdef _WIN32
+        Sleep((DWORD)chunk);
+#else
+        struct timespec req;
+        req.tv_sec = (time_t)(chunk / 1000);
+        req.tv_nsec = (long)((chunk - (req.tv_sec * 1000)) * 1e6);
+        while (nanosleep(&req, &req) == -1 && errno == EINTR && !interrupt_requested)
+        {
+        }
+#endif
+        ms -= chunk;
+    }
 
     return NEW_NIL();
 }

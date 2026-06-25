@@ -5324,6 +5324,9 @@ void run(vm_t *vm)
 #else
         if (vm->counter >= vm->next_gc)
             vm->gc_requested = true;
+
+        if (vm->gc_requested)
+            gc_collect(vm);
 #endif
         vm->pc = pc;
     }

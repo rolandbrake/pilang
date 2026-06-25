@@ -25,7 +25,7 @@ class Individual {
 	constructor(chromosome, chromosomeLength) {
 		 this.fitness = -1
 
-        if !chromosome {
+        if chromosome != nil {
             this.chromosome = chromosome
         }
         else  {
