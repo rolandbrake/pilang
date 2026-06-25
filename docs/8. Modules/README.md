@@ -9,8 +9,10 @@ through a module object or through selected local names.
 ## Key Ideas
 
 - `import math` loads a module and binds it to a name.
+- `import math, random` imports multiple modules with one `import` keyword.
 - `import math.{floor, ceil}` imports selected exports.
 - `import math.{floor:f}` imports an export with an alias.
+- `import math:mt.{cos, sin}` imports `math` as `mt` and selected exports.
 - `import math.*` imports all public exports into the current module/global scope.
 - Top-level names in a user module are exported automatically.
 - Names beginning with `_` are private and cannot be imported from outside.

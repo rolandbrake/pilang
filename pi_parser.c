@@ -1585,15 +1585,14 @@ static void emit_importAlias(parser_t *parser, token_t alias_tok)
     free(alias_name);
 }
 
-static void import_stmt(parser_t *parser)
+static void import_item(parser_t *parser)
 {
-    token_t tok = previous(parser); // 'import'
-    set_pos(parser, tok);
-
     token_t parts[256];
     int count = 0;
     bool import_all = false;
     bool import_braced = false;
+    bool has_alias = false;
+    token_t alias_tok;
 
     parts[count++] = consume(parser, TK_ID, "Expect module name after 'import'.");
 
@@ -1617,17 +1616,49 @@ static void import_stmt(parser_t *parser)
         parts[count++] = consume(parser, TK_ID, "Expect identifier after '.'.");
     }
 
+    if (!import_all && !import_braced && match(parser, TK_COLON))
+    {
+        alias_tok = consume(parser, TK_ID, "Expect alias name after ':'.");
+        has_alias = true;
+
+        if (match(parser, TK_DOT))
+        {
+            if (check(parser, TK_MULT))
+            {
+                next(parser);
+                import_all = true;
+            }
+            else if (check(parser, TK_LBRACE))
+            {
+                import_braced = true;
+            }
+            else
+            {
+                p_error("Expect '*' or '{' after aliased import selector.", peek(parser).line, peek(parser).column);
+            }
+        }
+    }
+
     if (import_all)
     {
         emit_importModule(parser, parts, count);
+        if (has_alias)
+        {
+            emit(parser->comp, OP_DUP_TOP);
+            emit_importAlias(parser, alias_tok);
+        }
         emit(parser->comp, OP_IMPORT_ALL);
-        consume_ifExist(parser, 1, TK_SEMICOLON);
         return;
     }
 
     if (import_braced)
     {
         emit_importModule(parser, parts, count); // leaves module on stack
+        if (has_alias)
+        {
+            emit(parser->comp, OP_DUP_TOP);
+            emit_importAlias(parser, alias_tok);
+        }
 
         consume(parser, TK_LBRACE, "Expect '{' after module path.");
         do
@@ -1644,20 +1675,16 @@ static void import_stmt(parser_t *parser)
 
         consume(parser, TK_RBRACE, "Expect '}' after import list.");
         emit(parser->comp, OP_POP); // discard module left on stack
-        consume_ifExist(parser, 1, TK_SEMICOLON);
         return;
     }
 
-    if (match(parser, TK_COLON))
+    if (has_alias)
     {
-        token_t alias_tok = consume(parser, TK_ID, "Expect alias name after ':'.");
-
         // import module:alias
         if (count == 1)
         {
             emit_importModule(parser, parts, count);
             emit_importAlias(parser, alias_tok);
-            consume_ifExist(parser, 1, TK_SEMICOLON);
             return;
         }
 
@@ -1666,7 +1693,6 @@ static void import_stmt(parser_t *parser)
 
         emit_importModule(parser, parts, count - 1);
         emit_importBinding(parser, export_tok, alias_tok);
-        consume_ifExist(parser, 1, TK_SEMICOLON);
         return;
     }
 
@@ -1678,6 +1704,18 @@ static void import_stmt(parser_t *parser)
     emit(parser->comp, OP_IMPORT_DEFAULT);
     store_variable(parser->comp, binding_name);
     free(binding_name);
+}
+
+static void import_stmt(parser_t *parser)
+{
+    token_t tok = previous(parser); // 'import'
+    set_pos(parser, tok);
+
+    do
+    {
+        import_item(parser);
+    } while (match(parser, TK_COMMA));
+
     consume_ifExist(parser, 1, TK_SEMICOLON);
 }
 

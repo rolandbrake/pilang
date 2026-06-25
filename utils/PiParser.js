@@ -257,6 +257,17 @@ export default class PiParser {
 
   ImportStatement() {
     const importToken = this.previous();
+    const items = [];
+
+    do {
+      items.push(this.ImportItem());
+    } while (this.match(TokenType.COMMA));
+
+    const semicolon = this.match(TokenType.SEMICOLON) ? this.previous() : null;
+    return new PiImportStatement(importToken, items, semicolon);
+  }
+
+  ImportItem() {
     const pathParts = [this.consume(TokenType.ID, "Expect module name after 'import'.")];
     let tail = null;
 
@@ -289,10 +300,35 @@ export default class PiParser {
     if (!tail && this.match(TokenType.COLON)) {
       const alias = this.consume(TokenType.ID, "Expect alias name after ':'.");
       tail = { kind: "alias", alias, lastToken: alias };
+
+      if (this.match(TokenType.DOT)) {
+        if (this.match(TokenType.MULT)) {
+          tail.selector = { kind: "wildcard", lastToken: this.previous() };
+          tail.lastToken = tail.selector.lastToken;
+        } else if (this.check(TokenType.LBRACE)) {
+          this.next();
+          const bindings = [];
+          if (!this.check(TokenType.RBRACE)) {
+            do {
+              if (this.check(TokenType.RBRACE)) break;
+              const name = this.consume(TokenType.ID, "Expect export name inside import list.");
+              let bindingAlias = null;
+              if (this.match(TokenType.COLON)) {
+                bindingAlias = this.consume(TokenType.ID, "Expect alias name after ':'.");
+              }
+              bindings.push({ name, alias: bindingAlias });
+            } while (this.match(TokenType.COMMA));
+          }
+          const rbrace = this.consume(TokenType.RBRACE, "Expect '}' after import list.");
+          tail.selector = { kind: "braced", bindings, lastToken: rbrace };
+          tail.lastToken = rbrace;
+        } else {
+          throw new ParseError("Expect '*' or '{' after aliased import selector.", this.peek().line, this.peek().column);
+        }
+      }
     }
 
-    const semicolon = this.match(TokenType.SEMICOLON) ? this.previous() : null;
-    return new PiImportStatement(importToken, pathParts, tail, semicolon);
+    return { pathParts, tail, lastToken: (tail && tail.lastToken) || pathParts[pathParts.length - 1] };
   }
 
   Statement() {

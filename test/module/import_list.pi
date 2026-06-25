@@ -1,0 +1,14 @@
+import math:mt.{cos, sin}, random;
+import tensor:ten, tensor.ones:make_ones, tensor.{eye:identity, size};
+
+let A = ten.ones(2, 2)
+let B = make_ones(1, 3)
+let I = identity(2, 2)
+
+assert(mt.sqrt(25) == 5, "aliased module in import list should work")
+assert(cos(0) == 1, "selected import after module alias should work")
+assert(sin(0) == 0, "second selected import after module alias should work")
+assert(random.rand() >= 0, "plain import in import list should work")
+assert(ten.is_matrix(A), "module alias in import list should expose module members")
+assert(B[0, 1] == 1, "element alias in import list should call exported function")
+assert(size(I) == 4, "braced import with alias in import list should work")
