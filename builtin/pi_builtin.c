@@ -54,6 +54,7 @@ BuiltinFunc builtin_functions[] = {
     {"num", pi_num},
     {"str", pi_str},
     {"bool", pi_bool},
+    {"list", pi_list},
 
     // Collections
     {"push", pi_push},

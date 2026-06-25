@@ -6,6 +6,8 @@ assert("hello".contains("ell"), "string.contains(value) should call contains(str
 assert("hello".includes("ell"), "string.includes(value) should alias contains");
 assert("hello".indexOf("ll") == 2, "string.indexOf(value) should alias index");
 assert("hello".length() == 5, "string.length() should alias len");
+assert("a,b,c".split(",") == ["a", "b", "c"], "string.split(separator) should call string.split");
+assert("abc".split("") == ["a", "b", "c"], "string.split empty separator should split into characters");
 
 let items = [];
 items.append("a");
@@ -26,6 +28,15 @@ copied.append("c");
 assert(items.len() == 1, "list.copy() should return a separate list");
 assert(copied.len() == 2, "copied list should support native methods too");
 
+let doubled = [1, 2, 3].map(fun(x) {
+    return x * 2;
+});
+assert(doubled == [2, 4, 6], "list.map(fn) should call map(list, fn)");
+
+let flattened = [1, [2, 3], [[4]], 5].flat();
+assert(flattened == [1, 2, 3, [4], 5], "list.flat() should flatten one nested level");
+assert(["pi", "lang"].join("-") == "pi-lang", "list.join(separator) should call join(list, separator)");
+
 let pair = (1, 2, 1);
 assert(pair.len() == 3, "tuple.len() should call len(tuple)");
 assert(pair.length() == 3, "tuple.length() should alias len");
@@ -33,6 +44,7 @@ assert(pair.contains(2), "tuple.contains(value) should call contains(tuple, valu
 assert(pair.includes(2), "tuple.includes(value) should alias contains");
 assert(pair.indexOf(2) == 1, "tuple.indexOf(value) should alias index");
 assert(pair.count(1) == 2, "tuple.count(value) should call count(tuple, value)");
+assert(("pi", "lang").join("-") == "pi-lang", "tuple.join(separator) should call join(tuple, separator)");
 
 let unique = set([1, 2]);
 unique.add(3);

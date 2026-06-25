@@ -1,0 +1,4 @@
+println("box: ╔═╦╗ ║ ╚═╩╝");
+println("greek: αβγ ΔΩ πλ");
+println("emoji: 😀 🚀 ✨");
+println(["", "α", "😀"]);

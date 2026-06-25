@@ -64,10 +64,12 @@ println(join(["pi", "lang"], "-")) // pi-lang
 ## Constructors
 
 - `range(end)`, `range(start, end)`, `range(start, end, step)`: creates a range
+- `list(value)`: converts an iterable value to a list
 - `tuple()`, `tuple(value)`, `tuple(a, b, ...)`: creates a tuple or converts a list, tuple, or string to a tuple
 - `set(value = nil)`: creates a set from an iterable value
 
 ```pilang
+println(list(1..4)) // [1, 2, 3]
 let unique = set([1, 1, 2, 3])
 println(unique)
 ```

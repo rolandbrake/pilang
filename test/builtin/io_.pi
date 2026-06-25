@@ -9,6 +9,10 @@ printf("io.printf -> user={0}, score={1}, escaped={{ok}}\n", "matebook", 99);
 formatted = mod.format("io.format -> list={0}, ready={1}", [1, 2, 3], true);
 println(formatted);
 
+assert(mod.format("{0}", "top") == "top", "top-level display strings should not be quoted");
+assert(mod.format("{0}", ["", "pi"]) == '["", "pi"]', "nested display strings should be quoted");
+assert(mod.format("{0}", {"name": "Pi"}) == '{"name": "Pi"}', "map display should quote string keys and values");
+
 log("io.log info");
 log("io.log warning", "w");
 log("io.log error", "e");

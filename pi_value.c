@@ -1374,6 +1374,29 @@ char *as_stringWithFormat(vm_t *vm, Value val)
             tensor_appendString(&result, &buffer_size, &capacity, tensor, 0, indices);
             return result;
         }
+        case OBJ_RANGE:
+        {
+            PiRange *range = AS_RANGE(val);
+            char *start = format_number(range->start);
+            char *end = format_number(range->end);
+            char *step = format_number(range->step);
+            size_t buffer_size = strlen(start);
+            size_t capacity = buffer_size + 1;
+            char *result = dup_cstring(start);
+
+            append_text(&result, &buffer_size, &capacity, "..");
+            append_text(&result, &buffer_size, &capacity, end);
+            if (range->step != 1.0)
+            {
+                append_text(&result, &buffer_size, &capacity, ":");
+                append_text(&result, &buffer_size, &capacity, step);
+            }
+
+            free(start);
+            free(end);
+            free(step);
+            return result;
+        }
 
         case OBJ_FUN:
         {
@@ -1406,7 +1429,6 @@ char *as_stringWithFormat(vm_t *vm, Value val)
             return result;
         }
 #endif
-        case OBJ_RANGE:
         case OBJ_CODE:
             break;
         }

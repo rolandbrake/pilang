@@ -79,27 +79,18 @@ Value pi_bool(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(as_bool(argv[0]));
 }
 
-Value tp_is(vm_t *vm, int argc, Value *argv)
+Value tp_instanceof(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 2)
-        vm_error(vm, "[is] expects two arguments: a value and a type string.");
+        vm_error(vm, "[instanceof] expects two arguments: a value and a type string.");
 
     if (!IS_STRING(argv[1]))
-        vm_error(vm, "[is] second argument must be a type string.");
+        vm_error(vm, "[instanceof] second argument must be a type string.");
 
     char *typeName = type_name(argv[0]);
     char *givenTypeName = AS_CSTRING(argv[1]);
 
     return NEW_BOOL(strcmp(typeName, givenTypeName) == 0);
-}
-
-Value tp_of(vm_t *vm, int argc, Value *argv)
-{
-    if (argc == 0)
-        vm_error(vm, "[of] expects at least one argument.");
-
-    char *type = type_name(argv[0]);
-    return NEW_OBJ(new_pistring(strdup(type)));
 }
 
 Value tp_size(vm_t *vm, int argc, Value *argv)
@@ -189,14 +180,6 @@ Value tp_float(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value tp_string(vm_t *vm, int argc, Value *argv)
-{
-    if (argc == 0)
-        vm_error(vm, "[string] expects one argument.");
-
-    return NEW_OBJ(new_pistring(pi_displayString(vm, argv[0])));
-}
-
 Value tp_bool(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
@@ -205,7 +188,7 @@ Value tp_bool(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(as_bool(argv[0]));
 }
 
-Value tp_list(vm_t *vm, int argc, Value *argv)
+Value pi_list(vm_t *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[list] expects one argument.");
@@ -279,15 +262,12 @@ Value tp_bytes(vm_t *vm, int argc, Value *argv)
 }
 
 static BuiltinFunc type_funcs[] = {
-    {"is", tp_is},
-    {"of", tp_of},
+    {"instanceof", tp_instanceof},
     {"size", tp_size},
     {"nil", tp_nil},
     {"int", tp_int},
     {"float", tp_float},
-    {"string", tp_string},
     {"bool", tp_bool},
-    {"list", tp_list},
     {"bytes", tp_bytes},
 };
 

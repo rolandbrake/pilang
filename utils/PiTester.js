@@ -47,6 +47,7 @@ export default class PiTester {
       "contains",
       "index_of",
       "len",
+      "list",
       "range",
 
       // Map/Object Manipulation Functions

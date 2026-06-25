@@ -5,6 +5,7 @@
 #include "pi_methods.h"
 #include "_pi_string.h"
 #include "pi_col.h"
+#include "pi_func.h"
 #include "pi_tensor.h"
 
 static NativeMethod native_methods[] = {
@@ -25,6 +26,7 @@ static NativeMethod native_methods[] = {
     {OBJ_STRING, "repeat", cl_repeat},
     {OBJ_STRING, "copy", cl_copy},
     {OBJ_STRING, "reverse", cl_reverse},
+    {OBJ_STRING, "split", st_split},
 
     {OBJ_LIST, "append", cl_append},
     {OBJ_LIST, "push", pi_push},
@@ -42,9 +44,12 @@ static NativeMethod native_methods[] = {
     {OBJ_LIST, "concat", cl_concat},
     {OBJ_LIST, "repeat", cl_repeat},
     {OBJ_LIST, "copy", cl_copy},
+    {OBJ_LIST, "join", cl_join},
     {OBJ_LIST, "reverse", cl_reverse},
+    {OBJ_LIST, "flat", cl_flat},
     {OBJ_LIST, "sort", cl_sort},
     {OBJ_LIST, "shuffle", cl_shuffle},
+    {OBJ_LIST, "map", _pi_map},
 
     {OBJ_TUPLE, "len", pi_len},
     {OBJ_TUPLE, "length", pi_len},
@@ -55,6 +60,7 @@ static NativeMethod native_methods[] = {
     {OBJ_TUPLE, "count", cl_count},
     {OBJ_TUPLE, "concat", cl_concat},
     {OBJ_TUPLE, "repeat", cl_repeat},
+    {OBJ_TUPLE, "join", cl_join},
 
     {OBJ_SET, "add", cl_add},
     {OBJ_SET, "clear", cl_clear},
@@ -151,22 +157,22 @@ NativeMethod *pi_nativeMethodFor(o_type type, const char *name)
     {
     case OBJ_STRING:
         first = 0;
-        last = 17;
+        last = 18;
         break;
     case OBJ_LIST:
-        first = 17;
-        last = 36;
+        first = 18;
+        last = 40;
         break;
     case OBJ_TUPLE:
-        first = 36;
-        last = 45;
+        first = 40;
+        last = 50;
         break;
     case OBJ_SET:
-        first = 45;
-        last = 62;
+        first = 50;
+        last = 67;
         break;
     case OBJ_TENSOR:
-        first = 62;
+        first = 67;
         break;
     default:
         return NULL;

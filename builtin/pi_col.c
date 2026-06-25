@@ -1288,6 +1288,33 @@ Value cl_reverse(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
+Value cl_flat(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1)
+        vm_error(vm, "[flat] expects one argument: a list.");
+
+    if (!IS_LIST(argv[0]))
+        vm_error(vm, "[flat] argument must be a list.");
+
+    PiList *input = AS_LIST(argv[0]);
+    list_t *result = list_create(sizeof(Value));
+
+    for (int i = 0; i < input->items->size; i++)
+    {
+        Value item = *(Value *)list_getAt(input->items, i);
+        if (IS_LIST(item))
+        {
+            PiList *nested = AS_LIST(item);
+            for (int j = 0; j < nested->items->size; j++)
+                list_add(result, list_getAt(nested->items, j));
+        }
+        else
+            list_add(result, &item);
+    }
+
+    return NEW_OBJ(add_obj(vm, new_list(result)));
+}
+
 Value cl_shuffle(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1)

@@ -23,12 +23,14 @@ println(is_list([1]))   // true
 - `num(value)`: converts a compatible value to a number
 - `str(value)`: converts a value to a string
 - `bool(value)`: converts a value to a boolean using Pilang truthiness
+- `list(value)`: converts an iterable value to a list
 
 ```pilang
 println(num("42"))    // 42
 println(str(42))      // "42"
 println(bool(""))     // false
 println(bool([1, 2])) // true
+println(list(1..4))   // [1, 2, 3]
 ```
 
 ## Truthiness

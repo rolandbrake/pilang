@@ -62,6 +62,8 @@ def run_test(path: Path):
         [str(PI_COMMAND), str(path)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         cwd=BASE_DIR,
     )
     duration_ms = (time.perf_counter() - started) * 1000.0

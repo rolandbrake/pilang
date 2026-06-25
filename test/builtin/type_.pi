@@ -1,6 +1,11 @@
 import type:tp;
 
 let source = 1..5;
-let converted = tp.list(source);
+let converted = list(source);
 
-println(converted);
+assert(converted == [1, 2, 3, 4], "list(range) should collect range values");
+assert(tp.instanceof(converted, "list"), "type.instanceof should compare runtime type names");
+assert(tp.instanceof(source, "range"), "type.instanceof should identify ranges");
+assert(type(source) == "range", "global type() should return range");
+assert(str(source) == "1..5", "str(range) should be printable");
+assert(str(1..5:2) == "1..5:2", "str(stepped range) should include the step");

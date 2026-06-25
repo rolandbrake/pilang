@@ -90,6 +90,9 @@ Value pi_tuple(vm_t *vm, int argc, Value *argv);
 // Reverses the elements of a list or characters of a string in place.
 Value cl_reverse(vm_t *vm, int argc, Value *argv);
 
+// Flattens one level of nested list items.
+Value cl_flat(vm_t *vm, int argc, Value *argv);
+
 // Randomly shuffles the elements of a list.
 Value cl_shuffle(vm_t *vm, int argc, Value *argv);
 

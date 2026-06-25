@@ -18,6 +18,17 @@ println("Pilang")
 Use `println` for normal line output and `print` when you want to control line
 breaks yourself.
 
+Pilang writes output as UTF-8. On Windows consoles, built-in output functions
+write through a Unicode-aware console path, so box drawing, Greek text, emoji,
+and other Unicode symbols can be printed directly when your source file is
+saved as UTF-8.
+
+```pilang
+println("box: ╔═╦╗ ║ ╚═╩╝")
+println("greek: αβγ ΔΩ")
+println("emoji: 😀 🚀 ✨")
+```
+
 ```pilang
 let name = "Ada"
 let score = 42

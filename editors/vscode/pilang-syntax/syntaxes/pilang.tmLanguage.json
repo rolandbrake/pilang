@@ -235,7 +235,7 @@
       "patterns": [
         {
           "name": "support.function.builtin.pilang",
-          "match": "\\b(?:abs|append|assert|bool|char|clear|clock|contains|copy|del|eval|exit|format|input|int|len|lower|number|pop|print|printf|println|range|read|repr|str|string|type|upper)\\b(?=\\s*\\()"
+          "match": "\\b(?:abs|append|assert|bool|char|clear|clock|contains|copy|del|eval|exit|format|input|int|len|list|lower|number|pop|print|printf|println|range|read|repr|str|type|upper)\\b(?=\\s*\\()"
         },
         {
           "name": "support.class.builtin.pilang",

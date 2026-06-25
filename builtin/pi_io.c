@@ -3,6 +3,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef _WIN32
+#include <io.h>
+#include <windows.h>
+#endif
+
 #include "pi_io.h"
 
 #include "../common.h"
@@ -34,6 +39,42 @@ static void append_char(char *buffer, int *offset, char c)
     (*offset)++;
     buffer[*offset] = '\0';
 }
+
+static void write_stdoutText(const char *text)
+{
+#ifdef _WIN32
+    HANDLE out = (HANDLE)_get_osfhandle(_fileno(stdout));
+    DWORD mode = 0;
+
+    if (out != INVALID_HANDLE_VALUE && GetConsoleMode(out, &mode))
+    {
+        int wide_len = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, NULL, 0);
+        if (wide_len > 0)
+        {
+            wchar_t *wide = malloc(sizeof(wchar_t) * (size_t)wide_len);
+            if (!wide)
+                error("[io] Memory allocation failed.");
+
+            MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, wide, wide_len);
+
+            DWORD written = 0;
+            WriteConsoleW(out, wide, (DWORD)(wide_len - 1), &written, NULL);
+            free(wide);
+            return;
+        }
+    }
+#endif
+
+    fputs(text, stdout);
+}
+
+static void write_stdoutChar(char ch)
+{
+    char text[2] = {ch, '\0'};
+    write_stdoutText(text);
+}
+
+static char *display_valueString(vm_t *vm, Value value, bool nested);
 
 char *pi_displayString(vm_t *vm, Value value);
 
@@ -86,6 +127,43 @@ static char *builder_finish(DisplayBuilder *builder)
     return builder->data;
 }
 
+static char *display_quoteString(const char *text)
+{
+    DisplayBuilder builder;
+    builder_init(&builder, "\"");
+
+    for (const char *cursor = text; *cursor != '\0'; cursor++)
+    {
+        switch (*cursor)
+        {
+        case '\\':
+            builder_append(&builder, "\\\\");
+            break;
+        case '"':
+            builder_append(&builder, "\\\"");
+            break;
+        case '\n':
+            builder_append(&builder, "\\n");
+            break;
+        case '\r':
+            builder_append(&builder, "\\r");
+            break;
+        case '\t':
+            builder_append(&builder, "\\t");
+            break;
+        default:
+        {
+            char ch[2] = {*cursor, '\0'};
+            builder_append(&builder, ch);
+            break;
+        }
+        }
+    }
+
+    builder_append(&builder, "\"");
+    return builder_finish(&builder);
+}
+
 static char *display_mapString(vm_t *vm, PiMap *map)
 {
     int size = ht_length(map->table);
@@ -99,14 +177,16 @@ static char *display_mapString(vm_t *vm, PiMap *map)
     {
         char *key = it.key;
         Value *stored = it.value;
-        char *value = stored ? pi_displayString(vm, *stored) : strdup("nil");
+        char *quoted_key = display_quoteString(key);
+        char *value = stored ? display_valueString(vm, *stored, true) : strdup("nil");
 
         if (i > 0)
             builder_append(&builder, ", ");
 
-        builder_append(&builder, key);
+        builder_append(&builder, quoted_key);
         builder_append(&builder, ": ");
         builder_append(&builder, value);
+        free(quoted_key);
         free(value);
     }
 
@@ -122,7 +202,7 @@ static char *display_listString(vm_t *vm, PiList *list)
     for (int i = 0; i < list->items->size; i++)
     {
         Value item = *(Value *)list_getAt(list->items, i);
-        char *text = pi_displayString(vm, item);
+        char *text = display_valueString(vm, item, true);
 
         if (i > 0)
             builder_append(&builder, ", ");
@@ -144,7 +224,7 @@ static char *display_tupleString(vm_t *vm, PiTuple *tuple)
     for (int i = 0; i < size; i++)
     {
         Value item = *(Value *)list_getAt(tuple->items, i);
-        char *text = pi_displayString(vm, item);
+        char *text = display_valueString(vm, item, true);
 
         if (i > 0)
             builder_append(&builder, ", ");
@@ -172,7 +252,7 @@ static char *display_setString(vm_t *vm, PiSet *set)
 
     for (int i = 0; i < size; i++)
     {
-        char *text = pi_displayString(vm, set_get(set, i));
+        char *text = display_valueString(vm, set_get(set, i), true);
 
         if (i > 0)
             builder_append(&builder, ", ");
@@ -185,7 +265,7 @@ static char *display_setString(vm_t *vm, PiSet *set)
     return builder_finish(&builder);
 }
 
-char *pi_displayString(vm_t *vm, Value value)
+static char *display_valueString(vm_t *vm, Value value, bool nested)
 {
     // Instances can customize their printed representation by defining format().
     // Returning the same instance avoids infinite recursion.
@@ -193,9 +273,11 @@ char *pi_displayString(vm_t *vm, Value value)
     {
         Value formatted = vm_callMethodNoArgs(vm, value, "format");
         if (!(IS_MAP(formatted) && AS_MAP(formatted) == AS_MAP(value)))
-            return pi_displayString(vm, formatted);
+            return display_valueString(vm, formatted, nested);
     }
 
+    if (nested && IS_STRING(value))
+        return display_quoteString(AS_CSTRING(value));
     if (IS_LIST(value))
         return display_listString(vm, AS_LIST(value));
     if (IS_MAP(value))
@@ -207,6 +289,11 @@ char *pi_displayString(vm_t *vm, Value value)
 
     char *text = as_stringWithFormat(vm, value);
     return text ? text : strdup("<unknown>");
+}
+
+char *pi_displayString(vm_t *vm, Value value)
+{
+    return display_valueString(vm, value, false);
 }
 
 static void format_text(vm_t *vm, int argc, Value *argv, char *out)
@@ -288,7 +375,7 @@ Value pi_print(vm_t *vm, int argc, Value *argv)
 
         text = pi_displayString(vm, argv[i]);
 
-        fputs(text, stdout);
+        write_stdoutText(text);
         free(text);
     }
 
@@ -299,7 +386,7 @@ Value pi_print(vm_t *vm, int argc, Value *argv)
 Value pi_println(vm_t *vm, int argc, Value *argv)
 {
     pi_print(vm, argc, argv);
-    putchar('\n');
+    write_stdoutChar('\n');
     fflush(stdout);
 
     return NEW_NIL();
@@ -313,7 +400,7 @@ Value pi_printf(vm_t *vm, int argc, Value *argv)
 
     format_text(vm, argc, argv, out);
 
-    fputs(out, stdout);
+    write_stdoutText(out);
     fflush(stdout);
     return NEW_NIL();
 }
@@ -330,12 +417,19 @@ Value pi_log(vm_t *vm, int argc, Value *argv)
     if (argc >= 2 && IS_STRING(argv[1]))
         flag = AS_CSTRING(argv[1]);
 
+    char *line = malloc(strlen(msg) + 32);
+    if (!line)
+        error("[log] Memory allocation failed.");
+
     if (strcmp(flag, "e") == 0)
-        printf(ANSI_RED "%s" ANSI_RESET "\n", msg);
+        sprintf(line, ANSI_RED "%s" ANSI_RESET "\n", msg);
     else if (strcmp(flag, "w") == 0)
-        printf(ANSI_YELLOW "%s" ANSI_RESET "\n", msg);
+        sprintf(line, ANSI_YELLOW "%s" ANSI_RESET "\n", msg);
     else
-        printf("%s\n", msg);
+        sprintf(line, "%s\n", msg);
+
+    write_stdoutText(line);
+    free(line);
 
     free(msg);
     return NEW_NIL();
@@ -347,7 +441,7 @@ Value pi_input(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[input] expects a single string argument as a prompt.");
 
     PiString *prompt = AS_STRING(argv[0]);
-    printf("%s", prompt->chars);
+    write_stdoutText(prompt->chars);
     fflush(stdout);
 
     char buffer[BUFFER_SIZE];

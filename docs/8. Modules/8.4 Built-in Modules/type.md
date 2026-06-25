@@ -1,27 +1,23 @@
 # type Module
 
-The `type` module provides type inspection and conversion helpers.
+The `type` module provides type inspection and conversion helpers that do not
+duplicate global built-ins such as `type()`, `str()`, and `list()`.
 
 ```pilang
 import type:tp
 ```
 
-## `type.is(value, type_name)`
+## `type.instanceof(value, type_name)`
 
 Returns whether `value` has the given runtime type name.
 
 ```pilang
-println(tp.is(10, "number"))    // true
-println(tp.is("pi", "string"))  // true
+println(tp.instanceof(10, "number"))    // true
+println(tp.instanceof("pi", "string"))  // true
+println(tp.instanceof(1..5, "range"))   // true
 ```
 
-## `type.of(value)`
-
-Returns the runtime type name.
-
-```pilang
-println(tp.of([1, 2, 3])) // list
-```
+Use global `type(value)` when you need the runtime type name itself.
 
 ## `type.size(value)`
 
@@ -59,13 +55,7 @@ Converts a number or numeric string to a floating-point number.
 println(tp.float("3.14")) // 3.14
 ```
 
-## `type.string(value)`
-
-Converts a value to its string representation.
-
-```pilang
-println(tp.string(42)) // "42"
-```
+Use global `str(value)` to convert a value to its string representation.
 
 ## `type.bool(value)`
 
@@ -76,13 +66,8 @@ println(tp.bool(0))      // false
 println(tp.bool([1, 2])) // true
 ```
 
-## `type.list(value)`
-
-Converts an iterable value to a list. Lists are shallow-copied.
-
-```pilang
-println(tp.list("abc")) // ["a", "b", "c"]
-```
+Use global `list(value)` to convert an iterable value to a list. Lists are
+shallow-copied.
 
 ## `type.bytes(value)`
 
