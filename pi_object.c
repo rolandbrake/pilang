@@ -18,10 +18,10 @@ typedef struct set_table
     int size;
     int capacity;
     set_item *items;
-    list_t *values;
+    list_t *values; /* insertion-order list for indexed access / iteration */
 } set_table;
 
-// Monotonically increasing runtime object identifier.
+/* Monotonically increasing runtime object identifier. */
 static uint64_t _ID = 1;
 
 static Object *create_obj(size_t size, o_type type)
@@ -34,55 +34,43 @@ static Object *create_obj(size_t size, o_type type)
     obj->is_marked = false;
     obj->in_gcList = false;
     obj->gc_color = GC_WHITE;
-
+    obj->next = NULL;
     return obj;
 }
 
-// FNV-1a hash used for string interning, maps and sets.
+/* FNV-1a hash used for string interning, maps, and sets. */
 uint32_t string_hash(char *chars, size_t length)
 {
     uint32_t hash = 2166136261u;
-    for (int i = 0; i < length; i++)
+    for (size_t i = 0; i < length; i++)
     {
         hash ^= (uint8_t)chars[i];
-        hash *= 16777619;
+        hash *= 16777619u;
     }
     return hash;
 }
 
-
 Object *new_pistring(char *str)
 {
     PiString *string = CREATE_OBJ(PiString, OBJ_STRING);
-
     string->chars = str;
-
     string->length = strlen(str);
-
     string->hash = string_hash(str, string->length);
-
     string->current = 0;
-
     return (Object *)string;
 }
 
 PiString *copy_pistring(char *chars, int length)
 {
     PiString *string = CREATE_OBJ(PiString, OBJ_STRING);
-
     string->length = length;
     string->chars = malloc(length + 1);
-
     if (!string->chars)
         error("[copy_pistring] Memory allocation failed.");
-
     memcpy(string->chars, chars, length);
     string->chars[length] = '\0';
-
     string->hash = string_hash(chars, length);
-
     string->current = 0;
-
     return string;
 }
 
@@ -113,9 +101,12 @@ static int tensor_elemSize(TN_TYPE type)
     return sizeof(double);
 }
 
-// Shared tensor constructor used by both initialized and uninitialized allocations.
+/* Shared constructor used by both zero-init and uninit paths. */
 static Object *new_tensorWithInit(int ndim, int *shape, TN_TYPE type, bool zero_initialize)
 {
+    if (ndim < 0 || ndim > MAX_TENSOR_DIMS)
+        error("[new_tensor] Invalid tensor rank.");
+
     PiTensor *tensor = CREATE_OBJ(PiTensor, OBJ_TENSOR);
     tensor->type = type;
     tensor->ndim = ndim;
@@ -124,15 +115,12 @@ static Object *new_tensorWithInit(int ndim, int *shape, TN_TYPE type, bool zero_
     tensor->rows = ndim > 0 ? shape[0] : 0;
     tensor->cols = ndim > 1 ? shape[1] : 1;
 
-    if (ndim < 0 || ndim > MAX_TENSOR_DIMS)
-        error("[new_tensor] Invalid tensor rank.");
-
     tensor->shape = malloc(sizeof(int) * (size_t)ndim);
     tensor->strides = malloc(sizeof(int) * (size_t)ndim);
-
     if (!tensor->shape || !tensor->strides)
         error("[new_tensor] Memory allocation failed.");
 
+    /* Compute total element count, checking for overflow. */
     size_t elem_count = 1;
     for (int i = 0; i < ndim; i++)
     {
@@ -145,6 +133,7 @@ static Object *new_tensorWithInit(int ndim, int *shape, TN_TYPE type, bool zero_
     }
     tensor->size = (int)elem_count;
 
+    /* Row-major (C-order) strides. */
     size_t stride = 1;
     for (int i = ndim - 1; i >= 0; i--)
     {
@@ -194,7 +183,7 @@ double tensor_getFlat(PiTensor *tensor, int index)
     switch (tensor->type)
     {
     case TN_FLOAT32:
-        return ((float *)tensor->data.f32)[index];
+        return ((float *)tensor->data.raw)[index];
     case TN_FLOAT64:
         return tensor->data.f64[index];
     case TN_INT32:
@@ -210,7 +199,7 @@ void tensor_setFlat(PiTensor *tensor, int index, double value)
     switch (tensor->type)
     {
     case TN_FLOAT32:
-        ((float *)tensor->data.f32)[index] = (float)value;
+        ((float *)tensor->data.raw)[index] = (float)value;
         break;
     case TN_FLOAT64:
         tensor->data.f64[index] = value;
@@ -242,6 +231,7 @@ Object *tensor_rowAsList(PiTensor *tensor, int row)
 
     int row_size = tensor->size / tensor->shape[0];
     int start = get_index(row, tensor->shape[0]) * row_size;
+
     for (int i = 0; i < row_size; i++)
     {
         Value value = NEW_NUM(tensor_getFlat(tensor, start + i));
@@ -259,7 +249,6 @@ Object *tensor_rowAsList(PiTensor *tensor, int row)
 Object *new_map(table_t *table, bool is_instance)
 {
     PiMap *map = CREATE_OBJ(PiMap, OBJ_MAP);
-
     map->table = table;
     map->bound_methods = NULL;
     map->last_bound_source = NULL;
@@ -269,14 +258,10 @@ Object *new_map(table_t *table, bool is_instance)
     map->bracket_access = true;
     map->has_compute = false;
     map->has_rcompute = false;
-
     map->it = ht_iterator(table);
-
     map->is_instance = is_instance;
     map->super_instance = NULL;
-
     map->proto = NULL;
-
     return (Object *)map;
 }
 
@@ -300,32 +285,27 @@ Object *new_set(void)
     return (Object *)set;
 }
 
-// Open-addressing hash set with linear probing.
-static bool _set_insert(PiSet *set, Value value, bool append)
+/* Returns the slot index for value, or -1 if not present.
+ * Centralises the probe loop so set_has and set_remove share one copy. */
+static int set_find(set_table *table, Value value, uint64_t hash)
 {
-    set_table *table = set->table;
+    int mask = table->capacity - 1;
+    int index = (int)(hash & (uint64_t)mask);
 
-    // Grow when load factor exceeds 75%.
-    if ((table->size + 1) * 4 > table->capacity * 3)
+    while (table->items[index].occupied)
     {
-        int old_capacity = table->capacity;
-        set_item *old_items = table->items;
-
-        table->capacity *= 2;
-        table->items = calloc((size_t)table->capacity, sizeof(set_item));
-        if (!table->items)
-            error("[set_add] Memory allocation for set table failed.");
-
-        table->size = 0;
-        for (int i = 0; i < old_capacity; i++)
-        {
-            if (old_items[i].occupied)
-                _set_insert(set, old_items[i].value, false);
-        }
-        free(old_items);
+        if (table->items[index].hash == hash &&
+            value_keyEquals(table->items[index].value, value))
+            return index;
+        index = (index + 1) & mask;
     }
+    return -1;
+}
 
-    uint64_t hash = value_hash(value);
+/* Insert value into table without a grow check — caller is responsible.
+ * append=false skips the values list, used during rehash. */
+static void set_insertRaw(set_table *table, Value value, uint64_t hash, bool append)
+{
     int mask = table->capacity - 1;
     int index = (int)(hash & (uint64_t)mask);
 
@@ -334,8 +314,9 @@ static bool _set_insert(PiSet *set, Value value, bool append)
         if (table->items[index].hash == hash &&
             value_keyEquals(table->items[index].value, value))
         {
+            /* Update in-place; do not add a duplicate to values. */
             table->items[index].value = value;
-            return true;
+            return;
         }
         index = (index + 1) & mask;
     }
@@ -344,60 +325,78 @@ static bool _set_insert(PiSet *set, Value value, bool append)
     table->items[index].hash = hash;
     table->items[index].value = value;
     table->size++;
-
     if (append)
         list_add(table->values, &value);
+}
 
-    return true;
+static void set_grow(PiSet *set)
+{
+    set_table *table = set->table;
+    int old_cap = table->capacity;
+    set_item *old_items = table->items;
+
+    table->capacity *= 2;
+    table->items = calloc((size_t)table->capacity, sizeof(set_item));
+    if (!table->items)
+        error("[set_grow] Memory allocation failed.");
+
+    /* Rehash all occupied slots.  The values list already has the right
+     * order, so skip appending (append=false). */
+    table->size = 0;
+    for (int i = 0; i < old_cap; i++)
+    {
+        if (old_items[i].occupied)
+            set_insertRaw(table, old_items[i].value, old_items[i].hash, false);
+    }
+    free(old_items);
 }
 
 bool set_add(PiSet *set, Value value)
 {
-    return _set_insert(set, value, true);
+    set_table *table = set->table;
+
+    /* Grow when load factor exceeds 75%. */
+    if ((table->size + 1) * 4 > table->capacity * 3)
+        set_grow(set);
+
+    set_insertRaw(table, value, value_hash(value), true);
+    return true;
 }
 
 bool set_has(PiSet *set, Value value)
 {
-    set_table *table = set->table;
+    set_table *table = set ? set->table : NULL;
     if (!table)
         return false;
-
-    uint64_t hash = value_hash(value);
-    int mask = table->capacity - 1;
-    int index = (int)(hash & (uint64_t)mask);
-
-    while (table->items[index].occupied)
-    {
-        if (table->items[index].hash == hash &&
-            value_keyEquals(table->items[index].value, value))
-            return true;
-        index = (index + 1) & mask;
-    }
-
-    return false;
+    return set_find(table, value, value_hash(value)) >= 0;
 }
 
 bool set_remove(PiSet *set, Value value)
 {
-    if (!set || !set->table || !set_has(set, value))
+    if (!set || !set->table)
         return false;
 
     set_table *table = set->table;
-    int old_capacity = table->capacity;
+    if (set_find(table, value, value_hash(value)) < 0)
+        return false;
+
+    /* Rebuild the table from the ordered values list, skipping the removed
+     * element.  This preserves insertion order in the values list. */
+    int old_cap = table->capacity;
     set_item *old_items = table->items;
     list_t *old_values = table->values;
 
     table->size = 0;
-    table->items = calloc((size_t)old_capacity, sizeof(set_item));
+    table->items = calloc((size_t)old_cap, sizeof(set_item));
     table->values = list_create(sizeof(Value));
     if (!table->items || !table->values)
-        error("[set_remove] Memory allocation for set table failed.");
+        error("[set_remove] Memory allocation failed.");
 
     for (int i = 0; i < old_values->size; i++)
     {
         Value item = *(Value *)list_getAt(old_values, i);
         if (!value_keyEquals(item, value))
-            _set_insert(set, item, true);
+            set_insertRaw(table, item, value_hash(item), true);
     }
 
     free(old_items);
@@ -417,7 +416,6 @@ Value set_get(PiSet *set, int index)
     set_table *table = set ? set->table : NULL;
     if (!table || !table->values || index < 0 || index >= table->values->size)
         return NEW_NIL();
-
     return *(Value *)list_getAt(table->values, index);
 }
 
@@ -435,7 +433,7 @@ void set_clear(PiSet *set)
     table->items = calloc((size_t)table->capacity, sizeof(set_item));
     table->values = list_create(sizeof(Value));
     if (!table->items || !table->values)
-        error("[set_clear] Memory allocation for set table failed.");
+        error("[set_clear] Memory allocation failed.");
 
     set->current = 0;
 }
@@ -466,30 +464,41 @@ Object *new_tuple(list_t *items)
 Object *new_file(FILE *file, char *filename, char *mode)
 {
     ObjFile *f = CREATE_OBJ(ObjFile, OBJ_FILE);
-
     f->fp = file;
     f->filename = filename;
     f->mode = mode;
     f->closed = false;
-
     return (Object *)f;
 }
 
-// Walks the prototype chain and returns the map that owns the key.
+Object *new_range(double start, double end, double step)
+{
+    PiRange *range = CREATE_OBJ(PiRange, OBJ_RANGE);
+    range->start = start;
+    range->end = end;
+    range->step = step;
+    range->current = start;
+    return (Object *)range;
+}
+
+Object *new_slice(double start, double stop, double step)
+{
+    PiSlice *slice = CREATE_OBJ(PiSlice, OBJ_SLICE);
+    slice->start = start;
+    slice->stop = stop;
+    slice->step = step;
+    return (Object *)slice;
+}
+
+/* Walks the prototype chain and returns the map that owns the key. */
 static PiMap *map_findOwner(PiMap *map, const char *key_str)
 {
-    // Search for the key in the map's underlying table
     while (map != NULL)
     {
-        // If the key is found in the map, return the map itself
         if (ht_get(map->table, key_str) != NULL)
             return map;
-
-        // If the key is not found in the map, move up the prototype chain
         map = map->proto;
     }
-
-    // If the key is not found in any map in the prototype chain, return NULL
     return NULL;
 }
 
@@ -503,96 +512,77 @@ static inline const char *map_keyChars(Value key, char **owned_out)
         *owned_out = NULL;
         return AS_CSTRING(key);
     }
-
     *owned_out = as_string(key);
     return *owned_out;
 }
 
 Value map_get(PiMap *map, Value key)
 {
-    char *owned_key;
-    const char *key_str = map_keyChars(key, &owned_key);
-
-    // Find the owner map of this key
+    char *owned;
+    const char *key_str = map_keyChars(key, &owned);
     PiMap *owner = map_findOwner(map, key_str);
-
-    // Search for the item in the owner's table
     void *item = owner ? ht_get(owner->table, key_str) : NULL;
-
-    // Free the allocated key string
-    free(owned_key);
-
-    // Check if the item was found; if not, return nil
-    if (item == NULL)
-    {
-        return NEW_NIL();
-    }
-
-    // Return the found value
-    return *(Value *)item;
+    free(owned);
+    return item ? *(Value *)item : NEW_NIL();
 }
 
 Value map_getValueByKey(PiMap *map, const char *key)
 {
     PiMap *owner = map_findOwner(map, key);
     void *item = owner ? ht_get(owner->table, key) : NULL;
-    return item == NULL ? NEW_NIL() : *(Value *)item;
+    return item ? *(Value *)item : NEW_NIL();
 }
 
 bool map_has(PiMap *map, Value key)
 {
-    char *owned_key;
-    const char *key_str = map_keyChars(key, &owned_key);
+    char *owned;
+    const char *key_str = map_keyChars(key, &owned);
     bool found = map_findOwner(map, key_str) != NULL;
-    free(owned_key);
+    free(owned);
     return found;
 }
 
 bool map_delete(PiMap *map, Value key)
 {
-    char *owned_key;
-    const char *key_str = map_keyChars(key, &owned_key);
+    char *owned;
+    const char *key_str = map_keyChars(key, &owned);
     PiMap *owner = map_findOwner(map, key_str);
     bool removed = false;
-
     if (owner != NULL && !owner->locked)
         removed = ht_delete(owner->table, key_str);
-
-    free(owned_key);
+    free(owned);
     return removed;
 }
 
-// Updates an existing prototype owner when possible; otherwise inserts into the current map.
+/* Updates an existing prototype owner when possible; inserts into current map otherwise. */
 void map_set(PiMap *map, Value key, Value value)
 {
-    char *owned_key;
-    const char *key_str = map_keyChars(key, &owned_key);
+    char *owned;
+    const char *key_str = map_keyChars(key, &owned);
     PiMap *owner = map_findOwner(map, key_str);
     if (owner == NULL)
         owner = map;
 
-    bool updated = ht_set(owner->table, key_str, &value);
-
-    if (!updated && !owner->locked)
+    if (!ht_set(owner->table, key_str, &value) && !owner->locked)
         ht_put(owner->table, key_str, &value);
 
     if (IS_FUN(value))
     {
         if (strcmp(key_str, "compute") == 0)
             owner->has_compute = true;
-        else if (strcmp(key_str, "rcompute") == 0)
+        if (strcmp(key_str, "rcompute") == 0)
             owner->has_rcompute = true;
     }
 
-    free(owned_key);
+    free(owned);
 }
 
 PiMap *map_owner(PiMap *map, Value key)
 {
-    char *owned_key;
-    const char *key_str = map_keyChars(key, &owned_key);
+    char *owned;
+    const char *key_str = map_keyChars(key, &owned);
     PiMap *owner = map_findOwner(map, key_str);
-    free(owned_key);
+    free(owned);
     return owner;
 }
 
@@ -603,11 +593,11 @@ int map_size(PiMap *map)
 
 uint32_t code_hash(uint8_t *code)
 {
-    uint32_t hash = 2166136261u; // FNV offset basis
+    uint32_t hash = 2166136261u;
     for (int i = 0; i < 16; i++)
     {
-        hash ^= code[i];  // XOR the next byte into the hash
-        hash *= 16777619; // Multiply by FNV prime
+        hash ^= code[i];
+        hash *= 16777619u;
     }
     return hash;
 }
@@ -615,9 +605,7 @@ uint32_t code_hash(uint8_t *code)
 Object *new_code(list_t *code)
 {
     ObjCode *c = CREATE_OBJ(ObjCode, OBJ_CODE);
-
     c->hash = code_hash((uint8_t *)code->data);
-
     c->data = code;
     c->param_names = NULL;
     c->need_args = false;
@@ -625,44 +613,27 @@ Object *new_code(list_t *code)
     c->method_need_args = false;
     c->method_need_kwargs = false;
     memset(&c->global_cache, 0, sizeof(c->global_cache));
-
     return (Object *)c;
 }
 
-Object *new_context()
+Object *new_context(void)
 {
-    PiContext *ctx = (PiContext *)malloc(sizeof(PiContext));
-
-    ctx->object.type = OBJ_CONTEXT;
-    ctx->object.id = _ID++;
-    ctx->object.is_marked = false;
-    ctx->object.in_gcList = false;
-    ctx->object.gc_color = GC_WHITE;
-
-    ctx->object.next = NULL;
+    PiContext *ctx = CREATE_OBJ(PiContext, OBJ_CONTEXT);
 
     ctx->window = NULL;
     ctx->renderer = NULL;
-
     ctx->width = 0;
     ctx->height = 0;
-
     ctx->tx = 0;
     ctx->ty = 0;
     ctx->sx = 1;
     ctx->sy = 1;
     ctx->angle = 0;
-
     ctx->alpha = 1.0f;
-
     ctx->running = true;
-
     ctx->userdata = NULL;
-
     ctx->frame_callback = NEW_NIL();
-
     ctx->_transform_stack = NULL;
-
     ctx->font = NULL;
     ctx->clip_rect = (SDL_Rect){0, 0, 0, 0};
     ctx->clip_enabled = false;
@@ -675,8 +646,6 @@ Object *new_context()
 Object *new_chart(PiContext *ctx)
 {
     PiChart *chart = CREATE_OBJ(PiChart, OBJ_CHART);
-
-    chart->object.next = NULL; /* create_obj does not zero the allocation */
     chart->ctx = ctx;
     chart->series = list_create(VALUE_SIZE);
     chart->colors = list_create(VALUE_SIZE);
@@ -694,15 +663,12 @@ Object *new_chart(PiContext *ctx)
     chart->title = NULL;
     chart->xlabel = NULL;
     chart->ylabel = NULL;
-
     return (Object *)chart;
 }
 
 Object *new_chart3d(PiContext *ctx)
 {
     PiChart3D *chart = CREATE_OBJ(PiChart3D, OBJ_CHART3D);
-
-    chart->object.next = NULL;
     chart->ctx = ctx;
     chart->series = list_create(VALUE_SIZE);
     chart->show_grid = true;
@@ -717,25 +683,14 @@ Object *new_chart3d(PiContext *ctx)
     chart->xlabel = NULL;
     chart->ylabel = NULL;
     chart->zlabel = NULL;
-
     return (Object *)chart;
 }
 
-// Create a new PiEvent (allocates memory)
 Object *new_event(const char *type, EventType event_type)
 {
-    PiEvent *e = (PiEvent *)malloc(sizeof(PiEvent));
-
-    e->object.type = OBJ_EVENT;
-    e->object.id = _ID++;
-    e->object.is_marked = false;
-    e->object.in_gcList = false;
-    e->object.gc_color = GC_WHITE;
-
+    PiEvent *e = CREATE_OBJ(PiEvent, OBJ_EVENT);
     e->type = strdup(type);
     e->event_type = event_type;
-
-    // Initialize fields to defaults
     e->x = 0;
     e->y = 0;
     e->dx = 0;
@@ -745,188 +700,136 @@ Object *new_event(const char *type, EventType event_type)
     e->pressed = false;
     e->width = 0;
     e->height = 0;
-
     return (Object *)e;
 }
 
-Object *new_range(double start, double end, double step)
-{
-    PiRange *range = CREATE_OBJ(PiRange, OBJ_RANGE);
-
-    range->start = start;
-    range->end = end;
-    range->step = step;
-
-    range->current = start;
-
-    return (Object *)range;
-}
-
-Object *new_slice(double start, double stop, double step)
-{
-    PiSlice *slice = CREATE_OBJ(PiSlice, OBJ_SLICE);
-
-    slice->start = start;
-    slice->stop = stop;
-    slice->step = step;
-
-    return (Object *)slice;
-}
-
-// Resets iterator state for all supported iterable types.
 void iter_reset(Object *col)
 {
     switch (col->type)
     {
     case OBJ_RANGE:
-        // Reset the current value of the range to its start value
         ((PiRange *)col)->current = ((PiRange *)col)->start;
         break;
     case OBJ_LIST:
-        // Reset the current index of the list to 0
         ((PiList *)col)->current = 0;
         break;
     case OBJ_TENSOR:
         ((PiTensor *)col)->current = 0;
         break;
     case OBJ_STRING:
-        // Reset the current index of the string to 0
         ((PiString *)col)->current = 0;
         break;
     case OBJ_TUPLE:
         ((PiTuple *)col)->current = 0;
         break;
     case OBJ_MAP:
-    {
-        // Reset the map's iterator to its first key-value pair
-        PiMap *map = (PiMap *)col;
-        ht_reset(&map->it);
+        ht_reset(&((PiMap *)col)->it);
         break;
-    }
     case OBJ_SET:
-    {
-        // Reset the set's iterator to its first element
-        PiSet *set = (PiSet *)col;
-        set->current = 0;
+        ((PiSet *)col)->current = 0;
         break;
-    }
     default:
-        // Raise an error if the object type is not iterable
         fprintf(stderr, "Object type is not iterable.\n");
         exit(EXIT_FAILURE);
     }
 }
 
-// Iterator protocol: checks whether another value can be produced.
 bool iter_hasNext(Object *col)
 {
-    o_type type = col->type;
-    if (type == OBJ_LIST)
+    switch (col->type)
+    {
+    case OBJ_LIST:
     {
         PiList *list = (PiList *)col;
-        // Check if the current index is less than the length of the list
-        return list->current < LIST_SIZE(list->items);
+        return list->current < (int)LIST_SIZE(list->items);
     }
-    else if (type == OBJ_TENSOR)
+    case OBJ_TENSOR:
     {
-        PiTensor *tensor = (PiTensor *)col;
-        return tensor->ndim > 0 && tensor->current < tensor->shape[0];
+        PiTensor *t = (PiTensor *)col;
+        return t->ndim > 0 && t->current < t->shape[0];
     }
-    else if (type == OBJ_STRING)
+    case OBJ_STRING:
     {
         PiString *str = (PiString *)col;
-        // Check if the current index is less than the length of the string
-        return str->current < str->length;
+        return str->current < (int)str->length;
     }
-    else if (type == OBJ_RANGE)
+    case OBJ_RANGE:
     {
-        PiRange *range = (PiRange *)col;
-        // If step is positive, check if current < end
-        // If step is negative, check if current > end
-        return (range->step > 0) ? (range->current < range->end) : (range->current > range->end);
+        PiRange *r = (PiRange *)col;
+        return r->step > 0 ? r->current < r->end : r->current > r->end;
     }
-    else if (type == OBJ_MAP)
-    {
-        PiMap *map = (PiMap *)col;
-        // Check if there are more key-value pairs to iterate
-        return ht_hasNext(&map->it);
-    }
-    else if (type == OBJ_SET)
+    case OBJ_MAP:
+        return ht_hasNext(&((PiMap *)col)->it);
+    case OBJ_SET:
     {
         PiSet *set = (PiSet *)col;
         return set->current < set_size(set);
     }
-    else if (type == OBJ_TUPLE)
+    case OBJ_TUPLE:
     {
-        PiTuple *tuple = (PiTuple *)col;
-        return tuple->current < LIST_SIZE(tuple->items);
+        PiTuple *t = (PiTuple *)col;
+        return t->current < (int)LIST_SIZE(t->items);
     }
-    return false;
+    default:
+        return false;
+    }
 }
 
-// Iterator protocol: returns the next value and advances state.
 Value iter_next(Object *col)
 {
-    o_type type = col->type;
-    if (type == OBJ_LIST)
+    switch (col->type)
+    {
+    case OBJ_LIST:
     {
         PiList *list = (PiList *)col;
-        Value value = *(Value *)list_getAt(list->items, list->current);
-        list->current++;
-        return value;
+        return *(Value *)list_getAt(list->items, list->current++);
     }
-    else if (type == OBJ_TENSOR)
+    case OBJ_TENSOR:
     {
         PiTensor *tensor = (PiTensor *)col;
-        Value value = NEW_OBJ(tensor_rowAsList(tensor, tensor->current));
-        tensor->current++;
-        return value;
+        return NEW_OBJ(tensor_rowAsList(tensor, tensor->current++));
     }
-    else if (type == OBJ_STRING)
+    case OBJ_STRING:
     {
         PiString *str = (PiString *)col;
-        char *_chars = malloc(2); // 1 char + null terminator
-        _chars[0] = str->chars[str->current];
-        _chars[1] = '\0';
-        Value value = NEW_OBJ(new_pistring(_chars));
-        str->current++;
-        return value;
+        char *chars = malloc(2); /* single char + NUL */
+        chars[0] = str->chars[str->current++];
+        chars[1] = '\0';
+        return NEW_OBJ(new_pistring(chars));
     }
-    else if (type == OBJ_RANGE)
+    case OBJ_RANGE:
     {
         PiRange *range = (PiRange *)col;
         Value value = NEW_NUM(range->current);
         range->current += range->step;
         return value;
     }
-    else if (type == OBJ_TUPLE)
+    case OBJ_TUPLE:
     {
         PiTuple *tuple = (PiTuple *)col;
-        Value value = *(Value *)list_getAt(tuple->items, tuple->current);
-        tuple->current++;
-        return value;
+        return *(Value *)list_getAt(tuple->items, tuple->current++);
     }
-    else if (type == OBJ_MAP)
+    case OBJ_MAP:
     {
         PiMap *map = (PiMap *)col;
         ht_next(&map->it);
         return *(Value *)map->it.value;
     }
-    else if (type == OBJ_SET)
+    case OBJ_SET:
     {
         PiSet *set = (PiSet *)col;
         return set_get(set, set->current++);
     }
-
-    fprintf(stderr, "Invalid col type for iteration.\n");
-    exit(EXIT_FAILURE);
+    default:
+        fprintf(stderr, "Invalid col type for iteration.\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
 bool is_iterable(Object *obj)
 {
     if (!obj)
-        return false; // Return false if the object is null
-
+        return false;
     switch (obj->type)
     {
     case OBJ_LIST:
@@ -936,9 +839,9 @@ bool is_iterable(Object *obj)
     case OBJ_MAP:
     case OBJ_SET:
     case OBJ_TUPLE:
-        return true; // Return true for iterable types
+        return true;
     default:
-        return false; // Return false for non-iterable types
+        return false;
     }
 }
 
@@ -946,28 +849,22 @@ int get_index(int index, int length)
 {
     if (length <= 0)
         error("Index out of range.");
-
-    /* Python-style negative indexing: -1 is the final element. */
     if (index < 0)
         index += length;
-
     if (index < 0 || index >= length)
         error("Index out of range.");
-
     return index;
 }
 
-// Implements Python-style slice bound normalization.
+/* Python-style slice bound normalisation. */
 int slice_index(int index, int length, int step)
 {
-
-    // Handle negative indexing first (Python rule)
     if (index < 0)
         index += length;
 
     if (step > 0)
     {
-        // Forward slice: clamp to [0, length]
+        /* Forward slice: clamp to [0, length]. */
         if (index < 0)
             index = 0;
         if (index > length)
@@ -975,151 +872,107 @@ int slice_index(int index, int length, int step)
     }
     else
     {
-        // Reverse slice: clamp to [-1, length-1]
+        /* Reverse slice: clamp to [-1, length-1]. */
         if (index < -1)
             index = -1;
         if (index > length - 1)
             index = length - 1;
     }
-
     return index;
+}
+
+static Value slice_sequence(list_t *src, int start, int end, int step, bool is_tuple)
+{
+    list_t *dst = list_create(sizeof(Value));
+
+    if (step > 0)
+    {
+        for (int i = start; i < end; i += step)
+            list_add(dst, list_getAt(src, i));
+    }
+    else
+    {
+        for (int i = start; i > end; i += step)
+            list_add(dst, list_getAt(src, i));
+    }
+
+    return is_tuple ? NEW_OBJ(new_tuple(dst)) : NEW_OBJ(new_list(dst));
 }
 
 Value get_slice(Object *sequence, double start, double end, double step)
 {
-    int size = 0;
-    int _start, _end, _step;
-
     if (step == 0)
     {
         fprintf(stderr, "Slice step cannot be zero.\n");
         exit(EXIT_FAILURE);
     }
 
-    _step = (int)step;
+    int _step = (int)step;
 
-    if (sequence->type == OBJ_LIST)
+    switch (sequence->type)
     {
-        PiList *list = (PiList *)sequence;
-        size = LIST_SIZE(list->items);
+    case OBJ_LIST:
+    case OBJ_TUPLE:
+    {
+        list_t *src = sequence->type == OBJ_LIST
+                          ? ((PiList *)sequence)->items
+                          : ((PiTuple *)sequence)->items;
+        int size = LIST_SIZE(src);
 
-        // START
-        if (isinf(start))
-        {
-            _start = (_step > 0) ? 0 : size - 1;
-        }
-        else
-        {
-            _start = slice_index((int)start, size, _step);
-        }
+        int _start = isinf(start) ? (_step > 0 ? 0 : size - 1)
+                                  : slice_index((int)start, size, _step);
+        int _end = isinf(end) ? (_step > 0 ? size : -1)
+                              : slice_index((int)end, size, _step);
 
-        // END
-        if (isinf(end))
-        {
-            _end = (_step > 0) ? size : -1;
-        }
-        else
-        {
-            _end = slice_index((int)end, size, _step);
-        }
-
-        list_t *s_list = list_create(sizeof(Value));
-
-        if (_step > 0)
-        {
-            while (_start < _end)
-            {
-                Value *item = (Value *)list_getAt(list->items, _start);
-                list_add(s_list, item);
-                _start += _step;
-            }
-        }
-        else
-        {
-            while (_start > _end)
-            {
-                Value *item = (Value *)list_getAt(list->items, _start);
-                list_add(s_list, item);
-                _start += _step;
-            }
-        }
-
-        return NEW_OBJ(new_list(s_list));
+        return slice_sequence(src, _start, _end, _step, sequence->type == OBJ_TUPLE);
     }
 
-    else if (sequence->type == OBJ_TUPLE)
-    {
-        PiTuple *tuple = (PiTuple *)sequence;
-        size = LIST_SIZE(tuple->items);
-
-        if (isinf(start))
-            _start = (_step > 0) ? 0 : size - 1;
-        else
-            _start = slice_index((int)start, size, _step);
-
-        if (isinf(end))
-            _end = (_step > 0) ? size : -1;
-        else
-            _end = slice_index((int)end, size, _step);
-
-        list_t *s_list = list_create(sizeof(Value));
-
-        if (_step > 0)
-        {
-            while (_start < _end)
-            {
-                Value *item = (Value *)list_getAt(tuple->items, _start);
-                list_add(s_list, item);
-                _start += _step;
-            }
-        }
-        else
-        {
-            while (_start > _end)
-            {
-                Value *item = (Value *)list_getAt(tuple->items, _start);
-                list_add(s_list, item);
-                _start += _step;
-            }
-        }
-
-        return NEW_OBJ(new_tuple(s_list));
-    }
-
-    else if (sequence->type == OBJ_STRING)
+    case OBJ_STRING:
     {
         PiString *str = (PiString *)sequence;
-        size = str->length;
+        int size = (int)str->length;
 
-        if (isinf(start))
-            _start = (_step > 0) ? 0 : size - 1;
-        else
-            _start = slice_index((int)start, size, _step);
+        int _start = isinf(start) ? (_step > 0 ? 0 : size - 1)
+                                  : slice_index((int)start, size, _step);
+        int _end = isinf(end) ? (_step > 0 ? size : -1)
+                              : slice_index((int)end, size, _step);
 
-        if (isinf(end))
-            _end = (_step > 0) ? size : -1;
-        else
-            _end = slice_index((int)end, size, _step);
-
-        char *s_str = malloc(size + 1);
-        int j = 0;
-
+        /* Pre-count exactly how many characters the slice produces so we
+         * allocate the right number of bytes (not size+1 for every slice). */
+        int count = 0;
         if (_step > 0)
         {
             for (int i = _start; i < _end; i += _step)
-                s_str[j++] = str->chars[i];
+                count++;
         }
         else
         {
             for (int i = _start; i > _end; i += _step)
-                s_str[j++] = str->chars[i];
+                count++;
         }
 
-        s_str[j] = '\0';
+        char *buf = malloc((size_t)count + 1);
+        if (!buf)
+            error("[get_slice] Memory allocation failed.");
 
-        return NEW_OBJ(new_pistring(s_str));
+        int j = 0;
+        if (_step > 0)
+        {
+            for (int i = _start; i < _end; i += _step)
+                buf[j++] = str->chars[i];
+        }
+        else
+        {
+            for (int i = _start; i > _end; i += _step)
+                buf[j++] = str->chars[i];
+        }
+        buf[j] = '\0';
+
+        return NEW_OBJ(new_pistring(buf));
     }
 
-    fprintf(stderr, "Invalid sequence type.\n");
-    exit(EXIT_FAILURE);
+    default:
+        fprintf(stderr, "Invalid sequence type.\n");
+        exit(EXIT_FAILURE);
+    }
 }

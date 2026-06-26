@@ -911,6 +911,21 @@ static inline Value pop_stack(vm_t *vm)
     return value;
 }
 
+static inline void set_stackTop(vm_t *vm, int new_sp)
+{
+    if (new_sp < 0 || new_sp > STACK_MAX)
+        vm_error(vm, "Invalid stack pointer update.");
+
+    if (new_sp < vm->sp)
+        for (int i = new_sp; i < vm->sp; i++)
+            vm->stack[i] = NEW_NIL();
+    else
+        for (int i = vm->sp; i < new_sp; i++)
+            vm->stack[i] = NEW_NIL();
+
+    vm->sp = new_sp;
+}
+
 /**
  * Push a value onto the VM stack.
  */
@@ -2470,6 +2485,7 @@ void run(vm_t *vm)
                     result = (l <= r);
                     break;
                 }
+                vm->stack[vm->sp - 1] = NEW_NIL();
                 vm->sp--;
                 vm->stack[vm->sp - 1] = NEW_BOOL(result);
 
@@ -2774,6 +2790,7 @@ void run(vm_t *vm)
             {
                 double l = AS_NUM(left);
                 double r = AS_NUM(right);
+                vm->stack[vm->sp - 1] = NEW_NIL();
                 vm->sp--;
                 vm->stack[vm->sp - 1] = op_binaryNum(op, l, r);
                 break;
@@ -4050,7 +4067,7 @@ void run(vm_t *vm)
                 break;
             }
 
-            vm->sp -= numElements;
+            int element_base = vm->sp - numElements;
 
             bool is_numeric = true;
             bool is_matrix = true;
@@ -4059,7 +4076,7 @@ void run(vm_t *vm)
             // First: collect all values and add to list
             for (int i = 0; i < numElements; i++)
             {
-                Value v = vm->stack[vm->sp + i];
+                Value v = vm->stack[element_base + i];
                 if (is_numeric && !IS_NUM(v))
                     is_numeric = false;
                 list_add(list, &v);
@@ -4074,7 +4091,7 @@ void run(vm_t *vm)
             else
             {
                 // check for matrix: list of equal-sized numeric lists
-                Value first = vm->stack[vm->sp];
+                Value first = vm->stack[element_base];
                 if (IS_LIST(first))
                 {
                     PiList *pl0 = (PiList *)AS_OBJ(first);
@@ -4084,7 +4101,7 @@ void run(vm_t *vm)
                         rows = numElements;
                         for (int i = 0; i < numElements; i++)
                         {
-                            Value v = vm->stack[vm->sp + i];
+                            Value v = vm->stack[element_base + i];
                             if (!IS_LIST(v))
                             {
                                 is_matrix = false;
@@ -4112,6 +4129,7 @@ void run(vm_t *vm)
             plist->rows = is_matrix ? rows : -1;
             plist->cols = is_matrix ? cols : -1;
 
+            set_stackTop(vm, element_base);
             push_stack(vm, NEW_OBJ(l_obj));
             break;
         }
@@ -4128,17 +4146,18 @@ void run(vm_t *vm)
                 break;
             }
 
-            vm->sp -= numElements;
+            int element_base = vm->sp - numElements;
 
             for (int i = 0; i < numElements; i++)
             {
-                Value element = vm->stack[vm->sp + i];
+                Value element = vm->stack[element_base + i];
                 if (IS_OBJ(element))
                     add_obj(vm, AS_OBJ(element));
                 set_add(set, element);
             }
 
             Object *set_obj = add_obj(vm, (Object *)set);
+            set_stackTop(vm, element_base);
             push_stack(vm, NEW_OBJ(set_obj));
             break;
         }
@@ -4150,14 +4169,15 @@ void run(vm_t *vm)
 
             if (numElements > 0)
             {
-                vm->sp -= numElements;
+                int element_base = vm->sp - numElements;
                 for (int i = 0; i < numElements; i++)
                 {
-                    Value element = vm->stack[vm->sp + i];
+                    Value element = vm->stack[element_base + i];
                     if (IS_OBJ(element))
                         add_obj(vm, AS_OBJ(element));
                     list_add(items, &element);
                 }
+                set_stackTop(vm, element_base);
             }
 
             Object *tuple_obj = add_obj(vm, new_tuple(items));
@@ -4280,7 +4300,7 @@ void run(vm_t *vm)
                 }
             }
 
-            vm->sp = _sp;
+            set_stackTop(vm, _sp);
 
             // Push the new map onto the stack
             Object *map = add_obj(vm, new_map(table, false));
@@ -4347,15 +4367,15 @@ void run(vm_t *vm)
 
             list_t *defaults = list_create(sizeof(Value));
 
-            // Adjust the stack pointer to the first parameter
-            vm->sp -= numParams;
+            int param_base = vm->sp - numParams;
 
             // Populate the parameter list directly from the stack
             for (int i = 0; i < numParams; i++)
             {
-                Value param = vm->stack[vm->sp + i];
+                Value param = vm->stack[param_base + i];
                 list_add(defaults, &param);
             }
+            set_stackTop(vm, param_base);
 
             // Create a new function object
             Object *function = new_func(name, body, defaults, NULL, NULL);
@@ -4404,15 +4424,15 @@ void run(vm_t *vm)
 
             list_t *defaults = list_create(sizeof(Value));
 
-            // Adjust the stack pointer to the first parameter
-            vm->sp -= numParams;
+            int param_base = vm->sp - numParams;
 
             // Populate the parameter list directly from the stack
             for (int i = 0; i < numParams; i++)
             {
-                Value param = vm->stack[vm->sp + i];
+                Value param = vm->stack[param_base + i];
                 list_add(defaults, &param);
             }
+            set_stackTop(vm, param_base);
 
             Object *fun_obj = new_func(name, body, defaults, upvalues, NULL);
             ((Function *)fun_obj)->need_args = body->need_args;

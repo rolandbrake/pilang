@@ -212,13 +212,14 @@ typedef enum
 typedef struct
 {
     Object object; // Object header
-    // double *data;  // contiguous block of memory
     union
     {
-        double *f32;
-        double *f64;
-        int32_t *i32;
-        int64_t *i64;
+        float *f32;   /* TN_FLOAT32 — 32-bit IEEE float                  */
+        double *f64;  /* TN_FLOAT64 — 64-bit IEEE double                 */
+        int32_t *i32; /* TN_INT32   — 32-bit signed integer              */
+        int64_t *i64; /* TN_INT64   — 64-bit signed integer              */
+        void *raw;    /* untyped pointer used for float casts in getFlat */
+
     } data; // union for different data types
 
     TN_TYPE type; // data type (e.g., float32, int64)

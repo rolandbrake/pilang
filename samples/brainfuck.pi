@@ -1,44 +1,89 @@
 let ptr = 0; // Data pointer
-    
+
 // Max memory limit. It is the highest number which
 // can be represented by an unsigned 16-bit binary
 // number. Many computer programming environments
 // beside brainfuck may have predefined
 // constant values representing 65535.
 let length = 2048;
-    
+
 // Array of byte type simulating memory of max
 // 65535 bits from 0 to 65534.
 // let memory = [0] * length;
 let memory = [0] * length;
-    
+
+fun is_instruction(ch) {
+    return ch == ">" || ch == "<" || ch == "+" || ch == "-" ||
+           ch == "." || ch == "," || ch == "[" || ch == "]";
+}
+
+fun compile(code = "") {
+    let ops = [];
+    let jumps = [];
+    let stack = [];
+    let i = 0;
+
+    while (i < #code) {
+        let ch = code[i];
+
+        if (is_instruction(ch)) {
+            let op_index = #ops;
+            ops.push(ch);
+            jumps.push(-1);
+
+            if (ch == "[") {
+                stack.push(op_index);
+            } elif (ch == "]") {
+                if (#stack == 0)
+                    error("unmatched ] at instruction " + op_index);
+
+                let open = stack.pop();
+                jumps[open] = op_index;
+                jumps[op_index] = open;
+            }
+        }
+
+        i++;
+    }
+
+    if (#stack != 0)
+        error("unmatched [ at instruction " + stack.pop());
+
+    return {ops: ops, jumps: jumps};
+}
+
+fun flush_output(output) {
+    if (#output == 0)
+        return;
+
+    print(output.join(""));
+
+    while (#output > 0)
+        output.pop();
+}
+
 // Interpreter function which accepts the code
 // a string parameter
-fun interpret(code = "")
-{
-    let c = 0;
-    let len = #code, i = 0;
-    // Parsing through each character of the code
-    while (i < len)
-    {      
-        // BrainFuck is a tiny language with only
-        // eight instructions. In this loop we check 
-        // and execute all those eight instructions
-            
-            
+fun interpret(code = "", stream_output = false) {
+    let program = compile(code);
+    let ops = program.ops;
+    let jumps = program.jumps;
+    let output = [];
+    let i = 0;
+
+    while (i < #ops) {
+        let op = ops[i];
+
         // > moves the pointer to the right
-        if (code[i] == '>')
-        {
+        if (op == ">") {
             if (ptr == length - 1)//If memory is full
                 ptr = 0;//pointer is returned to zero
             else
                 ptr++;
         }
-            
+
         // < moves the pointer to the left
-        elif (code[i] == '<')
-        {
-       
+        elif (op == "<") {
             if (ptr == 0) // If the pointer reaches zero
 
                 // pointer is returned to rightmost memory
@@ -47,76 +92,62 @@ fun interpret(code = "")
             else
                 ptr--;
         }
-            
+
         // + increments the value of the memory
         // cell under the pointer
-        elif (code[i] == '+') {            
-          if(memory[ptr] == 255)
-            memory[ptr] = 0;
-          else 
-            memory[ptr]++;                      
+        elif (op == "+") {
+            if(memory[ptr] == 255)
+                memory[ptr] = 0;
+            else
+                memory[ptr]++;
         }
 
         // - decrements the value of the memory cell
         // under the pointer
-        elif (code[i] == '-')
-          if(memory[ptr] == 0)
-            memory[ptr] = 255;
-          else             
-            memory[ptr]--;
+        elif (op == "-")
+            if(memory[ptr] == 0)
+                memory[ptr] = 255;
+            else
+                memory[ptr]--;
 
         // . outputs the character signified by the
         // cell at the pointer
-        elif (code[i] == '.')
-            print(char(memory[ptr]));
+        elif (op == ".") {
+            output.push(char(memory[ptr]));
+
+            if (stream_output || #output >= 4096)
+                flush_output(output);
+        }
 
         // , inputs a character and store it in the
         // cell at the pointer
-        elif (code[i] == ',')
-            memory[ptr] = input(">>>") % 255;                    
+        elif (op == ",") {
+            flush_output(output);
+            memory[ptr] = input(">>>") % 255;
+        }
 
         // [ jumps past the matching ] if the cell
         // under the pointer is 0
-        elif (code[i] == '[')
-        {                                                    
+        elif (op == "[") {
             if (memory[ptr] == 0)
-            {                         
-                i++;
-                while (c > 0 || code[i] != ']')
-                {                  
-                    if (code[i] == '[')
-                        c++;                                        
-                    elif (code[i] == ']')
-                        c--;
-                    i++;
-                }
-            }
+                i = jumps[i];
         }
 
         // ] jumps back to the matching [ if the
         // cell under the pointer is nonzero
-        elif (code[i] == ']')
-        {                        
+        elif (op == "]") {
             if (memory[ptr] != 0)
-            {
-                i--;
-                while (c > 0 || code[i] != '[')
-                {
-                    if (code[i] == ']')
-                        c++;
-                    elif (code[i] == '[')
-                        c--;
-                    i--;
-                }                
-            }
+                i = jumps[i];
         }
         i++;
-    }    
+    }
+
+    flush_output(output);
 }
- 
+
 // Driver code
 // let code = "+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+.";
-code = "
+rand_ = "
 >>>++[
     <++++++++[
         <[<++>-]>>[>>]+>>+[
@@ -125,15 +156,14 @@ code = "
         ]<[>+<-]>>-
     ]<.[-]>>
 ]
-
 "
 
-sierpinski = "
+let sierpinski = "
 ++++++++[>+>++++<<-]>++>>+<[-[>>+<<-]+>>]>+[
     -<<<[
         ->[+[-]+>++>>>-<<]<[<]>>++++++[<<+++++>>-]+<<++.[-]<<
     ]>.>+[>>]>+
 ]
 "
-interpret(code);
+interpret(sierpinski, true);
 println();

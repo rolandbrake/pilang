@@ -239,8 +239,12 @@ fun lisp_format(value) {
 }
 
 fun eval_sequence(forms, env) {
+    return eval_sequence_from(forms, 0, env);
+}
+
+fun eval_sequence_from(forms, start, env) {
     let result = nil;
-    let i = 0;
+    let i = start;
 
     while (i < #forms) {
         result = lisp_eval(forms[i], env);
@@ -250,9 +254,9 @@ fun eval_sequence(forms, env) {
     return result;
 }
 
-fun eval_args(forms, env) {
+fun eval_args_from(forms, start, env) {
     let values = [];
-    let i = 0;
+    let i = start;
 
     while (i < #forms) {
         let value = lisp_eval(forms[i], env);
@@ -271,10 +275,7 @@ fun make_lambda(params, body, env) {
     return {kind: "lambda", params: params, body: body, env: env};
 }
 
-fun lisp_apply() {
-    let proc = args[0];
-    let call_args = args[1:];
-
+fun lisp_apply(proc, call_args) {
     if (!is_map(proc) || !("kind" in proc))
         error("not callable: " + lisp_format(proc));
 
@@ -412,10 +413,10 @@ fun lisp_eval(expr, env) {
         return make_lambda(expr[1], expr[2:], env);
 
     if (head == "begin")
-        return eval_sequence(expr[1:], env);
+        return eval_sequence_from(expr, 1, env);
 
-    let call_args = eval_args(expr[1:], env);
-    let result = lisp_apply(lisp_eval(head, env), ...call_args);
+    let call_args = eval_args_from(expr, 1, env);
+    let result = lisp_apply(lisp_eval(head, env), call_args);
     return result;
 }
 
