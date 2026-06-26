@@ -30,6 +30,7 @@ import PiNamedArgument from "./PiNamedArgument.js";
 import PiTupleExpression from "./PiTupleExpression.js";
 import PiSetExpression from "./PiSetExpression.js";
 import PiSequenceExpression from "./PiSequenceExpression.js";
+import PiFillExpression from "./PiFillExpression.js";
 import PiImportStatement from "./PiImportStatement.js";
 import PiClassStatement from "./PiClassStatement.js";
 import PiSwitchStatement from "./PiSwitchStatement.js";
@@ -1300,6 +1301,12 @@ export default class PiParser {
       while (this.match(TokenType.COMMA)) {
         commas.push(this.previous());
         if (this.check(TokenType.RPAREN)) break;
+        if (this.match(TokenType.ELLIPSIS)) {
+          const ellipsis = this.previous();
+          this.consume(TokenType.COMMA, "Expect ',' after '...' in tuple fill expansion.");
+          elements.push(new PiFillExpression(ellipsis, this.Expression()));
+          continue;
+        }
         elements.push(this.Expression());
       }
       const rparen = this.consume(TokenType.RPAREN, "Expect ')' after expression or tuple literal.");
@@ -1339,7 +1346,15 @@ export default class PiParser {
           if (this.check(TokenType.RBRACKET)) {
             break;
           }
-          if (this.match(TokenType.ELLIPSIS)) {
+          if (
+            elements.length > 0 &&
+            this.check(TokenType.ELLIPSIS) &&
+            this.checkNext(TokenType.COMMA)
+          ) {
+            const ellipsis = this.next();
+            this.consume(TokenType.COMMA, "Expect ',' after '...' in list fill expansion.");
+            elements.push(new PiFillExpression(ellipsis, this.Expression()));
+          } else if (this.match(TokenType.ELLIPSIS)) {
             elements.push(new PiSpreadExpression(this.previous(), this.Expression()));
           } else {
             elements.push(this.Expression());
@@ -1372,6 +1387,17 @@ export default class PiParser {
             elements.push(this.Expression());
             if (this.match(TokenType.COMMA)) {
               commas.push(this.previous());
+              if (this.check(TokenType.RBRACE)) break;
+              if (this.match(TokenType.ELLIPSIS)) {
+                const ellipsis = this.previous();
+                this.consume(TokenType.COMMA, "Expect ',' after '...' in set fill expansion.");
+                elements.push(new PiFillExpression(ellipsis, this.Expression()));
+                if (this.match(TokenType.COMMA)) {
+                  commas.push(this.previous());
+                  continue;
+                }
+                break;
+              }
             } else {
               break;
             }

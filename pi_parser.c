@@ -59,6 +59,7 @@ static void emit_spreadMapLiteral(parser_t *parser);
 static void emit_classMap(parser_t *parser, const char *class_name);
 static void emit_boundMethodCall(parser_t *parser, const char *receiver, const char *method, int argc);
 static void emit_listComprehension(parser_t *parser);
+static int emit_literalFill(parser_t *parser, double previous, double endpoint, token_t token);
 
 static bool call_hasSpreadArgs(parser_t *parser);
 
@@ -71,6 +72,8 @@ static void emit_setLiteral(parser_t *parser);
 static bool has_accessContinuation(parser_t *parser, token_t token);
 
 static token_t peek(parser_t *parser);
+static token_t peek_next(parser_t *parser);
+static token_t previous(parser_t *parser);
 static bool check(parser_t *parser, tk_type type);
 static bool match(parser_t *parser, tk_type type);
 static token_t consume(parser_t *parser, tk_type type, const char *message);
@@ -80,6 +83,8 @@ static bool is_functionLiteral(parser_t *parser, int index);
 static bool is_objectLiteral(parser_t *parser, int index);
 static char *get_pendingFunctionName(parser_t *parser);
 static void emit_mapFinalize(parser_t *parser);
+static bool numeric_literalSegment(parser_t *parser, int start, int end, double *value);
+static double consume_fillEndpoint(parser_t *parser);
 
 typedef struct
 {
@@ -184,6 +189,72 @@ static void emit_boundMethodCall(parser_t *parser, const char *receiver, const c
     int method_index = store_const(parser->comp, NEW_OBJ(new_pistring((char *)method)));
     emit_16u(parser->comp, OP_LOAD_CONST, (char *)method, method_index);
     emit(parser->comp, OP_GET_MEMBER);
+}
+
+static bool is_integerLiteralValue(double value)
+{
+    return isfinite(value) && floor(value) == value;
+}
+
+static void emit_numberLiteralConst(parser_t *parser, double value)
+{
+    char descr[64];
+    snprintf(descr, sizeof(descr), "%.15g", value);
+
+    int index = store_const(parser->comp, NEW_NUM(value));
+    emit_16u(parser->comp, OP_LOAD_CONST, descr, index);
+}
+
+static int emit_literalFill(parser_t *parser, double previous, double endpoint, token_t token)
+{
+    if (!is_integerLiteralValue(previous) || !is_integerLiteralValue(endpoint))
+        p_error("Fill expansion requires integer numeric literal endpoints.",
+                token.line, token.column);
+
+    int step = previous <= endpoint ? 1 : -1;
+    int count = 0;
+
+    for (double value = previous + step;
+         step > 0 ? value <= endpoint : value >= endpoint;
+         value += step)
+    {
+        if (count >= UINT16_MAX)
+            p_error("Fill expansion is too large for one literal.",
+                    token.line, token.column);
+
+        emit_numberLiteralConst(parser, value);
+        count++;
+    }
+
+    return count;
+}
+
+static bool numeric_literalSegment(parser_t *parser, int start, int end, double *value)
+{
+    if (start + 1 == end && parser->tokens[start].type == TK_NUM)
+    {
+        *value = tk_double(parser->tokens[start]);
+        return true;
+    }
+
+    if (start + 2 == end &&
+        parser->tokens[start].type == TK_MINUS &&
+        parser->tokens[start + 1].type == TK_NUM)
+    {
+        double number = tk_double(parser->tokens[start + 1]);
+        *value = parser->tokens[start + 1].is_negative ? number : -number;
+        return true;
+    }
+
+    return false;
+}
+
+static double consume_fillEndpoint(parser_t *parser)
+{
+    bool negative = match(parser, TK_MINUS);
+    token_t token = consume(parser, TK_NUM, "Expect integer numeric literal after ', ...,'.");
+    double value = tk_double(token);
+    return negative ? -value : value;
 }
 
 static void emit_spreadListLiteral(parser_t *parser)
@@ -296,7 +367,11 @@ static bool list_hasSpreadItems(parser_t *parser)
             break;
         case TK_ELLIPSIS:
             if (paren_depth == 0 && bracket_depth == 1 && brace_depth == 0)
+            {
+                if (parser->tokens[index].type == TK_COMMA)
+                    break;
                 return true;
+            }
             break;
         default:
             break;
@@ -343,7 +418,11 @@ static bool map_hasSpreadItems(parser_t *parser)
             break;
         case TK_ELLIPSIS:
             if (paren_depth == 0 && bracket_depth == 0 && brace_depth == 1)
+            {
+                if (parser->tokens[index].type == TK_COMMA)
+                    break;
                 return true;
+            }
             break;
         default:
             break;
@@ -390,8 +469,29 @@ static void emit_setLiteral(parser_t *parser)
         if (check(parser, TK_RBRACE))
             break;
 
+        int item_start = parser->current;
         cond_expr(parser);
         size++;
+
+        double previous_number = 0;
+        bool previous_is_number = numeric_literalSegment(parser, item_start, parser->current,
+                                                         &previous_number);
+
+        while (check(parser, TK_COMMA) && peek_next(parser).type == TK_ELLIPSIS)
+        {
+            consume(parser, TK_COMMA, "Expect ',' before '...' in set fill expansion.");
+            consume(parser, TK_ELLIPSIS, "Expect '...' in set fill expansion.");
+            token_t ellipsis = previous(parser);
+            if (!previous_is_number)
+                p_error("Fill expansion requires an integer numeric literal before ', ...,'.",
+                        ellipsis.line, ellipsis.column);
+
+            consume(parser, TK_COMMA, "Expect ',' after '...' in set fill expansion.");
+            double endpoint = consume_fillEndpoint(parser);
+            size += emit_literalFill(parser, previous_number, endpoint, ellipsis);
+            previous_number = endpoint;
+            previous_is_number = true;
+        }
     } while (match(parser, TK_COMMA));
 
     consume(parser, TK_RBRACE, "Expect '}' at the end of set literal.");
@@ -3482,17 +3582,40 @@ static void primary(parser_t *parser)
                 if (match(parser, TK_COMMA))
                 {
                     // At least one comma means tuple literal.
-                    // (expr,)  is a single-element tuple.
-                    // (expr, expr, ...) is a multi-element tuple.
-                    // A trailing comma after the last element is allowed.
-                    int size = 1;
-                    while (!check(parser, TK_RPAREN) && !is_atEnd(parser))
+                // (expr,)  is a single-element tuple.
+                // (expr, expr, ...) is a multi-element tuple.
+                // A trailing comma after the last element is allowed.
+                int size = 1;
+                double previous_number = 0;
+                bool previous_is_number = numeric_literalSegment(parser, _current, parser->current - 1,
+                                                                 &previous_number);
+                while (!check(parser, TK_RPAREN) && !is_atEnd(parser))
+                {
+                    if (match(parser, TK_ELLIPSIS))
                     {
-                        cond_expr(parser);
-                        size++;
+                        token_t ellipsis = previous(parser);
+                        if (!previous_is_number)
+                            p_error("Fill expansion requires an integer numeric literal before ', ...,'.",
+                                    ellipsis.line, ellipsis.column);
+
+                        consume(parser, TK_COMMA, "Expect ',' after '...' in tuple fill expansion.");
+                        double endpoint = consume_fillEndpoint(parser);
+                        size += emit_literalFill(parser, previous_number, endpoint, ellipsis);
+                        previous_number = endpoint;
+                        previous_is_number = true;
                         if (!match(parser, TK_COMMA))
                             break;
+                        continue;
                     }
+
+                    int item_start = parser->current;
+                    cond_expr(parser);
+                    size++;
+                    previous_is_number = numeric_literalSegment(parser, item_start, parser->current,
+                                                               &previous_number);
+                    if (!match(parser, TK_COMMA))
+                        break;
+                }
                     consume(parser, TK_RPAREN, "Expect ')' after tuple literal.");
                     emit_16u(parser->comp, OP_PUSH_TUPLE, "", size);
                 }
@@ -3615,8 +3738,28 @@ static void primary(parser_t *parser)
             {
                 if (!check(parser, TK_RBRACKET))
                 {
+                    int item_start = parser->current;
                     cond_expr(parser);
                     size++;
+                    double previous_number = 0;
+                    bool previous_is_number = numeric_literalSegment(parser, item_start, parser->current,
+                                                                     &previous_number);
+
+                    while (check(parser, TK_COMMA) && peek_next(parser).type == TK_ELLIPSIS)
+                    {
+                        consume(parser, TK_COMMA, "Expect ',' before '...' in list fill expansion.");
+                        consume(parser, TK_ELLIPSIS, "Expect '...' in list fill expansion.");
+                        token_t ellipsis = previous(parser);
+                        if (!previous_is_number)
+                            p_error("Fill expansion requires an integer numeric literal before ', ...,'.",
+                                    ellipsis.line, ellipsis.column);
+
+                        consume(parser, TK_COMMA, "Expect ',' after '...' in list fill expansion.");
+                        double endpoint = consume_fillEndpoint(parser);
+                        size += emit_literalFill(parser, previous_number, endpoint, ellipsis);
+                        previous_number = endpoint;
+                        previous_is_number = true;
+                    }
                 }
                 else
                     break; // trailing comma

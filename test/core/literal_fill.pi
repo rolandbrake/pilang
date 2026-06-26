@@ -1,0 +1,25 @@
+let increasing = [1, 4, ..., 10]
+assert(increasing == [1, 4, 5, 6, 7, 8, 9, 10], "list fill should increase by one")
+
+let decreasing = [10, ..., 1]
+assert(decreasing == [10, 9, 8, 7, 6, 5, 4, 3, 2, 1], "list fill should decrease by one")
+
+let same = [3, ..., 3]
+assert(same == [3], "list fill should not duplicate matching endpoint")
+
+let mixed = [0, ..., 2, 10, ..., 8]
+assert(mixed == [0, 1, 2, 10, 9, 8], "list fill should compose with other literal items")
+
+let negative = [-2, ..., 2, 2, ..., -2]
+assert(negative == [-2, -1, 0, 1, 2, 2, 1, 0, -1, -2], "list fill should handle negative literals")
+
+let tuple_fill = (3, ..., 6)
+assert(tuple_fill == (3, 4, 5, 6), "tuple fill should work")
+
+let set_fill = {1, ..., 5}
+assert(len(set_fill) == 5, "set fill should create each integer")
+assert(1 in set_fill && 3 in set_fill && 5 in set_fill, "set fill should include endpoints and middle values")
+
+let set_down = {5, ..., 1}
+assert(len(set_down) == 5, "set fill should work while decreasing")
+assert(1 in set_down && 5 in set_down, "decreasing set fill should include endpoints")
