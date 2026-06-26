@@ -16,7 +16,7 @@ Value pi_isNum(vm_t *vm, int argc, Value *argv)
     if (argc == 0)
         vm_error(vm, "[is_num] expects one argument.");
 
-    return NEW_BOOL(is_numeric(argv[0]));
+    return NEW_BOOL(IS_NUM(argv[0]));
 }
 
 Value pi_isStr(vm_t *vm, int argc, Value *argv)

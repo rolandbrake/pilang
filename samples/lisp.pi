@@ -1,0 +1,543 @@
+// A small Scheme-like Lisp interpreter written in Pilang.
+// It supports arithmetic, conditionals, definitions, lambdas, recursion,
+// lexical scope, quoting, and list primitives.
+
+fun env_make(outer = nil) {
+    return {data: {}, outer: outer};
+}
+
+fun env_find(env, name) {
+    let current = env;
+
+    while (current != nil) {
+        if (name in current.data)
+            return current;
+        current = current.outer;
+    }
+
+    error("unbound symbol: " + name);
+}
+
+fun env_get(env, name) {
+    return env_find(env, name).data[name];
+}
+
+fun env_set(env, name, value) {
+    env.data[name] = value;
+    return value;
+}
+
+fun is_space(ch) {
+    return ch == " " || ch == "\n" || ch == "\t" || ch == "\r";
+}
+
+fun is_digit(ch) {
+    return ch >= "0" && ch <= "9";
+}
+
+fun is_number_token(text) {
+    if (is_num(text))
+        return true;
+
+    text = ("_" + text)[1:];
+
+    if (#text == 0)
+        return false;
+
+    let start = 0;
+    let dots = 0;
+
+    if (text[0] == "-") {
+        if (#text == 1)
+            return false;
+        start = 1;
+    }
+
+    let i = start;
+    while (i < #text) {
+        let ch = text[i];
+
+        if (ch == ".")
+            dots++;
+        elif (!is_digit(ch))
+            return false;
+
+        i++;
+    }
+
+    return dots <= 1;
+}
+
+fun tokenize(source) {
+    let tokens = [];
+    let token = [];
+    let i = 0;
+
+    while (i < #source) {
+        let ch = source[i];
+        if (is_num(ch))
+            ch = str(ch);
+
+        if (is_space(ch)) {
+            if (#token > 0) {                
+                tokens.push(join(token, ""));
+                token = [];
+            }
+        }
+        elif (ch == '"') {
+            if (#token > 0) {
+                tokens.push(join(token, ""));
+                token = [];
+            }
+
+            i++;
+            let text = [];
+
+            while (i < #source && source[i] != '"') {
+                let next = source[i];
+                if (next == "\\" && i + 1 < #source) {
+                    i++;
+                    next = source[i];
+                    if (next == "n")
+                        next = "\n";
+                    elif (next == "t")
+                        next = "\t";
+                    elif (next == "r")
+                        next = "\r";
+                }
+
+                text.push(next);
+                i++;
+            }
+
+            if (i >= #source)
+                error("missing string closing quote");
+
+            tokens.push({kind: "string", value: join(text, "")});
+        }
+        elif (ch == "(" || ch == ")" || ch == "'") {
+            if (#token > 0) {
+                tokens.push(join(token, ""));
+                token = [];
+            }
+            tokens.push(ch);
+        }
+        else
+            token.push(ch);
+        i++;
+    }
+
+    if (#token > 0)
+        tokens.push(join(token, ""));
+
+    return tokens;
+}
+
+fun parse_atom(token) {
+    if (is_map(token)) {
+        if ("kind" in token) {
+            if (token.kind == "string")
+                return token;
+        }
+    }
+
+    if (is_num(token)) {
+        if (is_str(token))
+            return num(token);
+        return token;
+    }
+
+    token = ("_" + token)[1:];
+
+    if (token == "true")
+        return true;
+    if (token == "false")
+        return false;
+    if (token == "nil")
+        return nil;
+    if (is_number_token(token))
+        return num(token);
+    return token;
+}
+
+fun parse_expr(tokens, index) {
+    if (index >= #tokens)
+        error("unexpected end of input");
+
+    let token = tokens[index];
+    index++;
+
+    if (token == "(") {
+        let expr = [];
+
+        while (index < #tokens && tokens[index] != ")") {
+            let parsed = parse_expr(tokens, index);
+            expr.push(parsed.expr);
+            index = parsed.index;
+        }
+
+        if (index >= #tokens)
+            error("missing ')'");
+
+        return {expr: expr, index: index + 1};
+    }
+
+    if (token == ")")
+        error("unexpected ')'");
+
+    if (token == "'") {
+        let quoted = parse_expr(tokens, index);
+        return {expr: ["quote", quoted.expr], index: quoted.index};
+    }
+
+    return {expr: parse_atom(token), index: index};
+}
+
+fun parse(source) {
+    let tokens = tokenize(source);
+    let index = 0;
+    let forms = [];
+
+    while (index < #tokens) {
+        let parsed = parse_expr(tokens, index);
+        forms.push(parsed.expr);
+        index = parsed.index;
+    }
+
+    return forms;
+}
+
+fun lisp_format(value) {
+    if (is_map(value)) {
+        if ("kind" in value) {
+            if (value.kind == "string")
+                return value.value;
+        }
+    }
+
+    if (is_list(value)) {
+        let parts = [];
+        let i = 0;
+
+        while (i < #value) {
+            parts.push(lisp_format(value[i]));
+            i++;
+        }
+
+        return "(" + parts.join(" ") + ")";
+    }
+
+    if (is_bool(value)) {
+        if (value)
+            return "true";
+        return "false";
+    }
+    if (value == nil)
+        return "nil";
+
+    return str(value);
+}
+
+fun eval_sequence(forms, env) {
+    let result = nil;
+    let i = 0;
+
+    while (i < #forms) {
+        result = lisp_eval(forms[i], env);
+        i++;
+    }
+
+    return result;
+}
+
+fun eval_args(forms, env) {
+    let values = [];
+    let i = 0;
+
+    while (i < #forms) {
+        let value = lisp_eval(forms[i], env);
+        values.push(value);
+        i++;
+    }
+
+    return values;
+}
+
+fun make_builtin(name, fn) {
+    return {kind: "builtin", name: name};
+}
+
+fun make_lambda(params, body, env) {
+    return {kind: "lambda", params: params, body: body, env: env};
+}
+
+fun lisp_apply() {
+    let proc = args[0];
+    let call_args = args[1:];
+
+    if (!is_map(proc) || !("kind" in proc))
+        error("not callable: " + lisp_format(proc));
+
+    if (proc.kind == "builtin") {
+        if (proc.name == "+") {
+            let total = 0;
+            let i = 0;
+            while (i < #call_args) {
+                total += call_args[i];
+                i++;
+            }
+            return total;
+        }
+
+        if (proc.name == "-") {
+            if (#call_args == 1)
+                return -call_args[0];
+
+            let result = call_args[0];
+            let i = 1;
+            while (i < #call_args) {
+                result -= call_args[i];
+                i++;
+            }
+            return result;
+        }
+
+        if (proc.name == "*") {
+            let result = 1;
+            let i = 0;
+            while (i < #call_args) {
+                result *= call_args[i];
+                i++;
+            }
+            return result;
+        }
+
+        if (proc.name == "/") {
+            let result = call_args[0];
+            let i = 1;
+            while (i < #call_args) {
+                result /= call_args[i];
+                i++;
+            }
+            return result;
+        }
+
+        if (proc.name == "=") return call_args[0] == call_args[1];
+        if (proc.name == "<") return call_args[0] < call_args[1];
+        if (proc.name == "<=") return call_args[0] <= call_args[1];
+        if (proc.name == ">") return call_args[0] > call_args[1];
+        if (proc.name == ">=") return call_args[0] >= call_args[1];
+        if (proc.name == "not") return !bool(call_args[0]);
+        if (proc.name == "display") {
+            let i = 0;
+            while (i < #call_args) {
+                print(lisp_format(call_args[i]));
+                i++;
+            }
+            return nil;
+        }
+        if (proc.name == "list") return [...call_args];
+        if (proc.name == "car") return call_args[0][0];
+        if (proc.name == "cdr") return call_args[0][1:];
+        if (proc.name == "cons") return [call_args[0], ...call_args[1]];
+        if (proc.name == "append") return [...call_args[0], ...call_args[1]];
+        if (proc.name == "len") return #call_args[0];
+        if (proc.name == "null?") return is_list(call_args[0]) && #call_args[0] == 0;
+        if (proc.name == "list?") return is_list(call_args[0]);
+        if (proc.name == "number?") return is_num(call_args[0]);
+        if (proc.name == "symbol?") return is_str(call_args[0]);
+        error("unknown builtin: " + proc.name);
+    }
+
+    if (proc.kind == "lambda") {
+        if (#call_args != #proc.params)
+            error("wrong argument count");
+
+        let local = env_make(proc.env);
+        let i = 0;
+
+        while (i < #proc.params) {
+            env_set(local, proc.params[i], call_args[i]);
+            i++;
+        }
+
+        return eval_sequence(proc.body, local);
+    }
+
+    error("unknown procedure kind: " + proc.kind);
+}
+
+fun lisp_eval(expr, env) {
+    if (is_map(expr)) {
+        if ("kind" in expr) {
+            if (expr.kind == "string")
+                return expr.value;
+        }
+    }
+
+    if (is_str(expr))
+        return env_get(env, expr);
+
+    if (!is_list(expr))
+        return expr;
+
+    if (#expr == 0)
+        return [];
+
+    let head = expr[0];
+
+    if (head == "quote")
+        return expr[1];
+
+    if (is_map(head)) {
+        if ("kind" in head) {
+            if (head.kind == "string")
+                return head.value;
+        }
+    }
+
+    if (head == "if") {
+        if (bool(lisp_eval(expr[1], env)))
+            return lisp_eval(expr[2], env);
+        return lisp_eval(expr[3], env);
+    }
+
+    if (head == "define")
+        return env_set(env, expr[1], lisp_eval(expr[2], env));
+
+    if (head == "set!")
+        return env_set(env_find(env, expr[1]), expr[1], lisp_eval(expr[2], env));
+
+    if (head == "lambda")
+        return make_lambda(expr[1], expr[2:], env);
+
+    if (head == "begin")
+        return eval_sequence(expr[1:], env);
+
+    let call_args = eval_args(expr[1:], env);
+    let result = lisp_apply(lisp_eval(head, env), ...call_args);
+    return result;
+}
+
+fun builtin_add() {
+    let total = 0;
+    let i = 0;
+    while (i < #args) {
+        total += args[i];
+        i++;
+    }
+    return total;
+}
+
+fun builtin_sub() {
+    if (#args == 1)
+        return -args[0];
+
+    let result = args[0];
+    let i = 1;
+    while (i < #args) {
+        result -= args[i];
+        i++;
+    }
+    return result;
+}
+
+fun builtin_mul() {
+    let result = 1;
+    let i = 0;
+    while (i < #args) {
+        result *= args[i];
+        i++;
+    }
+    return result;
+}
+
+fun builtin_div() {
+    let result = args[0];
+    let i = 1;
+    while (i < #args) {
+        result /= args[i];
+        i++;
+    }
+    return result;
+}
+
+fun builtin_eq() { return args[0] == args[1]; }
+fun builtin_lt() { return args[0] < args[1]; }
+fun builtin_lte() { return args[0] <= args[1]; }
+fun builtin_gt() { return args[0] > args[1]; }
+fun builtin_gte() { return args[0] >= args[1]; }
+fun builtin_not() { return !bool(args[0]); }
+fun builtin_list() { return [...args]; }
+fun builtin_car() { return args[0][0]; }
+fun builtin_cdr() { return args[0][1:]; }
+fun builtin_cons() { return [args[0], ...args[1]]; }
+fun builtin_append() { return [...args[0], ...args[1]]; }
+fun builtin_len() { return #args[0]; }
+fun builtin_nullp() { return is_list(args[0]) && #args[0] == 0; }
+fun builtin_listp() { return is_list(args[0]); }
+fun builtin_numberp() { return is_num(args[0]); }
+fun builtin_symbolp() { return is_str(args[0]); }
+
+fun standard_env() {
+    let env = env_make();
+
+    env_set(env, "+", make_builtin("+", builtin_add));
+    env_set(env, "-", make_builtin("-", builtin_sub));
+    env_set(env, "*", make_builtin("*", builtin_mul));
+    env_set(env, "/", make_builtin("/", builtin_div));
+    env_set(env, "=", make_builtin("=", builtin_eq));
+    env_set(env, "<", make_builtin("<", builtin_lt));
+    env_set(env, "<=", make_builtin("<=", builtin_lte));
+    env_set(env, ">", make_builtin(">", builtin_gt));
+    env_set(env, ">=", make_builtin(">=", builtin_gte));
+    env_set(env, "not", make_builtin("not", builtin_not));
+    env_set(env, "display", make_builtin("display", nil));
+    env_set(env, "list", make_builtin("list", builtin_list));
+    env_set(env, "car", make_builtin("car", builtin_car));
+    env_set(env, "cdr", make_builtin("cdr", builtin_cdr));
+    env_set(env, "cons", make_builtin("cons", builtin_cons));
+    env_set(env, "append", make_builtin("append", builtin_append));
+    env_set(env, "len", make_builtin("len", builtin_len));
+    env_set(env, "null?", make_builtin("null?", builtin_nullp));
+    env_set(env, "list?", make_builtin("list?", builtin_listp));
+    env_set(env, "number?", make_builtin("number?", builtin_numberp));
+    env_set(env, "symbol?", make_builtin("symbol?", builtin_symbolp));
+
+    return env;
+}
+
+fun lisp_run(source, env) {
+    return eval_sequence(parse(source), env);
+}
+
+fun run(source, env) {
+    println("> " + source);
+    println(lisp_format(lisp_run(source, env)));
+    println();
+}
+
+let env = standard_env();
+
+// run("(+ 1 2 (* 3 4))", env);
+// run("(begin (define r 10) (* 3.14159 (* r r)))", env);
+// run("(if (> 8 3) 42 0)", env);
+// run("(begin (define square (lambda (x) (* x x))) (square 9))", env);
+// run("(begin (define fact (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1)))))) (fact 6))", env);
+
+// run("(begin (define twice (lambda (f x) (f (f x)))) (twice (lambda (n) (+ n 10)) 5))", env);
+// run("(car (cdr '(alpha beta gamma)))", env);
+// run("(cons 1 (append '(2 3) (list 4 5)))", env);
+
+// run('
+//     (define counter 0)
+
+//     (define process-and-count
+//     (begin
+//         (display "Processing data...\n")
+//         (set! counter (+ counter 1))
+//         counter))
+//     ', env);
+
+
+run("(begin (define fib (lambda (n) (if (<= n 1) 1 (+ (fib (- n 1)) (fib (- n 2)))))) (fib 30))", env);

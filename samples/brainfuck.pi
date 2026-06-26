@@ -73,7 +73,7 @@ fun interpret(code = "")
         // , inputs a character and store it in the
         // cell at the pointer
         elif (code[i] == ',')
-            memory[ptr] = read() % 255;                    
+            memory[ptr] = input(">>>") % 255;                    
 
         // [ jumps past the matching ] if the cell
         // under the pointer is 0
@@ -115,7 +115,25 @@ fun interpret(code = "")
 }
  
 // Driver code
-let code = "+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+.";
-println("Output: ");
+// let code = "+[-->-[>>+>-----<<]<--<---]>-.>>>+.>>..+++[.>]<<<<.+++.------.<<-.>>>>+.";
+code = "
+>>>++[
+    <++++++++[
+        <[<++>-]>>[>>]+>>+[
+            -[->>+<<<[<[<<]<+>]>[>[>>]]]
+            <[>>[-]]>[>[-<<]>[<+<]]+<<
+        ]<[>+<-]>>-
+    ]<.[-]>>
+]
+
+"
+
+sierpinski = "
+++++++++[>+>++++<<-]>++>>+<[-[>>+<<-]+>>]>+[
+    -<<<[
+        ->[+[-]+>++>>>-<<]<[<]>>++++++[<<+++++>>-]+<<++.[-]<<
+    ]>.>+[>>]>+
+]
+"
 interpret(code);
 println();

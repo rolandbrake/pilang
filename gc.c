@@ -82,7 +82,7 @@ void *reallocate(void *ptr, size_t o_size, size_t n_size)
     }
     void *result = realloc(ptr, n_size);
     if (!result)
-        exit(1);
+        error("[gc] Out of memory resizing allocation from %zu to %zu bytes.", o_size, n_size);
     return result;
 }
 
@@ -344,10 +344,19 @@ void sweep(vm_t *vm)
     vm->obj_count = live_count;
 
 #ifdef _WIN32
-    // MinGW allocations use the process heap. Compact it after a substantial
-    // sweep so pages from an autograd tape can be returned to the OS.
-    if (collected >= 4096)
+    /*
+     * Keep Windows heap trimming out of the hot GC path. Calling HeapCompact
+     * after every medium-sized sweep can stall allocation-heavy programs, but
+     * very large sweeps such as an autograd tape still benefit from an
+     * occasional trim so later allocations do not hit fragmented heap pressure.
+     */
+    static ULONGLONG last_trim_ms = 0;
+    ULONGLONG now_ms = GetTickCount64();
+    if (collected >= 32768 && now_ms - last_trim_ms >= 1000)
+    {
         gc_trimHeap();
+        last_trim_ms = now_ms;
+    }
 #endif
 }
 

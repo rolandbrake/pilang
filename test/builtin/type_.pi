@@ -9,3 +9,6 @@ assert(tp.instanceof(source, "range"), "type.instanceof should identify ranges")
 assert(type(source) == "range", "global type() should return range");
 assert(str(source) == "1..5", "str(range) should be printable");
 assert(str(1..5:2) == "1..5:2", "str(stepped range) should include the step");
+assert(is_num(1), "is_num should accept real numbers");
+assert(!is_num("1"), "is_num should not treat numeric strings as numbers");
+assert(num("1") == 1, "num() should still explicitly parse numeric strings");

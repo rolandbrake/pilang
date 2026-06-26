@@ -1,0 +1,10 @@
+let ch = "1234"[0];
+
+assert(ch == "1", "string indexing should return a one-character string");
+assert(is_str(ch), "string indexing should preserve string type");
+assert(!is_num(ch), "numeric-looking string characters should not be numbers");
+assert(#ch == 1, "length of an indexed string character should be one");
+
+let letter = "abcd"[2];
+assert(letter == "c", "string indexing should work for non-numeric characters");
+assert(#letter == 1, "length should work for all indexed string characters");

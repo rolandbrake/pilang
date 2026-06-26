@@ -906,7 +906,9 @@ static inline Value pop_stack(vm_t *vm)
     if (vm->sp <= 0)
         vm_error(vm, "Stack underflow: Attempted to pop from an empty stack");
 
-    return vm->stack[--vm->sp];
+    Value value = vm->stack[--vm->sp];
+    vm->stack[vm->sp] = NEW_NIL();
+    return value;
 }
 
 /**
@@ -2371,7 +2373,11 @@ void run(vm_t *vm)
 
             // Ensure the stack pointer reserves space for locals.
             if (vm->sp <= slot)
+            {
+                for (int i = vm->sp; i < slot; i++)
+                    vm->stack[i] = NEW_NIL();
                 vm->sp = slot + 1;
+            }
             break;
         }
 
@@ -3437,6 +3443,33 @@ void run(vm_t *vm)
                 break;
             }
 
+            // Collection size must inspect the original value before numeric coercion.
+            // Numeric-looking strings such as "1" are still strings for '#'.
+            if (op == 4)
+            {
+                if (!IS_OBJ(operand))
+                    vm_error(vm, "Operator '#' requires a collection.");
+
+                switch (OBJ_TYPE(operand))
+                {
+                case OBJ_LIST:
+                    push_stack(vm, NEW_NUM(list_size(AS_LIST(operand)->items)));
+                    break;
+                case OBJ_TENSOR:
+                    push_stack(vm, NEW_NUM(AS_TENSOR(operand)->ndim == 0 ? 0 : AS_TENSOR(operand)->shape[0]));
+                    break;
+                case OBJ_STRING:
+                    push_stack(vm, NEW_NUM(AS_STRING(operand)->length));
+                    break;
+                case OBJ_MAP:
+                    push_stack(vm, NEW_NUM(map_size(AS_MAP(operand))));
+                    break;
+                default:
+                    vm_error(vm, "Unsupported operand type for '#' operator.");
+                }
+                break;
+            }
+
             // Fast path: plain number (most common case)
             // ops 0,1,3,5,6 are purely numeric - zero overload check, zero coercion
             if (is_numeric(operand))
@@ -3462,8 +3495,6 @@ void run(vm_t *vm)
                 case 6:
                     push_stack(vm, NEW_NUM(n - 1.0));
                     break; // --
-                case 4:    // # on a number makes no sense
-                    vm_error(vm, "Operator '#' is not defined for numbers.");
                 default:
                     vm_error(vm, "Unknown unary operator.");
                 }
@@ -3508,33 +3539,6 @@ void run(vm_t *vm)
             if (op == 2)
             {
                 push_stack(vm, NEW_BOOL(!as_bool(operand)));
-                break;
-            }
-
-            //  op 4: collection size '#'─
-            // Pulled before PRIM_AS_NUM - size needs the object itself, not coerced
-            if (op == 4)
-            {
-                if (!IS_OBJ(operand))
-                    vm_error(vm, "Operator '#' requires a collection.");
-
-                switch (OBJ_TYPE(operand))
-                {
-                case OBJ_LIST:
-                    push_stack(vm, NEW_NUM(list_size(AS_LIST(operand)->items)));
-                    break;
-                case OBJ_TENSOR:
-                    push_stack(vm, NEW_NUM(AS_TENSOR(operand)->ndim == 0 ? 0 : AS_TENSOR(operand)->shape[0]));
-                    break;
-                case OBJ_STRING:
-                    push_stack(vm, NEW_NUM(AS_STRING(operand)->length));
-                    break;
-                case OBJ_MAP:
-                    push_stack(vm, NEW_NUM(map_size(AS_MAP(operand))));
-                    break;
-                default:
-                    vm_error(vm, "Unsupported operand type for '#' operator.");
-                }
                 break;
             }
 
