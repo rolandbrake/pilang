@@ -2,7 +2,7 @@
 
 The `fs` module works with files, directories, paths, and file handles.
 
-```pilang
+```swift
 import fs
 ```
 
@@ -13,7 +13,7 @@ File operations affect the real filesystem. Close handles when you are done.
 Opens a file and returns a file handle. Modes follow the host C runtime, such as
 `"r"`, `"w"`, and `"a"`.
 
-```pilang
+```swift
 let f = fs.open("notes.txt", "w")
 fs.close(f)
 ```
@@ -22,7 +22,7 @@ fs.close(f)
 
 Reads from the current file position to the end and returns a string.
 
-```pilang
+```swift
 let f = fs.open("notes.txt", "r")
 let text = fs.read(f)
 fs.close(f)
@@ -32,7 +32,7 @@ fs.close(f)
 
 Reads the remaining file content and returns it as text.
 
-```pilang
+```swift
 let f = fs.open("notes.txt", "r")
 println(fs.readlines(f))
 fs.close(f)
@@ -42,7 +42,7 @@ fs.close(f)
 
 Moves the file cursor to a byte position from the beginning of the file.
 
-```pilang
+```swift
 let f = fs.open("notes.txt", "r")
 fs.seek(f, 0)
 println(fs.read(f))
@@ -53,7 +53,7 @@ fs.close(f)
 
 Writes text at the current file position and returns `true`.
 
-```pilang
+```swift
 let f = fs.open("notes.txt", "w")
 fs.write(f, "hello\n")
 fs.close(f)
@@ -63,7 +63,7 @@ fs.close(f)
 
 Writes text to a file handle opened for appending or writing and returns `true`.
 
-```pilang
+```swift
 let f = fs.open("notes.txt", "a")
 fs.append(f, "more\n")
 fs.close(f)
@@ -73,7 +73,7 @@ fs.close(f)
 
 Closes an open file handle.
 
-```pilang
+```swift
 let f = fs.open("notes.txt")
 fs.close(f)
 ```
@@ -82,7 +82,7 @@ fs.close(f)
 
 Returns whether a path exists.
 
-```pilang
+```swift
 println(fs.exists("notes.txt"))
 ```
 
@@ -90,7 +90,7 @@ println(fs.exists("notes.txt"))
 
 Returns whether a path is a directory.
 
-```pilang
+```swift
 println(fs.isdir("."))
 ```
 
@@ -98,7 +98,7 @@ println(fs.isdir("."))
 
 Returns whether a path is a regular file.
 
-```pilang
+```swift
 println(fs.isfile("notes.txt"))
 ```
 
@@ -106,7 +106,7 @@ println(fs.isfile("notes.txt"))
 
 Returns the file size in bytes.
 
-```pilang
+```swift
 println(fs.size("notes.txt"))
 ```
 
@@ -114,7 +114,7 @@ println(fs.size("notes.txt"))
 
 Returns an absolute path string.
 
-```pilang
+```swift
 println(fs.abspath("notes.txt"))
 ```
 
@@ -122,7 +122,7 @@ println(fs.abspath("notes.txt"))
 
 Returns the final path component.
 
-```pilang
+```swift
 println(fs.basename("/tmp/data.txt")) // data.txt
 ```
 
@@ -130,7 +130,7 @@ println(fs.basename("/tmp/data.txt")) // data.txt
 
 Returns the directory portion of a path.
 
-```pilang
+```swift
 println(fs.dirname("/tmp/data.txt")) // /tmp
 ```
 
@@ -138,7 +138,7 @@ println(fs.dirname("/tmp/data.txt")) // /tmp
 
 Returns the file extension.
 
-```pilang
+```swift
 println(fs.ext("data.csv")) // .csv
 ```
 
@@ -146,7 +146,7 @@ println(fs.ext("data.csv")) // .csv
 
 Joins path components using the platform path separator.
 
-```pilang
+```swift
 println(fs.join("logs", "today.txt"))
 ```
 
@@ -154,7 +154,7 @@ println(fs.join("logs", "today.txt"))
 
 Returns a list of entries in a directory.
 
-```pilang
+```swift
 for name in fs.listdir(".") {
     println(name)
 }
@@ -164,7 +164,7 @@ for name in fs.listdir(".") {
 
 Creates a directory.
 
-```pilang
+```swift
 fs.mkdir("tmp")
 ```
 
@@ -172,7 +172,7 @@ fs.mkdir("tmp")
 
 Removes an empty directory.
 
-```pilang
+```swift
 fs.rmdir("tmp")
 ```
 
@@ -180,7 +180,7 @@ fs.rmdir("tmp")
 
 Returns the current working directory.
 
-```pilang
+```swift
 println(fs.cwd())
 ```
 
@@ -188,7 +188,7 @@ println(fs.cwd())
 
 Changes the current working directory.
 
-```pilang
+```swift
 fs.chdir("..")
 println(fs.cwd())
 ```
@@ -197,7 +197,7 @@ println(fs.cwd())
 
 Copies a file.
 
-```pilang
+```swift
 fs.copy("notes.txt", "notes-copy.txt")
 ```
 
@@ -205,7 +205,7 @@ fs.copy("notes.txt", "notes-copy.txt")
 
 Moves or renames a file.
 
-```pilang
+```swift
 fs.move("notes-copy.txt", "archive.txt")
 ```
 
@@ -213,6 +213,6 @@ fs.move("notes-copy.txt", "archive.txt")
 
 Deletes a file or path supported by the runtime.
 
-```pilang
+```swift
 fs.delete("archive.txt")
 ```

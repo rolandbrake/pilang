@@ -9,7 +9,7 @@ Global I/O functions read from standard input and write to standard output.
 - `printf(format, ...)`: writes formatted output
 - `log(value, ...)`: writes diagnostic-style output
 
-```pilang
+```swift
 print("Hello")
 print(" ")
 println("Pilang")
@@ -23,13 +23,13 @@ write through a Unicode-aware console path, so box drawing, Greek text, emoji,
 and other Unicode symbols can be printed directly when your source file is
 saved as UTF-8.
 
-```pilang
+```swift
 println("box: ╔═╦╗ ║ ╚═╩╝")
 println("greek: αβγ ΔΩ")
 println("emoji: 😀 🚀 ✨")
 ```
 
-```pilang
+```swift
 let name = "Ada"
 let score = 42
 
@@ -40,7 +40,7 @@ printf("%s scored %d\n", name, score)
 
 - `input(prompt)`: prints a prompt string and reads a line from standard input
 
-```pilang
+```swift
 let name = input("Name: ")
 println("Hello, " + name)
 ```

@@ -11,7 +11,7 @@ Type functions inspect and convert values at runtime.
 - `is_list(value)`: true for lists
 - `is_map(value)`: true for maps
 
-```pilang
+```swift
 println(type(10))       // number
 println(is_num(10))     // true
 println(is_str("pi"))   // true
@@ -25,7 +25,7 @@ println(is_list([1]))   // true
 - `bool(value)`: converts a value to a boolean using Pilang truthiness
 - `list(value)`: converts an iterable value to a list
 
-```pilang
+```swift
 println(num("42"))    // 42
 println(str(42))      // "42"
 println(bool(""))     // false

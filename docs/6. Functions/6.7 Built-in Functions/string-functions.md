@@ -8,7 +8,7 @@ common case and whitespace operations.
 - `char(code)`: returns the character for a numeric code
 - `ord(character)`: returns the numeric code for a character
 
-```pilang
+```swift
 println(char(65)) // A
 println(ord("A")) // 65
 ```
@@ -19,7 +19,7 @@ println(ord("A")) // 65
 - `upper(string)`: converts a string to uppercase
 - `lower(string)`: converts a string to lowercase
 
-```pilang
+```swift
 let text = "  Pilang  "
 
 println(trim(text))      // Pilang
@@ -31,7 +31,7 @@ println(lower("PI"))     // pi
 
 Strings also support indexing, slicing, concatenation, repetition, and `in`.
 
-```pilang
+```swift
 let name = "Pilang"
 
 println(name[0])      // P

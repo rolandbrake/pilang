@@ -2,7 +2,7 @@
 
 The `string` module provides replacement, splitting, and character-class checks.
 
-```pilang
+```swift
 import string
 ```
 
@@ -11,7 +11,7 @@ import string
 Returns a new string with every occurrence of `old` replaced by `new`. `old` must
 not be empty.
 
-```pilang
+```swift
 println(string.replace("2026-05-18", "-", "/")) // 2026/05/18
 ```
 
@@ -20,7 +20,7 @@ println(string.replace("2026-05-18", "-", "/")) // 2026/05/18
 Returns `true` when every alphabetic character is uppercase. Non-alphabetic
 characters do not make it false.
 
-```pilang
+```swift
 println(string.is_upper("HELLO")) // true
 println(string.is_upper("Hi"))    // false
 println(string.is_upper("123"))   // true
@@ -30,7 +30,7 @@ println(string.is_upper("123"))   // true
 
 Returns `true` when every alphabetic character is lowercase.
 
-```pilang
+```swift
 println(string.is_lower("hello")) // true
 println(string.is_lower("Hi"))    // false
 ```
@@ -39,7 +39,7 @@ println(string.is_lower("Hi"))    // false
 
 Returns `true` when the string is not empty and every character is a digit.
 
-```pilang
+```swift
 println(string.is_digit("12345")) // true
 println(string.is_digit("12a"))   // false
 ```
@@ -49,7 +49,7 @@ println(string.is_digit("12a"))   // false
 Returns `true` when the string is a valid integer or decimal number, with an
 optional leading sign.
 
-```pilang
+```swift
 println(string.is_numeric("123"))    // true
 println(string.is_numeric("-4.25"))  // true
 println(string.is_numeric("12px"))   // false
@@ -59,7 +59,7 @@ println(string.is_numeric("12px"))   // false
 
 Returns `true` when the string is not empty and all characters are alphabetic.
 
-```pilang
+```swift
 println(string.is_alpha("Pilang")) // true
 println(string.is_alpha("pi3"))    // false
 ```
@@ -69,7 +69,7 @@ println(string.is_alpha("pi3"))    // false
 Returns `true` when the string is not empty and all characters are alphabetic or
 numeric.
 
-```pilang
+```swift
 println(string.is_alnum("abc123")) // true
 println(string.is_alnum("abc_123")) // false
 ```
@@ -79,7 +79,7 @@ println(string.is_alnum("abc_123")) // false
 Splits a string into a list. If `separator` is empty, the string is split into
 single-character strings.
 
-```pilang
+```swift
 println(string.split("a,b,c", ",")) // ["a", "b", "c"]
 println(string.split("abc", ""))    // ["a", "b", "c"]
 ```

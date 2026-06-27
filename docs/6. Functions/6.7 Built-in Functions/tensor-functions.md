@@ -3,7 +3,7 @@
 Tensor helpers are exported by the `tensor` module. Import it before calling
 module functions.
 
-```pilang
+```swift
 import tensor
 
 let zeros = tensor.zeros([2, 3])
@@ -47,7 +47,7 @@ println(tensor.shape(zeros))
 - `tensor.exp`, `tensor.log`, `tensor.sqrt`, `tensor.abs`
 - `tensor.clip`, `tensor.sign`, `tensor.apply`
 
-```pilang
+```swift
 let a = tensor.ones([2, 2])
 let b = tensor.mult(a, 5)
 

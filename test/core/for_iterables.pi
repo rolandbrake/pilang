@@ -1,0 +1,67 @@
+values = [10, 20, 30]
+
+single_total = 0
+for value in values {
+    single_total += value
+}
+assert(single_total == 60, "list for loop should yield values")
+
+pair_total = 0
+for index, value in values {
+    pair_total += index * 100 + value
+}
+assert(pair_total == 360, "list pair loop should yield index and value")
+
+tuple_total = 0
+tuple_values = ("a", "b")
+for index, value in tuple_values {
+    if index == 0 && value == "a" {
+        tuple_total += 1
+    }
+    if index == 1 && value == "b" {
+        tuple_total += 1
+    }
+}
+assert(tuple_total == 2, "tuple pair loop should yield index and value")
+
+range_total = 0
+for index, value in 2..5 {
+    range_total += index * 100 + value
+}
+assert(range_total == 309, "range pair loop should yield index and value")
+
+chars = ""
+for index, value in "hi" {
+    chars += index + value
+}
+assert(chars == "0h1i", "string pair loop should yield index and character")
+
+data = {"a": 2, "b": 3}
+map_keys = ""
+for key in data {
+    map_keys += key
+}
+assert(map_keys == "ab", "map single loop should yield keys in insertion order")
+
+map_pairs = ""
+for key, value in data {
+    map_pairs += key + value
+}
+assert(map_pairs == "a2b3", "map pair loop should yield key and value in insertion order")
+
+data["a"] = 4
+data["c"] = 5
+map_after_update = ""
+for key, value in data {
+    map_after_update += key + value
+}
+assert(map_after_update == "a4b3c5", "map updates should keep order and new keys should append")
+
+set_index_total = 0
+set_value_total = 0
+for index, value in {10, 20} {
+    set_index_total += index
+    set_value_total += value
+}
+assert(set_index_total == 1, "set pair loop should yield numeric indexes")
+assert(set_value_total == 30, "set pair loop should yield values")

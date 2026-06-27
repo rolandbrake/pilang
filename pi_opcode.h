@@ -56,7 +56,7 @@ typedef enum
     OP_IMPORT_ALL = 0x3f,
     OP_IMPORT_DEFAULT = 0x40,
     OP_LOAD_SUPER = 0x41,
-    OP_TENSOR_GET = 0x42,    
+    OP_TENSOR_GET = 0x42,
     OP_TENSOR_SET = 0x43,
     OP_LIST_FINALIZE = 0x44,
     OP_CALL_SPREAD = 0x45,
@@ -72,6 +72,9 @@ typedef enum
     OP_COMP_END = 0x4f,
 
 } OpCode;
+
+#define OP_LOOP_TARGET_PAIR_FLAG 0x8000
+#define OP_LOOP_OFFSET_MASK 0x7fff
 
 typedef struct
 {

@@ -7,7 +7,7 @@ utilities.
 
 `error(message)` raises a runtime error with the provided message.
 
-```pilang
+```swift
 fun require_positive(n) {
     if n <= 0 {
         error("expected a positive number")
@@ -23,7 +23,7 @@ fun require_positive(n) {
 is falsey, execution stops with an assertion error. The message argument is
 required.
 
-```pilang
+```swift
 let items = [1, 2, 3]
 
 assert(len(items) == 3, "items should contain three values")
@@ -36,7 +36,7 @@ maps, empty modules, zero-size tensors, and empty ranges.
 
 `zen()` prints or returns Pilang's built-in zen text.
 
-```pilang
+```swift
 zen()
 ```
 

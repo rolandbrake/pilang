@@ -10,7 +10,7 @@ Global math functions cover common numeric operations and random numbers.
 - `pow(base, exponent)`: exponentiation
 - `round(value)`: rounded number
 
-```pilang
+```swift
 println(abs(-10))       // 10
 println(min(4, 2, 8))   // 2
 println(max(4, 2, 8))   // 8
@@ -26,7 +26,7 @@ println(round(3.6))     // 4
 - `rand(min, max)`: returns a random integer from `min` through `max`
 - `rand_n(size)`: returns a list containing `size` random floats
 
-```pilang
+```swift
 seed(123)
 
 println(rand())
@@ -38,7 +38,7 @@ println(rand_n(10))
 - `INF`: infinity
 - `NAN`: not-a-number
 
-```pilang
+```swift
 println(INF)
 println(NAN)
 ```

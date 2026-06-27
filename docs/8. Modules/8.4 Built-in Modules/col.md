@@ -3,7 +3,7 @@
 The `col` module provides collection utilities for lists, strings, tuples, maps,
 sets, and other iterable values.
 
-```pilang
+```swift
 import col
 ```
 
@@ -12,7 +12,7 @@ import col
 Returns the last item of a list or the last character of a string without
 removing it.
 
-```pilang
+```swift
 println(col.peek([1, 2, 3])) // 3
 println(col.peek("abc"))     // c
 ```
@@ -21,7 +21,7 @@ println(col.peek("abc"))     // c
 
 Sorts a numeric or string list in place and returns `nil`.
 
-```pilang
+```swift
 let values = [3, 1, 2]
 col.sort(values)
 println(values) // [1, 2, 3]
@@ -31,13 +31,13 @@ println(values) // [1, 2, 3]
 
 Prepends one or more values to a list or string and returns the new length.
 
-```pilang
+```swift
 let values = [2, 3]
 col.unshift(values, 1)
 println(values) // [1, 2, 3]
 ```
 
-```pilang
+```swift
 let text = "lang"
 col.unshift(text, "Pi")
 println(text) // Pilang
@@ -47,13 +47,13 @@ println(text) // Pilang
 
 Appends one or more values to a list or string and returns the new length.
 
-```pilang
+```swift
 let values = [1]
 col.append(values, 2, 3)
 println(values) // [1, 2, 3]
 ```
 
-```pilang
+```swift
 let text = "Pi"
 col.append(text, "lang")
 println(text) // Pilang
@@ -64,7 +64,7 @@ println(text) // Pilang
 Returns whether a collection contains a value. For maps, it checks for a key. For
 strings, the value must be a string substring.
 
-```pilang
+```swift
 println(col.contains([1, 2, 3], 2))      // true
 println(col.contains("Pilang", "lang")) // true
 println(col.contains({"x": 1}, "x"))    // true
@@ -75,7 +75,7 @@ println(col.contains({"x": 1}, "x"))    // true
 Returns the first index of a value in a list, tuple, or string. Returns `-1` when
 the value is not found.
 
-```pilang
+```swift
 println(col.indexOf(["a", "b", "a"], "b")) // 1
 println(col.indexOf("banana", "na"))       // 2
 ```
@@ -84,7 +84,7 @@ println(col.indexOf("banana", "na"))       // 2
 
 Returns a reversed copy of a list or string.
 
-```pilang
+```swift
 println(col.reverse([1, 2, 3])) // [3, 2, 1]
 println(col.reverse("abc"))     // cba
 ```
@@ -93,7 +93,7 @@ println(col.reverse("abc"))     // cba
 
 Shuffles a list in place and returns the same list.
 
-```pilang
+```swift
 let values = [1, 2, 3, 4]
 col.shuffle(values)
 println(values)
@@ -104,7 +104,7 @@ println(values)
 Copies a list, string, or set. List copies are shallow: contained objects are not
 deep-cloned.
 
-```pilang
+```swift
 let original = [1, 2]
 let cloned = col.copy(original)
 col.append(cloned, 3)
@@ -118,7 +118,7 @@ println(cloned)   // [1, 2, 3]
 Combines lists or strings by index. The result length is the shortest input
 length.
 
-```pilang
+```swift
 println(col.zip([1, 2], ["a", "b"])) // [[1, "a"], [2, "b"]]
 println(col.zip("ab", [1, 2]))       // [["a", 1], ["b", 2]]
 ```
@@ -128,7 +128,7 @@ println(col.zip("ab", [1, 2]))       // [["a", 1], ["b", 2]]
 Converts each item in a list or tuple to text and joins the items with an
 optional separator. Passing a string returns the string unchanged.
 
-```pilang
+```swift
 println(col.join(["pi", "lang"], "-")) // pi-lang
 println(col.join([1, 2, 3], ", "))     // 1, 2, 3
 ```
@@ -137,7 +137,7 @@ println(col.join([1, 2, 3], ", "))     // 1, 2, 3
 
 Returns whether a value is iterable.
 
-```pilang
+```swift
 println(col.is_iterable([1, 2])) // true
 println(col.is_iterable(10))     // false
 ```
@@ -147,7 +147,7 @@ println(col.is_iterable(10))     // false
 Adds values to a set and returns it. If an added value is iterable, its contents
 are added.
 
-```pilang
+```swift
 let names = set(["Ada"])
 col.add(names, "Grace")
 println(names)
@@ -157,7 +157,7 @@ println(names)
 
 Removes all items from a mutable collection and returns it.
 
-```pilang
+```swift
 let values = [1, 2, 3]
 col.clear(values)
 println(values) // []

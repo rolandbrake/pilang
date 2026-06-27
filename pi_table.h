@@ -24,7 +24,8 @@ typedef struct
     int size;       // Number of items in the table
     int capacity;   // Total capacity of the table
     size_t i_size;  // Size of each value type (item)
-    ht_item *items; 
+    ht_item *items;
+    list_t *keys;   // Keys in insertion order
 } table_t;
 
 // Create a table for values of size `i_size`

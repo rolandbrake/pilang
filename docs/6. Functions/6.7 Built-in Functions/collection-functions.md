@@ -10,7 +10,7 @@ iterable values.
 - `peek(collection)`: returns the last item or character without removing it
 - `empty(collection)`: returns whether the collection is empty
 
-```pilang
+```swift
 let items = [1, 2]
 
 push(items, 3)
@@ -25,7 +25,7 @@ println(items)       // [1, 2]
 - `remove(collection, index_or_key)`: removes and returns a list item or string character; for maps, removes a key and returns the map
 - `slice(start, end, step = 1)`: creates a slice descriptor for bracket slicing
 
-```pilang
+```swift
 let values = [10, 30]
 insert(values, 1, 20)
 println(values) // [10, 20, 30]
@@ -40,7 +40,7 @@ println(values[slice(0, 2)]) // [10, 20]
 - `index(collection, value)`: returns the index of `value`, or `-1` when it is not found
 - `count(collection, value)`: counts matching values
 
-```pilang
+```swift
 let letters = ["a", "b", "a"]
 
 println(len(letters))           // 3
@@ -55,7 +55,7 @@ println(count(letters, "a"))    // 2
 - `copy(value)`: returns a copied value
 - `join(collection, separator = "")`: joins a list or tuple into a string
 
-```pilang
+```swift
 println(concat([1, 2], [3])) // [1, 2, 3]
 println(repeat("ha", 3))    // hahaha
 println(join(["pi", "lang"], "-")) // pi-lang
@@ -68,7 +68,7 @@ println(join(["pi", "lang"], "-")) // pi-lang
 - `tuple()`, `tuple(value)`, `tuple(a, b, ...)`: creates a tuple or converts a list, tuple, or string to a tuple
 - `set(value = nil)`: creates a set from an iterable value
 
-```pilang
+```swift
 println(list(1..4)) // [1, 2, 3]
 let unique = set([1, 1, 2, 3])
 println(unique)
@@ -84,7 +84,7 @@ println(unique)
 - `issuperset(a, b)`: returns whether `a` is a superset of `b`
 - `isdisjoint(a, b)`: returns whether the sets share no values
 
-```pilang
+```swift
 let a = set([1, 2, 3])
 let b = set([3, 4])
 
@@ -109,7 +109,7 @@ The `col` module exports additional collection helpers:
 - `col.add(set, value, ...)`: adds values or iterable contents to a set and returns it
 - `col.clear(collection)`: clears a list, string, or set and returns it
 
-```pilang
+```swift
 import col
 
 let values = [3, 1, 2]

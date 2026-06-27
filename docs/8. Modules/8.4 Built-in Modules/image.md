@@ -7,7 +7,7 @@ workflows.
 
 ![Pilang image processing example](../grayscale.png)
 
-```pilang
+```swift
 import image
 
 let img = image.load("imgs/baboon.bmp")
@@ -25,7 +25,7 @@ image.save(small, "out.bmp")
 
 Import child modules explicitly:
 
-```pilang
+```swift
 import image
 import image.filters
 import image.color
@@ -39,7 +39,7 @@ Loads an image file and returns an image object. The loader uses SDL_image, so
 common formats such as BMP, PNG, and JPG are supported when the native build has
 those SDL_image backends.
 
-```pilang
+```swift
 let img = image.load("imgs/lenna.png")
 ```
 
@@ -48,7 +48,7 @@ let img = image.load("imgs/lenna.png")
 Saves an image to disk. The current implementation saves through SDL's BMP path,
 so use a `.bmp` extension for predictable results.
 
-```pilang
+```swift
 image.save(img, "result.bmp")
 ```
 
@@ -66,7 +66,7 @@ Returns image height in pixels.
 
 Returns the number of bytes per pixel in the current image surface.
 
-```pilang
+```swift
 println(image.width(img))
 println(image.height(img))
 println(image.channels(img))
@@ -78,7 +78,7 @@ println(image.channels(img))
 
 Returns a resized copy of the image.
 
-```pilang
+```swift
 let resized = image.resize(img, 320, 240)
 ```
 
@@ -86,7 +86,7 @@ let resized = image.resize(img, 320, 240)
 
 Returns a cropped copy. The rectangle must be inside the image bounds.
 
-```pilang
+```swift
 let face = image.crop(img, 80, 60, 160, 160)
 ```
 
@@ -95,7 +95,7 @@ let face = image.crop(img, 80, 60, 160, 160)
 Returns a flipped copy. `axis` is `"x"` for horizontal flip or `"y"` for
 vertical flip.
 
-```pilang
+```swift
 let mirror = image.flip(img, "x")
 let upside_down = image.flip(img, "y")
 ```
@@ -107,7 +107,7 @@ let upside_down = image.flip(img, "y")
 Opens a simple SDL window and displays the image until the user closes the
 window or presses a key.
 
-```pilang
+```swift
 image.show(img, "Preview")
 ```
 
@@ -122,7 +122,7 @@ Converts an image to a tensor with shape `[height, width, channels]`. If
 `normalize` is true, channel values are scaled to `0..1`; otherwise they remain
 in `0..255`.
 
-```pilang
+```swift
 import tensor
 
 let t = image.img2tensor(img, true)
@@ -136,14 +136,14 @@ Converts a tensor with shape `[height, width, channels]` back to an image.
 as `0..1` and scaled to `0..255`. If `normalize` is false and all values are
 already in `0..1`, the converter auto-scales them to image range.
 
-```pilang
+```swift
 let t = image.img2tensor(img, true)
 let copy = image.tensor2img(t, true)
 ```
 
 ## Full Workflow
 
-```pilang
+```swift
 import image
 import image.color
 import image.filters

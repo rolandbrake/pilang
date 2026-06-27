@@ -15,7 +15,7 @@ Pilang supports a practical functional style without forcing every program to be
 
 ## Common pattern
 
-```pilang
+```swift
 numbers = [1, 2, 3, 4, 5]
 
 evens = filter(numbers, fn (n) {
@@ -34,7 +34,7 @@ print(total) // 20
 The same transformation can be written as a pipeline. Each stage receives the
 previous result as its first argument:
 
-```pilang
+```swift
 total = [1, 2, 3, 4, 5] =>
     filter(n -> n % 2 == 0) =>
     map(n -> n * n) =>

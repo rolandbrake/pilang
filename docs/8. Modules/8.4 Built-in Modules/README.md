@@ -3,7 +3,7 @@
 Built-in modules are provided by the Pilang runtime. Import them with the same
 syntax used for user modules.
 
-```pilang
+```swift
 import math
 import tensor.{zeros, shape}
 import sys.{EXIT_SUCCESS}

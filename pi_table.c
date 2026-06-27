@@ -45,12 +45,29 @@ table_t *ht_create(size_t i_size)
     table->capacity = INIT_CAP;
     table->i_size = i_size;
     table->items = calloc(table->capacity, sizeof(ht_item));
-    if (!table->items)
+    table->keys = list_create(sizeof(char *));
+    if (!table->items || !table->keys)
     {
+        free(table->items);
+        if (table->keys)
+            list_free(table->keys);
         free(table);
         return NULL;
     }
     return table;
+}
+
+static void ht_removeOrderedKey(table_t *table, const char *key)
+{
+    for (int i = 0; i < table->keys->size; i++)
+    {
+        char *ordered_key = *(char **)list_getAt(table->keys, i);
+        if (strcmp(ordered_key, key) == 0)
+        {
+            list_remove(table->keys, i);
+            return;
+        }
+    }
 }
 
 void *ht_get(table_t *table, const char *key)
@@ -148,6 +165,7 @@ bool ht_put(table_t *table, const char *key, const void *value)
     table->items[insert_idx].key = new_key;
     table->items[insert_idx].value = new_value;
     table->items[insert_idx].hash = hash;
+    list_add(table->keys, &new_key);
     table->size++;
     return true;
 }
@@ -169,6 +187,7 @@ bool ht_delete(table_t *table, const char *key)
             strcmp(table->items[index].key, key) == 0)
         {
             // Found – mark as tombstone, free resources
+            ht_removeOrderedKey(table, key);
             free(table->items[index].key);
             free(table->items[index].value);
             table->items[index].key = TOMBSTONE;
@@ -224,6 +243,7 @@ void ht_free(table_t *table)
         }
     }
     free(table->items);
+    list_free(table->keys);
     free(table);
 }
 
@@ -243,13 +263,14 @@ ht_iter ht_iterator(table_t *table)
 bool ht_next(ht_iter *it)
 {
     table_t *table = it->_table;
-    while (it->_index < table->capacity)
+    while (it->_index < (size_t)table->keys->size)
     {
-        ht_item *item = &table->items[it->_index++];
-        if (item->key != NULL && item->key != TOMBSTONE)
+        char *key = *(char **)list_getAt(table->keys, (int)it->_index++);
+        void *value = ht_get(table, key);
+        if (value != NULL)
         {
-            it->key = item->key;
-            it->value = item->value;
+            it->key = key;
+            it->value = value;
             return true;
         }
     }
@@ -259,9 +280,10 @@ bool ht_next(ht_iter *it)
 bool ht_hasNext(ht_iter *it)
 {
     table_t *table = it->_table;
-    for (int i = it->_index; i < table->capacity; i++)
+    for (int i = (int)it->_index; i < table->keys->size; i++)
     {
-        if (table->items[i].key != NULL && table->items[i].key != TOMBSTONE)
+        char *key = *(char **)list_getAt(table->keys, i);
+        if (ht_get(table, key) != NULL)
             return true;
     }
     return false;

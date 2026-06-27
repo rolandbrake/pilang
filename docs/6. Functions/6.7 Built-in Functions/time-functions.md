@@ -6,7 +6,7 @@ Pilang provides two global time helpers.
 
 `time()` returns the current runtime time in milliseconds.
 
-```pilang
+```swift
 let started = time()
 
 // work
@@ -19,7 +19,7 @@ println(elapsed)
 
 `sleep(ms)` pauses execution for the requested number of milliseconds.
 
-```pilang
+```swift
 println("waiting")
 sleep(1000)
 println("done")

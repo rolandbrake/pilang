@@ -134,6 +134,7 @@ int emit_pop(compiler_t *comp, int depth);
 // Emits a jump instruction and later patches its address
 int emit_jump(compiler_t *comp, int address);
 void patch_jump(compiler_t *comp, int address);
+void patch_jumpWithFlags(compiler_t *comp, int address, uint16_t flags);
 
 // Functions for managing local variables
 void remove_locals(compiler_t *comp, int size);

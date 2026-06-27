@@ -2,7 +2,7 @@
 
 The `stats` module provides statistics for numeric lists.
 
-```pilang
+```swift
 import stats
 ```
 
@@ -12,7 +12,7 @@ All functions expect a non-empty list of numbers.
 
 Returns the arithmetic mean.
 
-```pilang
+```swift
 println(stats.mean([2, 4, 6])) // 4
 ```
 
@@ -20,7 +20,7 @@ println(stats.mean([2, 4, 6])) // 4
 
 Alias for `stats.mean`.
 
-```pilang
+```swift
 println(stats.avg([2, 4, 6])) // 4
 ```
 
@@ -28,7 +28,7 @@ println(stats.avg([2, 4, 6])) // 4
 
 Returns population variance.
 
-```pilang
+```swift
 println(stats.var([2, 4, 6])) // 2.666...
 ```
 
@@ -36,7 +36,7 @@ println(stats.var([2, 4, 6])) // 2.666...
 
 Returns standard deviation.
 
-```pilang
+```swift
 println(stats.dev([2, 4, 6]))
 ```
 
@@ -45,7 +45,7 @@ println(stats.dev([2, 4, 6]))
 Returns the middle value after sorting. For an even-length list, returns the
 average of the two middle values.
 
-```pilang
+```swift
 println(stats.median([3, 1, 2]))    // 2
 println(stats.median([1, 2, 3, 4])) // 2.5
 ```
@@ -55,6 +55,6 @@ println(stats.median([1, 2, 3, 4])) // 2.5
 Returns the most frequent numeric value. If there is a tie, the first most
 frequent value after sorting is returned.
 
-```pilang
+```swift
 println(stats.mode([1, 2, 2, 3])) // 2
 ```

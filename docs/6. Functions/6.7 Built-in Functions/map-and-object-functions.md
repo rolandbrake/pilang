@@ -9,7 +9,7 @@ behavior.
 - `values(value)`: returns the values from a map or object-like value
 - `clone(value)`: returns a copy of the value
 
-```pilang
+```swift
 let user = {
     "name": "Ada",
     "active": true,
@@ -44,7 +44,7 @@ Objects also provide built-in methods through the base object behavior:
 - `iterator()`: creates an iterator
 - `next()`: advances an iterator
 
-```pilang
+```swift
 let point = {
     "x": 2,
     "y": 4,

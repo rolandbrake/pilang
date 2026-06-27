@@ -3,7 +3,7 @@
 The `type` module provides type inspection and conversion helpers that do not
 duplicate global built-ins such as `type()`, `str()`, and `list()`.
 
-```pilang
+```swift
 import type:tp
 ```
 
@@ -11,7 +11,7 @@ import type:tp
 
 Returns whether `value` has the given runtime type name.
 
-```pilang
+```swift
 println(tp.instanceof(10, "number"))    // true
 println(tp.instanceof("pi", "string"))  // true
 println(tp.instanceof(1..5, "range"))   // true
@@ -25,7 +25,7 @@ Returns a size-like value for the input. For strings, lists, maps, tensors, and
 ranges, this reports their logical size. For primitives, it reports the runtime
 value slot size.
 
-```pilang
+```swift
 println(tp.size("abc"))     // 3
 println(tp.size([1, 2, 3])) // 3
 ```
@@ -34,7 +34,7 @@ println(tp.size([1, 2, 3])) // 3
 
 Returns whether a value is `nil`.
 
-```pilang
+```swift
 println(tp.nil(nil)) // true
 ```
 
@@ -42,7 +42,7 @@ println(tp.nil(nil)) // true
 
 Converts a number or numeric string to an integer number. Floats are truncated.
 
-```pilang
+```swift
 println(tp.int(3.9))    // 3
 println(tp.int("42"))   // 42
 ```
@@ -51,7 +51,7 @@ println(tp.int("42"))   // 42
 
 Converts a number or numeric string to a floating-point number.
 
-```pilang
+```swift
 println(tp.float("3.14")) // 3.14
 ```
 
@@ -61,7 +61,7 @@ Use global `str(value)` to convert a value to its string representation.
 
 Converts a value using Pilang truthiness.
 
-```pilang
+```swift
 println(tp.bool(0))      // false
 println(tp.bool([1, 2])) // true
 ```
@@ -74,7 +74,7 @@ shallow-copied.
 Converts a string to a list of byte values, or validates and returns a byte list
 from integers between `0` and `255`.
 
-```pilang
+```swift
 println(tp.bytes("ABC")) // [65, 66, 67]
 println(tp.bytes([65, 66, 67]))
 ```

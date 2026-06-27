@@ -6,7 +6,7 @@ stable orthographic camera.
 
 ![Pilang 3D surface plot](surface.png)
 
-```pilang
+```swift
 import draw
 import plot3d
 import tensor
@@ -45,7 +45,7 @@ the x/y grid and each tensor value is used as z height.
 
 ![Pilang 3D surface](surface.png)
 
-```pilang
+```swift
 plot3d.surface(chart, z)
 ```
 
@@ -53,7 +53,7 @@ plot3d.surface(chart, z)
 
 Adds a surface-like plot with mesh lines.
 
-```pilang
+```swift
 plot3d.mesh(chart, z)
 ```
 
@@ -63,7 +63,7 @@ Adds a wireframe plot from a 2D tensor.
 
 ![Pilang 3D wireframe](wireframe.png)
 
-```pilang
+```swift
 plot3d.wireframe(chart, z)
 ```
 
@@ -73,13 +73,13 @@ Adds 3D points from three numeric lists.
 
 ![Pilang 3D scatter](scatter3d.png)
 
-```pilang
+```swift
 plot3d.scatter(chart, xs, ys, zs)
 ```
 
 You can also pass an `N x 3` tensor where each row is `[x, y, z]`.
 
-```pilang
+```swift
 plot3d.scatter(chart, points)
 ```
 
@@ -112,7 +112,7 @@ Turns the 3D grid on or off. `enabled` can be a boolean or nonzero number.
 Changes the camera angles. `azimuth` rotates around the vertical axis,
 `elevation` tilts the view, and optional `distance` adjusts camera distance.
 
-```pilang
+```swift
 plot3d.view(chart, 45, 30)
 plot3d.view(chart, 65, 22, 4)
 ```
@@ -123,7 +123,7 @@ plot3d.view(chart, 65, 22, 4)
 
 Places a 3D chart in a subplot cell. `index` is 1-based.
 
-```pilang
+```swift
 let ctx = draw.canvas(900, 480, "3D Subplots")
 
 let a = plot3d.chart(ctx)

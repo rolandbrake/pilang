@@ -123,6 +123,14 @@ static void list_refreshNumericFlag(PiList *list)
     list->is_numeric = numeric;
 }
 
+static Value make_iterPair(vm_t *vm, Value first, Value second)
+{
+    list_t *items = list_create(sizeof(Value));
+    list_add(items, &first);
+    list_add(items, &second);
+    return NEW_OBJ(add_obj(vm, new_list(items)));
+}
+
 /**
  * Assign values into a list slice.
  *
@@ -3886,8 +3894,10 @@ void run(vm_t *vm)
         case OP_LOOP:
         {
             // Read the jump address from the bytecode
-            uint16_t address = (code[pc] << 8);
-            address |= code[pc + 1];
+            uint16_t encoded = (code[pc] << 8);
+            encoded |= code[pc + 1];
+            bool pair_loop = (encoded & OP_LOOP_TARGET_PAIR_FLAG) != 0;
+            uint16_t address = encoded & OP_LOOP_OFFSET_MASK;
 
             // Get the current iterator from the top of the stack
             if (vm->iter_sp == -1)
@@ -3904,10 +3914,17 @@ void run(vm_t *vm)
                 list_t *items = list->items;
                 if (list->current < items->size)
                 {
+                    int index = list->current;
                     Value value = ((Value *)items->data)[list->current++];
                     if (IS_OBJ(value))
                         add_obj(vm, AS_OBJ(value));
-                    push_stack(vm, value);
+                    if (pair_loop)
+                    {
+                        push_stack(vm, NEW_NIL());
+                        push_stack(vm, make_iterPair(vm, NEW_NUM(index), value));
+                    }
+                    else
+                        push_stack(vm, value);
                     pc += 2;
                 }
                 else
@@ -3928,7 +3945,14 @@ void run(vm_t *vm)
                                     : range->current > range->end;
                 if (has_next)
                 {
-                    push_stack(vm, NEW_NUM(range->current));
+                    double value = range->current;
+                    if (pair_loop)
+                    {
+                        push_stack(vm, NEW_NIL());
+                        push_stack(vm, make_iterPair(vm, NEW_NUM((value - range->start) / range->step), NEW_NUM(value)));
+                    }
+                    else
+                        push_stack(vm, NEW_NUM(range->current));
                     range->current += range->step;
                     pc += 2;
                 }
@@ -3946,10 +3970,17 @@ void run(vm_t *vm)
                 list_t *items = tuple->items;
                 if (tuple->current < items->size)
                 {
+                    int index = tuple->current;
                     Value value = ((Value *)items->data)[tuple->current++];
                     if (IS_OBJ(value))
                         add_obj(vm, AS_OBJ(value));
-                    push_stack(vm, value);
+                    if (pair_loop)
+                    {
+                        push_stack(vm, NEW_NIL());
+                        push_stack(vm, make_iterPair(vm, NEW_NUM(index), value));
+                    }
+                    else
+                        push_stack(vm, value);
                     pc += 2;
                 }
                 else
@@ -3965,12 +3996,20 @@ void run(vm_t *vm)
                 PiString *string = (PiString *)iter;
                 if (string->current < string->length)
                 {
+                    int index = string->current;
                     char *chars = malloc(2);
                     if (!chars)
                         vm_error(vm, "Out of memory while iterating string.");
                     chars[0] = string->chars[string->current++];
                     chars[1] = '\0';
-                    push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(chars))));
+                    Value value = NEW_OBJ(add_obj(vm, new_pistring(chars)));
+                    if (pair_loop)
+                    {
+                        push_stack(vm, NEW_NIL());
+                        push_stack(vm, make_iterPair(vm, NEW_NUM(index), value));
+                    }
+                    else
+                        push_stack(vm, value);
                     pc += 2;
                 }
                 else
@@ -3988,16 +4027,48 @@ void run(vm_t *vm)
                 {
                     PiMap *map = (PiMap *)iter;
                     ht_next(&map->it);
-                    char *key = map->it.key;
-                    push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(key))));
+                    if (pair_loop)
+                    {
+                        Value value = *(Value *)map->it.value;
+                        if (IS_OBJ(value))
+                            add_obj(vm, AS_OBJ(value));
+                        push_stack(vm, NEW_NIL());
+                        push_stack(vm, make_iterPair(vm, NEW_OBJ(add_obj(vm, new_pistring(map->it.key))), value));
+                    }
+                    else
+                    {
+                        push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(map->it.key))));
+                    }
                 }
                 else
                 {
+                    int index = 0;
+                    if (pair_loop)
+                    {
+                        switch (iter->type)
+                        {
+                        case OBJ_TENSOR:
+                            index = ((PiTensor *)iter)->current;
+                            break;
+                        case OBJ_SET:
+                            index = ((PiSet *)iter)->current;
+                            break;
+                        default:
+                            break;
+                        }
+                    }
+
                     // Get the next value from the iterator
                     Value value = iter_next(iter);
                     if (IS_OBJ(value))
                         add_obj(vm, AS_OBJ(value));
-                    push_stack(vm, value);
+                    if (pair_loop)
+                    {
+                        push_stack(vm, NEW_NIL());
+                        push_stack(vm, make_iterPair(vm, NEW_NUM(index), value));
+                    }
+                    else
+                        push_stack(vm, value);
                 }
                 pc += 2;
             }

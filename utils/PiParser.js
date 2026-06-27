@@ -619,11 +619,21 @@ export default class PiParser {
     const lparen = this.match(TokenType.LPAREN) ? this.previous() : null;
 
     let init;
+    let commaToken = null;
+    let valueInit = null;
     // Parse the left-hand side of the for-loop
     if (this.match(TokenType.ID)) {
       init = new PiVariable(this.previous());
     } else {
       throw new Error("Invalid for-loop left-hand side. Expect identifier.");
+    }
+    if (this.match(TokenType.COMMA)) {
+      commaToken = this.previous();
+      if (this.match(TokenType.ID)) {
+        valueInit = new PiVariable(this.previous());
+      } else {
+        throw new Error("Expect identifier after ',' in for-loop left-hand side.");
+      }
     }
 
     // Consume the 'in' keyword
@@ -657,6 +667,8 @@ export default class PiParser {
       forToken,
       lparen,
       init,
+      commaToken,
+      valueInit,
       inToken,
       expr,
       rparen,

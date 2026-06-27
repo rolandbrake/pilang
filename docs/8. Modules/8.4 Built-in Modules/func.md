@@ -3,7 +3,7 @@
 The `func` module provides higher-order helpers for composing and wrapping
 functions.
 
-```pilang
+```swift
 import func:f
 ```
 
@@ -11,7 +11,7 @@ import func:f
 
 Returns a function that calls the provided functions from right to left.
 
-```pilang
+```swift
 let inc = x -> x + 1
 let double = x -> x * 2
 let composed = f.compose(double, inc)
@@ -23,7 +23,7 @@ println(composed(3)) // 8
 
 Returns a function that calls the provided functions from left to right.
 
-```pilang
+```swift
 let piped = f.pipe(inc, double)
 println(piped(3)) // 8
 ```
@@ -33,7 +33,7 @@ println(piped(3)) // 8
 Returns a function that calls every provided function with the same arguments and
 returns a list of results.
 
-```pilang
+```swift
 let both = f.juxt(x -> x + 1, x -> x * 2)
 println(both(5)) // [6, 10]
 ```
@@ -43,7 +43,7 @@ println(both(5)) // [6, 10]
 Returns a curried wrapper. Arguments can be supplied gradually until the wrapped
 function has enough arguments.
 
-```pilang
+```swift
 fun add(a, b) {
     return a + b
 }
@@ -56,7 +56,7 @@ println(curried(2)(3)) // 5
 
 Returns a wrapper with leading arguments pre-bound.
 
-```pilang
+```swift
 let plus5 = f.partial(add, 5)
 println(plus5(7)) // 12
 ```
@@ -66,7 +66,7 @@ println(plus5(7)) // 12
 Returns a wrapper that expects one list argument and spreads it into positional
 arguments.
 
-```pilang
+```swift
 let spread_add = f.spread(add)
 println(spread_add([2, 4])) // 6
 ```
@@ -75,7 +75,7 @@ println(spread_add([2, 4])) // 6
 
 Returns a wrapper that packs positional arguments into a single list.
 
-```pilang
+```swift
 fun sum_pair(pair) {
     return pair[0] + pair[1]
 }
@@ -88,7 +88,7 @@ println(unspread_sum(2, 4)) // 6
 
 Returns a wrapper that caches results by argument list.
 
-```pilang
+```swift
 let calls = 0
 
 fun square(x) {
@@ -107,7 +107,7 @@ println(calls) // 1
 Returns a wrapper that calls `fn` once and then returns the first result for all
 later calls.
 
-```pilang
+```swift
 let count = 0
 let init = f.once(() -> {
     count++
@@ -123,7 +123,7 @@ println(init()) // 1
 Returns a wrapper that only calls `fn` when at least `ms` milliseconds have passed
 since the last call. Calls made too soon return the previous result.
 
-```pilang
+```swift
 let limited = f.throttle(1000, () -> time())
 println(limited())
 println(limited())
@@ -134,7 +134,7 @@ println(limited())
 Returns a wrapper that delays useful execution until the debounce window has
 passed. This is useful for event-style flows.
 
-```pilang
+```swift
 let debounced = f.debounce(250, () -> "saved")
 println(debounced())
 ```
@@ -143,7 +143,7 @@ println(debounced())
 
 Returns a zero-argument function that calls `fn` later with captured arguments.
 
-```pilang
+```swift
 let later = f.thunk(add, 2, 3)
 println(later()) // 5
 ```
@@ -153,7 +153,7 @@ println(later()) // 5
 Returns a generator-like function. The first call returns `seed`; later calls
 apply `fn` to the previous value.
 
-```pilang
+```swift
 let powers = f.iterate(1, x -> x * 2)
 println(powers()) // 1
 println(powers()) // 2
@@ -164,7 +164,7 @@ println(powers()) // 4
 
 Calls `fn` with a list of positional arguments.
 
-```pilang
+```swift
 println(f.apply(add, [3, 9])) // 12
 ```
 
@@ -172,6 +172,6 @@ println(f.apply(add, [3, 9])) // 12
 
 Does nothing and returns `nil`.
 
-```pilang
+```swift
 println(f.noop()) // nil
 ```

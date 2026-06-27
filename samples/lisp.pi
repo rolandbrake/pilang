@@ -520,25 +520,25 @@ fun run(source, env) {
 
 let env = standard_env();
 
-// run("(+ 1 2 (* 3 4))", env);
-// run("(begin (define r 10) (* 3.14159 (* r r)))", env);
-// run("(if (> 8 3) 42 0)", env);
-// run("(begin (define square (lambda (x) (* x x))) (square 9))", env);
-// run("(begin (define fact (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1)))))) (fact 6))", env);
+run("(+ 1 2 (* 3 4))", env);
+run("(begin (define r 10) (* 3.14159 (* r r)))", env);
+run("(if (> 8 3) 42 0)", env);
+run("(begin (define square (lambda (x) (* x x))) (square 9))", env);
+run("(begin (define fact (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1)))))) (fact 6))", env);
+run("(begin (define fib (lambda (n) (if (<= n 1) 1 (+ (fib (- n 1)) (fib (- n 2)))))) (fib 20))", env);
+run("(begin (define twice (lambda (f x) (f (f x)))) (twice (lambda (n) (+ n 10)) 5))", env);
+run("(car (cdr '(alpha beta gamma)))", env);
+run("(cons 1 (append '(2 3) (list 4 5)))", env);
 
-// run("(begin (define twice (lambda (f x) (f (f x)))) (twice (lambda (n) (+ n 10)) 5))", env);
-// run("(car (cdr '(alpha beta gamma)))", env);
-// run("(cons 1 (append '(2 3) (list 4 5)))", env);
+run('
+    (define counter 0)
 
-// run('
-//     (define counter 0)
-
-//     (define process-and-count
-//     (begin
-//         (display "Processing data...\n")
-//         (set! counter (+ counter 1))
-//         counter))
-//     ', env);
+    (define process-and-count
+    (begin
+        (display "Processing data...\n")
+        (set! counter (+ counter 1))
+        counter))
+    ', env);
 
 
-run("(begin (define fib (lambda (n) (if (<= n 1) 1 (+ (fib (- n 1)) (fib (- n 2)))))) (fib 30))", env);
+

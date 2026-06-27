@@ -3,7 +3,7 @@
 The `os` module provides operating-system helpers. Availability can vary by
 platform; browser/WASM builds may not support these functions.
 
-```pilang
+```swift
 import os:o
 ```
 
@@ -13,7 +13,7 @@ import os:o
 - `os.SIGTERM`
 - `os.SIGABRT`
 
-```pilang
+```swift
 println(o.SIGTERM)
 ```
 
@@ -22,7 +22,7 @@ println(o.SIGTERM)
 Runs a shell command and waits for it to finish. Returns a map with `stdout`,
 `stderr`, and `code`.
 
-```pilang
+```swift
 let result = o.run("echo hello")
 println(result.stdout)
 println(result.code)
@@ -33,7 +33,7 @@ println(result.code)
 Starts a command without waiting for completion. Returns the process id when
 supported.
 
-```pilang
+```swift
 let pid = o.spawn("echo hello")
 println(pid)
 ```
@@ -43,7 +43,7 @@ println(pid)
 Finds an executable on the system path. Returns a path string or `nil`/falsey
 value when not found.
 
-```pilang
+```swift
 println(o.which("git"))
 ```
 
@@ -51,7 +51,7 @@ println(o.which("git"))
 
 Configures a signal action. The action string is `"ignore"` or `"default"`.
 
-```pilang
+```swift
 println(o.signal(o.SIGINT, "ignore"))
 println(o.signal(o.SIGINT, "default"))
 ```
@@ -60,7 +60,7 @@ println(o.signal(o.SIGINT, "default"))
 
 Terminates a process by id where supported.
 
-```pilang
+```swift
 // o.kill(pid, o.SIGTERM)
 ```
 
@@ -68,7 +68,7 @@ Terminates a process by id where supported.
 
 Returns the host name.
 
-```pilang
+```swift
 println(o.hostname())
 ```
 
@@ -76,7 +76,7 @@ println(o.hostname())
 
 Returns CPU information for the host.
 
-```pilang
+```swift
 println(o.cpus())
 ```
 
@@ -84,7 +84,7 @@ println(o.cpus())
 
 Returns RAM information for the host.
 
-```pilang
+```swift
 println(o.ram())
 ```
 
@@ -92,6 +92,6 @@ println(o.ram())
 
 Returns information about the current user.
 
-```pilang
+```swift
 println(o.user())
 ```

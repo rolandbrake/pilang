@@ -2,7 +2,7 @@
 
 The `math` module provides numeric constants and mathematical helpers.
 
-```pilang
+```swift
 import math
 ```
 
@@ -16,7 +16,7 @@ list is passed, the result is a new list.
 - `math.TAU`: tau, equal to `2 * PI`
 - `math.PHI`: the golden ratio
 
-```pilang
+```swift
 println(math.PI)
 println(math.TAU)
 ```
@@ -25,7 +25,7 @@ println(math.TAU)
 
 Rounds a number down, or every number in a list down.
 
-```pilang
+```swift
 println(math.floor(3.9))       // 3
 println(math.floor([1.2, 2.8])) // [1, 2]
 ```
@@ -34,7 +34,7 @@ println(math.floor([1.2, 2.8])) // [1, 2]
 
 Rounds a number up, or every number in a list up.
 
-```pilang
+```swift
 println(math.ceil(3.1))       // 4
 println(math.ceil([1.2, 2.8])) // [2, 3]
 ```
@@ -43,7 +43,7 @@ println(math.ceil([1.2, 2.8])) // [2, 3]
 
 Returns the square root of a number, or every number in a list.
 
-```pilang
+```swift
 println(math.sqrt(25))      // 5
 println(math.sqrt([4, 9]))  // [2, 3]
 ```
@@ -52,7 +52,7 @@ println(math.sqrt([4, 9]))  // [2, 3]
 
 Returns the sine of a value in radians, or every value in a list.
 
-```pilang
+```swift
 println(math.sin(math.PI / 2)) // 1
 ```
 
@@ -60,7 +60,7 @@ println(math.sin(math.PI / 2)) // 1
 
 Returns the cosine of a value in radians, or every value in a list.
 
-```pilang
+```swift
 println(math.cos(0)) // 1
 ```
 
@@ -68,7 +68,7 @@ println(math.cos(0)) // 1
 
 Returns the tangent of a value in radians, or every value in a list.
 
-```pilang
+```swift
 println(math.tan(math.PI / 4))
 ```
 
@@ -76,7 +76,7 @@ println(math.tan(math.PI / 4))
 
 Returns inverse sine in radians. Inputs must be between `-1` and `1`.
 
-```pilang
+```swift
 println(math.asin(1)) // PI / 2
 ```
 
@@ -84,7 +84,7 @@ println(math.asin(1)) // PI / 2
 
 Returns inverse cosine in radians. Inputs must be between `-1` and `1`.
 
-```pilang
+```swift
 println(math.acos(1)) // 0
 ```
 
@@ -92,7 +92,7 @@ println(math.acos(1)) // 0
 
 Returns inverse tangent in radians.
 
-```pilang
+```swift
 println(math.atan(1))
 ```
 
@@ -100,7 +100,7 @@ println(math.atan(1))
 
 Converts radians to degrees.
 
-```pilang
+```swift
 println(math.deg(math.PI)) // 180
 ```
 
@@ -108,7 +108,7 @@ println(math.deg(math.PI)) // 180
 
 Converts degrees to radians.
 
-```pilang
+```swift
 println(math.rad(180)) // PI
 ```
 
@@ -116,7 +116,7 @@ println(math.rad(180)) // PI
 
 Returns the sum of a numeric list.
 
-```pilang
+```swift
 println(math.sum([1, 2, 3, 4])) // 10
 ```
 
@@ -124,7 +124,7 @@ println(math.sum([1, 2, 3, 4])) // 10
 
 Returns `E` raised to `value`, or maps a list.
 
-```pilang
+```swift
 println(math.exp(1)) // E
 ```
 
@@ -132,7 +132,7 @@ println(math.exp(1)) // E
 
 Returns the base-2 logarithm. Values must be positive.
 
-```pilang
+```swift
 println(math.log2(8)) // 3
 ```
 
@@ -140,7 +140,7 @@ println(math.log2(8)) // 3
 
 Returns the base-10 logarithm. Values must be positive.
 
-```pilang
+```swift
 println(math.log10(1000)) // 3
 ```
 
@@ -148,7 +148,7 @@ println(math.log10(1000)) // 3
 
 Returns the natural logarithm.
 
-```pilang
+```swift
 println(math.logE(math.E)) // 1
 ```
 
@@ -157,7 +157,7 @@ println(math.logE(math.E)) // 1
 Returns `count` evenly spaced numbers from `start` to `end`, including both
 endpoints.
 
-```pilang
+```swift
 println(math.linspace(0, 1, 5)) // [0, 0.25, 0.5, 0.75, 1]
 ```
 
@@ -165,6 +165,6 @@ println(math.linspace(0, 1, 5)) // [0, 0.25, 0.5, 0.75, 1]
 
 Returns numbers from `start` up to but not including `end`.
 
-```pilang
+```swift
 println(math.arange(0, 5, 2)) // [0, 2, 4]
 ```

@@ -3,7 +3,7 @@
 The `lang` module exposes language-level constants. The main use is comparing
 operator codes passed to object magic methods such as `compute`.
 
-```pilang
+```swift
 import lang
 ```
 
@@ -17,7 +17,7 @@ import lang
 - `lang.OP_POW`: `**`
 - `lang.OP_DOT`: dot-product style operator where supported
 
-```pilang
+```swift
 compute(op, other) {
     if op == lang.OP_ADD {
         return this.value + other
@@ -31,7 +31,7 @@ compute(op, other) {
 - `lang.OP_LOR`: logical or
 - `lang.OP_IS`: identity/type-style `is`
 
-```pilang
+```swift
 println(lang.OP_LAND)
 ```
 
@@ -44,7 +44,7 @@ println(lang.OP_LAND)
 - `lang.OP_SHR`: shift right
 - `lang.OP_USHR`: unsigned shift right
 
-```pilang
+```swift
 println(lang.OP_BXOR)
 ```
 
@@ -54,7 +54,7 @@ println(lang.OP_BXOR)
 - `lang.OP_NEG`: unary `-`
 - `lang.OP_BNOT`: unary `~`
 
-```pilang
+```swift
 compute(op) {
     if op == lang.OP_NEG {
         return -this.value
@@ -71,7 +71,7 @@ compute(op) {
 - `lang.OP_GE`: `>=`
 - `lang.OP_LE`: `<=`
 
-```pilang
+```swift
 println(lang.OP_EQ)
 ```
 

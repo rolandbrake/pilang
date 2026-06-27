@@ -1,11 +1,13 @@
 import PiStatement from "./PiStatement.js";
 
 export default class PiForStatement extends PiStatement {
-  constructor(forToken, lparen, init, inToken, expr, rparen, body) {
+  constructor(forToken, lparen, init, commaToken, valueInit, inToken, expr, rparen, body) {
     super(forToken, body.getLastToken());
     this._forToken = forToken;
     this._lparen = lparen;
     this._init = init;
+    this._commaToken = commaToken;
+    this._valueInit = valueInit;
     this._inToken = inToken;
     this._expr = expr;
     this._rparen = rparen;
@@ -31,6 +33,12 @@ export default class PiForStatement extends PiStatement {
     result += this.formatComments(this._lparen, indent, "trailing");
 
     result += this._init.format(0);
+    if (this._valueInit) {
+      result += this.formatComments(this._commaToken, indent, "leading");
+      result += ", ";
+      result += this.formatComments(this._commaToken, indent, "trailing");
+      result += this._valueInit.format(0);
+    }
 
     result += " ";
     result += this.formatComments(this._inToken, indent, "leading");
@@ -63,6 +71,10 @@ export default class PiForStatement extends PiStatement {
     // _init is always a variable
     let name = this._init._name;
     let mangled = context.setValue(name);
+    if (this._valueInit) {
+      let valueName = this._valueInit._name;
+      mangled += "," + context.setValue(valueName);
+    }
     let expr = this._expr.minify(context);
 
     let head = `for(${mangled} in ${expr})`;

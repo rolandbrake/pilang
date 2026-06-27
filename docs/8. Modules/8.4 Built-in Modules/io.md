@@ -2,7 +2,7 @@
 
 The `io` module provides module-scoped input and formatting helpers.
 
-```pilang
+```swift
 import io
 ```
 
@@ -11,7 +11,7 @@ import io
 Returns formatted text. Placeholders use zero-based indexes in braces, such as
 `{0}` and `{1}`. Use `{{` and `}}` for literal braces.
 
-```pilang
+```swift
 let text = io.format("{0} scored {1}", "Ada", 42)
 println(text) // Ada scored 42
 ```
@@ -20,7 +20,7 @@ println(text) // Ada scored 42
 
 Reads one line from standard input and returns it without the trailing newline.
 
-```pilang
+```swift
 println("Type a line:")
 let line = io.readline()
 println(line)
@@ -31,7 +31,7 @@ println(line)
 Prints prompt text, reads a line from standard input, and returns the entered
 text.
 
-```pilang
+```swift
 let name = io.prompt("Name: ")
 println("Hello, " + name)
 ```

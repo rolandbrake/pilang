@@ -2,7 +2,7 @@
 
 The `draw` module provides canvas drawing, events, _transforms, and drawing state.
 
-```pilang
+```swift
 import draw
 ```
 
@@ -10,7 +10,7 @@ import draw
 
 Creates a drawing canvas or window.
 
-```pilang
+```swift
 draw.canvas(640, 480, "Demo")
 ```
 
@@ -18,7 +18,7 @@ draw.canvas(640, 480, "Demo")
 
 Runs the drawing loop. Pass a callback when you want frame-driven drawing.
 
-```pilang
+```swift
 draw.run(() -> {
     draw.clear()
     draw.circle(100, 100, 30)
@@ -30,7 +30,7 @@ draw.run(() -> {
 
 Clears the canvas.
 
-```pilang
+```swift
 draw.clear()
 ```
 
@@ -38,7 +38,7 @@ draw.clear()
 
 Draws one pixel.
 
-```pilang
+```swift
 draw.pixel(10, 10)
 ```
 
@@ -46,7 +46,7 @@ draw.pixel(10, 10)
 
 Draws a line.
 
-```pilang
+```swift
 draw.line(10, 10, 200, 120)
 ```
 
@@ -54,7 +54,7 @@ draw.line(10, 10, 200, 120)
 
 Draws a triangle from three points.
 
-```pilang
+```swift
 draw.triangle(20, 20, 80, 20, 50, 70)
 ```
 
@@ -62,7 +62,7 @@ draw.triangle(20, 20, 80, 20, 50, 70)
 
 Draws a rectangle.
 
-```pilang
+```swift
 draw.rect(20, 20, 120, 60)
 ```
 
@@ -70,7 +70,7 @@ draw.rect(20, 20, 120, 60)
 
 Draws a polygon.
 
-```pilang
+```swift
 draw.polygon([[20, 20], [80, 20], [100, 70], [40, 90]])
 ```
 
@@ -78,7 +78,7 @@ draw.polygon([[20, 20], [80, 20], [100, 70], [40, 90]])
 
 Draws a circle.
 
-```pilang
+```swift
 draw.circle(320, 240, 80)
 ```
 
@@ -86,7 +86,7 @@ draw.circle(320, 240, 80)
 
 Presents the current frame.
 
-```pilang
+```swift
 draw.present()
 ```
 
@@ -94,7 +94,7 @@ draw.present()
 
 Registers a callback for frame updates.
 
-```pilang
+```swift
 draw.on_frame(() -> {
     draw.clear()
     draw.present()
@@ -105,7 +105,7 @@ draw.on_frame(() -> {
 
 Registers an event callback.
 
-```pilang
+```swift
 draw.on("key", event -> println(event))
 ```
 
@@ -113,7 +113,7 @@ draw.on("key", event -> println(event))
 
 Removes event callbacks for an event name.
 
-```pilang
+```swift
 draw.off("key")
 ```
 
@@ -121,7 +121,7 @@ draw.off("key")
 
 Polls pending drawing/window events.
 
-```pilang
+```swift
 draw.poll()
 ```
 
@@ -129,7 +129,7 @@ draw.poll()
 
 Waits for an event.
 
-```pilang
+```swift
 draw.wait()
 ```
 
@@ -137,7 +137,7 @@ draw.wait()
 
 Draws text.
 
-```pilang
+```swift
 draw.text("Hello", 20, 30)
 ```
 
@@ -145,7 +145,7 @@ draw.text("Hello", 20, 30)
 
 Draws an image.
 
-```pilang
+```swift
 draw.image("sprite.png", 100, 100)
 ```
 
@@ -153,7 +153,7 @@ draw.image("sprite.png", 100, 100)
 
 Returns whether the drawing loop/window is still running.
 
-```pilang
+```swift
 while draw.is_running() {
     draw.poll()
 }
@@ -163,7 +163,7 @@ while draw.is_running() {
 
 Closes the drawing window or canvas.
 
-```pilang
+```swift
 draw.close()
 ```
 
@@ -171,7 +171,7 @@ draw.close()
 
 Saves the current drawing state.
 
-```pilang
+```swift
 draw.push()
 ```
 
@@ -179,7 +179,7 @@ draw.push()
 
 Restores the most recently saved drawing state.
 
-```pilang
+```swift
 draw.pop()
 ```
 
@@ -187,7 +187,7 @@ draw.pop()
 
 Moves the drawing origin.
 
-```pilang
+```swift
 draw.push()
 draw.translate(100, 50)
 draw.rect(0, 0, 40, 40)
@@ -198,7 +198,7 @@ draw.pop()
 
 Scales subsequent drawing.
 
-```pilang
+```swift
 draw.push()
 draw.scale(2, 2)
 draw.circle(50, 50, 10)
@@ -209,7 +209,7 @@ draw.pop()
 
 Rotates subsequent drawing.
 
-```pilang
+```swift
 draw.push()
 draw.rotate(45)
 draw.rect(0, 0, 80, 20)
@@ -220,7 +220,7 @@ draw.pop()
 
 Sets drawing alpha/transparency.
 
-```pilang
+```swift
 draw.alpha(0.5)
 draw.circle(100, 100, 40)
 ```

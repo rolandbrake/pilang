@@ -3,7 +3,7 @@
 The `time` module provides wall-clock values, monotonic clocks, parsing,
 formatting, timers, and intervals.
 
-```pilang
+```swift
 import time:t
 ```
 
@@ -15,7 +15,7 @@ Time objects are maps with fields such as `year`, `month`, `day`, `hour`,
 
 Returns the current local time object.
 
-```pilang
+```swift
 let now = t.now()
 println(now.year)
 println(now.month)
@@ -25,7 +25,7 @@ println(now.month)
 
 Returns the current UTC time object.
 
-```pilang
+```swift
 let now = t.utc()
 println(now.utc) // true
 ```
@@ -34,7 +34,7 @@ println(now.utc) // true
 
 Returns the current Unix timestamp in seconds.
 
-```pilang
+```swift
 println(t.unix())
 ```
 
@@ -42,7 +42,7 @@ println(t.unix())
 
 Returns the current wall-clock time in milliseconds.
 
-```pilang
+```swift
 let start = t.millis()
 println(start)
 ```
@@ -51,7 +51,7 @@ println(start)
 
 Returns a monotonic clock value in seconds, useful for measuring elapsed time.
 
-```pilang
+```swift
 let start = t.clock()
 let elapsed = t.clock() - start
 println(elapsed)
@@ -62,7 +62,7 @@ println(elapsed)
 Parses a time string using format tokens such as `%Y`, `%m`, `%d`, `%H`, `%M`,
 `%S`, and `%f`.
 
-```pilang
+```swift
 let value = t.parse("2026-05-18 14:30:00", "%Y-%m-%d %H:%M:%S")
 println(value.year)
 ```
@@ -71,7 +71,7 @@ println(value.year)
 
 Creates a local time object from numeric parts.
 
-```pilang
+```swift
 let date = t.of(2026, 5, 18, 14, 30, 0)
 println(date.day)
 ```
@@ -81,7 +81,7 @@ println(date.day)
 Formats a time object with `strftime`-style tokens. `%f` is replaced with
 milliseconds.
 
-```pilang
+```swift
 let date = t.of(2026, 5, 18)
 println(t.format(date, "%Y/%m/%d"))
 ```
@@ -90,7 +90,7 @@ println(t.format(date, "%Y/%m/%d"))
 
 Formats a time object as an ISO-like string.
 
-```pilang
+```swift
 println(t.iso(t.utc()))
 ```
 
@@ -98,7 +98,7 @@ println(t.iso(t.utc()))
 
 Sleeps for `ms` milliseconds, calls the callback once, and returns a timer object.
 
-```pilang
+```swift
 t.timer(100, () -> println("done"))
 ```
 
@@ -107,7 +107,7 @@ t.timer(100, () -> println("done"))
 Repeats: sleep, call callback, and continue while the callback returns truthy.
 Returns a timer object after the callback returns falsey.
 
-```pilang
+```swift
 let count = 0
 
 t.interval(100, () -> {

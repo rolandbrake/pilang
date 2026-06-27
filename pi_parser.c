@@ -1917,6 +1917,19 @@ static void destructure_assignStatement(parser_t *parser)
         p_error("Expected delemiter between statements.", peek(parser).line, peek(parser).column);
 }
 
+static void store_pairFromTop(parser_t *parser, char *first, char *second)
+{
+    char *targets[2] = {first, second};
+    for (int i = 0; i < 2; i++)
+    {
+        int index = store_const(parser->comp, NEW_NUM(i));
+        emit(parser->comp, OP_DUP_TOP);
+        emit_16u(parser->comp, OP_LOAD_CONST, targets[i], index);
+        emit(parser->comp, OP_GET_ITEM);
+        store_variable(parser->comp, targets[i]);
+    }
+}
+
 static void block(parser_t *parser)
 {
     push_scope(parser->comp);
@@ -2199,14 +2212,28 @@ static void for_stmt(parser_t *parser)
 {
     bool has_parens = match(parser, TK_LPAREN);
 
-    token_t init = consume(parser, TK_ID, "Invalid for-loop left-hand side. Expect identifier.");
+    token_t first = consume(parser, TK_ID, "Invalid for-loop left-hand side. Expect identifier.");
+    token_t second = {0};
+    bool has_pair = false;
+
+    if (match(parser, TK_COMMA))
+    {
+        has_pair = true;
+        second = consume(parser, TK_ID, "Expect identifier after ',' in for-loop left-hand side.");
+    }
 
     consume(parser, TK_IN, "Expect 'in' keyword after loop variable.");
 
     push_scope(parser->comp);
-    add_variable(parser->comp, token_value(init));
-    set_pos(parser, init);
-    emit(parser->comp, OP_PUSH_NIL);
+    add_variable(parser->comp, token_value(first));
+    set_pos(parser, first);
+    if (!has_pair)
+        emit(parser->comp, OP_PUSH_NIL);
+    if (has_pair)
+    {
+        add_variable(parser->comp, token_value(second));
+        set_pos(parser, second);
+    }
 
     token_t cond_tok = peek(parser);
     cond_expr(parser);
@@ -2217,10 +2244,17 @@ static void for_stmt(parser_t *parser)
     set_pos(parser, cond_tok); // associate with iterable expression
     emit(parser->comp, OP_PUSH_ITER);
 
-    set_pos(parser, init); // mark the loop start
-    int address = emit_16u(parser->comp, OP_LOOP, "", 0);
+    set_pos(parser, first); // mark the loop start
+    int address = emit_16u(parser->comp, OP_LOOP, "", has_pair ? OP_LOOP_TARGET_PAIR_FLAG : 0);
 
-    store_variable(parser->comp, token_value(init));
+    if (has_pair)
+    {
+        store_pairFromTop(parser, token_value(first), token_value(second));
+    }
+    else
+    {
+        store_variable(parser->comp, token_value(first));
+    }
     push_loop(parser->comp, address - 2, true);
 
     if (match(parser, TK_LBRACE))
@@ -2238,7 +2272,7 @@ static void for_stmt(parser_t *parser)
 
     pop_scope(parser->comp);
     pop_loop(parser->comp, address - 2);
-    patch_jump(parser->comp, address);
+    patch_jumpWithFlags(parser->comp, address, has_pair ? OP_LOOP_TARGET_PAIR_FLAG : 0);
 }
 
 static void break_stmt(parser_t *parser)

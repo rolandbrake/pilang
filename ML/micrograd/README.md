@@ -28,7 +28,7 @@ pilang ML/micrograd/main.pi
 
 `Value` overloads Pilang arithmetic through the language's object/operator protocol. Normal-looking math creates a dynamic graph:
 
-```pilang
+```swift
 import engine.{Value}
 
 a = Value(-4.0)
@@ -60,7 +60,7 @@ Each operation creates a new `Value` and stores a small closure in `_backward`. 
 
 `nn.pi` builds a tiny PyTorch-like API on top of `Value`.
 
-```pilang
+```swift
 import nn.{MLP}
 import engine.{Value}
 

@@ -8,7 +8,7 @@ filtering, searching, and reducing collections.
 `map(list, function)` calls `function` for each item and returns a list of the
 results.
 
-```pilang
+```swift
 let values = [1, 2, 3]
 let doubled = map(values, n -> n * 2)
 
@@ -19,7 +19,7 @@ println(doubled) // [2, 4, 6]
 
 `filter(list, predicate)` keeps items for which `predicate(item)` is truthy.
 
-```pilang
+```swift
 let values = [1, 2, 3, 4]
 let evens = filter(values, n -> n % 2 == 0)
 
@@ -32,7 +32,7 @@ println(evens) // [2, 4]
 When no initial value is supplied, the first list item is used as the initial
 accumulator.
 
-```pilang
+```swift
 let values = [1, 2, 3, 4]
 
 let total = reduce(values, (acc, n) -> acc + n, 0)
@@ -45,7 +45,7 @@ println(total) // 10
 the predicate. It works with lists and strings and returns `-1` when no item
 matches.
 
-```pilang
+```swift
 let names = ["Ada", "Grace", "Linus"]
 let match = find(names, name -> len(name) > 4)
 
@@ -57,7 +57,7 @@ println(match) // 1
 The `func` module exports higher-order helpers for composing, wrapping, and
 calling functions.
 
-```pilang
+```swift
 import func:f
 ```
 
@@ -77,7 +77,7 @@ import func:f
 - `f.apply(fn, args)`: calls `fn` with positional arguments from a list
 - `f.noop()`: returns `nil`
 
-```pilang
+```swift
 import func:f
 
 let inc = x -> x + 1
@@ -98,7 +98,7 @@ println(f.apply(add, [2, 5])) // 7
 Any Pilang function value can be passed to these helpers: named functions,
 anonymous functions, or arrow functions.
 
-```pilang
+```swift
 fun positive(n) {
     return n > 0
 }

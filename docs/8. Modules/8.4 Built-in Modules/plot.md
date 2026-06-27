@@ -6,7 +6,7 @@ one window through subplots.
 
 ![Pilang subplot example](subplot.png)
 
-```pilang
+```swift
 import draw
 import plot
 
@@ -29,7 +29,7 @@ draw.run(ctx)
 
 Creates a chart attached to a `draw` context.
 
-```pilang
+```swift
 let ctx = draw.canvas(640, 480, "Chart")
 let chart = plot.chart(ctx)
 ```
@@ -39,7 +39,7 @@ let chart = plot.chart(ctx)
 Renders the chart. When the chart belongs to a canvas, call `draw.run(ctx)` after
 `plot.show(chart)` to keep the window open and allow redraws.
 
-```pilang
+```swift
 plot.show(chart)
 draw.run(ctx)
 ```
@@ -51,7 +51,7 @@ draw.run(ctx)
 Adds a line series. `x` and `y` must be lists of numbers. `color` is an optional
 integer RGB value, for example `0xff0000`.
 
-```pilang
+```swift
 plot.line(chart, [0, 1, 2], [1, 3, 2], 0x3366cc)
 ```
 
@@ -60,7 +60,7 @@ plot.line(chart, [0, 1, 2], [1, 3, 2], 0x3366cc)
 Adds a scatter series. The optional shape can be passed as the fourth argument
 when no color is used, or as the fifth argument when a color is used.
 
-```pilang
+```swift
 plot.scatter(chart, [1, 2, 3], [2, 4, 3])
 plot.scatter(chart, [1, 2, 3], [3, 1, 4], 0xdd3344, "square")
 ```
@@ -70,7 +70,7 @@ plot.scatter(chart, [1, 2, 3], [3, 1, 4], 0xdd3344, "square")
 Adds a bar chart. `labels` is normally a list of strings and `values` is a list
 of numbers.
 
-```pilang
+```swift
 plot.bar(chart, ["A", "B", "C"], [12, 18, 9])
 ```
 
@@ -78,7 +78,7 @@ plot.bar(chart, ["A", "B", "C"], [12, 18, 9])
 
 Adds a histogram from a list of numeric values.
 
-```pilang
+```swift
 plot.hist(chart, samples, 20)
 ```
 
@@ -86,7 +86,7 @@ plot.hist(chart, samples, 20)
 
 Adds a step plot, useful for piecewise-constant data.
 
-```pilang
+```swift
 plot.step(chart, [0, 1, 2, 3], [4, 4, 2, 5])
 ```
 
@@ -95,7 +95,7 @@ plot.step(chart, [0, 1, 2, 3], [4, 4, 2, 5])
 Evaluates a Pilang function for every value in `x_values` and plots the result
 as a line series.
 
-```pilang
+```swift
 plot.func(chart, [-2, -1, 0, 1, 2], x -> x * x)
 ```
 
@@ -107,7 +107,7 @@ Displays an `image` object or tensor data inside chart axes. A 2D tensor is
 drawn as a heatmap with tick labels and a color scale. A 3D tensor must have
 shape `[height, width, channels]` with `channels` in `1..4`.
 
-```pilang
+```swift
 import image
 
 let img = image.load("imgs/baboon.bmp")
@@ -118,7 +118,7 @@ plot.imshow(chart, img)
 
 Displays a 2D tensor as a heatmap.
 
-```pilang
+```swift
 let z = tensor.from([[1, 2, 3], [4, 5, 6]])
 plot.heatmap(chart, z)
 ```
@@ -130,7 +130,7 @@ sampled.
 
 ![Pilang contour plot](contour.png)
 
-```pilang
+```swift
 plot.contour(chart, z, 12, 0x222222)
 ```
 
@@ -140,13 +140,13 @@ plot.contour(chart, z, 12, 0x222222)
 
 Draws arrows for a vector field. Use explicit coordinate lists:
 
-```pilang
+```swift
 plot.quiver(chart, xs, ys, us, vs, 0x444444)
 ```
 
 or pass two 2D tensors for `u` and `v`:
 
-```pilang
+```swift
 plot.quiver(chart, u, v)
 ```
 
@@ -155,7 +155,7 @@ plot.quiver(chart, u, v)
 Uses the same accepted data layouts as `quiver`, but renders short connected
 flow strokes instead of standalone arrows.
 
-```pilang
+```swift
 plot.streamplot(chart, xs, ys, us, vs)
 ```
 
@@ -190,7 +190,7 @@ Turns tick labels on or off.
 Adds a legend. `labels` is a list of strings. Optional `x` and `y` place the
 legend; omit them for automatic placement.
 
-```pilang
+```swift
 plot.legend(chart, ["train", "validation"])
 plot.legend(chart, ["train", "validation"], 0.72, 0.12)
 ```
@@ -202,7 +202,7 @@ plot.legend(chart, ["train", "validation"], 0.72, 0.12)
 Places the chart in a subplot cell. `index` is 1-based and must be inside
 `rows * cols`. Multiple chart objects can share the same canvas.
 
-```pilang
+```swift
 let ctx = draw.canvas(900, 500, "Subplots")
 
 let left = plot.chart(ctx)

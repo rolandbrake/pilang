@@ -928,28 +928,34 @@ int emit_jump(compiler_t *comp, int address)
     return comp->code->size - 1;
 }
 
-void patch_jump(compiler_t *comp, int address)
+void patch_jumpWithFlags(compiler_t *comp, int address, uint16_t flags)
 {
     if (!comp->is_lookUp)
     {
 
-        int offset = comp->code->size - (address - 2);
-
         uint8_t *code = (uint8_t *)comp->code->data;
-        code[address - 1] = (offset >> 8) & 0xff;
-        code[address] = offset & 0xff;
+        int offset = comp->code->size - (address - 2);
+        uint16_t encoded = ((uint16_t)offset & OP_LOOP_OFFSET_MASK) | flags;
+
+        code[address - 1] = (encoded >> 8) & 0xff;
+        code[address] = encoded & 0xff;
 
         for (int i = list_size(comp->current->instrs) - 1; i >= 0; i--)
         {
             instr_t *instr = list_getAt(comp->current->instrs, i);
             if (instr->offset == address - 2)
             {
-                instr->operands[0] = (offset >> 8) & 0xff;
-                instr->operands[1] = offset & 0xff;
+                instr->operands[0] = (encoded >> 8) & 0xff;
+                instr->operands[1] = encoded & 0xff;
                 break;
             }
         }
     }
+}
+
+void patch_jump(compiler_t *comp, int address)
+{
+    patch_jumpWithFlags(comp, address, 0);
 }
 
 int code_size(compiler_t *comp)
@@ -1030,6 +1036,8 @@ void dis(compiler_t *comp)
             case OP_LOOP:
             {
                 int offset = (int16_t)((operands[0] << 8) | operands[1]);
+                if (opcode == OP_LOOP)
+                    offset &= OP_LOOP_OFFSET_MASK;
                 int target = instr->offset + offset;
 
                 snprintf(line_buf, sizeof(line_buf),
@@ -1110,6 +1118,8 @@ void dis(compiler_t *comp)
             case OP_LOOP:
             {
                 int offset = (int16_t)((operands[0] << 8) | operands[1]);
+                if (opcode == OP_LOOP)
+                    offset &= OP_LOOP_OFFSET_MASK;
                 int target = instr->offset + offset;
 
                 snprintf(line_buf, sizeof(line_buf),

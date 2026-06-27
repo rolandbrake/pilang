@@ -5,7 +5,7 @@ return a new image and leave the input image unchanged.
 
 ![Pilang edge detection example](../edge%20detection.png)
 
-```pilang
+```swift
 import image
 import image.filters
 
@@ -21,7 +21,7 @@ image.show(edges, "Edges")
 Applies a convolution kernel to an image. `kernel` can be either a numeric
 builtin kernel id or a nested numeric list.
 
-```pilang
+```swift
 let sharp = image.filters.filter(img, image.filters.KERNEL_SHARPEN)
 
 let custom = [
@@ -39,7 +39,7 @@ The convolution preserves the source alpha channel and clamps RGB output to
 
 Returns the numeric id for a named builtin kernel.
 
-```pilang
+```swift
 let k = image.filters.kernel("emboss")
 let out = image.filters.filter(img, k)
 ```
@@ -59,7 +59,7 @@ Accepted names:
 Returns a nested numeric list for a normalized box blur kernel. `size` is
 clamped to `1..51`.
 
-```pilang
+```swift
 let blur5 = image.filters.box_kernel(5)
 let out = image.filters.filter(img, blur5)
 ```
@@ -92,7 +92,7 @@ Inverts RGB channels and preserves alpha.
 
 Adds `delta` to RGB channels and clamps to `0..255`.
 
-```pilang
+```swift
 let brighter = image.filters.brightness(img, 25)
 ```
 
@@ -100,7 +100,7 @@ let brighter = image.filters.brightness(img, 25)
 
 Adjusts contrast around midpoint `128`.
 
-```pilang
+```swift
 let higher = image.filters.contrast(img, 1.25)
 ```
 
@@ -120,7 +120,7 @@ Returns a grayscale edge-magnitude image using Sobel gradients.
 
 Converts the image to black and white based on luminance.
 
-```pilang
+```swift
 let mask = image.filters.threshold(img, 100)
 ```
 
@@ -131,13 +131,13 @@ gradient magnitude, non-maximum suppression, and hysteresis thresholding.
 
 ![Pilang Canny edge detection](edge%20detection.png)
 
-```pilang
+```swift
 let edges = image.filters.canny(img, 40, 120)
 ```
 
 ## Example
 
-```pilang
+```swift
 import image
 import image.filters
 import plot

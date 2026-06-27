@@ -5,7 +5,7 @@ objects. Each function returns a new image.
 
 ![Pilang grayscale conversion example](grayscale.png)
 
-```pilang
+```swift
 import image
 import image.color
 
@@ -45,7 +45,7 @@ Converts RGB pixels to HSV and stores the result in RGB channels:
 - blue channel: value mapped from `0..1` to `0..255`
 - alpha channel: `255`
 
-```pilang
+```swift
 let hsv = image.color.rgb2hsv(img)
 ```
 
@@ -54,14 +54,14 @@ let hsv = image.color.rgb2hsv(img)
 Converts an HSV-encoded image, using the channel layout produced by
 `rgb2hsv`, back to RGB.
 
-```pilang
+```swift
 let hsv = image.color.rgb2hsv(img)
 let restored = image.color.hsv2rgb(hsv)
 ```
 
 ## Example
 
-```pilang
+```swift
 import image
 import image.color
 

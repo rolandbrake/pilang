@@ -2,7 +2,7 @@
 
 The `random` module provides random number helpers backed by Pilang's shared PRNG.
 
-```pilang
+```swift
 import random:r
 
 r.seed(123)

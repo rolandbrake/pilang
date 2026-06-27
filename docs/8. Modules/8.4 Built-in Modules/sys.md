@@ -2,7 +2,7 @@
 
 The `sys` module exposes process, runtime, environment, and exit helpers.
 
-```pilang
+```swift
 import sys
 ```
 
@@ -11,7 +11,7 @@ import sys
 - `sys.EXIT_SUCCESS`: success exit code
 - `sys.EXIT_FAILURE`: failure exit code
 
-```pilang
+```swift
 import sys.{EXIT_SUCCESS}
 println(EXIT_SUCCESS)
 ```
@@ -20,7 +20,7 @@ println(EXIT_SUCCESS)
 
 Returns command-line arguments as a list of strings.
 
-```pilang
+```swift
 println(sys.argv())
 ```
 
@@ -28,7 +28,7 @@ println(sys.argv())
 
 Exits the process with the given numeric status code.
 
-```pilang
+```swift
 sys.exit(sys.EXIT_SUCCESS)
 ```
 
@@ -36,7 +36,7 @@ sys.exit(sys.EXIT_SUCCESS)
 
 Returns a string describing the current platform.
 
-```pilang
+```swift
 println(sys.platform()) // Windows, Linux, macOS, ...
 ```
 
@@ -44,7 +44,7 @@ println(sys.platform()) // Windows, Linux, macOS, ...
 
 Returns the Pilang runtime version string.
 
-```pilang
+```swift
 println(sys.version())
 ```
 
@@ -52,7 +52,7 @@ println(sys.version())
 
 Returns the current working directory.
 
-```pilang
+```swift
 println(sys.path())
 ```
 
@@ -61,7 +61,7 @@ println(sys.path())
 Reads an environment variable. Returns the value as a string, or `false` if the
 variable is not set.
 
-```pilang
+```swift
 println(sys.env("PATH"))
 ```
 
@@ -69,7 +69,7 @@ println(sys.env("PATH"))
 
 Runs garbage collection and returns `true`.
 
-```pilang
+```swift
 println(sys.gc())
 ```
 
@@ -77,7 +77,7 @@ println(sys.gc())
 
 Returns memory usage information when supported by the platform, otherwise `0`.
 
-```pilang
+```swift
 println(sys.mem())
 ```
 
@@ -85,6 +85,6 @@ println(sys.mem())
 
 Returns the current process id.
 
-```pilang
+```swift
 println(sys.pid())
 ```

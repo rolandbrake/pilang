@@ -3,7 +3,7 @@
 The `tensor` module provides multidimensional numeric arrays and numerical
 operations.
 
-```pilang
+```swift
 import tensor:t
 ```
 
@@ -11,7 +11,7 @@ import tensor:t
 
 Creates a tensor filled with zeros. Shape can be passed as numbers or a list.
 
-```pilang
+```swift
 println(t.zeros(2, 3))
 println(t.zeros([2, 3]))
 ```
@@ -20,7 +20,7 @@ println(t.zeros([2, 3]))
 
 Creates a tensor filled with ones.
 
-```pilang
+```swift
 println(t.ones(2, 2))
 ```
 
@@ -28,7 +28,7 @@ println(t.ones(2, 2))
 
 Creates an identity matrix.
 
-```pilang
+```swift
 println(t.eye(3))
 ```
 
@@ -36,7 +36,7 @@ println(t.eye(3))
 
 Creates a tensor with random values.
 
-```pilang
+```swift
 println(t.rand(2, 2))
 ```
 
@@ -44,7 +44,7 @@ println(t.rand(2, 2))
 
 Creates a tensor with normally distributed random values.
 
-```pilang
+```swift
 println(t.randn(2, 2))
 ```
 
@@ -52,7 +52,7 @@ println(t.randn(2, 2))
 
 Creates a tensor with random integer values.
 
-```pilang
+```swift
 println(t.randint([2, 2], 0, 10))
 ```
 
@@ -60,7 +60,7 @@ println(t.randint([2, 2], 0, 10))
 
 Creates a tensor from a compatible numeric list or matrix-like value.
 
-```pilang
+```swift
 let m = t.from([[1, 2], [3, 4]])
 println(m)
 ```
@@ -69,7 +69,7 @@ println(m)
 
 Creates a tensor filled with one value.
 
-```pilang
+```swift
 println(t.fill([2, 3], 7))
 ```
 
@@ -77,7 +77,7 @@ println(t.fill([2, 3], 7))
 
 Returns the tensor shape as a list.
 
-```pilang
+```swift
 let m = t.ones(2, 3)
 println(t.shape(m)) // [2, 3]
 ```
@@ -86,7 +86,7 @@ println(t.shape(m)) // [2, 3]
 
 Returns the number of dimensions.
 
-```pilang
+```swift
 println(t.ndim(t.ones(2, 3))) // 2
 ```
 
@@ -94,7 +94,7 @@ println(t.ndim(t.ones(2, 3))) // 2
 
 Returns the total number of elements.
 
-```pilang
+```swift
 println(t.size(t.ones(2, 3))) // 6
 ```
 
@@ -102,7 +102,7 @@ println(t.size(t.ones(2, 3))) // 6
 
 Returns a tensor with the same data and a new shape.
 
-```pilang
+```swift
 let v = t.from([1, 2, 3, 4])
 println(t.reshape(v, [2, 2]))
 ```
@@ -111,7 +111,7 @@ println(t.reshape(v, [2, 2]))
 
 Returns a slice of a tensor.
 
-```pilang
+```swift
 let m = t.from([[1, 2], [3, 4]])
 println(t.slice(m, 0, 1))
 ```
@@ -120,7 +120,7 @@ println(t.slice(m, 0, 1))
 
 Concatenates tensors.
 
-```pilang
+```swift
 println(t.concat(t.ones(1, 2), t.zeros(1, 2)))
 ```
 
@@ -128,7 +128,7 @@ println(t.concat(t.ones(1, 2), t.zeros(1, 2)))
 
 Transposes a tensor.
 
-```pilang
+```swift
 println(t.transpose(t.from([[1, 2], [3, 4]])))
 ```
 
@@ -136,7 +136,7 @@ println(t.transpose(t.from([[1, 2], [3, 4]])))
 
 Flattens a tensor to one dimension.
 
-```pilang
+```swift
 println(t.flatten(t.from([[1, 2], [3, 4]]))) // [1, 2, 3, 4]
 ```
 
@@ -144,7 +144,7 @@ println(t.flatten(t.from([[1, 2], [3, 4]]))) // [1, 2, 3, 4]
 
 Adds a dimension.
 
-```pilang
+```swift
 println(t.expand_dims(t.from([1, 2, 3]), 0))
 ```
 
@@ -152,7 +152,7 @@ println(t.expand_dims(t.from([1, 2, 3]), 0))
 
 Removes dimensions of size `1`.
 
-```pilang
+```swift
 println(t.squeeze(t.reshape(t.from([1, 2, 3]), [1, 3, 1])))
 ```
 
@@ -160,7 +160,7 @@ println(t.squeeze(t.reshape(t.from([1, 2, 3]), [1, 3, 1])))
 
 Returns whether a value is a tensor.
 
-```pilang
+```swift
 println(t.is_tensor(t.ones(2, 2))) // true
 ```
 
@@ -168,7 +168,7 @@ println(t.is_tensor(t.ones(2, 2))) // true
 
 Returns whether a value is a matrix.
 
-```pilang
+```swift
 println(t.is_matrix(t.ones(2, 2))) // true
 ```
 
@@ -176,7 +176,7 @@ println(t.is_matrix(t.ones(2, 2))) // true
 
 Returns whether a value is a vector.
 
-```pilang
+```swift
 println(t.is_vector(t.from([1, 2, 3]))) // true
 ```
 
@@ -184,7 +184,7 @@ println(t.is_vector(t.from([1, 2, 3]))) // true
 
 Returns whether a value is a scalar tensor.
 
-```pilang
+```swift
 println(t.is_scalar(t.from(10)))
 ```
 
@@ -192,7 +192,7 @@ println(t.is_scalar(t.from(10)))
 
 Adds tensors or tensor-compatible values.
 
-```pilang
+```swift
 println(t.add(t.ones(2, 2), t.ones(2, 2)))
 ```
 
@@ -200,7 +200,7 @@ println(t.add(t.ones(2, 2), t.ones(2, 2)))
 
 Subtracts `b` from `a`.
 
-```pilang
+```swift
 println(t.sub(t.ones(2, 2), t.fill([2, 2], 0.5)))
 ```
 
@@ -208,7 +208,7 @@ println(t.sub(t.ones(2, 2), t.fill([2, 2], 0.5)))
 
 Multiplies elementwise.
 
-```pilang
+```swift
 println(t.mult(t.ones(2, 2), 5))
 ```
 
@@ -216,7 +216,7 @@ println(t.mult(t.ones(2, 2), 5))
 
 Divides elementwise.
 
-```pilang
+```swift
 println(t.div(t.fill([2, 2], 10), 2))
 ```
 
@@ -224,7 +224,7 @@ println(t.div(t.fill([2, 2], 10), 2))
 
 Applies exponential elementwise.
 
-```pilang
+```swift
 println(t.exp(t.from([0, 1])))
 ```
 
@@ -232,7 +232,7 @@ println(t.exp(t.from([0, 1])))
 
 Applies natural log elementwise.
 
-```pilang
+```swift
 println(t.log(t.from([1, 2, 3])))
 ```
 
@@ -240,7 +240,7 @@ println(t.log(t.from([1, 2, 3])))
 
 Applies square root elementwise.
 
-```pilang
+```swift
 println(t.sqrt(t.from([4, 9, 16])))
 ```
 
@@ -248,7 +248,7 @@ println(t.sqrt(t.from([4, 9, 16])))
 
 Applies absolute value elementwise.
 
-```pilang
+```swift
 println(t.abs(t.from([-1, 2, -3])))
 ```
 
@@ -256,7 +256,7 @@ println(t.abs(t.from([-1, 2, -3])))
 
 Clamps tensor elements between `min` and `max`.
 
-```pilang
+```swift
 println(t.clip(t.from([-1, 2, 10]), 0, 5))
 ```
 
@@ -264,7 +264,7 @@ println(t.clip(t.from([-1, 2, 10]), 0, 5))
 
 Returns element signs.
 
-```pilang
+```swift
 println(t.sign(t.from([-5, 0, 8])))
 ```
 
@@ -272,7 +272,7 @@ println(t.sign(t.from([-5, 0, 8])))
 
 Applies a function to each element.
 
-```pilang
+```swift
 println(t.apply(t.from([1, 2, 3]), x -> x * x))
 ```
 
@@ -280,7 +280,7 @@ println(t.apply(t.from([1, 2, 3]), x -> x * x))
 
 Performs matrix multiplication.
 
-```pilang
+```swift
 let a = t.from([[1, 2], [3, 4]])
 let b = t.eye(2)
 println(t.matmult(a, b))
@@ -290,7 +290,7 @@ println(t.matmult(a, b))
 
 Computes a dot product.
 
-```pilang
+```swift
 println(t.dot(t.from([1, 2]), t.from([3, 4]))) // 11
 ```
 
@@ -298,7 +298,7 @@ println(t.dot(t.from([1, 2]), t.from([3, 4]))) // 11
 
 Computes a cross product.
 
-```pilang
+```swift
 println(t.cross(t.from([1, 0, 0]), t.from([0, 1, 0])))
 ```
 
@@ -306,7 +306,7 @@ println(t.cross(t.from([1, 0, 0]), t.from([0, 1, 0])))
 
 Solves a linear system.
 
-```pilang
+```swift
 println(t.solve(t.from([[2, 0], [0, 2]]), t.from([4, 8])))
 ```
 
@@ -314,7 +314,7 @@ println(t.solve(t.from([[2, 0], [0, 2]]), t.from([4, 8])))
 
 Returns a matrix inverse.
 
-```pilang
+```swift
 println(t.inv(t.from([[1, 0], [0, 1]])))
 ```
 
@@ -322,7 +322,7 @@ println(t.inv(t.from([[1, 0], [0, 1]])))
 
 Returns a matrix determinant.
 
-```pilang
+```swift
 println(t.det(t.from([[1, 2], [3, 4]])))
 ```
 
@@ -330,7 +330,7 @@ println(t.det(t.from([[1, 2], [3, 4]])))
 
 Computes singular value decomposition.
 
-```pilang
+```swift
 println(t.svd(t.from([[1, 2], [3, 4]])))
 ```
 
@@ -338,7 +338,7 @@ println(t.svd(t.from([[1, 2], [3, 4]])))
 
 Computes eigen information for a matrix.
 
-```pilang
+```swift
 println(t.eig(t.from([[1, 0], [0, 2]])))
 ```
 
@@ -346,7 +346,7 @@ println(t.eig(t.from([[1, 0], [0, 2]])))
 
 Returns a vector or matrix norm.
 
-```pilang
+```swift
 println(t.norm(t.from([3, 4]))) // 5
 ```
 
@@ -354,7 +354,7 @@ println(t.norm(t.from([3, 4]))) // 5
 
 Returns matrix rank.
 
-```pilang
+```swift
 println(t.rank(t.eye(3)))
 ```
 
@@ -362,7 +362,7 @@ println(t.rank(t.eye(3)))
 
 Returns the sum of the diagonal.
 
-```pilang
+```swift
 println(t.trace(t.eye(3))) // 3
 ```
 
@@ -370,7 +370,7 @@ println(t.trace(t.eye(3))) // 3
 
 Returns the pseudoinverse.
 
-```pilang
+```swift
 println(t.pinv(t.eye(2)))
 ```
 
@@ -378,7 +378,7 @@ println(t.pinv(t.eye(2)))
 
 Returns the sum of all elements.
 
-```pilang
+```swift
 println(t.sum(t.from([1, 2, 3]))) // 6
 ```
 
@@ -386,7 +386,7 @@ println(t.sum(t.from([1, 2, 3]))) // 6
 
 Returns the mean of all elements.
 
-```pilang
+```swift
 println(t.mean(t.from([1, 2, 3]))) // 2
 ```
 
@@ -394,7 +394,7 @@ println(t.mean(t.from([1, 2, 3]))) // 2
 
 Returns the minimum element.
 
-```pilang
+```swift
 println(t.min(t.from([3, 1, 2]))) // 1
 ```
 
@@ -402,7 +402,7 @@ println(t.min(t.from([3, 1, 2]))) // 1
 
 Returns the maximum element.
 
-```pilang
+```swift
 println(t.max(t.from([3, 1, 2]))) // 3
 ```
 
@@ -410,7 +410,7 @@ println(t.max(t.from([3, 1, 2]))) // 3
 
 Returns the product of all elements.
 
-```pilang
+```swift
 println(t.prod(t.from([2, 3, 4]))) // 24
 ```
 
@@ -418,7 +418,7 @@ println(t.prod(t.from([2, 3, 4]))) // 24
 
 Returns the index of the maximum element.
 
-```pilang
+```swift
 println(t.argmax(t.from([3, 9, 2]))) // 1
 ```
 
@@ -426,7 +426,7 @@ println(t.argmax(t.from([3, 9, 2]))) // 1
 
 Returns the index of the minimum element.
 
-```pilang
+```swift
 println(t.argmin(t.from([3, 9, 2]))) // 2
 ```
 
@@ -434,7 +434,7 @@ println(t.argmin(t.from([3, 9, 2]))) // 2
 
 Returns whether any element is truthy/non-zero.
 
-```pilang
+```swift
 println(t.any(t.from([0, 0, 1]))) // true
 ```
 
@@ -442,7 +442,7 @@ println(t.any(t.from([0, 0, 1]))) // true
 
 Returns whether all elements are truthy/non-zero.
 
-```pilang
+```swift
 println(t.all(t.from([1, 1, 0]))) // false
 ```
 
@@ -450,7 +450,7 @@ println(t.all(t.from([1, 1, 0]))) // false
 
 Reduces tensor elements with a function.
 
-```pilang
+```swift
 println(t.reduce(t.from([1, 2, 3]), (a, b) -> a + b, 0))
 ```
 
@@ -458,7 +458,7 @@ println(t.reduce(t.from([1, 2, 3]), (a, b) -> a + b, 0))
 
 Returns variance.
 
-```pilang
+```swift
 println(t.var(t.from([1, 2, 3])))
 ```
 
@@ -466,7 +466,7 @@ println(t.var(t.from([1, 2, 3])))
 
 Returns standard deviation.
 
-```pilang
+```swift
 println(t.std(t.from([1, 2, 3])))
 ```
 
@@ -474,7 +474,7 @@ println(t.std(t.from([1, 2, 3])))
 
 Returns median.
 
-```pilang
+```swift
 println(t.median(t.from([3, 1, 2]))) // 2
 ```
 
@@ -482,7 +482,7 @@ println(t.median(t.from([3, 1, 2]))) // 2
 
 Returns the percentile value.
 
-```pilang
+```swift
 println(t.percentile(t.from([1, 2, 3, 4]), 50))
 ```
 
@@ -490,7 +490,7 @@ println(t.percentile(t.from([1, 2, 3, 4]), 50))
 
 Returns the most frequent value.
 
-```pilang
+```swift
 println(t.mode(t.from([1, 2, 2, 3]))) // 2
 ```
 
@@ -498,7 +498,7 @@ println(t.mode(t.from([1, 2, 2, 3]))) // 2
 
 Returns covariance between two tensors or vectors.
 
-```pilang
+```swift
 println(t.covariance(t.from([1, 2, 3]), t.from([2, 4, 6])))
 ```
 
@@ -506,7 +506,7 @@ println(t.covariance(t.from([1, 2, 3]), t.from([2, 4, 6])))
 
 Returns correlation between two tensors or vectors.
 
-```pilang
+```swift
 println(t.correlation(t.from([1, 2, 3]), t.from([2, 4, 6])))
 ```
 
@@ -514,7 +514,7 @@ println(t.correlation(t.from([1, 2, 3]), t.from([2, 4, 6])))
 
 Returns z-scores for the values.
 
-```pilang
+```swift
 println(t.zscore(t.from([1, 2, 3])))
 ```
 
@@ -522,6 +522,6 @@ println(t.zscore(t.from([1, 2, 3])))
 
 Returns or applies a shuffled order of tensor values.
 
-```pilang
+```swift
 println(t.shuffle(t.from([1, 2, 3, 4])))
 ```
