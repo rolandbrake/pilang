@@ -3,6 +3,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef _WIN32
+#include <direct.h>
+#include <process.h>
+#define getcwd _getcwd
+#define getpid _getpid
+#else
+#include <sys/utsname.h>
+#include <unistd.h>
+#endif
+
 #include "pi_sys.h"
 #include "pi_builtin.h"
 
@@ -48,9 +58,9 @@ Value pi_zen(vm_t *vm, int argc, Value *argv)
     (void)argv;
 
     return NEW_OBJ(new_pistring(strdup(
-        " -------------------\n"
-        " The Zen of Pi-Lang\n"
-        " -------------------\n"
+        " ----------------------------------------\n"
+        " The Zen of Pi-Lang: \n"
+        " ----------------------------------------\n"
         " 1. Simplicity is power.\n"
         " 2. Functions shape the flow.\n"
         " 3. Tables hold the world.\n"

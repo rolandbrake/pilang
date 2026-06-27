@@ -1,11 +1,236 @@
-// A small Scheme-like Lisp interpreter written in Pilang.
-// It supports arithmetic, conditionals, definitions, lambdas, recursion,
-// lexical scope, quoting, and list primitives.
+/* 
+* ------------------------------------------------------------------------------
+* Pilang Lisp Interpreter
+* ------------------------------------------------------------------------------
+*
+* This is a small Scheme-inspired Lisp interpreter written in Pilang.
+*
+* What is Lisp?
+* -------------
+* Lisp (LISt Processing) is one of the oldest programming language families.
+* Unlike languages such as C, Java, or Python, Lisp programs are written as
+* nested lists called S-expressions.
+*
+* Every expression has the form:
+*
+*     (function arg1 arg2 ...)
+*
+* Examples:
+*
+*     (+ 1 2)
+*     (* (+ 2 3) 4)
+*     (if (> x 0) x (- x))
+*
+* Because code and data share the same list representation, Lisp is known for
+* its simplicity, expressive syntax, and powerful metaprogramming abilities.
+*
+* This interpreter implements a small subset of Scheme, including:
+*
+*   • Arithmetic (+ - * /)
+*   • Comparisons (= < <= > >=)
+*   • Variables (define, set!)
+*   • Conditionals (if)
+*   • Anonymous functions (lambda)
+*   • Lexical scoping (closures)
+*   • Recursive functions
+*   • Sequential execution (begin)
+*   • Quoting (quote / ')
+*   • Lists and list operations
+*       list, car, cdr, cons, append
+*   • Basic predicates
+*       number?, symbol?, list?, null?
+*   • String literals
+*   • Interactive REPL
+*
+* Architecture
+* ------------
+* The interpreter is structured as a classic pipeline:
+*
+*   Source text
+*       -> tokenize()     Splits raw text into a flat token list
+*       -> parse()        Builds nested S-expression trees (lists of lists)
+*       -> lisp_eval()    Walks the tree and evaluates each node
+*
+* Environments form a linked chain (env.outer -> parent scope), giving the
+* interpreter lexical scoping and closure support at zero extra cost.
+*
+* -----------------------------------------------------------------------------
+* Example Programs
+* -----------------------------------------------------------------------------
+*
+* 1. Arithmetic
+*
+*     (+ 1 2 (* 3 4))
+*     => 15
+*
+*     run("(+ 1 2 (* 3 4))", env);
+*
+* -----------------------------------------------------------------------------
+*
+* 2. Variable definition and computation
+*
+*     (begin
+*         (define r 10)
+*         (* 3.14159 (* r r)))
+*
+*     => 314.159
+*
+*     run("(begin (define r 10) (* 3.14159 (* r r)))", env);
+*
+* -----------------------------------------------------------------------------
+*
+* 3. Conditional expression
+*
+*     (if (> 8 3)
+*         42
+*         0)
+*
+*     => 42
+*
+*     run("(if (> 8 3) 42 0)", env);
+*
+* -----------------------------------------------------------------------------
+*
+* 4. Function definition
+*
+*     (begin
+*         (define square
+*             (lambda (x)
+*                 (* x x)))
+*         (square 9))
+*
+*     => 81
+*
+*     run("(begin (define square (lambda (x) (* x x))) (square 9))", env);
+*
+* -----------------------------------------------------------------------------
+*
+* 5. Recursive factorial
+*
+*     (begin
+*         (define fact
+*             (lambda (n)
+*                 (if (<= n 1)
+*                     1
+*                     (* n (fact (- n 1))))))
+*         (fact 6))
+*
+*     => 720
+*
+*     run("(begin (define fact (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1)))))) (fact 6))", env);
+*
+* -----------------------------------------------------------------------------
+*
+* 6. Recursive Fibonacci
+*
+*     (begin
+*         (define fib
+*             (lambda (n)
+*                 (if (<= n 1)
+*                     1
+*                     (+ (fib (- n 1))
+*                        (fib (- n 2)))))
+*         )
+*         (fib 20))
+*
+*     => 10946
+*
+*     run("(begin (define fib (lambda (n) (if (<= n 1) 1 (+ (fib (- n 1)) (fib (- n 2)))))) (fib 20))", env);
+*
+* -----------------------------------------------------------------------------
+*
+* 7. Higher-order functions
+*
+*     (begin
+*         (define twice
+*             (lambda (f x)
+*                 (f (f x))))
+*
+*         (twice
+*             (lambda (n)
+*                 (+ n 10))
+*             5))
+*
+*     => 25
+*
+*     run("(begin (define twice (lambda (f x) (f (f x)))) (twice (lambda (n) (+ n 10)) 5))", env);
+*
+* -----------------------------------------------------------------------------
+*
+* 8. Quoting and list access
+*
+*     (car (cdr '(alpha beta gamma)))
+*
+*     => beta
+*
+*     run("(car (cdr '(alpha beta gamma)))", env);
+*
+* -----------------------------------------------------------------------------
+*
+* 9. Constructing lists
+*
+*     (cons 1
+*         (append
+*             '(2 3)
+*             (list 4 5)))
+*
+*     => (1 2 3 4 5)
+*
+*     run("(cons 1 (append '(2 3) (list 4 5)))", env);
+*
+* -----------------------------------------------------------------------------
+*
+* 10. Mutable state and side effects
+*
+*     (define counter 0)
+*
+*     (define process-and-count
+*         (begin
+*             (display "Processing data...\n")
+*             (set! counter (+ counter 1))
+*             counter))
+*
+*     The expression prints a message, increments a global counter,
+*     and returns the updated value.
+*
+*     run('
+*         (define counter 0)
+*
+*         (define process-and-count
+*             (begin
+*                 (display "Processing data...\n")
+*                 (set! counter (+ counter 1))
+*                 counter))
+*     ', env);
+*
+* ------------------------------------------------------------------------------ */
 
+
+/* -----------------------------------------------------------------------------
+   ENVIRONMENT (SCOPE)
+   -----------------------------------------------------------------------------
+   An environment is a map with two fields:
+     • data   — a string-keyed map of name -> value bindings in this scope
+     • outer  — a reference to the enclosing (parent) scope, or nil at top level
+
+   When a variable is looked up, we walk the chain: current -> outer -> ... until
+   the name is found or we run out of scopes (unbound symbol error).
+
+   This chain is what gives the interpreter lexical scoping: a lambda created
+   inside a scope captures that scope as its closure environment.
+   ----------------------------------------------------------------------------- */
+
+/* Create a new, empty environment that inherits from `outer`.
+   Pass outer = nil to create a top-level (global) environment. */
 fun env_make(outer = nil) {
     return {data: {}, outer: outer};
 }
 
+/* Walk the scope chain from `env` upward, looking for the first frame
+   that contains `name` in its data map.
+   Returns the environment frame (not the value) so the caller can read
+   or mutate the binding in-place.
+   Raises a runtime error if the symbol is not found in any scope. */
 fun env_find(env, name) {
     let current = env;
 
@@ -18,41 +243,64 @@ fun env_find(env, name) {
     error("unbound symbol: " + name);
 }
 
+/* Read a variable's value from the nearest enclosing scope that defines it. */
 fun env_get(env, name) {
     return env_find(env, name).data[name];
 }
 
+/* Write (or create) a binding in exactly the given scope frame.
+   Used both by `define` (always writes to the current frame) and
+   by env_find + env_set together for `set!` (writes to the frame
+   that already owns the binding). */
 fun env_set(env, name, value) {
     env.data[name] = value;
     return value;
 }
 
+
+/* -----------------------------------------------------------------------------
+   CHARACTER CLASSIFICATION HELPERS
+   ----------------------------------------------------------------------------- */
+
+/* True if `ch` is a whitespace character that the tokenizer should skip. */
 fun is_space(ch) {
     return ch == " " || ch == "\n" || ch == "\t" || ch == "\r";
 }
 
+/* True if `ch` is an ASCII decimal digit ("0"–"9"). */
 fun is_digit(ch) {
     return ch >= "0" && ch <= "9";
 }
 
+/* True if `text` represents a Lisp number literal (integer or float,
+   optionally negative).  The check is done in two stages:
+     1. Ask Pilang's built-in is_num() — catches native number values that
+        were already parsed by the host language.
+     2. Manually scan the string for a valid decimal representation:
+          optional leading "-", one or more digits, at most one ".".
+   The "_" prefix trick strips the first character of a slice to avoid
+   the Pilang slice returning a character code instead of a string. */
 fun is_number_token(text) {
     if (is_num(text))
         return true;
 
+    /* Force the value to a plain string in case it came in as a char/code. */
     text = ("_" + text)[1:];
 
     if (#text == 0)
         return false;
 
     let start = 0;
-    let dots = 0;
+    let dots = 0;  /* count decimal points; allow at most one */
 
+    /* Accept an optional leading minus sign. A bare "-" is not a number. */
     if (text[0] == "-") {
         if (#text == 1)
             return false;
         start = 1;
     }
 
+    /* Scan every character: allow digits and exactly one dot. */
     let i = start;
     while (i < #text) {
         let ch = text[i];
@@ -60,42 +308,66 @@ fun is_number_token(text) {
         if (ch == ".")
             dots++;
         elif (!is_digit(ch))
-            return false;
+            return false;   /* non-digit, non-dot -> not a number */
 
         i++;
     }
 
-    return dots <= 1;
+    return dots <= 1;  /* "1.2.3" has two dots and is rejected */
 }
+
+
+/* -----------------------------------------------------------------------------
+   TOKENIZER
+   -----------------------------------------------------------------------------
+   Converts a raw source string into a flat list of tokens.
+
+   Token types produced:
+     • "("  ")"  "'"   — punctuation atoms (plain strings)
+     • {kind:"string", value:...} — string literals (map with metadata)
+     • Any other contiguous non-whitespace sequence — identifier or number atom
+
+   The tokenizer handles:
+     • Whitespace as a token delimiter
+     • Double-quoted string literals with \n \t \r \\ escape sequences
+     • The single-quote shorthand for (quote ...)
+   ----------------------------------------------------------------------------- */
 
 fun tokenize(source) {
     let tokens = [];
-    let token = [];
+    let token = [];   /* accumulator for the current identifier/number token */
     let i = 0;
 
     while (i < #source) {
         let ch = source[i];
+        /* Pilang can return a numeric char-code when indexing; stringify it. */
         if (is_num(ch))
             ch = str(ch);
 
         if (is_space(ch)) {
+            /* Whitespace ends any accumulating token. */
             if (#token > 0) {                
                 tokens.push(join(token, ""));
                 token = [];
             }
-        }
-        elif (ch == '"') {
+
+        } elif (ch == '"') {
+            /* --- String literal --- */
+            /* Flush any preceding accumulator first. */
             if (#token > 0) {
                 tokens.push(join(token, ""));
                 token = [];
             }
 
-            i++;
+            i++;  /* skip the opening quote */
             let text = [];
 
+            /* Collect characters until the closing quote, processing escapes. */
             while (i < #source && source[i] != '"') {
                 let next = source[i];
                 if (next == "\\" && i + 1 < #source) {
+                    /* Escape sequence: consume the backslash and translate
+                       the following character into the intended control char. */
                     i++;
                     next = source[i];
                     if (next == "n")
@@ -104,6 +376,7 @@ fun tokenize(source) {
                         next = "\t";
                     elif (next == "r")
                         next = "\r";
+                    /* Any other escaped char is kept literally (e.g. \" \\ ). */
                 }
 
                 text.push(next);
@@ -113,27 +386,58 @@ fun tokenize(source) {
             if (i >= #source)
                 error("missing string closing quote");
 
+            /* Wrap the string in a map so later stages can distinguish it
+               from a bare symbol that happens to look the same. */
             tokens.push({kind: "string", value: join(text, "")});
-        }
-        elif (ch == "(" || ch == ")" || ch == "'") {
+
+        } elif (ch == "(" || ch == ")" || ch == "'") {
+            /* --- Structural punctuation ---
+               These are single-character tokens that always delimit a token
+               boundary, so flush the accumulator before pushing them. */
             if (#token > 0) {
                 tokens.push(join(token, ""));
                 token = [];
             }
             tokens.push(ch);
-        }
-        else
+
+        } else {
+            /* Regular identifier/number character — keep accumulating. */
             token.push(ch);
+        }
+
         i++;
     }
 
+    /* End of source: flush any trailing token. */
     if (#token > 0)
         tokens.push(join(token, ""));
 
     return tokens;
 }
 
+
+/* -----------------------------------------------------------------------------
+   PARSER
+   -----------------------------------------------------------------------------
+   Converts the flat token list produced by tokenize() into a nested Pilang
+   list structure representing the S-expression tree.
+
+   Mapping:
+     Token "("  -> recurse, collect children, expect ")"
+     Token "'"  -> sugar for (quote <next-expr>)
+     Anything else -> parse_atom()
+
+   parse_expr() returns a map {expr, index} so the caller knows how many
+   tokens were consumed; Pilang functions can only return one value.
+   ----------------------------------------------------------------------------- */
+
+/* Convert a single non-list token into its Pilang value:
+     • String-map tokens pass through unchanged.
+     • Numeric strings become numbers.
+     • "true" / "false" / "nil" become Pilang booleans / nil.
+     • Everything else stays as a string (symbol name). */
 fun parse_atom(token) {
+    /* Already a tagged string literal from the tokenizer — keep it. */
     if (is_map(token)) {
         if ("kind" in token) {
             if (token.kind == "string")
@@ -141,25 +445,28 @@ fun parse_atom(token) {
         }
     }
 
+    /* Native number value (shouldn't normally happen from tokenizer, but
+       handle it defensively). */
     if (is_num(token)) {
         if (is_str(token))
-            return num(token);
-        return token;
+            return num(token);  /* string that is_num() approved -> convert */
+        return token;           /* already a number */
     }
 
+    /* The "_" + token [1:] trick normalises a potential char-code to a string. */
     token = ("_" + token)[1:];
 
-    if (token == "true")
-        return true;
-    if (token == "false")
-        return false;
-    if (token == "nil")
-        return nil;
-    if (is_number_token(token))
-        return num(token);
+    if (token == "true")  return true;
+    if (token == "false") return false;
+    if (token == "nil")   return nil;
+    if (is_number_token(token)) return num(token);
+
+    /* Symbol: returned as a plain string; lisp_eval() will look it up. */
     return token;
 }
 
+/* Recursively parse one S-expression starting at `index` in `tokens`.
+   Returns {expr: <parsed value>, index: <next unconsumed position>}. */
 fun parse_expr(tokens, index) {
     if (index >= #tokens)
         error("unexpected end of input");
@@ -168,31 +475,39 @@ fun parse_expr(tokens, index) {
     index++;
 
     if (token == "(") {
+        /* List expression: collect items until ")" */
         let expr = [];
 
         while (index < #tokens && tokens[index] != ")") {
             let parsed = parse_expr(tokens, index);
             expr.push(parsed.expr);
-            index = parsed.index;
+            index = parsed.index;   /* advance past everything that was consumed */
         }
 
         if (index >= #tokens)
             error("missing ')'");
 
-        return {expr: expr, index: index + 1};
+        return {expr: expr, index: index + 1};  /* +1 to skip the ")" */
     }
 
     if (token == ")")
         error("unexpected ')'");
 
     if (token == "'") {
+        /* Quote shorthand: 'x -> (quote x)
+           Parse the next expression and wrap it in a two-element list. */
         let quoted = parse_expr(tokens, index);
         return {expr: ["quote", quoted.expr], index: quoted.index};
     }
 
+    /* Atom (number, symbol, string, boolean, nil) */
     return {expr: parse_atom(token), index: index};
 }
 
+/* Top-level entry point for parsing.
+   Handles a source string that may contain multiple top-level forms
+   (e.g. several define statements followed by an expression).
+   Returns a list of parsed S-expressions ready to be evaluated in order. */
 fun parse(source) {
     let tokens = tokenize(source);
     let index = 0;
@@ -207,7 +522,23 @@ fun parse(source) {
     return forms;
 }
 
+
+/* -----------------------------------------------------------------------------
+   OUTPUT FORMATTING
+   ----------------------------------------------------------------------------- */
+
+/* Convert any Lisp value back to a human-readable Lisp-syntax string.
+   Used both for REPL output and for the `display` builtin.
+
+   Rules:
+     • {kind:"string"} maps print as their raw string value (no quotes).
+     • Lists print as "(a b c)" with space-separated elements, recursively.
+     • Booleans print as "true" / "false" (not Pilang's native representation).
+     • nil prints as "nil".
+     • Numbers and symbols print via str(). */
 fun lisp_format(value) {
+    /* Tagged string literal: show the value without surrounding quotes so
+       that (display "hello") prints hello, not "hello". */
     if (is_map(value)) {
         if ("kind" in value) {
             if (value.kind == "string")
@@ -228,8 +559,7 @@ fun lisp_format(value) {
     }
 
     if (is_bool(value)) {
-        if (value)
-            return "true";
+        if (value) return "true";
         return "false";
     }
     if (value == nil)
@@ -238,10 +568,19 @@ fun lisp_format(value) {
     return str(value);
 }
 
+
+/* -----------------------------------------------------------------------------
+   EVALUATOR — HELPERS
+   ----------------------------------------------------------------------------- */
+
+/* Evaluate a list of forms in order and return the value of the last one.
+   This is the semantics of a (begin ...) body with multiple expressions. */
 fun eval_sequence(forms, env) {
     return eval_sequence_from(forms, 0, env);
 }
 
+/* Same as eval_sequence but starts from index `start` instead of 0.
+   Used to skip the "begin" (or "lambda") head token when evaluating body forms. */
 fun eval_sequence_from(forms, start, env) {
     let result = nil;
     let i = start;
@@ -254,6 +593,8 @@ fun eval_sequence_from(forms, start, env) {
     return result;
 }
 
+/* Evaluate forms[start..] in `env`, collecting the results into a new list.
+   Used to evaluate argument expressions before a function call. */
 fun eval_args_from(forms, start, env) {
     let values = [];
     let i = start;
@@ -267,93 +608,128 @@ fun eval_args_from(forms, start, env) {
     return values;
 }
 
+
+/* -----------------------------------------------------------------------------
+   PROCEDURE CONSTRUCTORS
+   ----------------------------------------------------------------------------- */
+
+/* Create a builtin (native) procedure descriptor.
+   The `fn` parameter is stored for documentation purposes but is not called
+   directly — lisp_apply() uses the name field to dispatch via a big if-chain.
+   This design avoids the need for first-class function values as map fields. */
 fun make_builtin(name, fn) {
     return {kind: "builtin", name: name};
 }
 
+/* Create a user-defined lambda (closure).
+   `params` is the list of parameter name strings from the lambda form.
+   `body`   is the list of body expressions (everything after the param list).
+   `env`    is the defining scope — captured here to form a closure.
+
+   When called, lisp_apply() creates a new child scope parented to `env`,
+   binds each argument, then evaluates the body in that child scope. */
 fun make_lambda(params, body, env) {
     return {kind: "lambda", params: params, body: body, env: env};
 }
 
+
+/* -----------------------------------------------------------------------------
+   EVALUATOR — APPLY
+   -----------------------------------------------------------------------------
+   lisp_apply() is the function-call handler.  It receives a procedure value
+   and a fully-evaluated argument list, and dispatches on the procedure kind.
+
+   For builtins the dispatch is a chain of name comparisons.
+   For lambdas it creates a new scope, binds parameters, and runs the body.
+   ----------------------------------------------------------------------------- */
+
 fun lisp_apply(proc, call_args) {
+    /* Sanity-check that proc is actually a callable descriptor. */
     if (!is_map(proc) || !("kind" in proc))
         error("not callable: " + lisp_format(proc));
 
+    /* --- Built-in procedures --- */
     if (proc.kind == "builtin") {
+
+        /* Arithmetic — variadic, left-fold style. */
         if (proc.name == "+") {
             let total = 0;
             let i = 0;
-            while (i < #call_args) {
-                total += call_args[i];
-                i++;
-            }
+            while (i < #call_args) { total += call_args[i]; i++; }
             return total;
         }
 
         if (proc.name == "-") {
+            /* Unary minus: (- x) -> −x */
             if (#call_args == 1)
                 return -call_args[0];
-
+            /* Binary/variadic: (- a b c) -> ((a − b) − c) */
             let result = call_args[0];
             let i = 1;
-            while (i < #call_args) {
-                result -= call_args[i];
-                i++;
-            }
+            while (i < #call_args) { result -= call_args[i]; i++; }
             return result;
         }
 
         if (proc.name == "*") {
             let result = 1;
             let i = 0;
-            while (i < #call_args) {
-                result *= call_args[i];
-                i++;
-            }
+            while (i < #call_args) { result *= call_args[i]; i++; }
             return result;
         }
 
         if (proc.name == "/") {
+            /* Left-fold division: (/ 12 3 2) -> ((12 / 3) / 2) = 2 */
             let result = call_args[0];
             let i = 1;
-            while (i < #call_args) {
-                result /= call_args[i];
-                i++;
-            }
+            while (i < #call_args) { result /= call_args[i]; i++; }
             return result;
         }
 
-        if (proc.name == "=") return call_args[0] == call_args[1];
-        if (proc.name == "<") return call_args[0] < call_args[1];
+        /* Comparisons — all binary (two operands). */
+        if (proc.name == "=")  return call_args[0] == call_args[1];
+        if (proc.name == "<")  return call_args[0] <  call_args[1];
         if (proc.name == "<=") return call_args[0] <= call_args[1];
-        if (proc.name == ">") return call_args[0] > call_args[1];
+        if (proc.name == ">")  return call_args[0] >  call_args[1];
         if (proc.name == ">=") return call_args[0] >= call_args[1];
+
+        /* Logical NOT. */
         if (proc.name == "not") return !bool(call_args[0]);
+
+        /* I/O: print each argument without a trailing newline between them. */
         if (proc.name == "display") {
             let i = 0;
             while (i < #call_args) {
                 print(lisp_format(call_args[i]));
                 i++;
             }
-            return nil;
+            return nil;  /* display has no meaningful return value */
         }
-        if (proc.name == "list") return [...call_args];
-        if (proc.name == "car") return call_args[0][0];
-        if (proc.name == "cdr") return call_args[0][1:];
-        if (proc.name == "cons") return [call_args[0], ...call_args[1]];
-        if (proc.name == "append") return [...call_args[0], ...call_args[1]];
-        if (proc.name == "len") return #call_args[0];
-        if (proc.name == "null?") return is_list(call_args[0]) && #call_args[0] == 0;
-        if (proc.name == "list?") return is_list(call_args[0]);
+
+        /* List constructors and accessors. */
+        if (proc.name == "list")   return [...call_args];             /* (list a b c) -> [a, b, c] */
+        if (proc.name == "car")    return call_args[0][0];            /* head of list */
+        if (proc.name == "cdr")    return call_args[0][1:];           /* tail (all but head) */
+        if (proc.name == "cons")   return [call_args[0], ...call_args[1]]; /* prepend element */
+        if (proc.name == "append") return [...call_args[0], ...call_args[1]]; /* concatenate two lists */
+        if (proc.name == "len")    return #call_args[0];              /* list length */
+
+        /* Type predicates — each returns a boolean. */
+        if (proc.name == "null?")   return is_list(call_args[0]) && #call_args[0] == 0;
+        if (proc.name == "list?")   return is_list(call_args[0]);
         if (proc.name == "number?") return is_num(call_args[0]);
         if (proc.name == "symbol?") return is_str(call_args[0]);
+
         error("unknown builtin: " + proc.name);
     }
 
+    /* --- User-defined lambda --- */
     if (proc.kind == "lambda") {
         if (#call_args != #proc.params)
             error("wrong argument count");
 
+        /* Create a fresh scope chained to the closure's captured environment.
+           This is what makes lexical scoping work: each call gets its own frame
+           but inherits the environment that was live when the lambda was defined. */
         let local = env_make(proc.env);
         let i = 0;
 
@@ -362,13 +738,41 @@ fun lisp_apply(proc, call_args) {
             i++;
         }
 
+        /* Execute the body expressions in the new local scope. */
         return eval_sequence(proc.body, local);
     }
 
     error("unknown procedure kind: " + proc.kind);
 }
 
+
+/* -----------------------------------------------------------------------------
+   EVALUATOR — CORE
+   -----------------------------------------------------------------------------
+   lisp_eval() is the heart of the interpreter.  It takes a single parsed
+   expression and an environment, and returns the expression's value.
+
+   Dispatch order:
+     1. Tagged string literal map           -> return the string value
+     2. Plain string (symbol)               -> look up in environment
+     3. Non-list, non-string (number, bool, nil) -> self-evaluating, return as-is
+     4. Empty list ()                       -> return []
+     5. Special forms (head is a keyword):
+          quote  — return datum unevaluated
+          if     — conditional; evaluate only the chosen branch
+          define — bind a name in the current scope
+          set!   — mutate an existing binding in the nearest enclosing scope
+          lambda — construct a closure
+          begin  — evaluate body forms in sequence, return last
+     6. Function call (anything else)       -> evaluate all sub-expressions,
+                                              then call lisp_apply()
+   ----------------------------------------------------------------------------- */
+
 fun lisp_eval(expr, env) {
+
+    /* --- Tagged string literal ---
+       String literals produced by the tokenizer are wrapped in {kind:"string"}
+       maps.  They are self-evaluating: just return the raw string value. */
     if (is_map(expr)) {
         if ("kind" in expr) {
             if (expr.kind == "string")
@@ -376,20 +780,33 @@ fun lisp_eval(expr, env) {
         }
     }
 
+    /* --- Symbol lookup ---
+       A plain Pilang string is a Lisp symbol.  Resolve it in the scope chain. */
     if (is_str(expr))
         return env_get(env, expr);
 
+    /* --- Self-evaluating atoms ---
+       Numbers, booleans, nil — evaluate to themselves. */
     if (!is_list(expr))
         return expr;
 
+    /* --- Empty list ---
+       () evaluates to an empty list (the "null" of Lisp). */
     if (#expr == 0)
         return [];
 
+    /* The first element of a list is the operator / special form keyword. */
     let head = expr[0];
 
+    /* ---- Special Forms ---- */
+
+    /* (quote datum) -> return datum literally, without evaluation.
+       Used to write list literals: '(1 2 3) expands to (quote (1 2 3)). */
     if (head == "quote")
         return expr[1];
 
+    /* Guard: if the head itself is a string literal map, it can't be a
+       special form keyword.  Return the string value directly. */
     if (is_map(head)) {
         if ("kind" in head) {
             if (head.kind == "string")
@@ -397,148 +814,306 @@ fun lisp_eval(expr, env) {
         }
     }
 
+    /* (if test consequent alternate)
+       Evaluate test; if truthy evaluate and return consequent, else alternate.
+       Only the chosen branch is evaluated (short-circuit semantics). */
     if (head == "if") {
         if (bool(lisp_eval(expr[1], env)))
             return lisp_eval(expr[2], env);
         return lisp_eval(expr[3], env);
     }
 
+    /* (define name value-expr)
+       Evaluate value-expr and bind the result to `name` in the current scope.
+       Always creates or overwrites in the innermost frame — does not walk up. */
     if (head == "define")
         return env_set(env, expr[1], lisp_eval(expr[2], env));
 
+    /* (set! name value-expr)
+       Like define, but mutates an existing binding in the nearest enclosing
+       scope that defines `name`.  Raises an error if the name is unbound.
+       This is the standard Scheme mutation operator. */
     if (head == "set!")
         return env_set(env_find(env, expr[1]), expr[1], lisp_eval(expr[2], env));
 
+    /* (lambda (params...) body...)
+       Capture the current environment and produce a closure value.
+       expr[1] is the parameter list; expr[2:] are the body expressions. */
     if (head == "lambda")
         return make_lambda(expr[1], expr[2:], env);
 
+    /* (begin expr1 expr2 ... exprN)
+       Evaluate expressions in order; return the value of the last one.
+       Starts from index 1 to skip the "begin" keyword at index 0. */
     if (head == "begin")
         return eval_sequence_from(expr, 1, env);
 
+    /* ---- Function Call ----
+       None of the special-form keywords matched, so treat this as a call:
+         expr[0]   -> the operator expression (evaluate to get a procedure)
+         expr[1:]  -> argument expressions (evaluate each, collect into a list)
+       Then hand off to lisp_apply(). */
     let call_args = eval_args_from(expr, 1, env);
     let result = lisp_apply(lisp_eval(head, env), call_args);
     return result;
 }
 
+
+/* -----------------------------------------------------------------------------
+   BUILTIN FUNCTION STUBS
+   -----------------------------------------------------------------------------
+   These named functions mirror every builtin operation but are not actually
+   called by the interpreter.  They exist as readable documentation of what
+   each builtin does, and as placeholders for a future design where builtins
+   store a real function reference instead of dispatching by name.
+
+   NOTE: These functions reference an implicit `args` variable which does not
+   exist in the outer scope — they would need to be adapted before being called
+   directly (e.g. wrapped in a closure that receives `args`).
+   ----------------------------------------------------------------------------- */
+
 fun builtin_add() {
+    /* Sum all arguments: (+ a b c ...) */
     let total = 0;
     let i = 0;
-    while (i < #args) {
-        total += args[i];
-        i++;
-    }
+    while (i < #args) { total += args[i]; i++; }
     return total;
 }
 
 fun builtin_sub() {
+    /* Unary negation or left-fold subtraction. */
     if (#args == 1)
         return -args[0];
-
     let result = args[0];
     let i = 1;
-    while (i < #args) {
-        result -= args[i];
-        i++;
-    }
+    while (i < #args) { result -= args[i]; i++; }
     return result;
 }
 
 fun builtin_mul() {
+    /* Product of all arguments. */
     let result = 1;
     let i = 0;
-    while (i < #args) {
-        result *= args[i];
-        i++;
-    }
+    while (i < #args) { result *= args[i]; i++; }
     return result;
 }
 
 fun builtin_div() {
+    /* Left-fold division. */
     let result = args[0];
     let i = 1;
-    while (i < #args) {
-        result /= args[i];
-        i++;
-    }
+    while (i < #args) { result /= args[i]; i++; }
     return result;
 }
 
-fun builtin_eq() { return args[0] == args[1]; }
-fun builtin_lt() { return args[0] < args[1]; }
+/* Comparison predicates — all binary. */
+fun builtin_eq()  { return args[0] == args[1]; }
+fun builtin_lt()  { return args[0] <  args[1]; }
 fun builtin_lte() { return args[0] <= args[1]; }
-fun builtin_gt() { return args[0] > args[1]; }
+fun builtin_gt()  { return args[0] >  args[1]; }
 fun builtin_gte() { return args[0] >= args[1]; }
+
+/* Logical NOT. */
 fun builtin_not() { return !bool(args[0]); }
-fun builtin_list() { return [...args]; }
-fun builtin_car() { return args[0][0]; }
-fun builtin_cdr() { return args[0][1:]; }
-fun builtin_cons() { return [args[0], ...args[1]]; }
-fun builtin_append() { return [...args[0], ...args[1]]; }
-fun builtin_len() { return #args[0]; }
-fun builtin_nullp() { return is_list(args[0]) && #args[0] == 0; }
-fun builtin_listp() { return is_list(args[0]); }
+
+/* List operations. */
+fun builtin_list()    { return [...args]; }               /* build list from args */
+fun builtin_car()     { return args[0][0]; }              /* first element */
+fun builtin_cdr()     { return args[0][1:]; }             /* all but first */
+fun builtin_cons()    { return [args[0], ...args[1]]; }   /* prepend element to list */
+fun builtin_append()  { return [...args[0], ...args[1]]; }/* concatenate two lists */
+fun builtin_len()     { return #args[0]; }                /* list length */
+
+/* Type predicates. */
+fun builtin_nullp()   { return is_list(args[0]) && #args[0] == 0; } /* empty list? */
+fun builtin_listp()   { return is_list(args[0]); }
 fun builtin_numberp() { return is_num(args[0]); }
 fun builtin_symbolp() { return is_str(args[0]); }
 
-fun standard_env() {
-    let env = env_make();
 
-    env_set(env, "+", make_builtin("+", builtin_add));
-    env_set(env, "-", make_builtin("-", builtin_sub));
-    env_set(env, "*", make_builtin("*", builtin_mul));
-    env_set(env, "/", make_builtin("/", builtin_div));
-    env_set(env, "=", make_builtin("=", builtin_eq));
-    env_set(env, "<", make_builtin("<", builtin_lt));
+/* -----------------------------------------------------------------------------
+   STANDARD ENVIRONMENT
+   -----------------------------------------------------------------------------
+   Populates a fresh global environment with all built-in procedures.
+   The second argument to make_builtin() is the corresponding stub function
+   above — stored for reference, not currently invoked by lisp_apply().
+   ----------------------------------------------------------------------------- */
+
+fun standard_env() {
+    let env = env_make();   /* top-level scope with no parent */
+
+    /* Arithmetic */
+    env_set(env, "+",  make_builtin("+",  builtin_add));
+    env_set(env, "-",  make_builtin("-",  builtin_sub));
+    env_set(env, "*",  make_builtin("*",  builtin_mul));
+    env_set(env, "/",  make_builtin("/",  builtin_div));
+
+    /* Comparisons */
+    env_set(env, "=",  make_builtin("=",  builtin_eq));
+    env_set(env, "<",  make_builtin("<",  builtin_lt));
     env_set(env, "<=", make_builtin("<=", builtin_lte));
-    env_set(env, ">", make_builtin(">", builtin_gt));
+    env_set(env, ">",  make_builtin(">",  builtin_gt));
     env_set(env, ">=", make_builtin(">=", builtin_gte));
-    env_set(env, "not", make_builtin("not", builtin_not));
-    env_set(env, "display", make_builtin("display", nil));
-    env_set(env, "list", make_builtin("list", builtin_list));
-    env_set(env, "car", make_builtin("car", builtin_car));
-    env_set(env, "cdr", make_builtin("cdr", builtin_cdr));
-    env_set(env, "cons", make_builtin("cons", builtin_cons));
+
+    /* Logic / I/O */
+    env_set(env, "not",     make_builtin("not",     builtin_not));
+    env_set(env, "display", make_builtin("display", nil));  /* fn=nil: dispatched by name */
+
+    /* List operations */
+    env_set(env, "list",   make_builtin("list",   builtin_list));
+    env_set(env, "car",    make_builtin("car",    builtin_car));
+    env_set(env, "cdr",    make_builtin("cdr",    builtin_cdr));
+    env_set(env, "cons",   make_builtin("cons",   builtin_cons));
     env_set(env, "append", make_builtin("append", builtin_append));
-    env_set(env, "len", make_builtin("len", builtin_len));
-    env_set(env, "null?", make_builtin("null?", builtin_nullp));
-    env_set(env, "list?", make_builtin("list?", builtin_listp));
+    env_set(env, "len",    make_builtin("len",    builtin_len));
+
+    /* Type predicates */
+    env_set(env, "null?",   make_builtin("null?",   builtin_nullp));
+    env_set(env, "list?",   make_builtin("list?",   builtin_listp));
     env_set(env, "number?", make_builtin("number?", builtin_numberp));
     env_set(env, "symbol?", make_builtin("symbol?", builtin_symbolp));
 
     return env;
 }
 
+
+/* -----------------------------------------------------------------------------
+   PUBLIC API
+   ----------------------------------------------------------------------------- */
+
+/* Parse and evaluate `source` in `env`, returning the result of the last form.
+   This is the low-level entry point used internally and by tests. */
 fun lisp_run(source, env) {
     return eval_sequence(parse(source), env);
 }
 
+/* Convenience wrapper for interactive demos and tests.
+   Prints the source expression, evaluates it, and prints the formatted result
+   followed by a blank line. */
 fun run(source, env) {
     println("> " + source);
     println(lisp_format(lisp_run(source, env)));
     println();
 }
 
+
+/* -----------------------------------------------------------------------------
+   PAREN BALANCE CHECKER
+   -----------------------------------------------------------------------------
+   Used by the REPL to decide whether the user has finished typing an expression
+   or is still in the middle of a multi-line form.
+
+   Returns the net count of unmatched open parentheses:
+     > 0  -> more "(" than ")" -> input is incomplete, prompt for another line
+     = 0  -> balanced -> ready to evaluate
+     < 0  -> more ")" than "(" -> syntax error (handled by the evaluator)
+
+   Ignores parentheses that appear inside string literals so that
+   (display "not a (paren)") is correctly counted as balanced.
+   ----------------------------------------------------------------------------- */
+
+fun paren_balance(source) {
+    let balance   = 0;
+    let in_string = false;   /* currently inside a "..." literal */
+    let escaped   = false;   /* previous character was a backslash */
+    let i = 0;
+
+    while (i < #source) {
+        let ch = source[i];
+        if (is_num(ch))
+            ch = str(ch);
+
+        if (in_string) {
+            /* Inside a string: only track escape sequences and closing quote. */
+            if (escaped)
+                escaped = false;          /* this char was escaped, nothing special */
+            elif (ch == "\\")
+                escaped = true;           /* next char will be escaped */
+            elif (ch == '"')
+                in_string = false;        /* end of string literal */
+
+        } elif (ch == '"') {
+            in_string = true;             /* entering a string literal */
+
+        } elif (ch == "(") {
+            balance++;
+
+        } elif (ch == ")") {
+            balance--;
+        }
+
+        i++;
+    }
+
+    return balance;
+}
+
+
+/* -----------------------------------------------------------------------------   
+   READ-EVAL-PRINT LOOP (REPL)
+   -----------------------------------------------------------------------------
+   Presents an interactive Lisp prompt.  Supports multi-line input: if the
+   user's input has more open than close parentheses, a continuation prompt
+   ("...> ") is shown and more input is collected before evaluating.
+
+   Exit commands: ":quit", "quit", "exit" (only recognized on an empty buffer).
+   ----------------------------------------------------------------------------- */
+
+fun repl(env) {
+    println("Pilang Lisp REPL");
+    println("Type :quit, quit, or exit to leave.");
+    println();
+
+    let buffer  = "";      /* accumulated multi-line input */
+    let running = true;
+
+    while (running) {
+        /* Show a continuation prompt when we're mid-expression. */
+        let prompt = "lisp> ";
+        if (#buffer > 0)
+            prompt = "...> ";
+
+        let line = input(prompt);
+
+        /* Exit commands — only valid when starting a fresh expression. */
+        if (#buffer == 0 && (line == ":quit" || line == "quit" || line == "exit"))
+            running = false;
+
+        /* Empty line on a clean buffer -> do nothing, re-prompt. */
+        elif (#buffer == 0 && line == "")
+            nil;
+
+        else {
+            /* Append the new line to any accumulated input. */
+            if (#buffer > 0)
+                buffer += "\n";
+            buffer += line;
+
+            /* If parens are balanced (or over-closed), we have a full expression
+               ready to evaluate.  Over-closed parens will be caught by the
+               parser's error handling. */
+            if (paren_balance(buffer) <= 0) {
+                let result = lisp_run(buffer, env);
+
+                /* Print the result unless it's nil (Scheme convention:
+                   side-effectful forms like define print nothing). */
+                if (result != nil)
+                    println(lisp_format(result));
+
+                buffer = "";  /* reset for the next expression */
+            }
+            /* Otherwise paren_balance > 0: still inside an open expression,
+               loop back and collect more input on the "...> " prompt. */
+        }
+    }
+}
+
+
+/* -----------------------------------------------------------------------------
+   ENTRY POINT
+   -----------------------------------------------------------------------------
+   Build the standard environment and drop into the REPL.
+   ----------------------------------------------------------------------------- */
+
 let env = standard_env();
-
-run("(+ 1 2 (* 3 4))", env);
-run("(begin (define r 10) (* 3.14159 (* r r)))", env);
-run("(if (> 8 3) 42 0)", env);
-run("(begin (define square (lambda (x) (* x x))) (square 9))", env);
-run("(begin (define fact (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1)))))) (fact 6))", env);
-run("(begin (define fib (lambda (n) (if (<= n 1) 1 (+ (fib (- n 1)) (fib (- n 2)))))) (fib 20))", env);
-run("(begin (define twice (lambda (f x) (f (f x)))) (twice (lambda (n) (+ n 10)) 5))", env);
-run("(car (cdr '(alpha beta gamma)))", env);
-run("(cons 1 (append '(2 3) (list 4 5)))", env);
-
-run('
-    (define counter 0)
-
-    (define process-and-count
-    (begin
-        (display "Processing data...\n")
-        (set! counter (+ counter 1))
-        counter))
-    ', env);
-
-
-
+repl(env);

@@ -72,9 +72,12 @@ WEB_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS)
 CSTD ?= -std=c99
 WARNINGS ?= -Wall -Wextra
 
-DEBUG_CFLAGS ?= -g -DDEBUG_BUILD $(CSTD) -pthread
-RELEASE_CFLAGS ?= -g -O3 $(CSTD) -static-libgcc -static-libstdc++
+CPPFLAGS ?=
+DEBUG_CFLAGS ?= -g -DDEBUG_BUILD
+RELEASE_CFLAGS ?= -g -O3
 
+ifeq ($(OS),Windows_NT)
+RELEASE_CFLAGS += -static-libgcc -static-libstdc++
 NATIVE_LDLIBS ?= \
 	-lmingw32 \
 	-lSDL2main \
@@ -102,6 +105,16 @@ DEBUG_LDLIBS ?= \
 	-lSDL2_ttf \
 	-lSDL2 \
 	-lshlwapi
+else
+PKG_CONFIG ?= pkg-config
+SDL_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_image SDL2_ttf 2>/dev/null)
+SDL_LDLIBS ?= $(shell $(PKG_CONFIG) --libs sdl2 SDL2_image SDL2_ttf 2>/dev/null)
+CPPFLAGS += -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE $(SDL_CFLAGS)
+NATIVE_LDLIBS ?= $(SDL_LDLIBS) -lm -pthread
+DEBUG_LDLIBS ?= $(NATIVE_LDLIBS)
+endif
+
+CFLAGS = $(CPPFLAGS) $(WARNINGS) $(CSTD)
 
 EMCC_FLAGS ?= \
 	-s ASYNCIFY \
@@ -125,13 +138,13 @@ $(RELEASE_DIR):
 	$(MKDIR)
 
 debug: $(RELEASE_DIR)
-	$(CC) $(DEBUG_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(DEBUG_LDLIBS)
+	$(CC) $(CFLAGS) $(DEBUG_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(DEBUG_LDLIBS)
 
 release: $(RELEASE_DIR)
-	$(CC) $(RELEASE_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(NATIVE_LDLIBS)
+	$(CC) $(CFLAGS) $(RELEASE_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(NATIVE_LDLIBS)
 
 web: $(RELEASE_DIR)
-	$(EMCC) $(EMCC_FLAGS) -o $(WEB_TARGET) $(WEB_SRCS)
+	$(EMCC) $(CPPFLAGS) $(EMCC_FLAGS) -o $(WEB_TARGET) $(WEB_SRCS)
 
 run: release
 	./$(TARGET)
