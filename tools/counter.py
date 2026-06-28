@@ -7,7 +7,7 @@ parent = cwd.parent
 
 
 # Set the directory and file extension to search for
-directories = ['pilang\\builtin','pilang\\test','pilang']
+directories = ['pilang\\builtin','pilang\\test','pilang\\samples','pilang']
 
 extensions = [".c", ".h", ".pi"]
 

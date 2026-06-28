@@ -15,7 +15,7 @@
   |
   <a href="docs/README.md">Read the docs</a>
   |
-  <a href="tests">Explore examples</a>
+  <a href="samples">Explore examples</a>
 </p>
 
 ## Overview

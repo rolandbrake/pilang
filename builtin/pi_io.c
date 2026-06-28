@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #ifdef _WIN32
 #include <conio.h>
@@ -13,6 +14,7 @@
 #else
 #include <errno.h>
 #include <sys/select.h>
+#include <sys/time.h>
 #include <termios.h>
 #include <unistd.h>
 #endif
@@ -81,6 +83,358 @@ static void write_stdoutChar(char ch)
 {
     char text[2] = {ch, '\0'};
     write_stdoutText(text);
+}
+
+static bool stdin_isInteractive(void)
+{
+#ifdef _WIN32
+    return _isatty(_fileno(stdin)) != 0;
+#else
+    return isatty(STDIN_FILENO) != 0;
+#endif
+}
+
+enum
+{
+    INPUT_KEY_NONE = -1,
+    INPUT_KEY_LEFT = 256,
+    INPUT_KEY_RIGHT,
+    INPUT_KEY_DELETE,
+    INPUT_KEY_HOME,
+    INPUT_KEY_END
+};
+
+static unsigned long input_nowMillis(void)
+{
+#ifdef _WIN32
+    return (unsigned long)GetTickCount();
+#else
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (unsigned long)(tv.tv_sec * 1000UL + tv.tv_usec / 1000UL);
+#endif
+}
+
+static void input_moveLeft(size_t count)
+{
+    if (count == 0)
+        return;
+
+    char code[32];
+    snprintf(code, sizeof(code), "\033[%zuD", count);
+    write_stdoutText(code);
+}
+
+static void input_moveRight(size_t count)
+{
+    if (count == 0)
+        return;
+
+    char code[32];
+    snprintf(code, sizeof(code), "\033[%zuC", count);
+    write_stdoutText(code);
+}
+
+static void input_drawCursor(const char *buffer, size_t cursor, size_t len)
+{
+    (void)buffer;
+    (void)cursor;
+    (void)len;
+    write_stdoutText("\033[41m \033[0m\b");
+    fflush(stdout);
+}
+
+static void input_eraseCursor(const char *buffer, size_t cursor, size_t len)
+{
+    char text[2] = {' ', '\0'};
+    if (cursor < len)
+        text[0] = buffer[cursor];
+    write_stdoutText(text);
+    write_stdoutText("\b");
+    fflush(stdout);
+}
+
+static void input_redrawTail(const char *buffer, size_t cursor, size_t len, bool clear_extra)
+{
+    if (cursor < len)
+        write_stdoutText(buffer + cursor);
+
+    if (clear_extra)
+        write_stdoutChar(' ');
+
+    input_moveLeft((len - cursor) + (clear_extra ? 1 : 0));
+    fflush(stdout);
+}
+
+static void input_setCursorVisible(const char *buffer, size_t cursor, size_t len, bool *visible, bool show)
+{
+    if (*visible == show)
+        return;
+
+    if (show)
+        input_drawCursor(buffer, cursor, len);
+    else
+        input_eraseCursor(buffer, cursor, len);
+
+    *visible = show;
+}
+
+static void read_linePlain(vm_t *vm, const char *name, char *buffer, size_t size)
+{
+    if (!fgets(buffer, (int)size, stdin))
+        vm_errorf(vm, "[%s] Failed to read input.", name);
+
+    size_t len = strlen(buffer);
+    if (len > 0 && buffer[len - 1] == '\n')
+        buffer[len - 1] = '\0';
+}
+
+#ifndef _WIN32
+static bool input_enableRawMode(struct termios *old_term)
+{
+    if (tcgetattr(STDIN_FILENO, old_term) == -1)
+        return false;
+
+    struct termios raw_term = *old_term;
+    raw_term.c_lflag &= ~(ICANON | ECHO);
+    raw_term.c_cc[VMIN] = 0;
+    raw_term.c_cc[VTIME] = 0;
+    return tcsetattr(STDIN_FILENO, TCSANOW, &raw_term) != -1;
+}
+#endif
+
+static int input_readKey(int timeout_ms)
+{
+#ifdef _WIN32
+    DWORD started = GetTickCount();
+    while (!_kbhit())
+    {
+        if ((int)(GetTickCount() - started) >= timeout_ms)
+            return INPUT_KEY_NONE;
+        Sleep(1);
+    }
+
+    int ch = _getch();
+    if (ch == 0 || ch == 224)
+    {
+        ch = _getch();
+        if (ch == 75)
+            return INPUT_KEY_LEFT;
+        if (ch == 77)
+            return INPUT_KEY_RIGHT;
+        if (ch == 83)
+            return INPUT_KEY_DELETE;
+        if (ch == 71)
+            return INPUT_KEY_HOME;
+        if (ch == 79)
+            return INPUT_KEY_END;
+        return INPUT_KEY_NONE;
+    }
+
+    return ch;
+#else
+    fd_set set;
+    FD_ZERO(&set);
+    FD_SET(STDIN_FILENO, &set);
+
+    struct timeval timeout;
+    timeout.tv_sec = timeout_ms / 1000;
+    timeout.tv_usec = (timeout_ms % 1000) * 1000;
+
+    int ready;
+    do
+    {
+        ready = select(STDIN_FILENO + 1, &set, NULL, NULL, &timeout);
+    } while (ready == -1 && errno == EINTR);
+
+    if (ready <= 0)
+        return INPUT_KEY_NONE;
+
+    unsigned char ch = 0;
+    ssize_t nread = read(STDIN_FILENO, &ch, 1);
+    if (nread <= 0)
+        return INPUT_KEY_NONE;
+
+    if (ch == '\033')
+    {
+        unsigned char seq[3] = {0, 0, 0};
+        if (read(STDIN_FILENO, &seq[0], 1) != 1)
+            return '\033';
+        if (read(STDIN_FILENO, &seq[1], 1) != 1)
+            return '\033';
+
+        if (seq[0] == '[')
+        {
+            if (seq[1] == 'D')
+                return INPUT_KEY_LEFT;
+            if (seq[1] == 'C')
+                return INPUT_KEY_RIGHT;
+            if (seq[1] == 'H')
+                return INPUT_KEY_HOME;
+            if (seq[1] == 'F')
+                return INPUT_KEY_END;
+            if (seq[1] == '3')
+            {
+                (void)read(STDIN_FILENO, &seq[2], 1);
+                return INPUT_KEY_DELETE;
+            }
+        }
+
+        return INPUT_KEY_NONE;
+    }
+
+    return ch;
+#endif
+}
+
+static void read_lineWithCursor(vm_t *vm, const char *name, char *buffer, size_t size)
+{
+    if (size == 0)
+        return;
+
+    buffer[0] = '\0';
+
+    if (!stdin_isInteractive())
+    {
+        read_linePlain(vm, name, buffer, size);
+        return;
+    }
+
+#ifndef _WIN32
+    struct termios old_term;
+    if (!input_enableRawMode(&old_term))
+    {
+        read_linePlain(vm, name, buffer, size);
+        return;
+    }
+#endif
+
+    size_t len = 0;
+    size_t cursor = 0;
+    bool cursor_visible = false;
+    unsigned long last_blink = input_nowMillis();
+    input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+
+    while (true)
+    {
+        int ch = input_readKey(50);
+        unsigned long now = input_nowMillis();
+        if (ch == INPUT_KEY_NONE)
+        {
+            if (now - last_blink >= 500)
+            {
+                input_setCursorVisible(buffer, cursor, len, &cursor_visible, !cursor_visible);
+                last_blink = now;
+            }
+            continue;
+        }
+
+        input_setCursorVisible(buffer, cursor, len, &cursor_visible, false);
+        last_blink = now;
+
+        if (ch == '\r' || ch == '\n')
+        {
+            write_stdoutChar('\n');
+            break;
+        }
+
+        if (ch == 3)
+        {
+#ifndef _WIN32
+            tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
+#endif
+            write_stdoutChar('\n');
+            vm_errorf(vm, "[%s] Input interrupted.", name);
+        }
+
+        if (ch == INPUT_KEY_LEFT)
+        {
+            if (cursor > 0)
+            {
+                input_moveLeft(1);
+                cursor--;
+            }
+            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+            continue;
+        }
+
+        if (ch == INPUT_KEY_RIGHT)
+        {
+            if (cursor < len)
+            {
+                input_moveRight(1);
+                cursor++;
+            }
+            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+            continue;
+        }
+
+        if (ch == INPUT_KEY_HOME)
+        {
+            input_moveLeft(cursor);
+            cursor = 0;
+            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+            continue;
+        }
+
+        if (ch == INPUT_KEY_END)
+        {
+            input_moveRight(len - cursor);
+            cursor = len;
+            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+            continue;
+        }
+
+        if (ch == '\b' || ch == 127)
+        {
+            if (cursor > 0)
+            {
+                cursor--;
+                input_moveLeft(1);
+                memmove(buffer + cursor, buffer + cursor + 1, len - cursor);
+                len--;
+                buffer[len] = '\0';
+                input_redrawTail(buffer, cursor, len, true);
+            }
+            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+            continue;
+        }
+
+        if (ch == INPUT_KEY_DELETE)
+        {
+            if (cursor < len)
+            {
+                memmove(buffer + cursor, buffer + cursor + 1, len - cursor);
+                len--;
+                buffer[len] = '\0';
+                input_redrawTail(buffer, cursor, len, true);
+            }
+            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+            continue;
+        }
+
+        if (isprint((unsigned char)ch) || (unsigned char)ch >= 128)
+        {
+            if (len + 1 >= size)
+            {
+                input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+                continue;
+            }
+
+            memmove(buffer + cursor + 1, buffer + cursor, len - cursor + 1);
+            buffer[cursor] = (char)ch;
+            len++;
+            write_stdoutText(buffer + cursor);
+            cursor++;
+            input_moveLeft(len - cursor);
+            buffer[len] = '\0';
+            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+        }
+    }
+
+#ifndef _WIN32
+    tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
+#endif
 }
 
 static char *display_valueString(vm_t *vm, Value value, bool nested);
@@ -852,12 +1206,7 @@ Value pi_input(vm_t *vm, int argc, Value *argv)
     fflush(stdout);
 
     char buffer[BUFFER_SIZE];
-    if (!fgets(buffer, BUFFER_SIZE, stdin))
-        vm_error(vm, "[input] Failed to read input.");
-
-    size_t len = strlen(buffer);
-    if (len > 0 && buffer[len - 1] == '\n')
-        buffer[len - 1] = '\0';
+    read_lineWithCursor(vm, "input", buffer, sizeof(buffer));
 
     return NEW_OBJ(new_pistring(strdup(buffer)));
 }
@@ -875,12 +1224,7 @@ Value io_readline(vm_t *vm, int argc, Value *argv)
     (void)argv;
 
     char buffer[BUFFER_SIZE];
-    if (!fgets(buffer, BUFFER_SIZE, stdin))
-        vm_error(vm, "[readline] Failed to read input.");
-
-    size_t len = strlen(buffer);
-    if (len > 0 && buffer[len - 1] == '\n')
-        buffer[len - 1] = '\0';
+    read_lineWithCursor(vm, "readline", buffer, sizeof(buffer));
 
     return NEW_OBJ(new_pistring(strdup(buffer)));
 }
@@ -891,12 +1235,7 @@ Value io_prompt(vm_t *vm, int argc, Value *argv)
         pi_print(vm, argc, argv);
 
     char buffer[BUFFER_SIZE];
-    if (!fgets(buffer, BUFFER_SIZE, stdin))
-        vm_error(vm, "[prompt] Failed to read input.");
-
-    size_t len = strlen(buffer);
-    if (len > 0 && buffer[len - 1] == '\n')
-        buffer[len - 1] = '\0';
+    read_lineWithCursor(vm, "prompt", buffer, sizeof(buffer));
 
     return NEW_OBJ(new_pistring(strdup(buffer)));
 }
