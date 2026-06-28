@@ -1,6 +1,7 @@
-"""Run Pilang's end-to-end benchmark suite and compare against Python."""
+"""Run Pilang's end-to-end benchmark suite and compare against Python and Lua."""
 
 import argparse
+import shutil
 import statistics
 import subprocess
 import sys
@@ -26,7 +27,7 @@ class Color:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Run Pilang end-to-end benchmarks and compare against Python."
+        description="Run Pilang end-to-end benchmarks and compare against Python and Lua."
     )
 
     parser.add_argument(
@@ -40,6 +41,12 @@ def parse_args():
         "--python",
         default=sys.executable,
         help="Python interpreter used for .py benchmarks.",
+    )
+
+    parser.add_argument(
+        "--lua",
+        default="lua",
+        help="Lua interpreter used for .lua benchmarks (default: lua).",
     )
 
     parser.add_argument(
@@ -113,7 +120,7 @@ def benchmark_runtime(
 
 
 def speedup_color(speedup: float) -> str:
-    # speedup = python_time / pilang_time
+    # speedup = comparison_time / pilang_time
     # >1 => Pilang faster
     if speedup > 1.05:
         return Color.GREEN
@@ -122,10 +129,28 @@ def speedup_color(speedup: float) -> str:
     return Color.YELLOW
 
 
+def resolve_executable(command: str, option: str, label: str) -> str:
+    command_path = Path(command).expanduser()
+
+    if command_path.is_file():
+        return str(command_path.resolve())
+
+    resolved = shutil.which(command)
+    if resolved:
+        return resolved
+
+    raise SystemExit(
+        f"{label} interpreter not found: {command}\n"
+        f"Install it or pass {option} with the interpreter path."
+    )
+
+
 def main():
     args = parse_args()
 
     pilang_command = args.command.resolve()
+    python_command = resolve_executable(args.python, "--python", "Python")
+    lua_command = resolve_executable(args.lua, "--lua", "Lua")
 
     if args.iterations < 1:
         raise SystemExit("--iterations must be at least 1.")
@@ -150,21 +175,32 @@ def main():
         f"{'Benchmark':<24}"
         f"{'Pilang(ms)':>12}"
         f"{'Python(ms)':>12}"
-        f"{'Speedup':>12}"
+        f"{'Lua(ms)':>12}"
+        f"{'Python':>12}"
+        f"{'Lua':>12}"
     )
 
-    print("-" * 60)
+    print("-" * 84)
 
     pilang_totals = []
     python_totals = []
+    lua_totals = []
 
     for benchmark in benchmarks:
         python_file = benchmark.with_suffix(".py")
+        lua_file = benchmark.with_suffix(".lua")
 
         if not python_file.exists():
             print(
                 f"{Color.YELLOW}Skipping {benchmark.name} "
                 f"(missing {python_file.name}){Color.RESET}"
+            )
+            continue
+
+        if not lua_file.exists():
+            print(
+                f"{Color.YELLOW}Skipping {benchmark.name} "
+                f"(missing {lua_file.name}){Color.RESET}"
             )
             continue
 
@@ -176,7 +212,13 @@ def main():
             )
 
             python_median, _, _ = benchmark_runtime(
-                [args.python, str(python_file)],
+                [python_command, str(python_file)],
+                args.iterations,
+                args.warmup,
+            )
+
+            lua_median, _, _ = benchmark_runtime(
+                [lua_command, str(lua_file)],
                 args.iterations,
                 args.warmup,
             )
@@ -187,28 +229,37 @@ def main():
 
         pilang_totals.append(pilang_median)
         python_totals.append(python_median)
+        lua_totals.append(lua_median)
 
-        speedup = python_median / pilang_median
-        color = speedup_color(speedup)
+        python_speedup = python_median / pilang_median
+        lua_speedup = lua_median / pilang_median
+        python_color = speedup_color(python_speedup)
+        lua_color = speedup_color(lua_speedup)
 
         print(
             f"{benchmark.stem:<24}"
             f"{pilang_median:>12.2f}"
             f"{python_median:>12.2f}"
-            f"{color}{speedup:>11.2f}x{Color.RESET}"
+            f"{lua_median:>12.2f}"
+            f"{python_color}{python_speedup:>11.2f}x{Color.RESET}"
+            f"{lua_color}{lua_speedup:>11.2f}x{Color.RESET}"
         )
 
-    print("-" * 60)
+    print("-" * 84)
 
     pilang_total = sum(pilang_totals)
     python_total = sum(python_totals)
+    lua_total = sum(lua_totals)
 
     if pilang_total == 0:
         overall_speedup = 0.0
     else:
         overall_speedup = python_total / pilang_total
 
-    color = speedup_color(overall_speedup)
+    lua_overall_speedup = 0.0 if pilang_total == 0 else lua_total / pilang_total
+
+    python_color = speedup_color(overall_speedup)
+    lua_color = speedup_color(lua_overall_speedup)
 
     print(
         f"{Color.BOLD}Pilang total : "
@@ -221,9 +272,21 @@ def main():
     )
 
     print(
-        f"{Color.BOLD}Overall      : "
-        f"{color}{overall_speedup:.2f}x "
+        f"{Color.BOLD}Lua total    : "
+        f"{lua_total:.2f} ms{Color.RESET}"
+    )
+
+    print(
+        f"{Color.BOLD}Python    : "
+        f"{python_color}{overall_speedup:.2f}x "
         f"{'faster' if overall_speedup >= 1 else 'slower'}"
+        f"{Color.RESET}"
+    )
+
+    print(
+        f"{Color.BOLD}Lua       : "
+        f"{lua_color}{lua_overall_speedup:.2f}x "
+        f"{'faster' if lua_overall_speedup >= 1 else 'slower'}"
         f"{Color.RESET}"
     )
 
