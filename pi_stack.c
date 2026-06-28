@@ -1,7 +1,7 @@
 #include "pi_stack.h"
 #include "common.h"
 
-stack_t *stack_create(int i_size)
+pistack_t *stack_create(int i_size)
 {
     return stack_createCap(i_size, INIT_CAP);
 }
@@ -9,12 +9,12 @@ stack_t *stack_create(int i_size)
 // allocate with a known initial capacity.
 // Use when the maximum depth is predictable (e.g. the VM call stack).
 // Avoids all grow cycles when the depth stays within the initial cap.
-stack_t *stack_createCap(int i_size, int capacity)
+pistack_t *stack_createCap(int i_size, int capacity)
 {
     if (capacity < INIT_CAP)
         capacity = INIT_CAP;
 
-    stack_t *stack = malloc(sizeof(stack_t));
+    pistack_t *stack = malloc(sizeof(pistack_t));
     if (!stack)
         error("[stack_create] Out of memory allocating stack header.");
 
@@ -31,7 +31,7 @@ stack_t *stack_createCap(int i_size, int capacity)
     return stack;
 }
 
-void stack_expand(stack_t *stack)
+void stack_expand(pistack_t *stack)
 {
     int new_cap = stack->capacity < 1024
                       ? stack->capacity * 2
@@ -46,14 +46,14 @@ void stack_expand(stack_t *stack)
     stack->capacity = new_cap;
 }
 
-void *stack_getAt(const stack_t *stack, int index)
+void *stack_getAt(const pistack_t *stack, int index)
 {
     if (index < 0 || index > stack->top)
         return NULL;
     return (byte *)stack->data + index * stack->i_size;
 }
 
-void stack_free(stack_t *stack)
+void stack_free(pistack_t *stack)
 {
     if (!stack)
         return;
@@ -61,7 +61,7 @@ void stack_free(stack_t *stack)
     free(stack);
 }
 
-void stack_print(stack_t *stack, void (*print_item)(void *))
+void stack_print(pistack_t *stack, void (*print_item)(void *))
 {
     if (!stack || !print_item)
         return;

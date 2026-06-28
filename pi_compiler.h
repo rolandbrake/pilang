@@ -33,7 +33,7 @@ typedef struct
     list_t *instrs;   // PiList of instruction metadata (e.g., debug info)
     list_t *upvalues; // PiList of upvalues used in the function
     list_t *param_names; // PiList of parameter names for this function
-    stack_t *locals;  // Stack of local variables
+    pistack_t *locals;  // Stack of local variables
     int depth;        // Current scope depth
 } context_t;
 
@@ -42,7 +42,7 @@ typedef struct
 {
     int _continue;   // Address to jump to when 'continue' is encountered
     int depth;       // Scope depth of the loop
-    stack_t *breaks; // Stack of break statement addresses
+    pistack_t *breaks; // Stack of break statement addresses
     bool is_for;     // Flag indicating if the loop is a for-loop
 } loop_t;
 
@@ -57,12 +57,12 @@ typedef struct
     list_t *builtin_names; // PiList of built-in names
     table_t *declared_globals; // Tracks globally declared names (let/fun)
 
-    stack_t *locals;    // Stack of local variables
-    stack_t *contexts;  // Stack of active compilation contexts
+    pistack_t *locals;    // Stack of local variables
+    pistack_t *contexts;  // Stack of active compilation contexts
     context_t *current; // Pointer to the current active context
-    stack_t *loops;     // Stack of active loops
+    pistack_t *loops;     // Stack of active loops
     table_t *instrs;    // Table to store instruction metadata
-    stack_t *objects;   // Stack of objects being allocated
+    pistack_t *objects;   // Stack of objects being allocated
 
     bool is_lookUp;  // Flag for lookup operations
     bool is_upvalue; // Flag indicating if a variable is an upvalue

@@ -13,33 +13,33 @@ typedef struct
     int i_size;   // size of each element in bytes
     int top;      // index of top element; -1 when empty
     int capacity; // allocated slot count
-} stack_t;
+} pistack_t;
 
-static inline int stack_isEmpty(const stack_t *stack)
+static inline int stack_isEmpty(const pistack_t *stack)
 {
     return stack->top == -1;
 }
 
-static inline int stack_isFull(const stack_t *stack)
+static inline int stack_isFull(const pistack_t *stack)
 {
     return stack->top == stack->capacity - 1;
 }
 
-static inline int stack_size(const stack_t *stack)
+static inline int stack_size(const pistack_t *stack)
 {
     return stack->top + 1;
 }
 
-static inline void *stack_peek(const stack_t *stack)
+static inline void *stack_peek(const pistack_t *stack)
 {
     if (stack->top < 0)
         return NULL;
     return (byte *)stack->data + stack->top * stack->i_size;
 }
 
-void stack_expand(stack_t *stack);
+void stack_expand(pistack_t *stack);
 
-static inline void stack_push(stack_t *stack, const void *item)
+static inline void stack_push(pistack_t *stack, const void *item)
 {
     if (stack_isFull(stack))
         stack_expand(stack);
@@ -47,7 +47,7 @@ static inline void stack_push(stack_t *stack, const void *item)
     memcpy((byte *)stack->data + stack->top * stack->i_size, item, stack->i_size);
 }
 
-static inline void *stack_pop(stack_t *stack)
+static inline void *stack_pop(pistack_t *stack)
 {
     if (stack->top < 0)
         return NULL;
@@ -67,17 +67,17 @@ static inline void *stack_pop(stack_t *stack)
 
 #define POP_INT(stack) (*(int *)stack_pop(stack))
 
-stack_t *stack_create(int i_size);
-stack_t *stack_createCap(int i_size, int capacity);
+pistack_t *stack_create(int i_size);
+pistack_t *stack_createCap(int i_size, int capacity);
 
-void stack_push(stack_t *stack, const void *item);
-void *stack_pop(stack_t *stack);
+void stack_push(pistack_t *stack, const void *item);
+void *stack_pop(pistack_t *stack);
 
-void *stack_peek(const stack_t *stack);
+void *stack_peek(const pistack_t *stack);
 
-void *stack_getAt(const stack_t *stack, int index);
+void *stack_getAt(const pistack_t *stack, int index);
 
-void stack_free(stack_t *stack);
-void stack_print(stack_t *stack, void (*print_item)(void *));
+void stack_free(pistack_t *stack);
+void stack_print(pistack_t *stack, void (*print_item)(void *));
 
 #endif /* PI_STACK_H */

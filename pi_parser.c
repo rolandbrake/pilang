@@ -2407,7 +2407,7 @@ static assign_t *init_assign(int left, int right, tk_type op)
 static void assignment(parser_t *parser, bool emit_load)
 {
     tk_type op;
-    stack_t *assigns = stack_create(sizeof(assign_t));
+    pistack_t *assigns = stack_create(sizeof(assign_t));
     int left = parser->current, right;
     bool prev_lookUp = look_up(parser->comp, true);
 

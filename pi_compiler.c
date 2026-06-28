@@ -387,7 +387,7 @@ static void print_local(void *_local)
 
 void add_localConst(compiler_t *comp, char *name, bool is_const)
 {
-    stack_t *locals = comp->current->locals;
+    pistack_t *locals = comp->current->locals;
 
     // Check for name conflict ONLY in current block
     for (int i = stack_size(locals) - 1; i >= 0; i--)
@@ -439,7 +439,7 @@ int get_localSize(compiler_t *comp, int depth)
 {
     int size = 0;
 
-    stack_t *locals = comp->current->locals;
+    pistack_t *locals = comp->current->locals;
     int l_size = stack_size(locals);
 
     for (int i = l_size - 1; i >= 0; i--)
@@ -712,7 +712,7 @@ void push_loop(compiler_t *comp, int address, bool is_for)
 void pop_loop(compiler_t *comp, int address)
 {
     loop_t *loop = pop_loopContext(comp);
-    stack_t *breaks = loop->breaks;
+    pistack_t *breaks = loop->breaks;
 
     int16_t offset = address - comp->code->size;
 

@@ -30,7 +30,7 @@ typedef struct
     int column; // Current column number in the source code
 
     char ch; // The current character being processed
-    stack_t *brackets;
+    pistack_t *brackets;
 } scanner_t;
 
 /**

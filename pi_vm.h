@@ -84,7 +84,7 @@ typedef struct vm_t
 
     Value stack[STACK_MAX]; // Operand stack for storing temporary values and function calls.
 
-    // stack_t *frames; // Call stack frames, storing function call contexts.
+    // pistack_t *frames; // Call stack frames, storing function call contexts.
 
     Frame frames[STACK_MAX]; // Call stack frames, storing function call contexts.
     int frame_sp;
