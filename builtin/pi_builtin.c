@@ -19,6 +19,7 @@ BuiltinFunc builtin_functions[] = {
     {"println", pi_println},
     {"print", pi_print},
     {"printf", pi_printf},
+    {"format", io_format},
     {"log", pi_log},
     {"input", pi_input},
 

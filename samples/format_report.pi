@@ -1,0 +1,12 @@
+// Format a small terminal report with aligned columns, percentages, and status colors.
+
+printf("{0:<14} {1:>10} {2:^12}\n", "metric", "value", "status")
+printf("{0:<14} {1:>10} {2:^12}\n", "--------------", "----------", "------------")
+
+printf("{0:<14} {1:>10 .2f} {2:^12 fg:green bold}\n", "accuracy", 0.9375, "ok")
+printf("{0:<14} {1:>10 .1%} {2:^12 fg:yellow bold}\n", "coverage", 0.842, "watch")
+printf("{0:<14} {1:>10 d} {2:^12 fg:red bold}\n", "failures", 3, "fix")
+
+println()
+printf("build id: {0:x}\n", 48879)
+printf("feature mask: {0:b}\n", 42)

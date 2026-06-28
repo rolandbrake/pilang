@@ -42,10 +42,9 @@
 
 # Build directories
 build/
-dist/
 bin/
 emsdk/
-release/    
+release/
 # docs/
 # micrograd/
 # editors/
@@ -71,10 +70,6 @@ emscripten_cache/
 website/
 #formatter and minifiers
 # JS/
-
-
-#release files
-release/
 
 
 # macOS

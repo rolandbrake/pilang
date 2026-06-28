@@ -10,7 +10,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 TEST_DIR = BASE_DIR / "test"
 
 if sys.platform.startswith("win"):
-    PI_COMMAND = BASE_DIR / "release/pilang.exe"
+    PI_COMMAND = next(
+        (
+            candidate
+            for candidate in (
+                BASE_DIR / "bin/pilang.exe",
+                BASE_DIR / "build/pilang.exe",
+                BASE_DIR / "release/pilang.exe",
+            )
+            if candidate.exists()
+        ),
+        BASE_DIR / "bin/pilang.exe",
+    )
 else:
     PI_COMMAND = BASE_DIR / "pi"
 

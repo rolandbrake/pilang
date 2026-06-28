@@ -1,6 +1,6 @@
 CC = gcc
 EMCC = emcc
-RELEASE_DIR ?= release
+RELEASE_DIR ?= bin
 
 ifeq ($(OS),Windows_NT)
 EXEEXT := .exe
@@ -70,11 +70,11 @@ NATIVE_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS) $(NATIVE_EXTRA_SRCS)
 WEB_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS)
 
 CSTD ?= -std=c99
-WARNINGS ?= -Wall -Wextra
+# WARNINGS ?= -Wall -Wextra
 
 CPPFLAGS ?=
-DEBUG_CFLAGS ?= -g -DDEBUG_BUILD
-RELEASE_CFLAGS ?= -g -O3
+DEBUG_CFLAGS ?=  -DDEBUG_BUILD
+RELEASE_CFLAGS ?=  -O3
 
 ifeq ($(OS),Windows_NT)
 RELEASE_CFLAGS += -static-libgcc -static-libstdc++

@@ -12,6 +12,21 @@ println(formatted);
 assert(mod.format("{0}", "top") == "top", "top-level display strings should not be quoted");
 assert(mod.format("{0}", ["", "pi"]) == '["", "pi"]', "nested display strings should be quoted");
 assert(mod.format("{0}", {"name": "Pi"}) == '{"name": "Pi"}', "map display should quote string keys and values");
+assert(mod.format("{0:.2f}", 3.14159) == "3.14", "fixed precision formatting");
+assert(mod.format("{0:+.2f}", 3.14159) == "+3.14", "signed precision formatting");
+assert(mod.format("{0:x}", 255) == "ff", "hex formatting");
+assert(mod.format("{0:b}", 10) == "1010", "binary formatting");
+assert(mod.format("{0:.1%}", 0.125) == "12.5%", "percent formatting");
+assert(mod.format("[{0:<5}]", "pi") == "[pi   ]", "left alignment formatting");
+assert(mod.format("[{0:>5}]", "pi") == "[   pi]", "right alignment formatting");
+assert(mod.format("[{0:^5}]", "pi") == "[ pi  ]", "center alignment formatting");
+assert(mod.format("[{0:>8 .2f}]", 3.14159) == "[    3.14]", "combined numeric and alignment formatting");
+assert(format("{0:<8} {1:>6 .1%}", "pass", 0.875) == "pass      87.5%", "global format uses io.format rules");
+
+printf("io.printf styled -> {0:fg:green bold} {1:bg:#202020 fg:white}\n", "ok", "contrast");
+
+key = mod.key(1);
+assert(key == nil || is_str(key), "io.key should return nil or a string");
 
 log("io.log info");
 log("io.log warning", "w");

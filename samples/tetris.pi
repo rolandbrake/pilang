@@ -1,0 +1,386 @@
+import random
+import io
+
+const WIDTH = 10
+const HEIGHT = 20
+
+let PIECES = [
+    {
+        name: "I",
+        color: "cyan",
+        rotations: [
+            [[0, 1], [1, 1], [2, 1], [3, 1]],
+            [[2, 0], [2, 1], [2, 2], [2, 3]],
+            [[0, 2], [1, 2], [2, 2], [3, 2]],
+            [[1, 0], [1, 1], [1, 2], [1, 3]]
+        ]
+    },
+    {
+        name: "O",
+        color: "yellow",
+        rotations: [
+            [[1, 0], [2, 0], [1, 1], [2, 1]],
+            [[1, 0], [2, 0], [1, 1], [2, 1]],
+            [[1, 0], [2, 0], [1, 1], [2, 1]],
+            [[1, 0], [2, 0], [1, 1], [2, 1]]
+        ]
+    },
+    {
+        name: "T",
+        color: "magenta",
+        rotations: [
+            [[1, 0], [0, 1], [1, 1], [2, 1]],
+            [[1, 0], [1, 1], [2, 1], [1, 2]],
+            [[0, 1], [1, 1], [2, 1], [1, 2]],
+            [[1, 0], [0, 1], [1, 1], [1, 2]]
+        ]
+    },
+    {
+        name: "S",
+        color: "green",
+        rotations: [
+            [[1, 0], [2, 0], [0, 1], [1, 1]],
+            [[1, 0], [1, 1], [2, 1], [2, 2]],
+            [[1, 1], [2, 1], [0, 2], [1, 2]],
+            [[0, 0], [0, 1], [1, 1], [1, 2]]
+        ]
+    },
+    {
+        name: "Z",
+        color: "red",
+        rotations: [
+            [[0, 0], [1, 0], [1, 1], [2, 1]],
+            [[2, 0], [1, 1], [2, 1], [1, 2]],
+            [[0, 1], [1, 1], [1, 2], [2, 2]],
+            [[1, 0], [0, 1], [1, 1], [0, 2]]
+        ]
+    },
+    {
+        name: "J",
+        color: "blue",
+        rotations: [
+            [[0, 0], [0, 1], [1, 1], [2, 1]],
+            [[1, 0], [2, 0], [1, 1], [1, 2]],
+            [[0, 1], [1, 1], [2, 1], [2, 2]],
+            [[1, 0], [1, 1], [0, 2], [1, 2]]
+        ]
+    },
+    {
+        name: "L",
+        color: "white",
+        rotations: [
+            [[2, 0], [0, 1], [1, 1], [2, 1]],
+            [[1, 0], [1, 1], [1, 2], [2, 2]],
+            [[0, 1], [1, 1], [2, 1], [0, 2]],
+            [[0, 0], [1, 0], [1, 1], [1, 2]]
+        ]
+    }
+]
+
+fun make_board() {
+    let board = []
+
+    for y in 0..HEIGHT {
+        let row = []
+        for x in 0..WIDTH
+            row.push(0)
+        board.push(row)
+    }
+
+    return board
+}
+
+fun new_piece() {
+    return {
+        kind: random.randint(0, #PIECES - 1),
+        rotation: 0,
+        x: 3,
+        y: 0
+    }
+}
+
+fun piece_blocks(piece, x = nil, y = nil, rotation = nil) {
+    if (x == nil)
+        x = piece.x
+    if (y == nil)
+        y = piece.y
+    if (rotation == nil)
+        rotation = piece.rotation
+
+    let shape = PIECES[piece.kind].rotations[rotation]
+    let blocks = []
+
+    for block in shape
+        blocks.push([x + block[0], y + block[1]])
+
+    return blocks
+}
+
+fun has_block(blocks, x, y) {
+    for block in blocks {
+        if (block[0] == x && block[1] == y)
+            return true
+    }
+
+    return false
+}
+
+fun collides(board, piece, x, y, rotation) {
+    let blocks = piece_blocks(piece, x, y, rotation)
+
+    for block in blocks {
+        let bx = block[0]
+        let by = block[1]
+
+        if (bx < 0 || bx >= WIDTH || by < 0 || by >= HEIGHT)
+            return true
+        if (board[by][bx] != 0)
+            return true
+    }
+
+    return false
+}
+
+fun try_move(board, piece, dx, dy) {
+    let nx = piece.x + dx
+    let ny = piece.y + dy
+
+    if (!collides(board, piece, nx, ny, piece.rotation)) {
+        piece.x = nx
+        piece.y = ny
+        return true
+    }
+
+    return false
+}
+
+fun try_rotate(board, piece) {
+    let next_rotation = (piece.rotation + 1) % 4
+
+    if (!collides(board, piece, piece.x, piece.y, next_rotation)) {
+        piece.rotation = next_rotation
+        return true
+    }
+
+    if (!collides(board, piece, piece.x - 1, piece.y, next_rotation)) {
+        piece.x--
+        piece.rotation = next_rotation
+        return true
+    }
+
+    if (!collides(board, piece, piece.x + 1, piece.y, next_rotation)) {
+        piece.x++
+        piece.rotation = next_rotation
+        return true
+    }
+
+    return false
+}
+
+fun lock_piece(board, piece) {
+    let blocks = piece_blocks(piece)
+
+    for block in blocks
+        board[block[1]][block[0]] = piece.kind + 1
+}
+
+fun is_full_row(row) {
+    for cell in row {
+        if (cell == 0)
+            return false
+    }
+
+    return true
+}
+
+fun empty_row() {
+    let row = []
+    for x in 0..WIDTH
+        row.push(0)
+    return row
+}
+
+fun clear_lines(board) {
+    let kept = []
+    let cleared = 0
+
+    for row in board {
+        if (is_full_row(row))
+            cleared++
+        else
+            kept.push(row)
+    }
+
+    while (#kept < HEIGHT)
+        kept.insert(0, empty_row())
+
+    for y in 0..HEIGHT
+        board[y] = kept[y]
+
+    return cleared
+}
+
+fun score_for(lines) {
+    if (lines == 1) return 100
+    if (lines == 2) return 300
+    if (lines == 3) return 500
+    if (lines == 4) return 800
+    return 0
+}
+
+fun print_cell(kind) {
+    if (kind == 0) {
+        printf("  ")
+    } elif (kind == 1) {
+        printf("{0:fg:cyan bold}", "[]")
+    } elif (kind == 2) {
+        printf("{0:fg:yellow bold}", "[]")
+    } elif (kind == 3) {
+        printf("{0:fg:magenta bold}", "[]")
+    } elif (kind == 4) {
+        printf("{0:fg:green bold}", "[]")
+    } elif (kind == 5) {
+        printf("{0:fg:red bold}", "[]")
+    } elif (kind == 6) {
+        printf("{0:fg:blue bold}", "[]")
+    } else {
+        printf("{0:fg:white bold}", "[]")
+    }
+}
+
+fun render(board, piece, score, lines, turn) {
+    io.pos(0, 0)
+    printf("{0:fg:cyan bold}  {1:fg:white} {2:d}  {3:fg:white} {4:d}  {5:fg:white} {6:d}\n",
+           "ASCII TETRIS", "score", score, "lines", lines, "turn", turn)
+    printf("{0:fg:yellow} {1}\n", "controls:"
+        , "a/left | d/right | s/down | w/up rotate | space drop | q quit")
+    printf("+")
+    for x in 0..WIDTH
+        printf("--")
+    printf("+\n")
+
+    let active = piece_blocks(piece)
+
+    for y in 0..HEIGHT {
+        printf("|")
+        for x in 0..WIDTH {
+            if (has_block(active, x, y))
+                print_cell(piece.kind + 1)
+            else
+                print_cell(board[y][x])
+        }
+        printf("|\n")
+    }
+
+    printf("+")
+    for x in 0..WIDTH
+        printf("--")
+    printf("+\n")
+}
+
+fun drop_piece(board, piece) {
+    while (try_move(board, piece, 0, 1))
+        nil
+}
+
+fun spawn_or_end(board) {
+    let piece = new_piece()
+    if (collides(board, piece, piece.x, piece.y, piece.rotation))
+        return nil
+    return piece
+}
+
+fun play() {
+    random.seed(time())
+    io.clear()
+    io.cursor(false)
+
+    let board = make_board()
+    let piece = spawn_or_end(board)
+    let score = 0
+    let lines = 0
+    let turn = 1
+    let fall_delay = 500
+    let last_fall = time()
+    let running = piece != nil
+    let quit = false
+    let dirty = true
+
+    while (running) {
+        if (dirty) {
+            render(board, piece, score, lines, turn)
+            dirty = false
+        }
+
+        let command = io.key(25)
+
+        if (command == "q" || command == "quit") {
+            quit = true
+            running = false
+        } else {
+            let should_lock = false
+
+            if (command != nil) {
+                command = lower(command)
+
+                if (command == "a" || command == "left") {
+                    try_move(board, piece, -1, 0)
+                    dirty = true
+                } elif (command == "d" || command == "right") {
+                    try_move(board, piece, 1, 0)
+                    dirty = true
+                } elif (command == "s" || command == "down") {
+                    if (!try_move(board, piece, 0, 1))
+                        should_lock = true
+                    dirty = true
+                } elif (command == "w" || command == "up") {
+                    try_rotate(board, piece)
+                    dirty = true
+                } elif (command == " ") {
+                    drop_piece(board, piece)
+                    should_lock = true
+                    dirty = true
+                }
+            }
+
+            if (time() - last_fall >= fall_delay) {
+                if (!try_move(board, piece, 0, 1))
+                    should_lock = true
+                last_fall = time()
+                dirty = true
+            }
+
+            if (should_lock) {
+                lock_piece(board, piece)
+                let cleared = clear_lines(board)
+                if (cleared > 0) {
+                    lines += cleared
+                    score += score_for(cleared)
+                    printf("{0:fg:yellow bold} {1:d} {2}\n", "cleared", cleared, "line(s)")
+                }
+
+                piece = spawn_or_end(board)
+                if (piece == nil)
+                    running = false
+                last_fall = time()
+                dirty = true
+            }
+
+            if (dirty)
+                turn++
+        }
+    }
+
+    io.cursor(true)
+
+    if (quit)
+        printf("{0:fg:yellow bold} {1:fg:white} {2:d}  {3:fg:white} {4:d}\n"
+            , "QUIT", "score", score, "lines", lines)
+    else {
+        render(board, {kind: 0, rotation: 0, x: -4, y: -4}, score, lines, turn)
+        printf("{0:fg:red bold} {1:fg:white} {2:d}  {3:fg:white} {4:d}\n"
+            , "GAME OVER", "score", score, "lines", lines)
+    }
+}
+
+play()

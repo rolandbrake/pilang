@@ -1,11 +1,20 @@
 #include <ctype.h>
+#include <limits.h>
+#include <math.h>
+#include <stdarg.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #ifdef _WIN32
+#include <conio.h>
 #include <io.h>
 #include <windows.h>
+#else
+#include <errno.h>
+#include <sys/select.h>
+#include <termios.h>
+#include <unistd.h>
 #endif
 
 #include "pi_io.h"
@@ -296,6 +305,392 @@ char *pi_displayString(vm_t *vm, Value value)
     return display_valueString(vm, value, false);
 }
 
+typedef struct
+{
+    bool has_number;
+    bool always_sign;
+    int precision;
+    char number_type;
+    char align;
+    int width;
+    char style[128];
+    int style_offset;
+} FormatSpec;
+
+static bool string_equalsIgnoreCase(const char *left, const char *right)
+{
+    while (*left != '\0' && *right != '\0')
+    {
+        if (tolower((unsigned char)*left) != tolower((unsigned char)*right))
+            return false;
+        left++;
+        right++;
+    }
+
+    return *left == '\0' && *right == '\0';
+}
+
+static bool parse_intText(const char *text, int *value)
+{
+    if (*text == '\0')
+        return false;
+
+    int result = 0;
+    for (const char *p = text; *p != '\0'; p++)
+    {
+        if (!isdigit((unsigned char)*p))
+            return false;
+        if (result > (INT_MAX - (*p - '0')) / 10)
+            return false;
+        result = result * 10 + (*p - '0');
+    }
+
+    *value = result;
+    return true;
+}
+
+static bool parse_hexByte(const char *text, int *value)
+{
+    int result = 0;
+    for (int i = 0; i < 2; i++)
+    {
+        char c = text[i];
+        int digit;
+        if (c >= '0' && c <= '9')
+            digit = c - '0';
+        else if (c >= 'a' && c <= 'f')
+            digit = 10 + c - 'a';
+        else if (c >= 'A' && c <= 'F')
+            digit = 10 + c - 'A';
+        else
+            return false;
+        result = result * 16 + digit;
+    }
+
+    *value = result;
+    return true;
+}
+
+static void spec_appendStyle(FormatSpec *spec, const char *format, ...)
+{
+    int remaining = (int)sizeof(spec->style) - spec->style_offset - 1;
+    if (remaining <= 0)
+        return;
+
+    va_list args;
+    va_start(args, format);
+    int written = vsnprintf(spec->style + spec->style_offset, remaining, format, args);
+    va_end(args);
+
+    if (written > 0)
+    {
+        if (written >= remaining)
+            spec->style_offset = (int)sizeof(spec->style) - 1;
+        else
+            spec->style_offset += written;
+    }
+}
+
+static int ansi_namedColor(const char *name)
+{
+    if (string_equalsIgnoreCase(name, "black"))
+        return 0;
+    if (string_equalsIgnoreCase(name, "red"))
+        return 1;
+    if (string_equalsIgnoreCase(name, "green"))
+        return 2;
+    if (string_equalsIgnoreCase(name, "yellow"))
+        return 3;
+    if (string_equalsIgnoreCase(name, "blue"))
+        return 4;
+    if (string_equalsIgnoreCase(name, "magenta"))
+        return 5;
+    if (string_equalsIgnoreCase(name, "cyan"))
+        return 6;
+    if (string_equalsIgnoreCase(name, "white"))
+        return 7;
+    if (string_equalsIgnoreCase(name, "default"))
+        return 9;
+    return -1;
+}
+
+static bool parse_colorSpec(FormatSpec *spec, const char *value, bool foreground)
+{
+    int channel = foreground ? 38 : 48;
+
+    if (value[0] == '#' && strlen(value) == 7)
+    {
+        int r, g, b;
+        if (!parse_hexByte(value + 1, &r) ||
+            !parse_hexByte(value + 3, &g) ||
+            !parse_hexByte(value + 5, &b))
+            return false;
+        spec_appendStyle(spec, "\033[%d;2;%d;%d;%dm", channel, r, g, b);
+        return true;
+    }
+
+    int color_index = -1;
+    if (parse_intText(value, &color_index))
+    {
+        if (color_index < 0 || color_index > 255)
+            return false;
+        spec_appendStyle(spec, "\033[%d;5;%dm", channel, color_index);
+        return true;
+    }
+
+    color_index = ansi_namedColor(value);
+    if (color_index < 0)
+        return false;
+
+    if (color_index == 9)
+        spec_appendStyle(spec, "\033[%dm", foreground ? 39 : 49);
+    else
+        spec_appendStyle(spec, "\033[%dm", (foreground ? 30 : 40) + color_index);
+    return true;
+}
+
+static bool parse_alignmentToken(FormatSpec *spec, const char *token)
+{
+    if ((token[0] != '<' && token[0] != '>' && token[0] != '^') || token[1] == '\0')
+        return false;
+
+    int width;
+    if (!parse_intText(token + 1, &width))
+        return false;
+
+    spec->align = token[0];
+    spec->width = width;
+    return true;
+}
+
+static bool parse_numberToken(FormatSpec *spec, const char *token)
+{
+    const char *p = token;
+    bool always_sign = false;
+    int precision = -1;
+    char type = '\0';
+
+    if (*p == '+')
+    {
+        always_sign = true;
+        p++;
+    }
+
+    if (*p == '.')
+    {
+        int parsed_precision = 0;
+        bool has_digit = false;
+        p++;
+        while (isdigit((unsigned char)*p))
+        {
+            has_digit = true;
+            parsed_precision = (parsed_precision * 10) + (*p - '0');
+            p++;
+        }
+        if (!has_digit)
+            return false;
+        precision = parsed_precision;
+    }
+
+    if (*p != '\0')
+    {
+        if (p[1] != '\0')
+            return false;
+        if (*p != 'f' && *p != 'd' && *p != 'o' && *p != 'x' && *p != 'b' && *p != '%')
+            return false;
+        type = *p;
+    }
+
+    if (!always_sign && precision < 0 && type == '\0')
+        return false;
+
+    spec->has_number = true;
+    spec->always_sign = always_sign;
+    spec->precision = precision;
+    spec->number_type = type;
+    return true;
+}
+
+static void parse_formatSpec(const char *spec_text, int spec_len, FormatSpec *spec)
+{
+    memset(spec, 0, sizeof(*spec));
+    spec->precision = -1;
+    spec->style[0] = '\0';
+
+    int i = 0;
+    while (i < spec_len)
+    {
+        while (i < spec_len && isspace((unsigned char)spec_text[i]))
+            i++;
+        if (i >= spec_len)
+            break;
+
+        char token[64];
+        int token_len = 0;
+        while (i < spec_len && !isspace((unsigned char)spec_text[i]))
+        {
+            if (token_len < (int)sizeof(token) - 1)
+                token[token_len++] = spec_text[i];
+            i++;
+        }
+        token[token_len] = '\0';
+
+        if (token_len == 0)
+            continue;
+
+        if (strcmp(token, "bold") == 0)
+            spec_appendStyle(spec, "\033[1m");
+        else if (strcmp(token, "italic") == 0)
+            spec_appendStyle(spec, "\033[3m");
+        else if (strcmp(token, "underline") == 0)
+            spec_appendStyle(spec, "\033[4m");
+        else if (strncmp(token, "fg:", 3) == 0)
+        {
+            if (!parse_colorSpec(spec, token + 3, true))
+                spec_appendStyle(spec, "");
+        }
+        else if (strncmp(token, "bg:", 3) == 0)
+        {
+            if (!parse_colorSpec(spec, token + 3, false))
+                spec_appendStyle(spec, "");
+        }
+        else if (!parse_alignmentToken(spec, token) && !parse_numberToken(spec, token))
+        {
+            // Unknown tokens are ignored so future format options stay forwards-compatible.
+        }
+    }
+}
+
+static bool value_isIntegral(double value)
+{
+    return isfinite(value) && floor(value) == value;
+}
+
+static char *format_binaryInteger(unsigned long long value)
+{
+    char digits[sizeof(unsigned long long) * CHAR_BIT + 1];
+    int pos = (int)sizeof(digits) - 1;
+    digits[pos] = '\0';
+
+    do
+    {
+        digits[--pos] = (value & 1ULL) ? '1' : '0';
+        value >>= 1;
+    } while (value != 0);
+
+    return strdup(digits + pos);
+}
+
+static char *format_numericValue(vm_t *vm, FormatSpec *spec, Value value)
+{
+    if (!is_numeric(value))
+        vm_errorf(vm, "[format] numeric spec requires a numeric value, got %s.", type_name(value));
+
+    double number = as_number(value);
+    char buffer[128];
+    int precision = spec->precision >= 0 ? spec->precision : 6;
+    char sign_flag[2] = {spec->always_sign ? '+' : '\0', '\0'};
+
+    switch (spec->number_type)
+    {
+    case 'd':
+    case 'o':
+    case 'x':
+    case 'b':
+    {
+        if (!value_isIntegral(number))
+            vm_error(vm, "[format] integer base spec requires an integral number.");
+
+        long long signed_value = (long long)number;
+        if (spec->number_type == 'd')
+            snprintf(buffer, sizeof(buffer), "%s%lld",
+                     spec->always_sign && signed_value >= 0 ? "+" : "", signed_value);
+        else if (spec->number_type == 'o')
+            snprintf(buffer, sizeof(buffer), "%llo", (unsigned long long)signed_value);
+        else if (spec->number_type == 'x')
+            snprintf(buffer, sizeof(buffer), "%llx", (unsigned long long)signed_value);
+        else
+            return format_binaryInteger((unsigned long long)signed_value);
+        return strdup(buffer);
+    }
+    case 'f':
+        snprintf(buffer, sizeof(buffer), "%%%s.%df", sign_flag, precision);
+        break;
+    case '%':
+        snprintf(buffer, sizeof(buffer), "%%%s.%df%%%%", sign_flag, precision);
+        number *= 100.0;
+        break;
+    default:
+        if (spec->precision >= 0)
+            snprintf(buffer, sizeof(buffer), "%%%s.%dg", sign_flag, precision);
+        else
+            snprintf(buffer, sizeof(buffer), "%%%sg", sign_flag);
+        break;
+    }
+
+    char *text = malloc(128);
+    if (!text)
+        error("[format] Memory allocation failed.");
+    snprintf(text, 128, buffer, number);
+    return text;
+}
+
+static char *format_applyAlignment(const char *text, FormatSpec *spec)
+{
+    int len = (int)strlen(text);
+    if (spec->width <= len)
+        return strdup(text);
+
+    int padding = spec->width - len;
+    int left = 0;
+    int right = 0;
+
+    if (spec->align == '<')
+        right = padding;
+    else if (spec->align == '^')
+    {
+        left = padding / 2;
+        right = padding - left;
+    }
+    else
+        left = padding;
+
+    char *result = malloc((size_t)spec->width + 1);
+    if (!result)
+        error("[format] Memory allocation failed.");
+
+    int offset = 0;
+    for (int i = 0; i < left; i++)
+        result[offset++] = ' ';
+    memcpy(result + offset, text, (size_t)len);
+    offset += len;
+    for (int i = 0; i < right; i++)
+        result[offset++] = ' ';
+    result[offset] = '\0';
+    return result;
+}
+
+static char *format_valueWithSpec(vm_t *vm, Value value, FormatSpec *spec)
+{
+    char *text = spec->has_number
+                     ? format_numericValue(vm, spec, value)
+                     : pi_displayString(vm, value);
+    char *aligned = format_applyAlignment(text, spec);
+    free(text);
+
+    if (spec->style_offset == 0)
+        return aligned;
+
+    size_t len = strlen(spec->style) + strlen(aligned) + strlen(ANSI_RESET) + 1;
+    char *styled = malloc(len);
+    if (!styled)
+        error("[format] Memory allocation failed.");
+
+    snprintf(styled, len, "%s%s%s", spec->style, aligned, ANSI_RESET);
+    free(aligned);
+    return styled;
+}
+
 static void format_text(vm_t *vm, int argc, Value *argv, char *out)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
@@ -327,13 +722,15 @@ static void format_text(vm_t *vm, int argc, Value *argv, char *out)
                 j++;
             }
 
-            // Accept and skip a reserved "{index:...}" format section.
-            // The current console output ignores style/color metadata.
+            int spec_start = -1;
+            int spec_len = 0;
             if (fmt[j] == ':')
             {
                 j++;
-                while (isdigit((unsigned char)fmt[j]))
+                spec_start = j;
+                while (fmt[j] != '\0' && fmt[j] != '}')
                     j++;
+                spec_len = j - spec_start;
             }
 
             if (!has_digit || fmt[j] != '}')
@@ -345,7 +742,17 @@ static void format_text(vm_t *vm, int argc, Value *argv, char *out)
             if ((index + 1) >= argc)
                 vm_errorf(vm, "[format] placeholder {%d} is out of range.", index);
 
-            char *arg_text = pi_displayString(vm, argv[index + 1]);
+            char *arg_text;
+            if (spec_start >= 0)
+            {
+                FormatSpec spec;
+                parse_formatSpec(fmt + spec_start, spec_len, &spec);
+                arg_text = format_valueWithSpec(vm, argv[index + 1], &spec);
+            }
+            else
+            {
+                arg_text = pi_displayString(vm, argv[index + 1]);
+            }
 
             append(out, &offset, arg_text);
             free(arg_text);
@@ -494,12 +901,198 @@ Value io_prompt(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_pistring(strdup(buffer)));
 }
 
+Value io_clear(vm_t *vm, int argc, Value *argv)
+{
+    (void)vm;
+    (void)argc;
+    (void)argv;
+
+    write_stdoutText("\033[2J\033[H");
+    fflush(stdout);
+    return NEW_NIL();
+}
+
+Value io_pos(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 2 || !IS_NUM(argv[0]) || !IS_NUM(argv[1]))
+        vm_error(vm, "[io.pos] expects x and y numbers.");
+
+    int x = (int)AS_NUM(argv[0]);
+    int y = (int)AS_NUM(argv[1]);
+    bool clear = argc >= 3 ? as_bool(argv[2]) : false;
+
+    if (x < 0)
+        x = 0;
+    if (y < 0)
+        y = 0;
+
+    char code[64];
+    snprintf(code, sizeof(code), "\033[%d;%dH%s", y + 1, x + 1, clear ? "\033[J" : "");
+    write_stdoutText(code);
+    fflush(stdout);
+    return NEW_NIL();
+}
+
+Value io_cursor(vm_t *vm, int argc, Value *argv)
+{
+    bool visible = true;
+    if (argc >= 1)
+        visible = as_bool(argv[0]);
+
+    write_stdoutText(visible ? "\033[?25h" : "\033[?25l");
+    fflush(stdout);
+    return NEW_NIL();
+}
+
+Value io_key(vm_t *vm, int argc, Value *argv)
+{
+    int timeout_ms = -1;
+    if (argc >= 1)
+    {
+        if (!IS_NUM(argv[0]))
+            vm_error(vm, "[io.key] timeout must be a millisecond number.");
+        timeout_ms = (int)AS_NUM(argv[0]);
+    }
+
+#ifdef _WIN32
+    HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD mode = 0;
+    if (input == INVALID_HANDLE_VALUE || !GetConsoleMode(input, &mode))
+    {
+        DWORD started = GetTickCount();
+        while (1)
+        {
+            DWORD available = 0;
+            if (input != INVALID_HANDLE_VALUE && PeekNamedPipe(input, NULL, 0, NULL, &available, NULL) && available > 0)
+            {
+                char ch;
+                if (_read(_fileno(stdin), &ch, 1) == 1)
+                {
+                    if (ch == '\r' || ch == '\n')
+                        return NEW_NIL();
+                    char text[2] = {ch, '\0'};
+                    return NEW_OBJ(new_pistring(strdup(text)));
+                }
+            }
+
+            if (timeout_ms >= 0 && (int)(GetTickCount() - started) >= timeout_ms)
+                return NEW_NIL();
+            Sleep(1);
+        }
+    }
+
+    DWORD started = GetTickCount();
+    while (!_kbhit())
+    {
+        if (timeout_ms >= 0 && (int)(GetTickCount() - started) >= timeout_ms)
+            return NEW_NIL();
+        Sleep(1);
+    }
+
+    int ch = _getch();
+    if (ch == 0 || ch == 224)
+    {
+        ch = _getch();
+        if (ch == 72)
+            return NEW_OBJ(new_pistring(strdup("up")));
+        if (ch == 80)
+            return NEW_OBJ(new_pistring(strdup("down")));
+        if (ch == 75)
+            return NEW_OBJ(new_pistring(strdup("left")));
+        if (ch == 77)
+            return NEW_OBJ(new_pistring(strdup("right")));
+    }
+
+    char text[2] = {(char)ch, '\0'};
+    return NEW_OBJ(new_pistring(strdup(text)));
+#else
+    struct termios old_term;
+    struct termios raw_term;
+    if (tcgetattr(STDIN_FILENO, &old_term) == -1)
+    {
+        int ch = getchar();
+        if (ch == EOF)
+            return NEW_NIL();
+        char text[2] = {(char)ch, '\0'};
+        return NEW_OBJ(new_pistring(strdup(text)));
+    }
+
+    raw_term = old_term;
+    raw_term.c_lflag &= ~(ICANON | ECHO);
+    raw_term.c_cc[VMIN] = 0;
+    raw_term.c_cc[VTIME] = 0;
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw_term);
+
+    fd_set set;
+    FD_ZERO(&set);
+    FD_SET(STDIN_FILENO, &set);
+
+    struct timeval timeout;
+    struct timeval *timeout_ptr = NULL;
+    if (timeout_ms >= 0)
+    {
+        timeout.tv_sec = timeout_ms / 1000;
+        timeout.tv_usec = (timeout_ms % 1000) * 1000;
+        timeout_ptr = &timeout;
+    }
+
+    int ready;
+    do
+    {
+        ready = select(STDIN_FILENO + 1, &set, NULL, NULL, timeout_ptr);
+    } while (ready == -1 && errno == EINTR);
+
+    if (ready <= 0)
+    {
+        tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
+        return NEW_NIL();
+    }
+
+    char ch;
+    ssize_t nread = read(STDIN_FILENO, &ch, 1);
+
+    if (nread > 0 && ch == '\033')
+    {
+        char seq[2];
+        ssize_t first = read(STDIN_FILENO, &seq[0], 1);
+        ssize_t second = read(STDIN_FILENO, &seq[1], 1);
+        tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
+
+        if (first == 1 && second == 1 && seq[0] == '[')
+        {
+            if (seq[1] == 'A')
+                return NEW_OBJ(new_pistring(strdup("up")));
+            if (seq[1] == 'B')
+                return NEW_OBJ(new_pistring(strdup("down")));
+            if (seq[1] == 'C')
+                return NEW_OBJ(new_pistring(strdup("right")));
+            if (seq[1] == 'D')
+                return NEW_OBJ(new_pistring(strdup("left")));
+        }
+
+        return NEW_OBJ(new_pistring(strdup("\033")));
+    }
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
+
+    if (nread <= 0)
+        return NEW_NIL();
+
+    char text[2] = {ch, '\0'};
+    return NEW_OBJ(new_pistring(strdup(text)));
+#endif
+}
+
 static BuiltinConst io_consts[] = {
 
 };
 
 static BuiltinFunc io_functions[] = {
     {"format", io_format},
+    {"clear", io_clear},
+    {"pos", io_pos},
+    {"cursor", io_cursor},
+    {"key", io_key},
     {"readline", io_readline},
     {"prompt", io_prompt},
 };

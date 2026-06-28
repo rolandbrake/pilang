@@ -11,7 +11,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 BENCHMARK_DIR = BASE_DIR / "benchmark"
 DEFAULT_COMMAND = BASE_DIR / (
-    "release/pilang.exe" if sys.platform.startswith("win") else "release/pilang"
+    "bin/pilang.exe" if sys.platform.startswith("win") else "bin/pilang"
 )
 
 
@@ -33,7 +33,7 @@ def parse_args():
         "--command",
         type=Path,
         default=DEFAULT_COMMAND,
-        help="Pilang executable (default: release/pilang[.exe]).",
+        help="Pilang executable (default: bin/pilang[.exe]).",
     )
 
     parser.add_argument(

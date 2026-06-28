@@ -991,8 +991,8 @@ fun lisp_run(source, env) {
    Prints the source expression, evaluates it, and prints the formatted result
    followed by a blank line. */
 fun run(source, env) {
-    println("> " + source);
-    println(lisp_format(lisp_run(source, env)));
+    printf("{0:fg:cyan bold} {1}\n", ">", source);
+    printf("{0:fg:green bold} {1}\n", "=>", lisp_format(lisp_run(source, env)));
     println();
 }
 
@@ -1049,6 +1049,29 @@ fun paren_balance(source) {
 }
 
 
+/* -----------------------------------------------------------------------------
+   REPL PRESENTATION
+   ----------------------------------------------------------------------------- */
+
+fun repl_banner() {
+    printf("{0:fg:cyan bold}\n", "Pilang Lisp REPL");
+    printf("{0:fg:white} {1:fg:yellow}\n", "Type", ":quit, quit, or exit to leave.");
+    printf("{0:fg:white} {1:fg:green}\n", "Try", "(+ 1 2 (* 3 4))");
+    println();
+}
+
+fun repl_prompt(buffer) {
+    if (#buffer > 0)
+        return format("{0:fg:magenta bold}", "...> ");
+
+    return format("{0:fg:cyan bold}", "lisp> ");
+}
+
+fun repl_print_result(result) {
+    printf("{0:fg:green bold} {1}\n", "=>", lisp_format(result));
+}
+
+
 /* -----------------------------------------------------------------------------   
    READ-EVAL-PRINT LOOP (REPL)
    -----------------------------------------------------------------------------
@@ -1060,20 +1083,13 @@ fun paren_balance(source) {
    ----------------------------------------------------------------------------- */
 
 fun repl(env) {
-    println("Pilang Lisp REPL");
-    println("Type :quit, quit, or exit to leave.");
-    println();
+    repl_banner();
 
     let buffer  = "";      /* accumulated multi-line input */
     let running = true;
 
     while (running) {
-        /* Show a continuation prompt when we're mid-expression. */
-        let prompt = "lisp> ";
-        if (#buffer > 0)
-            prompt = "...> ";
-
-        let line = input(prompt);
+        let line = input(repl_prompt(buffer));
 
         /* Exit commands — only valid when starting a fresh expression. */
         if (#buffer == 0 && (line == ":quit" || line == "quit" || line == "exit"))
@@ -1098,7 +1114,7 @@ fun repl(env) {
                 /* Print the result unless it's nil (Scheme convention:
                    side-effectful forms like define print nothing). */
                 if (result != nil)
-                    println(lisp_format(result));
+                    repl_print_result(result);
 
                 buffer = "";  /* reset for the next expression */
             }

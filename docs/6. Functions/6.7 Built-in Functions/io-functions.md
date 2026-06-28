@@ -7,6 +7,7 @@ Global I/O functions read from standard input and write to standard output.
 - `print(value, ...)`: writes values without automatically adding a newline
 - `println(value, ...)`: writes values followed by a newline
 - `printf(format, ...)`: writes formatted output
+- `format(format, ...)`: returns formatted text
 - `log(value, ...)`: writes diagnostic-style output
 
 ```swift
@@ -33,7 +34,19 @@ println("emoji: 😀 🚀 ✨")
 let name = "Ada"
 let score = 42
 
-printf("%s scored %d\n", name, score)
+printf("{0} scored {1:d}\n", name, score)
+
+let line = format("{0} scored {1:d}", name, score)
+println(line)
+```
+
+`printf`, `format`, and `io.format` use the same placeholder specs, including
+numeric precision, alignment, colors, and styles:
+
+```swift
+printf("{0:<12} {1:>8 .2f} {2:fg:green bold}\n", "accuracy", 0.9375, "ok")
+let summary = format("{0:<12} {1:>8 .1%} {2:fg:yellow bold}", "coverage", 0.842, "watch")
+println(summary)
 ```
 
 ## Input
@@ -46,4 +59,5 @@ println("Hello, " + name)
 ```
 
 For module-scoped I/O helpers such as `io.readline`, `io.prompt`, and
-`io.format`, see the built-in modules chapter.
+`io.format`, see the built-in modules chapter. Object methods named `format()`
+are display hooks and are separate from the global `format(...)` function.
