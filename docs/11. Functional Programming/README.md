@@ -18,13 +18,13 @@ Pilang supports a practical functional style without forcing every program to be
 ```swift
 numbers = [1, 2, 3, 4, 5]
 
-evens = filter(numbers, fn (n) {
+evens = filter(numbers, fun (n) {
     return n % 2 == 0
 })
 
 squares = map(evens, n -> n * n)
 
-total = reduce(squares, fn (acc, n) {
+total = reduce(squares, fun (acc, n) {
     return acc + n
 }, 0)
 

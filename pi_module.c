@@ -507,7 +507,7 @@ Value load_module(vm_t *vm, const char *name)
     ht_set(module_vm->globals, "module", &module_val);
 
     while (module_vm->running)
-        run(module_vm);
+        vm_run(module_vm);
 
     ObjModule *module = AS_MODULE(module_val);
     PiMap *exports = module->exports;

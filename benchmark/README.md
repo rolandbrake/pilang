@@ -54,8 +54,8 @@ sort                        95.43       87.12       74.21       0.91x       0.78
 Pilang total : 149.73 ms
 Python total : 217.62 ms
 Lua total    : 162.92 ms
-vs Python    : 1.45x faster
-vs Lua       : 1.09x faster
+Python : Pilang is 1.45x faster
+Lua    : Pilang is 1.09x faster
 ```
 
 ## Color Coding

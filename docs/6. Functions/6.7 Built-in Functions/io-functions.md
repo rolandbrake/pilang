@@ -25,7 +25,7 @@ and other Unicode symbols can be printed directly when your source file is
 saved as UTF-8.
 
 ```swift
-println("box: ╔═╦╗ ║ ╚═╩╝")
+println("hebrew: שלום עולם")
 println("greek: αβγ ΔΩ")
 println("emoji: 😀 🚀 ✨")
 ```

@@ -28,5 +28,5 @@ fun render(ctx_) {
     plot.show(chart)
 }
 
-// draw.on_frame(ctx, render)
-// draw.run(ctx)
+draw.on_frame(ctx, render)
+draw.run(ctx)

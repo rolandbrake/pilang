@@ -61,20 +61,20 @@ calling functions.
 import func:f
 ```
 
-- `f.compose(fn, ...)`: returns a right-to-left composition, so `compose(f, g)(x)` calls `f(g(x))`
-- `f.pipe(fn, ...)`: returns a left-to-right composition, so `pipe(f, g)(x)` calls `g(f(x))`
-- `f.juxt(fn, ...)`: returns a function that calls every function with the same arguments and returns a list
-- `f.curry(fn, arity = inferred)`: returns a curried wrapper
-- `f.partial(fn, arg, ...)`: returns a wrapper with leading arguments pre-bound
-- `f.spread(fn)`: returns a wrapper that expects one list and spreads it into positional arguments
-- `f.unspread(fn)`: returns a wrapper that packs positional arguments into one list
-- `f.memoize(fn, key_fn = nil)`: returns a wrapper that caches results
-- `f.once(fn)`: returns a wrapper that calls `fn` once and reuses the first result
-- `f.throttle(ms, fn)`: returns a wrapper that calls `fn` at most once per interval
-- `f.debounce(ms, fn)`: returns a wrapper that suppresses repeated calls during the interval
-- `f.thunk(fn, arg, ...)`: returns a zero-argument wrapper that calls `fn` later
-- `f.iterate(seed, fn)`: returns a zero-argument generator-like function
-- `f.apply(fn, args)`: calls `fn` with positional arguments from a list
+- `f.compose(fun, ...)`: returns a right-to-left composition, so `compose(f, g)(x)` calls `f(g(x))`
+- `f.pipe(fun, ...)`: returns a left-to-right composition, so `pipe(f, g)(x)` calls `g(f(x))`
+- `f.juxt(fun, ...)`: returns a function that calls every function with the same arguments and returns a list
+- `f.curry(fun, arity = inferred)`: returns a curried wrapper
+- `f.partial(fun, arg, ...)`: returns a wrapper with leading arguments pre-bound
+- `f.spread(fun)`: returns a wrapper that expects one list and spreads it into positional arguments
+- `f.unspread(fun)`: returns a wrapper that packs positional arguments into one list
+- `f.memoize(fun, key_fn = nil)`: returns a wrapper that caches results
+- `f.once(fun)`: returns a wrapper that calls `fun` once and reuses the first result
+- `f.throttle(ms, fun)`: returns a wrapper that calls `fun` at most once per interval
+- `f.debounce(ms, fun)`: returns a wrapper that suppresses repeated calls during the interval
+- `f.thunk(fun, arg, ...)`: returns a zero-argument wrapper that calls `fun` later
+- `f.iterate(seed, fun)`: returns a zero-argument generator-like function
+- `f.apply(fun, args)`: calls `fun` with positional arguments from a list
 - `f.noop()`: returns `nil`
 
 ```swift

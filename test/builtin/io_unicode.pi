@@ -1,4 +1,7 @@
-println("box: ╔═╦╗ ║ ╚═╩╝");
 println("greek: αβγ ΔΩ πλ");
+println("math: ∑ ∫ √ π ∞ ≠ ≤ ≥")
+println("cyrillic: Привет Мир")
+println("arabic: مرحبا بالعالم")
+println("hebrew: שלום עולם")
 println("emoji: 😀 🚀 ✨");
 println(["", "α", "😀"]);

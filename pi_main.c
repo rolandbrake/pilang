@@ -371,7 +371,7 @@ static int run_source(const char *source, ParserMode mode, const char *entry_nam
 
     clock_t start = clock();
     while (vm->running && !interrupt_requested)
-        run(vm);
+        vm_run(vm);
 
     bool interrupted = interrupt_requested != 0;
     if (interrupted)
@@ -590,7 +590,7 @@ static int run_repl(void)
 
     /* Drain the bootstrap - hits OP_HALT immediately. */
     while (repl_vm->running && !interrupt_requested)
-        run(repl_vm);
+        vm_run(repl_vm);
 
     size_t buf_cap = 8192;
     char *buf = malloc(buf_cap);
@@ -737,7 +737,7 @@ static int run_repl(void)
             repl_vm->running = true;
 
             while (repl_vm->running && !interrupt_requested)
-                run(repl_vm);
+                vm_run(repl_vm);
 
             if (interrupt_requested)
             {

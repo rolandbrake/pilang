@@ -90,7 +90,7 @@ Adds a step plot, useful for piecewise-constant data.
 plot.step(chart, [0, 1, 2, 3], [4, 4, 2, 5])
 ```
 
-### `plot.func(chart, x_values, fn, color = auto)`
+### `plot.func(chart, x_values, fun, color = auto)`
 
 Evaluates a Pilang function for every value in `x_values` and plots the result
 as a line series.

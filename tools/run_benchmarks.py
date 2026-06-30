@@ -129,6 +129,17 @@ def speedup_color(speedup: float) -> str:
     return Color.YELLOW
 
 
+def pilang_comparison(label: str, speedup: float, color: str) -> str:
+    if speedup <= 0:
+        text = "no comparable result"
+        return f"{label:<6}: {color}{text}{Color.RESET}"
+    if speedup >= 1:
+        text = f"Pilang is {speedup:.2f}x faster"
+    else:
+        text = f"Pilang is {(1 / speedup):.2f}x slower"
+    return f"{label:<6}: {color}{text}{Color.RESET}"
+
+
 def resolve_executable(command: str, option: str, label: str) -> str:
     command_path = Path(command).expanduser()
 
@@ -276,19 +287,8 @@ def main():
         f"{lua_total:.2f} ms{Color.RESET}"
     )
 
-    print(
-        f"{Color.BOLD}Python    : "
-        f"{python_color}{overall_speedup:.2f}x "
-        f"{'faster' if overall_speedup >= 1 else 'slower'}"
-        f"{Color.RESET}"
-    )
-
-    print(
-        f"{Color.BOLD}Lua       : "
-        f"{lua_color}{lua_overall_speedup:.2f}x "
-        f"{'faster' if lua_overall_speedup >= 1 else 'slower'}"
-        f"{Color.RESET}"
-    )
+    print(pilang_comparison("Python", overall_speedup, python_color))
+    print(pilang_comparison("Lua", lua_overall_speedup, lua_color))
 
 
 if __name__ == "__main__":

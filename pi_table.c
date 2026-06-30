@@ -10,30 +10,6 @@
 
 
 
-/* Tombstone marker – a unique address that cannot be a real key */
-static char tombstone_key = 0;
-#define TOMBSTONE ((char *)&tombstone_key)
-
-/**
- * FNV-1a hash function
- *
- * The FNV-1a hash is based on an algorithm originally developed by Landon Curt Noll.
- * See http://www.isthe.com/chongo/tech/comp/fnv/ for more information.
- *
- * @param key The string to hash
- * @return The hash value
- */
-static inline uint64_t fnv_1a(const char *key)
-{
-    uint64_t hash = FNV_OFFSET;
-    for (const char *p = key; *p; p++)
-    {
-        hash ^= (uint64_t)(unsigned char)(*p);
-        hash *= FNV_PRIME;
-    }
-    return hash;
-}
-
 
 table_t *ht_create(size_t i_size)
 {
@@ -70,24 +46,7 @@ static void ht_removeOrderedKey(table_t *table, const char *key)
     }
 }
 
-void *ht_get(table_t *table, const char *key)
-{
-    uint64_t hash = fnv_1a(key);
-    int mask = table->capacity - 1;
-    int index = (int)(hash & mask);
 
-    while (table->items[index].key != NULL)
-    {
-        if (table->items[index].key != TOMBSTONE &&
-            table->items[index].hash == hash &&
-            strcmp(table->items[index].key, key) == 0)
-        {
-            return table->items[index].value;
-        }
-        index = (index + 1) & mask;
-    }
-    return NULL;
-}
 
 bool ht_has(table_t *table, const char *key)
 {

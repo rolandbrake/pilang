@@ -7,7 +7,7 @@ functions.
 import func:f
 ```
 
-## `func.compose(fn, ...)`
+## `func.compose(fun, ...)`
 
 Returns a function that calls the provided functions from right to left.
 
@@ -19,7 +19,7 @@ let composed = f.compose(double, inc)
 println(composed(3)) // 8
 ```
 
-## `func.pipe(fn, ...)`
+## `func.pipe(fun, ...)`
 
 Returns a function that calls the provided functions from left to right.
 
@@ -28,7 +28,7 @@ let piped = f.pipe(inc, double)
 println(piped(3)) // 8
 ```
 
-## `func.juxt(fn, ...)`
+## `func.juxt(fun, ...)`
 
 Returns a function that calls every provided function with the same arguments and
 returns a list of results.
@@ -38,7 +38,7 @@ let both = f.juxt(x -> x + 1, x -> x * 2)
 println(both(5)) // [6, 10]
 ```
 
-## `func.curry(fn, arity = inferred)`
+## `func.curry(fun, arity = inferred)`
 
 Returns a curried wrapper. Arguments can be supplied gradually until the wrapped
 function has enough arguments.
@@ -52,7 +52,7 @@ let curried = f.curry(add)
 println(curried(2)(3)) // 5
 ```
 
-## `func.partial(fn, arg, ...)`
+## `func.partial(fun, arg, ...)`
 
 Returns a wrapper with leading arguments pre-bound.
 
@@ -61,7 +61,7 @@ let plus5 = f.partial(add, 5)
 println(plus5(7)) // 12
 ```
 
-## `func.spread(fn)`
+## `func.spread(fun)`
 
 Returns a wrapper that expects one list argument and spreads it into positional
 arguments.
@@ -71,7 +71,7 @@ let spread_add = f.spread(add)
 println(spread_add([2, 4])) // 6
 ```
 
-## `func.unspread(fn)`
+## `func.unspread(fun)`
 
 Returns a wrapper that packs positional arguments into a single list.
 
@@ -84,7 +84,7 @@ let unspread_sum = f.unspread(sum_pair)
 println(unspread_sum(2, 4)) // 6
 ```
 
-## `func.memoize(fn)`
+## `func.memoize(fun)`
 
 Returns a wrapper that caches results by argument list.
 
@@ -102,9 +102,9 @@ println(memo(6))
 println(calls) // 1
 ```
 
-## `func.once(fn)`
+## `func.once(fun)`
 
-Returns a wrapper that calls `fn` once and then returns the first result for all
+Returns a wrapper that calls `fun` once and then returns the first result for all
 later calls.
 
 ```swift
@@ -118,9 +118,9 @@ println(init()) // 1
 println(init()) // 1
 ```
 
-## `func.throttle(ms, fn)`
+## `func.throttle(ms, fun)`
 
-Returns a wrapper that only calls `fn` when at least `ms` milliseconds have passed
+Returns a wrapper that only calls `fun` when at least `ms` milliseconds have passed
 since the last call. Calls made too soon return the previous result.
 
 ```swift
@@ -129,7 +129,7 @@ println(limited())
 println(limited())
 ```
 
-## `func.debounce(ms, fn)`
+## `func.debounce(ms, fun)`
 
 Returns a wrapper that delays useful execution until the debounce window has
 passed. This is useful for event-style flows.
@@ -139,19 +139,19 @@ let debounced = f.debounce(250, () -> "saved")
 println(debounced())
 ```
 
-## `func.thunk(fn, arg, ...)`
+## `func.thunk(fun, arg, ...)`
 
-Returns a zero-argument function that calls `fn` later with captured arguments.
+Returns a zero-argument function that calls `fun` later with captured arguments.
 
 ```swift
 let later = f.thunk(add, 2, 3)
 println(later()) // 5
 ```
 
-## `func.iterate(seed, fn)`
+## `func.iterate(seed, fun)`
 
 Returns a generator-like function. The first call returns `seed`; later calls
-apply `fn` to the previous value.
+apply `fun` to the previous value.
 
 ```swift
 let powers = f.iterate(1, x -> x * 2)
@@ -160,9 +160,9 @@ println(powers()) // 2
 println(powers()) // 4
 ```
 
-## `func.apply(fn, args)`
+## `func.apply(fun, args)`
 
-Calls `fn` with a list of positional arguments.
+Calls `fun` with a list of positional arguments.
 
 ```swift
 println(f.apply(add, [3, 9])) // 12

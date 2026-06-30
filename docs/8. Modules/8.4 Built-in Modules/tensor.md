@@ -268,7 +268,7 @@ Returns element signs.
 println(t.sign(t.from([-5, 0, 8])))
 ```
 
-## `tensor.apply(value, fn)`
+## `tensor.apply(value, fun)`
 
 Applies a function to each element.
 
@@ -446,7 +446,7 @@ Returns whether all elements are truthy/non-zero.
 println(t.all(t.from([1, 1, 0]))) // false
 ```
 
-## `tensor.reduce(value, fn, initial = nil)`
+## `tensor.reduce(value, fun, initial = nil)`
 
 Reduces tensor elements with a function.
 

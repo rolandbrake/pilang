@@ -2226,7 +2226,7 @@ static bool is_private_moduleName(const char *name)
  *
  * @param vm The virtual machine to run.
  */
-void run(vm_t *vm)
+void vm_run(vm_t *vm)
 {
     int frame_sp = vm->frame_sp; // entry frame sp
     int length = vm->code->size;
@@ -2236,6 +2236,7 @@ void run(vm_t *vm)
 #else
     int interrupt_steps = 0;
 #endif
+    int safepoint_steps = 0;
 
     uint8_t op;
     uint16_t index;
@@ -2293,7 +2294,7 @@ void run(vm_t *vm)
             index = code[pc++];
             char *name = read_name(vm, index);
 
-            Value _newValue = pop_stack(vm);
+            Value _newValue = POP();
             Value *oldValue = global_slot(vm, (uint8_t)index, name);
             // if (oldValue)
             //     gc_trackReferenceDrop(vm, *oldValue, _newValue);
@@ -2350,7 +2351,7 @@ void run(vm_t *vm)
                 nilValue = NEW_NIL();
                 _value = &nilValue;
             }
-            push_stack(vm, *_value);
+            PUSH(*_value);
             break;
         }
 
@@ -2392,7 +2393,7 @@ void run(vm_t *vm)
             // if (slot < vm->sp)
             //     gc_trackReferenceDrop(vm, vm->stack[slot], new_value);
             // vm->stack[slot] = new_value;
-            vm->stack[slot] = pop_stack(vm);
+            vm->stack[slot] = POP();
 
             // Ensure the stack pointer reserves space for locals.
             if (vm->sp <= slot)
@@ -2407,7 +2408,7 @@ void run(vm_t *vm)
         case OP_POP:
         {
             remove_upvalue(vm, vm->sp - 1);
-            Value value = pop_stack(vm);
+            Value value = POP();
             break;
         }
         case OP_POP_N:
@@ -2416,20 +2417,23 @@ void run(vm_t *vm)
             for (int i = 0; i < op; i++)
             {
                 remove_upvalue(vm, vm->sp - 1);
-                pop_stack(vm);
+                POP();
             }
         }
         break;
 
         case OP_DUP_TOP:
-            push_stack(vm, peek_stack(vm));
+        {
+            Value value = peek_stack(vm);
+            PUSH(value);
             break;
+        }
 
         case OP_JUMP_IF_FALSE:
         {
             int offset = (int16_t)((code[pc] << 8) | code[pc + 1]); // Signed 16-bit offset
 
-            Value value = pop_stack(vm);
+            Value value = POP();
             bool condition = IS_BOOL(value) ? AS_BOOL(value) : as_bool(value);
             if (!condition)
                 pc += offset - 1; // relative jump
@@ -2449,7 +2453,7 @@ void run(vm_t *vm)
         {
             int offset = (int16_t)((code[pc] << 8) | code[pc + 1]); // Signed 16-bit offset
 
-            Value value = pop_stack(vm);
+            Value value = POP();
             bool condition = IS_BOOL(value) ? AS_BOOL(value) : as_bool(value);
             if (condition)
                 pc += offset - 1; // relative jump
@@ -2500,8 +2504,8 @@ void run(vm_t *vm)
                 break;
             }
 
-            right = pop_stack(vm);
-            left = pop_stack(vm);
+            right = POP();
+            left = POP();
 
             if (op <= 5 && is_numeric(left) && is_numeric(right))
             {
@@ -2529,7 +2533,7 @@ void run(vm_t *vm)
                     result = (l <= r);
                     break;
                 }
-                push_stack(vm, NEW_BOOL(result));
+                PUSH(NEW_BOOL(result));
                 break;
             }
 
@@ -2537,21 +2541,21 @@ void run(vm_t *vm)
             if (IS_BOOL(left) && IS_BOOL(right) && (op == 0 || op == 1))
             {
                 bool result = (AS_BOOL(left) == AS_BOOL(right));
-                push_stack(vm, NEW_BOOL(op == 0 ? result : !result));
+                PUSH(NEW_BOOL(op == 0 ? result : !result));
                 break;
             }
 
             // Fast path: both nil
             if (IS_NIL(left) && IS_NIL(right) && (op == 0 || op == 1))
             {
-                push_stack(vm, NEW_BOOL(op == 0)); // nil == nil is always true
+                PUSH(NEW_BOOL(op == 0)); // nil == nil is always true
                 break;
             }
 
             // Fast path: different primitive types are never equal
             if (!IS_OBJ(left) && !IS_OBJ(right) && (op == 0 || op == 1))
             {
-                push_stack(vm, NEW_BOOL(op == 1)); // op==0 -> false, op==1 -> true
+                PUSH(NEW_BOOL(op == 1)); // op==0 -> false, op==1 -> true
                 break;
             }
 
@@ -2581,7 +2585,7 @@ void run(vm_t *vm)
                     result = (cmp <= 0);
                     break;
                 }
-                push_stack(vm, NEW_BOOL(result));
+                PUSH(NEW_BOOL(result));
                 break;
             }
 
@@ -2813,7 +2817,7 @@ void run(vm_t *vm)
             // only for objects, strings, matrices, and special ops.
             if (op <= 13 && is_numeric(left) && is_numeric(right))
             {
-                push_stack(vm, op_binaryNum(op, as_number(left), as_number(right)));
+                PUSH(op_binaryNum(op, as_number(left), as_number(right)));
                 break;
             }
 
@@ -3460,7 +3464,7 @@ void run(vm_t *vm)
         case OP_UNARY:
         {
             uint8_t op = code[pc++];
-            Value operand = pop_stack(vm);
+            Value operand = POP();
 
             if (op == 7)
             {
@@ -3478,16 +3482,16 @@ void run(vm_t *vm)
                 switch (OBJ_TYPE(operand))
                 {
                 case OBJ_LIST:
-                    push_stack(vm, NEW_NUM(list_size(AS_LIST(operand)->items)));
+                    PUSH(NEW_NUM(list_size(AS_LIST(operand)->items)));
                     break;
                 case OBJ_TENSOR:
-                    push_stack(vm, NEW_NUM(AS_TENSOR(operand)->ndim == 0 ? 0 : AS_TENSOR(operand)->shape[0]));
+                    PUSH(NEW_NUM(AS_TENSOR(operand)->ndim == 0 ? 0 : AS_TENSOR(operand)->shape[0]));
                     break;
                 case OBJ_STRING:
-                    push_stack(vm, NEW_NUM(AS_STRING(operand)->length));
+                    PUSH(NEW_NUM(AS_STRING(operand)->length));
                     break;
                 case OBJ_MAP:
-                    push_stack(vm, NEW_NUM(map_size(AS_MAP(operand))));
+                    PUSH(NEW_NUM(map_size(AS_MAP(operand))));
                     break;
                 default:
                     vm_error(vm, "Unsupported operand type for '#' operator.");
@@ -3503,22 +3507,22 @@ void run(vm_t *vm)
                 switch (op)
                 {
                 case 0:
-                    push_stack(vm, NEW_NUM(n));
+                    PUSH(NEW_NUM(n));
                     break; // unary +
                 case 1:
-                    push_stack(vm, NEW_NUM(-n));
+                    PUSH(NEW_NUM(-n));
                     break; // unary -
                 case 2:
-                    push_stack(vm, NEW_BOOL(n == 0.0));
+                    PUSH(NEW_BOOL(n == 0.0));
                     break; // logical NOT (0 is falsy)
                 case 3:
-                    push_stack(vm, NEW_NUM(~(int)n));
+                    PUSH(NEW_NUM(~(int)n));
                     break; // bitwise NOT
                 case 5:
-                    push_stack(vm, NEW_NUM(n + 1.0));
+                    PUSH(NEW_NUM(n + 1.0));
                     break; // ++
                 case 6:
-                    push_stack(vm, NEW_NUM(n - 1.0));
+                    PUSH(NEW_NUM(n - 1.0));
                     break; // --
                 default:
                     vm_error(vm, "Unknown unary operator.");
@@ -3531,7 +3535,7 @@ void run(vm_t *vm)
             {
                 if (op == 2)
                 {
-                    push_stack(vm, NEW_BOOL(!AS_BOOL(operand)));
+                    PUSH(NEW_BOOL(!AS_BOOL(operand)));
                     break;
                 }
                 // fall through to slow path for anything else (e.g. +true coerces to 1)
@@ -3542,7 +3546,7 @@ void run(vm_t *vm)
             {
                 if (op == 2)
                 {
-                    push_stack(vm, NEW_BOOL(true));
+                    PUSH(NEW_BOOL(true));
                     break;
                 }
                 // nil coerces to 0 for numeric ops - fall through
@@ -3563,7 +3567,7 @@ void run(vm_t *vm)
             //  op 2: logical NOT - works on any type via truthiness
             if (op == 2)
             {
-                push_stack(vm, NEW_BOOL(!as_bool(operand)));
+                PUSH(NEW_BOOL(!as_bool(operand)));
                 break;
             }
 
@@ -3573,19 +3577,19 @@ void run(vm_t *vm)
             switch (op)
             {
             case 0:
-                push_stack(vm, NEW_NUM(n));
+                PUSH(NEW_NUM(n));
                 break; // unary +
             case 1:
-                push_stack(vm, NEW_NUM(-n));
+                PUSH(NEW_NUM(-n));
                 break; // unary -
             case 3:
-                push_stack(vm, NEW_NUM(~(int)n));
+                PUSH(NEW_NUM(~(int)n));
                 break; // bitwise NOT
             case 5:
-                push_stack(vm, NEW_NUM(n + 1.0));
+                PUSH(NEW_NUM(n + 1.0));
                 break; // ++
             case 6:
-                push_stack(vm, NEW_NUM(n - 1.0));
+                PUSH(NEW_NUM(n - 1.0));
                 break; // --
             default:
                 vm_error(vm, "Unknown unary operator.");
@@ -3619,18 +3623,18 @@ void run(vm_t *vm)
                  * the operand stack instead of constructing a method argv
                  * array and entering the generic native-call path.
                  */
-                // if (callee_fn->is_native && callee_fn->is_method &&
-                //     callee_fn->native == pi_push && callee_fn->instance &&
-                //     callee_fn->instance->type == OBJ_LIST)
-                // {
-                //     list_t *items = ((PiList *)callee_fn->instance)->items;
-                //     for (uint8_t i = 0; i < num_args; i++)
-                //         list_add(items, &vm->stack[args_base + i]);
+                if (callee_fn->is_native && callee_fn->is_method &&
+                    callee_fn->native == pi_push && callee_fn->instance &&
+                    callee_fn->instance->type == OBJ_LIST)
+                {
+                    list_t *items = ((PiList *)callee_fn->instance)->items;
+                    for (uint8_t i = 0; i < num_args; i++)
+                        list_add(items, &vm->stack[args_base + i]);
 
-                //     vm->sp = callee_slot;
-                //     vm->stack[vm->sp++] = NEW_NUM(items->size);
-                //     break;
-                // }
+                    vm->sp = obj_slot;
+                    PUSH(NEW_NUM(items->size));
+                    break;
+                }
 
                 size_t param_count = (!callee_fn->is_native && callee_fn->params)
                                          ? (size_t)callee_fn->arity
@@ -3731,15 +3735,15 @@ void run(vm_t *vm)
 
             /* Pop args in reverse order so args[0] is the first argument. */
             for (int i = num_args - 1; i >= 0; i--)
-                args[i] = pop_stack(vm);
+                args[i] = POP();
 
-            callee = pop_stack(vm);
+            callee = POP();
 
             if (IS_FUN(callee))
             {
                 Function *callee_fn = AS_FUN(callee);
                 Value result = call_func(vm, callee_fn, num_args, args, NEW_NIL());
-                push_stack(vm, result);
+                PUSH(result);
             }
             else if (IS_MAP(callee))
             {
@@ -3751,7 +3755,7 @@ void run(vm_t *vm)
                     /* Callable object instance — look for a `call` method. */
                     if (object_instanceCall(vm, map, num_args, args, NEW_NIL(), &result))
                     {
-                        push_stack(vm, result);
+                        PUSH(result);
                     }
                     else
                     {
@@ -3764,7 +3768,7 @@ void run(vm_t *vm)
                 {
                     /* Map used as a constructor/class. */
                     result = NEW_OBJ(construct(vm, map, num_args, args, NEW_NIL()));
-                    push_stack(vm, result);
+                    PUSH(result);
                 }
             }
             else
@@ -3872,7 +3876,7 @@ void run(vm_t *vm)
         case OP_PUSH_ITER:
         {
             // Pop the iterable object from the stack
-            Value iterable = pop_stack(vm);
+            Value iterable = POP();
 
             // Ensure the object is iterable
             if (!IS_OBJ(iterable) || !is_iterable(AS_OBJ(iterable)))
@@ -3924,7 +3928,7 @@ void run(vm_t *vm)
                         push_stack(vm, make_iterPair(vm, NEW_NUM(index), value));
                     }
                     else
-                        push_stack(vm, value);
+                        PUSH(value);
                     pc += 2;
                 }
                 else
@@ -3940,20 +3944,20 @@ void run(vm_t *vm)
             if (iter->type == OBJ_RANGE)
             {
                 PiRange *range = (PiRange *)iter;
+                double value = range->current;
                 bool has_next = range->step > 0
-                                    ? range->current < range->end
-                                    : range->current > range->end;
+                                    ? value < range->end
+                                    : value > range->end;
                 if (has_next)
                 {
-                    double value = range->current;
+                    range->current = value + range->step;
                     if (pair_loop)
                     {
                         push_stack(vm, NEW_NIL());
                         push_stack(vm, make_iterPair(vm, NEW_NUM((value - range->start) / range->step), NEW_NUM(value)));
                     }
                     else
-                        push_stack(vm, NEW_NUM(range->current));
-                    range->current += range->step;
+                        PUSH(NEW_NUM(value));
                     pc += 2;
                 }
                 else
@@ -4580,8 +4584,8 @@ void run(vm_t *vm)
         case OP_GET_MEMBER:
         {
             bool bracket_access = (OpCode)op == OP_GET_ITEM;
-            Value index = pop_stack(vm);     // Get the index from the stack
-            Value container = pop_stack(vm); // Get the container from the stack
+            Value index = POP(); // Get the index from the stack
+            Value container = vm->stack[vm->sp - 1];
             Value method_result;
 
             if (!IS_OBJ(container))
@@ -4595,7 +4599,7 @@ void run(vm_t *vm)
             {
                 PiSlice *s = AS_SLICE(index);
                 Value result = get_slice(AS_OBJ(container), s->start, s->stop, s->step);
-                push_stack(vm, result);
+                vm->stack[vm->sp - 1] = result;
                 break;
             }
 
@@ -4608,7 +4612,7 @@ void run(vm_t *vm)
 
                 if (method)
                 {
-                    push_stack(vm, bind_nativeMethod(vm, AS_OBJ(container), method));
+                    vm->stack[vm->sp - 1] = bind_nativeMethod(vm, AS_OBJ(container), method);
                     break;
                 }
 
@@ -4631,7 +4635,7 @@ void run(vm_t *vm)
                 if (tensor->ndim == 0)
                     vm_error(vm, "Cannot index a scalar tensor.");
                 int row = get_index(as_number(index), tensor->shape[0]);
-                push_stack(vm, NEW_OBJ(add_obj(vm, tensor_rowAsList(tensor, row))));
+                vm->stack[vm->sp - 1] = NEW_OBJ(add_obj(vm, tensor_rowAsList(tensor, row)));
                 break;
             }
             case OBJ_LIST:
@@ -4641,7 +4645,7 @@ void run(vm_t *vm)
                  * above and read the contiguous Value storage directly. */
                 list_t *list = AS_LIST(container)->items;
                 if (list->size == 0)
-                    push_stack(vm, NEW_NIL());
+                    vm->stack[vm->sp - 1] = NEW_NIL();
                 else
                 {
                     int _index = (int)as_number(index);
@@ -4650,7 +4654,7 @@ void run(vm_t *vm)
                     if (_index < 0 || _index >= list->size)
                         vm_error(vm, "List index out of range.");
                     Value item = ((Value *)list->data)[_index];
-                    push_stack(vm, item); // Avoid unsafe memory access
+                    vm->stack[vm->sp - 1] = item; // Avoid unsafe memory access
                 }
                 break;
             }
@@ -4659,7 +4663,7 @@ void run(vm_t *vm)
                 PiMap *map = AS_MAP(container);
                 if (!IS_STRING(index) && try_callMethodArgs(vm, container, "getItem", 1, &index, &method_result))
                 {
-                    push_stack(vm, method_result);
+                    vm->stack[vm->sp - 1] = method_result;
                     break;
                 }
 
@@ -4736,7 +4740,7 @@ void run(vm_t *vm)
                     }
                 }
 
-                push_stack(vm, item); // Push NIL if key not found
+                vm->stack[vm->sp - 1] = item; // Push NIL if key not found
                 break;
             }
 
@@ -4774,7 +4778,7 @@ void run(vm_t *vm)
                     item = map_get(module->exports, index);
 
                 free(property);
-                push_stack(vm, item);
+                vm->stack[vm->sp - 1] = item;
                 break;
             }
 
@@ -4783,7 +4787,7 @@ void run(vm_t *vm)
                 PiTuple *tuple = AS_TUPLE(container);
                 int _index = get_index(as_number(index), LIST_SIZE(tuple->items));
                 Value item = *(Value *)list_getAt(tuple->items, _index);
-                push_stack(vm, item);
+                vm->stack[vm->sp - 1] = item;
                 break;
             }
             case OBJ_STRING:
@@ -4796,7 +4800,7 @@ void run(vm_t *vm)
                 char *_char = malloc(2); // 1 char + null terminator
                 _char[0] = str[_index];
                 _char[1] = '\0';
-                push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(_char))));
+                vm->stack[vm->sp - 1] = NEW_OBJ(add_obj(vm, new_pistring(_char)));
                 free(str);
                 break;
             }
@@ -5320,7 +5324,7 @@ void run(vm_t *vm)
         case OP_RETURN:
         {
             // Handle return operation
-            Value retval = pop_stack(vm);
+            Value retval = POP();
 
             if (vm->openUpvalues)
             {
@@ -5328,7 +5332,9 @@ void run(vm_t *vm)
                     remove_upvalue(vm, i);
             }
 
-            Frame *frame = pop_frame(vm);
+            if (vm->frame_sp <= 0)
+                vm_error(vm, "Stack underflow: Attempted to pop from an empty stack");
+            Frame *frame = &vm->frames[--vm->frame_sp];
 
             while (vm->iter_sp > frame->iters_top)
                 vm->iter_sp--;
@@ -5351,7 +5357,7 @@ void run(vm_t *vm)
                 vm->function = (Object *)frame->function;
             }
 
-            push_stack(vm, retval);
+            PUSH(retval);
 
             code = (uint8_t *)vm->code->data;
             length = vm->code->size;
@@ -5414,14 +5420,23 @@ void run(vm_t *vm)
             emscripten_sleep(0);
         }
 
-        if (vm->counter >= vm->next_gc)
-            vm->gc_requested = true;
-#else
-        if (vm->counter >= vm->next_gc)
-            vm->gc_requested = true;
+        if ((++safepoint_steps & (VM_SAFEPOINT_STEPS - 1)) == 0)
+        {
+            if (vm->counter >= vm->next_gc)
+                vm->gc_requested = true;
 
-        if (vm->gc_requested)
-            gc_collect(vm);
+            if (vm->gc_requested)
+                gc_collect(vm);
+        }
+#else
+        if ((++safepoint_steps & (VM_SAFEPOINT_STEPS - 1)) == 0)
+        {
+            if (vm->counter >= vm->next_gc)
+                vm->gc_requested = true;
+
+            if (vm->gc_requested)
+                gc_collect(vm);
+        }
 #endif
         vm->pc = pc;
     }
@@ -5454,3 +5469,4 @@ void free_vm(vm_t *vm)
     // Free the virtual machine structure itself
     free(vm);
 }
+

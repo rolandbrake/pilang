@@ -9,6 +9,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     Object *object = (Object *)malloc(sizeof(Function));
 
     object->type = OBJ_FUN;
+
     object->is_marked = false;
     object->in_gcList = false;
     object->gc_color = GC_WHITE;
@@ -31,16 +32,21 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
 
     fn->is_native = false;
     fn->is_method = false;
+
     fn->need_args = true;
     fn->need_kwargs = true;
+
     fn->global_valid = false;
     fn->glonal_index = -1;
+
     fn->native = NULL;
     fn->globals = NULL;
 
     fn->upvalues = upvalues;
     fn->owns_upvalues = upvalues != NULL;
+
     fn->instance = instance;
+
     fn->owner = NULL;
     fn->bound_source = NULL;
 
@@ -62,9 +68,11 @@ Value *new_native(const char *name, native_func func)
     val->data.object = (Object *)malloc(sizeof(Function));
 
     val->data.object->type = OBJ_FUN;
+    
     val->data.object->is_marked = true;
     val->data.object->in_gcList = false;
     val->data.object->gc_color = GC_WHITE;
+
     val->data.object->next = NULL;
 
     Function *fn = (Function *)val->data.object;
@@ -73,6 +81,7 @@ Value *new_native(const char *name, native_func func)
 
     fn->params = NULL;
     fn->arity = 0;
+
     fn->param_names = NULL;
     fn->owns_params = false;
 
@@ -88,13 +97,16 @@ Value *new_native(const char *name, native_func func)
 
     fn->need_args = false;
     fn->need_kwargs = false;
+
     fn->global_valid = false;
     fn->glonal_index = -1;
+
     fn->native = func;
 
     fn->upvalues = NULL;
     fn->upvalue_count = 0;
     fn->owns_upvalues = false;
+
     fn->instance = NULL;
     fn->owner = NULL;
     fn->bound_source = NULL;
@@ -105,13 +117,6 @@ Value *new_native(const char *name, native_func func)
 /**
  * Calls a Pilang function, setting up the call frame, stack layout,
  * parameter defaults, positional args, and implicit args/kwargs locals.
- *
- * Stack layout on entry to the callee:
- *
- *   bp+0          : this (methods only, when !param_this)
- *   bp+arg_offset : param_0 ... param_N   (defaults then overwritten by args)
- *   aux_base+0    : args  (list, or NIL if need_args is false)
- *   aux_base+1    : kwargs (map, or NIL if need_kwargs is false)
  */
 Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw_args)
 {
@@ -309,9 +314,9 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
 
 execute:
     // Execute callee
-    run(vm);
+    vm_run(vm);
 
-    /* Return value sits on top of stack after run() returns. */
+    /* Return value sits on top of stack after vm_run() returns. */
     if (vm->sp <= 0)
         vm_error(vm, "Stack underflow after function return.");
     return vm->stack[--vm->sp];
