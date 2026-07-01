@@ -1,13 +1,17 @@
+fun main() {
+    let t0 = time()
+    let numbers = []
 
-list = []
-
-for i in 0..1_000_000
-    list.push(i)
-
-
-sum = 0
-for i in list
-    sum += i
+    for i in 0..1_000_000
+        numbers += i
 
 
-println(sum)
+    let sum = 0
+    for i in numbers
+        sum += i
+
+
+    println(time() - t0)
+}
+
+main()

@@ -6,4 +6,6 @@ local function fib(n)
     return fib(n - 1) + fib(n - 2)
 end
 
+local t0 = os.clock()
 local result = fib(28)
+print((os.clock() - t0) * 1000)

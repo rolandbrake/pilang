@@ -1,12 +1,19 @@
 // User-function call and return overhead.
-fun transform(value) {
-    return value * 1.000_001 + 0.5;
+fun main() {
+    let transform = fun(value) {
+        return value * 1.000_001 + 0.5;
+    }
+
+    let t0 = time()
+    let i = 0;
+    let value = 0;
+
+    while i < 500_000 {
+        value = transform(value);
+        i++;
+    }
+
+    println(time() - t0)
 }
 
-let i = 0;
-let value = 0;
-
-while i < 500_000 {
-    value = transform(value);
-    i++;
-}
+main()

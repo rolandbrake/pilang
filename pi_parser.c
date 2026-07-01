@@ -2352,6 +2352,38 @@ static void expr_state(parser_t *parser)
     bool prev_lookUp, is_assign = false;
     int current = parser->current;
 
+    if (token.type == TK_ID)
+    {
+        token_t op_token = parser->tokens[current + 1];
+        token_t after = parser->tokens[current + 2];
+        bool standalone_postfix = op_token.line == token.line &&
+                                  (op_token.type == TK_INCR || op_token.type == TK_DECR) &&
+                                  (after.line != token.line ||
+                                   after.type == TK_SEMICOLON ||
+                                   after.type == TK_RBRACE ||
+                                   after.type == TK_EOF);
+
+        if (standalone_postfix)
+        {
+            char *name = token_value(token);
+            int type = (op_token.type == TK_INCR) ? 5 : 6;
+
+            set_pos(parser, token);
+            load_variable(parser->comp, name);
+            set_pos(parser, op_token);
+            emit_8u(parser->comp, OP_UNARY, unary_ops[type], type);
+            set_pos(parser, token);
+            store_variable(parser->comp, name);
+
+            free(name);
+            skip(parser, 2);
+
+            if (need_delimiter(parser))
+                p_error("Expected delemiter between statements.", peek(parser).line, peek(parser).column);
+            return;
+        }
+    }
+
     if (token.type == TK_LPAREN)
     {
         prev_lookUp = look_up(parser->comp, true);

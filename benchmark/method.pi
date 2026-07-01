@@ -5,11 +5,18 @@ class Worker {
     }
 }
 
-let worker = Worker();
-let i = 0;
-let value = 0;
+fun main() {
+    let worker = Worker();
+    let t0 = time()
+    let i = 0;
+    let value = 0;
 
-while i < 500_000 {
-    value = worker.transform(value);
-    i++;
+    while i < 500_000 {
+        value = worker.transform(value);
+        i++;
+    }
+
+    println(time() - t0)
 }
+
+main()

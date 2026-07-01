@@ -270,6 +270,8 @@ static void mark_references(Object *obj)
             mark_object(fn->instance);
         if (fn->owner)
             mark_object(fn->owner);
+        if (fn->bound_source)
+            mark_object(fn->bound_source);
 
         break;
     }

@@ -1,18 +1,16 @@
-import random
-
 fun monte_carlo(nsamples)
 {
     let acc = 0
     let i = nsamples
-    while (i <- --i) > 0
+    while i > 0
     {
-        let x = random.rand()
-        let y = random.rand()
+        let x = rand()
+        let y = rand()
         if (x ** 2 + y ** 2) < 1.0        
             acc += 1
-        
+        i--
     }
     return 4.0 * acc / nsamples
 }
 
-println(monte_carlo(100000))
+println(monte_carlo(1000000))

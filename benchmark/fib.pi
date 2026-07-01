@@ -1,9 +1,15 @@
 // Recursive calls and branch-heavy integer work.
-fun fib(n) {
-    if n <= 2 {
-        return 1;
+fun main() {
+    let fib = fun(n) {
+        if n <= 1 {
+            return n;
+        }
+        return fib(n - 1) + fib(n - 2);
     }
-    return fib(n - 1) + fib(n - 2);
+
+    let t0 = time()
+    let result = fib(28);
+    println(time() - t0)
 }
 
-let result = fib(28);
+main()

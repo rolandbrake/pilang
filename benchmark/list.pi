@@ -1,13 +1,20 @@
 // List growth, indexed reads, and numeric accumulation.
-entries = []
-i = 0
+fun main() {
+    let t0 = time()
+    let entries = []
+    let i = 0
 
-while i < 100_000 {
-    entries.push(i * 3)
-    i++
+    while i < 100_000 {
+        entries += i * 3
+        i++
+    }
+
+    let total = 0
+    i = 0
+    while (i <- ++i) < #entries
+        total += entries[i]
+
+    println(time() - t0)
 }
 
-total = 0
-i = 0
-while (i <- ++i) < #entries 
-    total += entries[i]
+main()

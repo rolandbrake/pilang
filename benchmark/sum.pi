@@ -1,9 +1,14 @@
-let i = 0;
-let sum = 0;
+fun main() {
+    let i = 0;
+    let sum = 0;
 
-while i < 1_000_000 {
-    sum += (i * 3) % 97 - (i % 7);
-    i++;
+    let t0 = time()
+    while i < 1_000_000 {
+        sum += (i * 3) % 97 - (i % 7);
+        i++;
+    }
+
+    println(time() - t0);
 }
 
-println(sum);
+main()

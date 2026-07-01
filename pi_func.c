@@ -287,6 +287,8 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
 
     if (!function->need_args && !function->need_kwargs)
     {
+        vm->stack[aux_base] = NEW_NIL();
+        vm->stack[aux_base + 1] = NEW_NIL();
         vm->sp = aux_base + 2;
         goto execute;
     }

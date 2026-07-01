@@ -1,16 +1,15 @@
 # Pilang Benchmarks
 
-This directory contains small, repeatable end-to-end benchmarks for the Pilang interpreter.
+This directory contains small, repeatable runtime benchmarks for the Pilang interpreter.
 
-The benchmark runner measures the complete execution pipeline, including:
+Each benchmark measures its own workload and prints elapsed milliseconds from inside the program. This excludes:
 
 * Source file loading
 * Parsing
 * Compilation
 * VM startup
-* Program execution
 
-Each Pilang benchmark (`.pi`) has matching Python (`.py`) and Lua (`.lua`) implementations. The runner executes all three versions and reports median wall-clock execution times along with speedup ratios against Python and Lua.
+Each Pilang benchmark (`.pi`) has matching Python (`.py`) and Lua (`.lua`) implementations. The runner executes all three versions, reads the printed runtime from each script, and reports median workload times along with speedup ratios against Python and Lua.
 
 The goal is to compare Pilang, Python, and Lua on identical workloads in the same environment. Results should not be interpreted as language-wide performance claims.
 
@@ -40,7 +39,7 @@ python tools/run_benchmarks.py
 Example output:
 
 ```text
-Pilang Benchmark Suite
+Pilang Benchmark Suite (pure runtime)
 
 Benchmark               Pilang(ms)  Python(ms)     Lua(ms)   vs Python      vs Lua
 ------------------------------------------------------------------------------------
@@ -106,7 +105,7 @@ python tools/run_benchmarks.py --iterations 10 --warmup 3
 
 ## Notes
 
-* The runner reports median wall-clock execution times.
+* The runner reports median internal workload times printed by the benchmark scripts.
 * Every benchmark is executed multiple times to reduce noise.
 * Warm-up runs are excluded from reported results.
 * Pilang, Python, and Lua should perform the same benchmark workload.

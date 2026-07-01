@@ -1,11 +1,11 @@
-"""Run Pilang's end-to-end benchmark suite and compare against Python and Lua."""
+"""Run Pilang's benchmark suite and compare pure execution times (excluding startup/compilation)."""
 
 import argparse
+import re
 import shutil
 import statistics
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 
@@ -14,6 +14,7 @@ BENCHMARK_DIR = BASE_DIR / "benchmark"
 DEFAULT_COMMAND = BASE_DIR / (
     "bin/pilang.exe" if sys.platform.startswith("win") else "bin/pilang"
 )
+NUMBER_RE = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
 
 
 class Color:
@@ -27,7 +28,7 @@ class Color:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Run Pilang end-to-end benchmarks and compare against Python and Lua."
+        description="Run Pilang benchmarks and compare pure execution times against Python and Lua."
     )
 
     parser.add_argument(
@@ -82,8 +83,7 @@ def collect_benchmarks(filter_text: str | None) -> list[Path]:
 
 
 def run_once(command: list[str]) -> float:
-    started = time.perf_counter()
-
+    """Run the command and return the numeric time (ms) printed by the benchmark."""
     result = subprocess.run(
         command,
         capture_output=True,
@@ -91,15 +91,24 @@ def run_once(command: list[str]) -> float:
         cwd=BASE_DIR,
     )
 
-    elapsed_ms = (time.perf_counter() - started) * 1000.0
-
     if result.returncode != 0:
         message = result.stderr.strip() or result.stdout.strip() or "no output"
         raise RuntimeError(
             f"Command failed (exit {result.returncode}):\n{message}"
         )
 
-    return elapsed_ms
+    # Benchmarks print their own internal elapsed runtime in milliseconds.
+    # Use the last numeric line so accidental debug output before it is ignored.
+    for line in reversed(result.stdout.splitlines()):
+        match = NUMBER_RE.search(line.strip())
+        if match:
+            return float(match.group())
+
+    output = result.stdout.strip() or result.stderr.strip() or "no output"
+    raise RuntimeError(
+        "Benchmark did not print a numeric runtime in milliseconds:\n"
+        f"{output}"
+    )
 
 
 def benchmark_runtime(
@@ -120,8 +129,6 @@ def benchmark_runtime(
 
 
 def speedup_color(speedup: float) -> str:
-    # speedup = comparison_time / pilang_time
-    # >1 => Pilang faster
     if speedup > 1.05:
         return Color.GREEN
     if speedup < 0.95:
@@ -180,7 +187,7 @@ def main():
     if not benchmarks:
         raise SystemExit("No benchmark files matched.")
 
-    print(f"{Color.BOLD}{Color.CYAN}Pilang Benchmark Suite{Color.RESET}")
+    print(f"{Color.BOLD}{Color.CYAN}Pilang Benchmark Suite (pure runtime){Color.RESET}")
 
     print(
         f"{'Benchmark':<24}"

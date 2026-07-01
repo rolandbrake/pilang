@@ -1,4 +1,7 @@
 # List growth, indexed reads, and numeric accumulation.
+import time
+
+t0 = time.perf_counter()
 entries = []
 i = 0
 
@@ -11,3 +14,5 @@ i = 0
 while i < len(entries):
     total += entries[i]
     i += 1
+
+print((time.perf_counter() - t0) * 1000)

@@ -7,6 +7,7 @@ function Worker:transform(value)
 end
 
 local worker = setmetatable({}, Worker)
+local t0 = os.clock()
 local i = 0
 local value = 0.0
 
@@ -14,3 +15,5 @@ while i < 500000 do
     value = worker:transform(value)
     i = i + 1
 end
+
+print((os.clock() - t0) * 1000)

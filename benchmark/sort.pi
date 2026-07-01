@@ -1,10 +1,16 @@
 import random
 
-list_ = []
+fun main() {
+    let t0 = time()
+    let list_ = []
 
-for i in 0..1000000
-    list_.push(random.uniform(-10000, 10000))
+    for i in 0..1000000
+        list_.push(random.uniform(-10000, 10000))
 
 
 
-list_.sort()
+    list_.sort()
+    println(time() - t0)
+}
+
+main()

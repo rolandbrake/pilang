@@ -1,4 +1,5 @@
 -- List growth, indexed reads, and numeric accumulation.
+local t0 = os.clock()
 local entries = {}
 local i = 0
 
@@ -13,3 +14,5 @@ while i <= #entries do
     total = total + entries[i]
     i = i + 1
 end
+
+print((os.clock() - t0) * 1000)

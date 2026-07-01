@@ -1,3 +1,4 @@
+local t0 = os.clock()
 local list_ = {}
 
 for i = 0, 1000000 do
@@ -5,3 +6,4 @@ for i = 0, 1000000 do
 end
 
 table.sort(list_)
+print((os.clock() - t0) * 1000)

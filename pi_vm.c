@@ -2266,7 +2266,6 @@ void vm_run(vm_t *vm)
 #endif
         vm->pc = pc;
         vm->error_pc = pc;
-        vm->current_instr = NULL;
         op = code[pc++];
 
         vm->ip++; // Advance instruction index
@@ -2497,7 +2496,6 @@ void vm_run(vm_t *vm)
                     result = (l <= r);
                     break;
                 }
-                vm->stack[vm->sp - 1] = NEW_NIL();
                 vm->sp--;
                 vm->stack[vm->sp - 1] = NEW_BOOL(result);
 
@@ -2802,9 +2800,31 @@ void vm_run(vm_t *vm)
             {
                 double l = AS_NUM(left);
                 double r = AS_NUM(right);
-                vm->stack[vm->sp - 1] = NEW_NIL();
                 vm->sp--;
-                vm->stack[vm->sp - 1] = op_binaryNum(op, l, r);
+                switch (op)
+                {
+                case 0:
+                    vm->stack[vm->sp - 1] = NEW_NUM(l + r);
+                    break;
+                case 1:
+                    vm->stack[vm->sp - 1] = NEW_NUM(l - r);
+                    break;
+                case 2:
+                    vm->stack[vm->sp - 1] = NEW_NUM(l * r);
+                    break;
+                case 3:
+                    vm->stack[vm->sp - 1] = NEW_NUM(r == 0.0 ? INFINITY : l / r);
+                    break;
+                case 4:
+                {
+                    int ir = (int)r;
+                    vm->stack[vm->sp - 1] = ir == 0 ? NEW_NAN() : NEW_NUM((int)l % ir);
+                    break;
+                }
+                default:
+                    vm->stack[vm->sp - 1] = op_binaryNum(op, l, r);
+                    break;
+                }
                 break;
             }
 
@@ -3464,11 +3484,11 @@ void vm_run(vm_t *vm)
         case OP_UNARY:
         {
             uint8_t op = code[pc++];
-            Value operand = POP();
+            Value operand = vm->stack[vm->sp - 1];
 
             if (op == 7)
             {
-                push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(strdup(type_name(operand))))));
+                vm->stack[vm->sp - 1] = NEW_OBJ(add_obj(vm, new_pistring(strdup(type_name(operand)))));
                 break;
             }
 
@@ -3482,16 +3502,16 @@ void vm_run(vm_t *vm)
                 switch (OBJ_TYPE(operand))
                 {
                 case OBJ_LIST:
-                    PUSH(NEW_NUM(list_size(AS_LIST(operand)->items)));
+                    vm->stack[vm->sp - 1] = NEW_NUM(list_size(AS_LIST(operand)->items));
                     break;
                 case OBJ_TENSOR:
-                    PUSH(NEW_NUM(AS_TENSOR(operand)->ndim == 0 ? 0 : AS_TENSOR(operand)->shape[0]));
+                    vm->stack[vm->sp - 1] = NEW_NUM(AS_TENSOR(operand)->ndim == 0 ? 0 : AS_TENSOR(operand)->shape[0]);
                     break;
                 case OBJ_STRING:
-                    PUSH(NEW_NUM(AS_STRING(operand)->length));
+                    vm->stack[vm->sp - 1] = NEW_NUM(AS_STRING(operand)->length);
                     break;
                 case OBJ_MAP:
-                    PUSH(NEW_NUM(map_size(AS_MAP(operand))));
+                    vm->stack[vm->sp - 1] = NEW_NUM(map_size(AS_MAP(operand)));
                     break;
                 default:
                     vm_error(vm, "Unsupported operand type for '#' operator.");
@@ -3501,28 +3521,28 @@ void vm_run(vm_t *vm)
 
             // Fast path: plain number (most common case)
             // ops 0,1,3,5,6 are purely numeric - zero overload check, zero coercion
-            if (is_numeric(operand))
+            if (IS_NUM(operand))
             {
-                double n = as_number(operand);
+                double n = AS_NUM(operand);
                 switch (op)
                 {
                 case 0:
-                    PUSH(NEW_NUM(n));
+                    vm->stack[vm->sp - 1] = NEW_NUM(n);
                     break; // unary +
                 case 1:
-                    PUSH(NEW_NUM(-n));
+                    vm->stack[vm->sp - 1] = NEW_NUM(-n);
                     break; // unary -
                 case 2:
-                    PUSH(NEW_BOOL(n == 0.0));
+                    vm->stack[vm->sp - 1] = NEW_BOOL(n == 0.0);
                     break; // logical NOT (0 is falsy)
                 case 3:
-                    PUSH(NEW_NUM(~(int)n));
+                    vm->stack[vm->sp - 1] = NEW_NUM(~(int)n);
                     break; // bitwise NOT
                 case 5:
-                    PUSH(NEW_NUM(n + 1.0));
+                    vm->stack[vm->sp - 1] = NEW_NUM(n + 1.0);
                     break; // ++
                 case 6:
-                    PUSH(NEW_NUM(n - 1.0));
+                    vm->stack[vm->sp - 1] = NEW_NUM(n - 1.0);
                     break; // --
                 default:
                     vm_error(vm, "Unknown unary operator.");
@@ -3535,7 +3555,7 @@ void vm_run(vm_t *vm)
             {
                 if (op == 2)
                 {
-                    PUSH(NEW_BOOL(!AS_BOOL(operand)));
+                    vm->stack[vm->sp - 1] = NEW_BOOL(!AS_BOOL(operand));
                     break;
                 }
                 // fall through to slow path for anything else (e.g. +true coerces to 1)
@@ -3546,7 +3566,7 @@ void vm_run(vm_t *vm)
             {
                 if (op == 2)
                 {
-                    PUSH(NEW_BOOL(true));
+                    vm->stack[vm->sp - 1] = NEW_BOOL(true);
                     break;
                 }
                 // nil coerces to 0 for numeric ops - fall through
@@ -3559,7 +3579,7 @@ void vm_run(vm_t *vm)
                 Value computed = NEW_NIL();
                 if (try_callCompute(vm, operand, 100 + op, false, NEW_NIL(), &computed))
                 {
-                    push_stack(vm, computed);
+                    vm->stack[vm->sp - 1] = computed;
                     break;
                 }
             }
@@ -3567,7 +3587,7 @@ void vm_run(vm_t *vm)
             //  op 2: logical NOT - works on any type via truthiness
             if (op == 2)
             {
-                PUSH(NEW_BOOL(!as_bool(operand)));
+                vm->stack[vm->sp - 1] = NEW_BOOL(!as_bool(operand));
                 break;
             }
 
@@ -3577,19 +3597,19 @@ void vm_run(vm_t *vm)
             switch (op)
             {
             case 0:
-                PUSH(NEW_NUM(n));
+                vm->stack[vm->sp - 1] = NEW_NUM(n);
                 break; // unary +
             case 1:
-                PUSH(NEW_NUM(-n));
+                vm->stack[vm->sp - 1] = NEW_NUM(-n);
                 break; // unary -
             case 3:
-                PUSH(NEW_NUM(~(int)n));
+                vm->stack[vm->sp - 1] = NEW_NUM(~(int)n);
                 break; // bitwise NOT
             case 5:
-                PUSH(NEW_NUM(n + 1.0));
+                vm->stack[vm->sp - 1] = NEW_NUM(n + 1.0);
                 break; // ++
             case 6:
-                PUSH(NEW_NUM(n - 1.0));
+                vm->stack[vm->sp - 1] = NEW_NUM(n - 1.0);
                 break; // --
             default:
                 vm_error(vm, "Unknown unary operator.");
@@ -3703,12 +3723,18 @@ void vm_run(vm_t *vm)
                             vm->stack[param_base + (int)i + (param_this ? 1 : 0)] =
                                 vm->stack[args_base + i];
 
+                        int aux_base = vm->bp + (int)param_count + (param_this ? 0 : 1);
+                        vm->stack[aux_base] = NEW_NIL();
+                        vm->stack[aux_base + 1] = NEW_NIL();
                         vm->sp = vm->bp + (int)param_count + (param_this ? 2 : 3);
                     }
                     else
                     {
                         for (uint8_t i = 0; i < num_args; i++)
                             vm->stack[vm->bp + i] = vm->stack[args_base + i];
+                        int aux_base = vm->bp + (int)param_count;
+                        vm->stack[aux_base] = NEW_NIL();
+                        vm->stack[aux_base + 1] = NEW_NIL();
                         vm->sp = vm->bp + (int)param_count + 2;
                     }
 
@@ -5438,8 +5464,9 @@ void vm_run(vm_t *vm)
                 gc_collect(vm);
         }
 #endif
-        vm->pc = pc;
     }
+
+    vm->pc = pc;
 }
 
 /**

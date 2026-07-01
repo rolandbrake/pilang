@@ -1,6 +1,15 @@
 // Integer arithmetic and tight while-loop throughput.
-[i, value] = [0, 1]
+fun main() {
+    let t0 = time()
+    let i = 0
+    let value = 1
 
-while (i <- ++i) < 1_000_000 
-    value = (value * 1_103_515_245 + i) % 1_000_000_007    
+    while i < 1_000_000 {
+        value = (value * 1_103_515_245 + i) % 1_000_000_007
+        i++
+    }
 
+    println(time() - t0)
+}
+
+main()
