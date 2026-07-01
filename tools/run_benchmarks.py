@@ -131,8 +131,9 @@ def benchmark_runtime(
 def speedup_color(speedup: float) -> str:
     if speedup > 1.05:
         return Color.GREEN
-    if speedup < 0.95:
+    if speedup < 0.55:
         return Color.RED
+            
     return Color.YELLOW
 
 

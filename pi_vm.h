@@ -29,25 +29,63 @@ typedef int interrupt_flag_t;
 // Macros for computed-goto opcode dispatch.
 // Requires GCC/Clang labels-as-values support.
 #define VM_LABEL(name) L_##name
-#define VM_TARGET(name) &&L_##name
+#define VM_TARGET(name) &&name
 #define VM_DISPATCH(op) goto *dispatch[(op)]
 #define VM_CASE(name) VM_LABEL(name)
 
-#define VM_DISPATCH_SAFE()                  \
+#define VM_SYNC_PC()             \
+    do                           \
+    {                            \
+        vm->pc = pc;             \
+        vm->error_pc = instr_pc; \
+    } while (0)
+
+#define VM_DISPATCH_FAST()        \
+    do                            \
+    {                             \
+        instr_pc = pc;            \
+        uint8_t _op = code[pc++]; \
+        current_op = _op;         \
+        vm->ip++;                 \
+        goto *dispatch[_op];      \
+    } while (0)
+
+#define VM_DISPATCH_SLOW()                  \
     do                                      \
     {                                       \
         if (pc >= length || !vm->running)   \
             goto L_VM_DONE;                 \
-        vm->pc = pc;                        \
-        vm->error_pc = pc;                  \
+        instr_pc = pc;                      \
+        VM_SYNC_PC();                       \
+        if (vm->gc_requested)               \
+            gc_collect(vm);                 \
+        if (interrupt_requested)            \
+        {                                   \
+            vm->running = false;            \
+            goto L_VM_DONE;                 \
+        }                                   \
+        if (!vm->running)                   \
+            goto L_VM_DONE;                 \
         uint8_t _op = code[pc++];           \
+        current_op = _op;                   \
         if (!dispatch[_op])                 \
             vm_error(vm, "Invalid opcode"); \
         vm->ip++;                           \
         goto *dispatch[_op];                \
     } while (0)
 
-#define BEGIN_VM_LOOP() VM_DISPATCH_SAFE()
+#define VM_DISPATCH_SAFE()                           \
+    do                                               \
+    {                                                \
+        if (++safepoint_steps >= VM_SAFEPOINT_STEPS) \
+        {                                            \
+            safepoint_steps = 0;                     \
+            VM_DISPATCH_SLOW();                      \
+        }                                            \
+        VM_DISPATCH_FAST();                          \
+    } while (0)
+
+#define BEGIN_VM_LOOP() VM_DISPATCH_SLOW()
 #define END_INSTR() goto L_VM_AFTER_INSTR
 
 #define GC_MIN_THRESHOLD (1024 * 64)
@@ -63,7 +101,6 @@ typedef int interrupt_flag_t;
 // For non-MAP values this is zero cost — just returns the value itself
 #define TO_PRIM_NUM(v) (IS_MAP(v) ? to_primitive(vm, v, false) : (v))
 #define TO_PRIM_STR(v) (IS_MAP(v) ? to_primitive(vm, v, true) : (v))
-
 
 // for frequent stack operations:
 #define PUSH(v) (vm->stack[vm->sp++] = (v))

@@ -2243,6 +2243,20 @@ static bool is_private_moduleName(const char *name)
     return name != NULL && name[0] == '_' && name[1] != '\0';
 }
 
+#define vm_error(vm, message)      \
+    do                             \
+    {                              \
+        VM_SYNC_PC();              \
+        vm_error((vm), (message)); \
+    } while (0)
+
+#define vm_errorf(vm, ...)            \
+    do                                \
+    {                                 \
+        VM_SYNC_PC();                 \
+        vm_errorf((vm), __VA_ARGS__); \
+    } while (0)
+
 /**
  * @brief Runs the virtual machine.
  *
@@ -2312,6 +2326,8 @@ void vm_run(vm_t *vm)
     int frame_sp = vm->frame_sp;
     int length = vm->code->size;
     int pc = vm->pc;
+    int instr_pc = pc;
+    uint8_t current_op = OP_NO;
 #ifdef __EMSCRIPTEN__
     int browser_steps = 0;
 #else
@@ -2329,7 +2345,7 @@ void vm_run(vm_t *vm)
 
     BEGIN_VM_LOOP();
 
-L_OP_LOAD_CONST:
+OP_LOAD_CONST:
 {
     int index = (code[pc++] << 8);
     index |= code[pc++];
@@ -2338,7 +2354,7 @@ L_OP_LOAD_CONST:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_STORE_GLOBAL:
+OP_STORE_GLOBAL:
 {
     uint8_t index = code[pc++];
     char *name = read_name(vm, index);
@@ -2367,7 +2383,7 @@ L_OP_STORE_GLOBAL:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_LOAD_GLOBAL:
+OP_LOAD_GLOBAL:
 {
     uint8_t index = code[pc++];
     if (function && function->global_valid &&
@@ -2397,7 +2413,7 @@ L_OP_LOAD_GLOBAL:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_LOAD_LOCAL:
+OP_LOAD_LOCAL:
 {
     uint8_t local = code[pc++];
     int slot = vm->bp + local;
@@ -2407,7 +2423,7 @@ L_OP_LOAD_LOCAL:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_LOAD_SUPER:
+OP_LOAD_SUPER:
 {
     if (!function->is_method || function->instance == NULL)
         vm_error(vm, "super is only available inside object methods.");
@@ -2420,7 +2436,7 @@ L_OP_LOAD_SUPER:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_STORE_LOCAL:
+OP_STORE_LOCAL:
 {
     uint8_t local = code[pc++];
     int slot = vm->bp + local;
@@ -2430,7 +2446,7 @@ L_OP_STORE_LOCAL:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_POP:
+OP_POP:
 {
     remove_upvalue(vm, vm->sp - 1);
     Value value = POP();
@@ -2438,7 +2454,7 @@ L_OP_POP:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_POP_N:
+OP_POP_N:
 {
     uint8_t n = code[pc++];
     for (int i = 0; i < n; i++)
@@ -2449,14 +2465,14 @@ L_OP_POP_N:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_DUP_TOP:
+OP_DUP_TOP:
 {
     Value value = peek_stack(vm);
     PUSH(value);
     VM_DISPATCH_SAFE();
 }
 
-L_OP_JUMP_IF_FALSE:
+OP_JUMP_IF_FALSE:
 {
     int offset = (int16_t)((code[pc] << 8) | code[pc + 1]);
     Value value = POP();
@@ -2468,14 +2484,14 @@ L_OP_JUMP_IF_FALSE:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_JUMP:
+OP_JUMP:
 {
     int offset = (int16_t)((code[pc] << 8) | code[pc + 1]);
     pc += offset - 1;
     VM_DISPATCH_SAFE();
 }
 
-L_OP_JUMP_IF_TRUE:
+OP_JUMP_IF_TRUE:
 {
     int offset = (int16_t)((code[pc] << 8) | code[pc + 1]);
     Value value = POP();
@@ -2487,7 +2503,7 @@ L_OP_JUMP_IF_TRUE:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_COMPARE:
+OP_COMPARE:
 {
     uint8_t op = code[pc++];
 
@@ -2789,7 +2805,7 @@ L_OP_COMPARE:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_BINARY:
+OP_BINARY:
 {
     uint8_t op = code[pc++];
     Value right = vm->stack[vm->sp - 1];
@@ -3401,7 +3417,7 @@ L_OP_BINARY:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_UNARY:
+OP_UNARY:
 {
     uint8_t op = code[pc++];
     Value operand = vm->stack[vm->sp - 1];
@@ -3519,7 +3535,7 @@ L_OP_UNARY:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_CALL_FUNCTION:
+OP_CALL_FUNCTION:
 {
     uint8_t num_args = code[pc++];
     int args_base = vm->sp - num_args;
@@ -3677,7 +3693,7 @@ L_OP_CALL_FUNCTION:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_CALL_FUNCTION_KW:
+OP_CALL_FUNCTION_KW:
 {
     uint8_t num_args = code[pc++];
     Value kw_args = pop_stack(vm);
@@ -3730,7 +3746,7 @@ L_OP_CALL_FUNCTION_KW:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_CALL_SPREAD:
+OP_CALL_SPREAD:
 {
     bool has_named = code[pc++] != 0;
     Value kw_args = NEW_NIL();
@@ -3750,7 +3766,7 @@ L_OP_CALL_SPREAD:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_PUSH_ITER:
+OP_PUSH_ITER:
 {
     Value iterable = POP();
     if (!IS_OBJ(iterable) || !is_iterable(AS_OBJ(iterable)))
@@ -3763,7 +3779,7 @@ L_OP_PUSH_ITER:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_LOOP:
+OP_LOOP:
 {
     uint16_t encoded = (code[pc] << 8);
     encoded |= code[pc + 1];
@@ -3958,14 +3974,14 @@ L_OP_LOOP:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_POP_ITER:
+OP_POP_ITER:
 {
     if (vm->iter_sp != -1)
         iter = vm->iters[vm->iter_sp--];
     VM_DISPATCH_SAFE();
 }
 
-L_OP_PUSH_RANGE:
+OP_PUSH_RANGE:
 {
     Value step = pop_stack(vm);
     Value end = pop_stack(vm);
@@ -3981,7 +3997,7 @@ L_OP_PUSH_RANGE:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_PUSH_LIST:
+OP_PUSH_LIST:
 {
     int numElements = (code[pc++] << 8) | code[pc++];
     list_t *list = list_create(sizeof(Value));
@@ -4060,7 +4076,7 @@ L_OP_PUSH_LIST:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_PUSH_SET:
+OP_PUSH_SET:
 {
     int numElements = (code[pc++] << 8) | code[pc++];
     PiSet *set = (PiSet *)new_set();
@@ -4085,7 +4101,7 @@ L_OP_PUSH_SET:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_PUSH_TUPLE:
+OP_PUSH_TUPLE:
 {
     int numElements = (code[pc++] << 8) | code[pc++];
     list_t *items = list_create(sizeof(Value));
@@ -4105,7 +4121,7 @@ L_OP_PUSH_TUPLE:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_LIST_APPEND:
+OP_LIST_APPEND:
 {
     Value value = pop_stack(vm);
     if (!IS_LIST(peek_stack(vm)))
@@ -4114,7 +4130,7 @@ L_OP_LIST_APPEND:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_COMP_APPEND:
+OP_COMP_APPEND:
 {
     int local = code[pc++];
     Value value = pop_stack(vm);
@@ -4128,7 +4144,7 @@ L_OP_COMP_APPEND:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_COMP_BEGIN:
+OP_COMP_BEGIN:
 {
     int local_base = code[pc++];
     if (vm->comp_sp >= COMP_MAX)
@@ -4148,7 +4164,7 @@ L_OP_COMP_BEGIN:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_COMP_END:
+OP_COMP_END:
 {
     if (vm->comp_sp <= 0)
         vm_error(vm, "List comprehension end without a matching begin.");
@@ -4162,7 +4178,7 @@ L_OP_COMP_END:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_LIST_EXTEND:
+OP_LIST_EXTEND:
 {
     Value iterable = pop_stack(vm);
     if (!IS_LIST(peek_stack(vm)))
@@ -4171,7 +4187,7 @@ L_OP_LIST_EXTEND:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_LIST_FINALIZE:
+OP_LIST_FINALIZE:
 {
     if (!IS_LIST(peek_stack(vm)))
         vm_error(vm, "List finalize expects a list target.");
@@ -4179,7 +4195,7 @@ L_OP_LIST_FINALIZE:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_PUSH_MAP:
+OP_PUSH_MAP:
 {
     int numElements = code[pc++] << 8;
     numElements |= code[pc++];
@@ -4209,7 +4225,7 @@ L_OP_PUSH_MAP:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_MAP_SET:
+OP_MAP_SET:
 {
     Value key = pop_stack(vm);
     Value value = pop_stack(vm);
@@ -4229,7 +4245,7 @@ L_OP_MAP_SET:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_MAP_EXTEND:
+OP_MAP_EXTEND:
 {
     Value source = pop_stack(vm);
     if (!IS_MAP(peek_stack(vm)))
@@ -4238,7 +4254,7 @@ L_OP_MAP_EXTEND:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_MAP_FINALIZE:
+OP_MAP_FINALIZE:
 {
     int name_index = code[pc++];
     if (!IS_MAP(peek_stack(vm)))
@@ -4250,7 +4266,7 @@ L_OP_MAP_FINALIZE:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_PUSH_FUNCTION:
+OP_PUSH_FUNCTION:
 {
     int numParams = code[pc++];
     ObjCode *body = AS_CODE(pop_stack(vm));
@@ -4274,7 +4290,7 @@ L_OP_PUSH_FUNCTION:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_PUSH_CLOSURE:
+OP_PUSH_CLOSURE:
 {
     int numParams = code[pc++];
     int numUpvalues = code[pc++];
@@ -4312,7 +4328,7 @@ L_OP_PUSH_CLOSURE:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_LOAD_UPVALUE:
+OP_LOAD_UPVALUE:
 {
     int index = code[pc++];
     if (function->upvalues == NULL || function->upvalues[index] == NULL)
@@ -4322,7 +4338,7 @@ L_OP_LOAD_UPVALUE:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_STORE_UPVALUE:
+OP_STORE_UPVALUE:
 {
     int index = code[pc++];
     if (function->upvalues == NULL || function->upvalues[index] == NULL)
@@ -4336,7 +4352,7 @@ L_OP_STORE_UPVALUE:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_PUSH_SLICE:
+OP_PUSH_SLICE:
 {
     Value _step = pop_stack(vm);
     Value _end = pop_stack(vm);
@@ -4352,10 +4368,10 @@ L_OP_PUSH_SLICE:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_GET_ITEM:
-L_OP_GET_MEMBER:
+OP_GET_ITEM:
+OP_GET_MEMBER:
 {
-    bool bracket_access = (code[vm->error_pc] == OP_GET_ITEM);
+    bool bracket_access = current_op == OP_GET_ITEM;
     Value index = POP();
     Value container = vm->stack[vm->sp - 1];
     Value method_result;
@@ -4541,7 +4557,7 @@ L_OP_GET_MEMBER:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_TENSOR_GET:
+OP_TENSOR_GET:
 {
     uint8_t ndim = code[pc++];
     Value indices[MAX_TENSOR_DIMS];
@@ -4656,10 +4672,10 @@ L_OP_TENSOR_GET:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_SET_ITEM:
-L_OP_SET_MEMBER:
+OP_SET_ITEM:
+OP_SET_MEMBER:
 {
-    bool bracket_access = (code[vm->error_pc] == OP_SET_ITEM);
+    bool bracket_access = current_op == OP_SET_ITEM;
     Value index = pop_stack(vm);
     Value container = pop_stack(vm);
     Value value = pop_stack(vm);
@@ -4741,7 +4757,7 @@ L_OP_SET_MEMBER:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_TENSOR_SET:
+OP_TENSOR_SET:
 {
     uint8_t ndim = code[pc++];
     Value indices[MAX_TENSOR_DIMS];
@@ -4891,7 +4907,7 @@ L_OP_TENSOR_SET:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_IMPORT:
+OP_IMPORT:
 {
     Value name = pop_stack(vm);
     if (!IS_STRING(name))
@@ -4900,23 +4916,29 @@ L_OP_IMPORT:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_GET_EXPORT:
+OP_GET_EXPORT:
 {
     Value name = pop_stack(vm);
     Value module = pop_stack(vm);
+
     if (!IS_OBJ(module) || (OBJ_TYPE(module) != OBJ_MAP && OBJ_TYPE(module) != OBJ_MODULE))
         vm_error(vm, "Attempt to access export from non-module object.");
+
     if (!IS_STRING(name))
         vm_error(vm, "Export name must be a string.");
+
     char *export_name = AS_STRING(name)->chars;
     if (OBJ_TYPE(module) == OBJ_MODULE && is_private_moduleName(export_name))
         vm_error(vm, "Cannot import private module member.");
+
     PiMap *_module = (OBJ_TYPE(module) == OBJ_MODULE) ? AS_MODULE(module)->exports : AS_MAP(module);
+
     push_stack(vm, map_get(_module, name));
+
     VM_DISPATCH_SAFE();
 }
 
-L_OP_IMPORT_ALL:
+OP_IMPORT_ALL:
 {
     Value module = pop_stack(vm);
     if (!IS_OBJ(module) || (OBJ_TYPE(module) != OBJ_MAP && OBJ_TYPE(module) != OBJ_MODULE))
@@ -4942,6 +4964,7 @@ L_OP_IMPORT_ALL:
         }
         if (!ht_set(vm->globals, key, value))
             ht_put(vm->globals, key, value);
+            
         if (IS_FUN(*value) && AS_FUN(*value)->name && strcmp(AS_FUN(*value)->name, key) == 0)
         {
             AS_FUN(*value)->global_valid = true;
@@ -4950,27 +4973,34 @@ L_OP_IMPORT_ALL:
     }
     vm->global_cache->globals = NULL;
     vm->global_cache->names = NULL;
+
     VM_DISPATCH_SAFE();
 }
 
-L_OP_IMPORT_DEFAULT:
+OP_IMPORT_DEFAULT:
 {
     Value name = pop_stack(vm);
     Value module = pop_stack(vm);
+
     if (!IS_OBJ(module) || (OBJ_TYPE(module) != OBJ_MAP && OBJ_TYPE(module) != OBJ_MODULE))
         vm_error(vm, "Attempt to import from non-module object.");
+
     if (!IS_STRING(name))
         vm_error(vm, "Export name must be a string.");
+
     char *export_name = AS_STRING(name)->chars;
     if (OBJ_TYPE(module) == OBJ_MODULE && is_private_moduleName(export_name))
         vm_error(vm, "Cannot import private module member.");
+
     PiMap *_module = (OBJ_TYPE(module) == OBJ_MODULE) ? AS_MODULE(module)->exports : AS_MAP(module);
+
     Value value = map_get(_module, name);
     push_stack(vm, IS_FUN(value) ? value : module);
+
     VM_DISPATCH_SAFE();
 }
 
-L_OP_RETURN:
+OP_RETURN:
 {
     Value retval = POP();
 
@@ -5022,7 +5052,7 @@ L_OP_RETURN:
     VM_DISPATCH_SAFE();
 }
 
-L_OP_HALT:
+OP_HALT:
 {
     if (vm->gc_requested)
         gc_collect(vm);
@@ -5030,18 +5060,18 @@ L_OP_HALT:
     goto L_VM_DONE;
 }
 
-L_OP_NO:
+OP_NO:
     VM_DISPATCH_SAFE();
 
-L_OP_PUSH_NIL:
+OP_PUSH_NIL:
     push_stack(vm, NEW_NIL());
     VM_DISPATCH_SAFE();
 
-L_OP_DEBUG:
+OP_DEBUG:
     printf("[DEBUG] Current PC: %d\n", pc);
     VM_DISPATCH_SAFE();
 
-L_OP_PRINT:
+OP_PRINT:
 {
     Value value = pop_stack(vm);
     char *str = as_string(value);
