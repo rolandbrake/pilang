@@ -253,6 +253,7 @@ Object *new_map(table_t *table, bool is_instance)
     map->bound_methods = NULL;
     map->last_bound_source = NULL;
     map->last_bound_method = NEW_NIL();
+    map->last_member_key = NULL;
     map->intrinsic_name = NULL;
     map->locked = false;
     map->bracket_access = true;
@@ -549,7 +550,15 @@ bool map_delete(PiMap *map, Value key)
     PiMap *owner = map_findOwner(map, key_str);
     bool removed = false;
     if (owner != NULL && !owner->locked)
+    {
         removed = ht_delete(owner->table, key_str);
+        if (removed)
+        {
+            owner->last_bound_source = NULL;
+            owner->last_bound_method = NEW_NIL();
+            owner->last_member_key = NULL;
+        }
+    }
     free(owned);
     return removed;
 }
@@ -565,6 +574,10 @@ void map_set(PiMap *map, Value key, Value value)
 
     if (!ht_set(owner->table, key_str, &value) && !owner->locked)
         ht_put(owner->table, key_str, &value);
+
+    owner->last_bound_source = NULL;
+    owner->last_bound_method = NEW_NIL();
+    owner->last_member_key = NULL;
 
     if (IS_FUN(value))
     {

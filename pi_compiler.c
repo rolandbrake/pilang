@@ -721,9 +721,7 @@ void pop_loop(compiler_t *comp, int address)
     while (stack_isEmpty(breaks) == false)
         patch_jump(comp, POP_INT(breaks));
 
-    stack_free(loop->breaks);
-
-    free(loop);
+    free_loop(loop);
 }
 
 void push_break(compiler_t *comp, int address)

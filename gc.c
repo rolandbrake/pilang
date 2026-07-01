@@ -176,6 +176,8 @@ static void mark_references(Object *obj)
             mark_object(map->super_instance);
         if (map->last_bound_source)
             mark_object(map->last_bound_source);
+        if (map->last_member_key)
+            mark_object(map->last_member_key);
         mark_value(map->last_bound_method);
 
         table_t *table = map->table;

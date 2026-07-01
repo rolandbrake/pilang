@@ -242,6 +242,7 @@ typedef struct PiMap
     // Most hot loops repeatedly call one method; avoid a second hash lookup.
     Object *last_bound_source;
     Value last_bound_method;
+    Object *last_member_key;
 
     char *intrinsic_name;
 
