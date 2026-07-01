@@ -94,7 +94,7 @@ typedef int interrupt_flag_t;
 
 #define BROWSER_YIELD_STEPS 50000
 #define INTERRUPT_CHECK_STEPS 4096
-#define VM_SAFEPOINT_STEPS 4096
+#define VM_SAFEPOINT_STEPS 8192
 
 #define TO_PRIM(vm, v, is_str) (IS_MAP(v) ? to_primitive(vm, v, is_str) : (v))
 

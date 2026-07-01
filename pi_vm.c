@@ -1313,6 +1313,53 @@ static inline bool vm_storeLoopValueIfLocal(vm_t *vm, uint8_t *code, int *pc, Va
     return true;
 }
 
+static inline void vm_listAppendValue(PiList *list, Value value)
+{
+    list_t *items = list->items;
+    if (items->size == items->capacity)
+        _list_grow(items);
+    ((Value *)items->data)[items->size++] = value;
+
+    if (list->rows == 1 && list->cols >= 0)
+    {
+        if (!IS_NUM(value))
+        {
+            list->rows = -1;
+            list->cols = -1;
+            list->is_numeric = false;
+        }
+        else
+            list->cols++;
+    }
+    else if (list->rows > 1 && list->cols > 0)
+    {
+        if (!IS_LIST(value))
+        {
+            list->rows = -1;
+            list->cols = -1;
+            list->is_numeric = false;
+        }
+        else
+        {
+            PiList *r_list = AS_LIST(value);
+            if (!r_list->is_numeric || r_list->items->size != list->cols)
+            {
+                list->rows = -1;
+                list->cols = -1;
+                list->is_numeric = false;
+            }
+            else
+                list->rows++;
+        }
+    }
+    else if (items->size == 2 && IS_NUM(value) && IS_NUM(((Value *)items->data)[0]))
+    {
+        list->is_numeric = true;
+        list->rows = 1;
+        list->cols = 2;
+    }
+}
+
 static inline Value op_binaryNum(int op, double l, double r)
 {
     switch (op)
@@ -2316,6 +2363,7 @@ void vm_run(vm_t *vm)
         [OP_IMPORT_ALL] = VM_TARGET(OP_IMPORT_ALL),
         [OP_IMPORT_DEFAULT] = VM_TARGET(OP_IMPORT_DEFAULT),
         [OP_RETURN] = VM_TARGET(OP_RETURN),
+        [OP_RETURN_NIL] = VM_TARGET(OP_RETURN_NIL),
         [OP_HALT] = VM_TARGET(OP_HALT),
         [OP_NO] = VM_TARGET(OP_NO),
         [OP_PUSH_NIL] = VM_TARGET(OP_PUSH_NIL),
@@ -2336,6 +2384,7 @@ void vm_run(vm_t *vm)
     int safepoint_steps = 0;
 
     uint8_t *code = (uint8_t *)vm->code->data;
+    Value *constants_data = (Value *)vm->constants->data;
 
     Value value;
     Value nilValue;
@@ -2343,14 +2392,67 @@ void vm_run(vm_t *vm)
     UpValue *upValue;
     Function *function = (Function *)vm->function;
 
+#define VM_RETURN_WITH(value_expr)                                                \
+    do                                                                            \
+    {                                                                             \
+        Value retval = (value_expr);                                              \
+                                                                                  \
+        if (vm->openUpvalues)                                                     \
+            for (int i = vm->sp - 1; i >= vm->bp; i--)                            \
+                remove_upvalue(vm, i);                                            \
+                                                                                  \
+        if (vm->frame_sp <= 0)                                                    \
+            vm_error(vm, "Stack underflow: Attempted to pop from an empty stack"); \
+        Frame *frame = &vm->frames[--vm->frame_sp];                               \
+                                                                                  \
+        while (vm->iter_sp > frame->iters_top)                                    \
+            vm->iter_sp--;                                                        \
+                                                                                  \
+        if (vm->iter_sp != -1)                                                    \
+            iter = vm->iters[vm->iter_sp];                                        \
+                                                                                  \
+        vm->pc = frame->pc;                                                       \
+        vm->bp = frame->bp;                                                       \
+        vm->sp = frame->sp;                                                       \
+        vm->ip = frame->ip;                                                       \
+                                                                                  \
+        if (!frame->is_recursive)                                                 \
+        {                                                                         \
+            vm->globals = frame->globals;                                         \
+            vm->global_cache = frame->global_cache;                               \
+            vm->code = frame->code;                                               \
+            vm->constants = frame->constants;                                     \
+            vm->names = frame->names;                                             \
+            vm->instrs = frame->instrs;                                           \
+            vm->function = (Object *)frame->function;                             \
+        }                                                                         \
+                                                                                  \
+        PUSH(retval);                                                             \
+                                                                                  \
+        code = (uint8_t *)vm->code->data;                                         \
+        constants_data = (Value *)vm->constants->data;                            \
+        length = vm->code->size;                                                  \
+        pc = vm->pc;                                                              \
+        if (!frame->is_recursive)                                                 \
+            function = frame->function;                                           \
+                                                                                  \
+        if (vm->frame_sp < frame_sp)                                              \
+        {                                                                         \
+            if (vm->gc_requested)                                                 \
+                gc_collect(vm);                                                   \
+            return;                                                               \
+        }                                                                         \
+                                                                                  \
+        VM_DISPATCH_SAFE();                                                       \
+    } while (0)
+
     BEGIN_VM_LOOP();
 
 OP_LOAD_CONST:
 {
     int index = (code[pc++] << 8);
     index |= code[pc++];
-    Value constant = ((Value *)vm->constants->data)[index];
-    vm->stack[vm->sp++] = constant;
+    vm->stack[vm->sp++] = constants_data[index];
     VM_DISPATCH_SAFE();
 }
 
@@ -2419,6 +2521,46 @@ OP_LOAD_LOCAL:
     int slot = vm->bp + local;
     if (vm->comp_sp > 0)
         slot = resolve_localSlot(vm, local);
+
+    if (vm->comp_sp == 0)
+    {
+        Value *left = &vm->stack[slot];
+
+        if (pc + 3 < length &&
+            code[pc] == OP_UNARY &&
+            (code[pc + 1] == 5 || code[pc + 1] == 6) &&
+            code[pc + 2] == OP_STORE_LOCAL &&
+            code[pc + 3] == local &&
+            IS_NUM(*left))
+        {
+            left->data.number += code[pc + 1] == 5 ? 1.0 : -1.0;
+            pc += 4;
+            VM_DISPATCH_SAFE();
+        }
+
+        if (pc + 5 < length &&
+            code[pc] == OP_LOAD_LOCAL &&
+            code[pc + 2] == OP_BINARY &&
+            code[pc + 3] == 0 &&
+            code[pc + 4] == OP_STORE_LOCAL &&
+            code[pc + 5] == local)
+        {
+            Value right = vm->stack[vm->bp + code[pc + 1]];
+            if (IS_NUM(*left) && IS_NUM(right))
+            {
+                left->data.number += AS_NUM(right);
+                pc += 6;
+                VM_DISPATCH_SAFE();
+            }
+            if (IS_LIST(*left))
+            {
+                vm_listAppendValue(AS_LIST(*left), right);
+                pc += 6;
+                VM_DISPATCH_SAFE();
+            }
+        }
+    }
+
     vm->stack[vm->sp++] = vm->stack[slot];
     VM_DISPATCH_SAFE();
 }
@@ -2888,52 +3030,7 @@ OP_BINARY:
         if (IS_LIST(left))
         {
             PiList *list = AS_LIST(left);
-            list_t *items = list->items;
-            if (items->size == items->capacity)
-                _list_grow(items);
-            ((Value *)items->data)[items->size++] = right;
-
-            if (list->rows == 1 && list->cols >= 0)
-            {
-                if (!IS_NUM(right))
-                {
-                    list->rows = -1;
-                    list->cols = -1;
-                    list->is_numeric = false;
-                }
-                else
-                    list->cols++;
-            }
-            else if (list->rows > 1 && list->cols > 0)
-            {
-                if (!IS_LIST(right))
-                {
-                    list->rows = -1;
-                    list->cols = -1;
-                    list->is_numeric = false;
-                }
-                else
-                {
-                    PiList *r_list = AS_LIST(right);
-                    if (!r_list->is_numeric || r_list->items->size != (size_t)list->cols)
-                    {
-                        list->rows = -1;
-                        list->cols = -1;
-                        list->is_numeric = false;
-                    }
-                    else
-                        list->rows++;
-                }
-            }
-            else
-            {
-                if (list->items->size == 2 && IS_NUM(right) && IS_NUM(*(Value *)list_getAt(list->items, 0)))
-                {
-                    list->is_numeric = true;
-                    list->rows = 1;
-                    list->cols = 2;
-                }
-            }
+            vm_listAppendValue(list, right);
             push_stack(vm, left);
             break;
         }
@@ -3639,6 +3736,7 @@ OP_CALL_FUNCTION:
             }
 
             code = (uint8_t *)vm->code->data;
+            constants_data = (Value *)vm->constants->data;
             length = vm->code->size;
             pc = vm->pc;
             function = callee_fn;
@@ -4964,7 +5062,7 @@ OP_IMPORT_ALL:
         }
         if (!ht_set(vm->globals, key, value))
             ht_put(vm->globals, key, value);
-            
+
         if (IS_FUN(*value) && AS_FUN(*value)->name && strcmp(AS_FUN(*value)->name, key) == 0)
         {
             AS_FUN(*value)->global_valid = true;
@@ -5002,54 +5100,12 @@ OP_IMPORT_DEFAULT:
 
 OP_RETURN:
 {
-    Value retval = POP();
+    VM_RETURN_WITH(POP());
+}
 
-    if (vm->openUpvalues)
-        for (int i = vm->sp - 1; i >= vm->bp; i--)
-            remove_upvalue(vm, i);
-
-    if (vm->frame_sp <= 0)
-        vm_error(vm, "Stack underflow: Attempted to pop from an empty stack");
-    Frame *frame = &vm->frames[--vm->frame_sp];
-
-    while (vm->iter_sp > frame->iters_top)
-        vm->iter_sp--;
-
-    if (vm->iter_sp != -1)
-        iter = vm->iters[vm->iter_sp];
-
-    vm->pc = frame->pc;
-    vm->bp = frame->bp;
-    vm->sp = frame->sp;
-    vm->ip = frame->ip;
-
-    if (!frame->is_recursive)
-    {
-        vm->globals = frame->globals;
-        vm->global_cache = frame->global_cache;
-        vm->code = frame->code;
-        vm->constants = frame->constants;
-        vm->names = frame->names;
-        vm->instrs = frame->instrs;
-        vm->function = (Object *)frame->function;
-    }
-
-    PUSH(retval);
-
-    code = (uint8_t *)vm->code->data;
-    length = vm->code->size;
-    pc = vm->pc;
-    if (!frame->is_recursive)
-        function = frame->function;
-
-    if (vm->frame_sp < frame_sp)
-    {
-        if (vm->gc_requested)
-            gc_collect(vm);
-        return;
-    }
-
-    VM_DISPATCH_SAFE();
+OP_RETURN_NIL:
+{
+    VM_RETURN_WITH(NEW_NIL());
 }
 
 OP_HALT:

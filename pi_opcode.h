@@ -22,6 +22,7 @@ typedef enum
     OP_LOAD_LOCAL = 0xd,
     OP_JUMP = 0xe,
     OP_JUMP_IF_FALSE = 0xf,
+    OP_RETURN_NIL = 0x10,
     OP_CALL_FUNCTION = 0x11,
     OP_CALL_FUNCTION_KW = 0x12,
     OP_POP_N = 0x13,

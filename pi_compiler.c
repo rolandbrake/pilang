@@ -74,6 +74,7 @@ static const char *op_names[] = {
     [0xd] = "LOAD_LOCAL",
     [0xe] = "JUMP",
     [0xf] = "JUMP_IF_FALSE",
+    [0x10] = "RETURN_NIL",
     [0x11] = "CALL_FUNCTION",
     [0x12] = "CALL_FUNCTION_KW",
     [0x13] = "POP_N",

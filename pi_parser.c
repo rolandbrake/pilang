@@ -58,6 +58,26 @@ static void emit_spreadListLiteral(parser_t *parser);
 static void emit_spreadMapLiteral(parser_t *parser);
 static void emit_classMap(parser_t *parser, const char *class_name);
 static void emit_boundMethodCall(parser_t *parser, const char *receiver, const char *method, int argc);
+
+static void emit_nilReturn(compiler_t *comp)
+{
+    emit(comp, OP_RETURN_NIL);
+}
+
+static void emit_defaultReturn(compiler_t *comp)
+{
+    if (is_constructor(comp))
+    {
+        emit_8u(comp, OP_LOAD_LOCAL, "this", 0);
+        emit(comp, OP_RETURN);
+    }
+    else
+    {
+        emit_nilReturn(comp);
+    }
+}
+
+
 static void emit_listComprehension(parser_t *parser);
 static int emit_literalFill(parser_t *parser, double previous, double endpoint, token_t token);
 
@@ -1387,11 +1407,7 @@ static void emit_spreadMapLiteral(parser_t *parser)
 
             if (match(parser, TK_RBRACE))
             {
-                if (is_constructor(parser->comp))
-                    emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
-                else
-                    emit(parser->comp, OP_PUSH_NIL);
-                emit(parser->comp, OP_RETURN);
+                emit_defaultReturn(parser->comp);
             }
             else
             {
@@ -1400,11 +1416,7 @@ static void emit_spreadMapLiteral(parser_t *parser)
 
                 if (!parser->is_return)
                 {
-                    if (is_constructor(parser->comp))
-                        emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
-                    else
-                        emit(parser->comp, OP_PUSH_NIL);
-                    emit(parser->comp, OP_RETURN);
+                    emit_defaultReturn(parser->comp);
 
                     parser->is_return = false;
                 }
@@ -1466,11 +1478,7 @@ static void emit_classMap(parser_t *parser, const char *class_name)
 
             if (match(parser, TK_RBRACE))
             {
-                if (is_constructor(parser->comp))
-                    emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
-                else
-                    emit(parser->comp, OP_PUSH_NIL);
-                emit(parser->comp, OP_RETURN);
+                emit_defaultReturn(parser->comp);
             }
             else
             {
@@ -1479,11 +1487,7 @@ static void emit_classMap(parser_t *parser, const char *class_name)
 
                 if (!parser->is_return)
                 {
-                    if (is_constructor(parser->comp))
-                        emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
-                    else
-                        emit(parser->comp, OP_PUSH_NIL);
-                    emit(parser->comp, OP_RETURN);
+                    emit_defaultReturn(parser->comp);
                 }
             }
 
@@ -1626,8 +1630,7 @@ static void func_decl(parser_t *parser)
             //  Important: Mark where the implicit return comes from
             token_t rbrace = peek(parser);
             set_pos(parser, rbrace);
-            emit(parser->comp, OP_PUSH_NIL);
-            emit(parser->comp, OP_RETURN);
+            emit_nilReturn(parser->comp);
         }
 
         parser->is_return = false;
@@ -2318,6 +2321,7 @@ static void return_stmt(parser_t *parser)
 {
     token_t tok = previous(parser); // 'return' token
     set_pos(parser, tok);
+    bool emitted_return = false;
 
     if (is_constructor(parser->comp))
     {
@@ -2330,14 +2334,15 @@ static void return_stmt(parser_t *parser)
     {
         if (match(parser, TK_SEMICOLON) || is_lineBreak(parser))
         {
-            int index = store_const(parser->comp, NEW_NIL());
-            emit_16u(parser->comp, OP_LOAD_CONST, "nil", index);
+            emit_nilReturn(parser->comp);
+            emitted_return = true;
         }
         else
             expr(parser); // return with value
     }
 
-    emit(parser->comp, OP_RETURN);
+    if (!emitted_return)
+        emit(parser->comp, OP_RETURN);
     parser->is_return = true;
 
     if (need_delimiter(parser))
@@ -3440,12 +3445,7 @@ static void arrow_func(parser_t *parser)
         {
             set_pos(parser, token);
 
-            if (is_constructor(parser->comp))
-                emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
-            else
-                emit(parser->comp, OP_PUSH_NIL);
-
-            emit(parser->comp, OP_RETURN);
+            emit_defaultReturn(parser->comp);
             parser->is_return = true;
         }
         else
@@ -3460,12 +3460,7 @@ static void arrow_func(parser_t *parser)
 
             set_pos(parser, token);
 
-            if (is_constructor(parser->comp))
-                emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
-            else
-                emit(parser->comp, OP_PUSH_NIL);
-
-            emit(parser->comp, OP_RETURN);
+            emit_defaultReturn(parser->comp);
             parser->is_return = false;
         }
 
@@ -3912,11 +3907,7 @@ static void primary(parser_t *parser)
 
                         if (match(parser, TK_RBRACE))
                         {
-                            if (is_constructor(parser->comp))
-                                emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
-                            else
-                                emit(parser->comp, OP_PUSH_NIL);
-                            emit(parser->comp, OP_RETURN);
+                            emit_defaultReturn(parser->comp);
                         }
                         else
                         {
@@ -3925,11 +3916,7 @@ static void primary(parser_t *parser)
 
                             if (!parser->is_return)
                             {
-                                if (is_constructor(parser->comp))
-                                    emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
-                                else
-                                    emit(parser->comp, OP_PUSH_NIL);
-                                emit(parser->comp, OP_RETURN);
+                                emit_defaultReturn(parser->comp);
                                 parser->is_return = false;
                             }
                         }
@@ -4031,11 +4018,7 @@ static void primary(parser_t *parser)
 
         if (check(parser, TK_RBRACE))
         {
-            if (is_constructor(comp))
-                emit_8u(comp, OP_LOAD_LOCAL, "this", 0);
-            else
-                emit(comp, OP_PUSH_NIL);
-            emit(comp, OP_RETURN);
+            emit_defaultReturn(comp);
             parser->is_return = true;
         }
         else
@@ -4045,11 +4028,7 @@ static void primary(parser_t *parser)
 
             if (!parser->is_return)
             {
-                if (is_constructor(comp))
-                    emit_8u(comp, OP_LOAD_LOCAL, "this", 0);
-                else
-                    emit(comp, OP_PUSH_NIL);
-                emit(comp, OP_RETURN);
+                emit_defaultReturn(comp);
                 parser->is_return = true;
             }
         }
