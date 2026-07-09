@@ -1,6 +1,7 @@
 """Run Pilang's benchmark suite and compare pure execution times (excluding startup/compilation)."""
 
 import argparse
+import math
 import re
 import shutil
 import statistics
@@ -133,8 +134,17 @@ def speedup_color(speedup: float) -> str:
         return Color.GREEN
     if speedup < 0.55:
         return Color.RED
-            
+
     return Color.YELLOW
+
+
+def geometric_mean(values: list[float]) -> float:
+    positive = [value for value in values if value > 0]
+
+    if not positive:
+        return 0.0
+
+    return math.exp(sum(math.log(value) for value in positive) / len(positive))
 
 
 def pilang_comparison(label: str, speedup: float, color: str) -> str:
@@ -204,6 +214,8 @@ def main():
     pilang_totals = []
     python_totals = []
     lua_totals = []
+    python_speedups = []
+    lua_speedups = []
 
     for benchmark in benchmarks:
         python_file = benchmark.with_suffix(".py")
@@ -252,6 +264,8 @@ def main():
 
         python_speedup = python_median / pilang_median
         lua_speedup = lua_median / pilang_median
+        python_speedups.append(python_speedup)
+        lua_speedups.append(lua_speedup)
         python_color = speedup_color(python_speedup)
         lua_color = speedup_color(lua_speedup)
 
@@ -270,31 +284,31 @@ def main():
     python_total = sum(python_totals)
     lua_total = sum(lua_totals)
 
-    if pilang_total == 0:
-        overall_speedup = 0.0
-    else:
-        overall_speedup = python_total / pilang_total
-
-    lua_overall_speedup = 0.0 if pilang_total == 0 else lua_total / pilang_total
+    overall_speedup = geometric_mean(python_speedups)
+    lua_overall_speedup = geometric_mean(lua_speedups)
 
     python_color = speedup_color(overall_speedup)
     lua_color = speedup_color(lua_overall_speedup)
 
     print(
-        f"{Color.BOLD}Pilang total : "
+        f"{Color.BOLD}Pilang sum   : "
         f"{pilang_total:.2f} ms{Color.RESET}"
     )
 
     print(
-        f"{Color.BOLD}Python total : "
+        f"{Color.BOLD}Python sum   : "
         f"{python_total:.2f} ms{Color.RESET}"
     )
 
     print(
-        f"{Color.BOLD}Lua total    : "
+        f"{Color.BOLD}Lua sum      : "
         f"{lua_total:.2f} ms{Color.RESET}"
     )
 
+    print(
+        f"{Color.BOLD}Overall ratios use geometric mean "
+        f"of per-benchmark speedups.{Color.RESET}"
+    )
     print(pilang_comparison("Python", overall_speedup, python_color))
     print(pilang_comparison("Lua", lua_overall_speedup, lua_color))
 

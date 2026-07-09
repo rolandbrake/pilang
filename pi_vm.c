@@ -1153,7 +1153,8 @@ static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
         if (IS_OBJ(*item))
             add_obj(vm, AS_OBJ(*item));
 
-        ht_put(target->table, key, item);
+        if (ht_put(target->table, key, item))
+            map_dirty(target);
         if (IS_FUN(*item))
         {
             if (strcmp(key, "compute") == 0)
@@ -2392,58 +2393,58 @@ void vm_run(vm_t *vm)
     UpValue *upValue;
     Function *function = (Function *)vm->function;
 
-#define VM_RETURN_WITH(value_expr)                                                \
-    do                                                                            \
-    {                                                                             \
-        Value retval = (value_expr);                                              \
-                                                                                  \
-        if (vm->openUpvalues)                                                     \
-            for (int i = vm->sp - 1; i >= vm->bp; i--)                            \
-                remove_upvalue(vm, i);                                            \
-                                                                                  \
-        if (vm->frame_sp <= 0)                                                    \
+#define VM_RETURN_WITH(value_expr)                                                 \
+    do                                                                             \
+    {                                                                              \
+        Value retval = (value_expr);                                               \
+                                                                                   \
+        if (vm->openUpvalues)                                                      \
+            for (int i = vm->sp - 1; i >= vm->bp; i--)                             \
+                remove_upvalue(vm, i);                                             \
+                                                                                   \
+        if (vm->frame_sp <= 0)                                                     \
             vm_error(vm, "Stack underflow: Attempted to pop from an empty stack"); \
-        Frame *frame = &vm->frames[--vm->frame_sp];                               \
-                                                                                  \
-        while (vm->iter_sp > frame->iters_top)                                    \
-            vm->iter_sp--;                                                        \
-                                                                                  \
-        if (vm->iter_sp != -1)                                                    \
-            iter = vm->iters[vm->iter_sp];                                        \
-                                                                                  \
-        vm->pc = frame->pc;                                                       \
-        vm->bp = frame->bp;                                                       \
-        vm->sp = frame->sp;                                                       \
-        vm->ip = frame->ip;                                                       \
-                                                                                  \
-        if (!frame->is_recursive)                                                 \
-        {                                                                         \
-            vm->globals = frame->globals;                                         \
-            vm->global_cache = frame->global_cache;                               \
-            vm->code = frame->code;                                               \
-            vm->constants = frame->constants;                                     \
-            vm->names = frame->names;                                             \
-            vm->instrs = frame->instrs;                                           \
-            vm->function = (Object *)frame->function;                             \
-        }                                                                         \
-                                                                                  \
-        PUSH(retval);                                                             \
-                                                                                  \
-        code = (uint8_t *)vm->code->data;                                         \
-        constants_data = (Value *)vm->constants->data;                            \
-        length = vm->code->size;                                                  \
-        pc = vm->pc;                                                              \
-        if (!frame->is_recursive)                                                 \
-            function = frame->function;                                           \
-                                                                                  \
-        if (vm->frame_sp < frame_sp)                                              \
-        {                                                                         \
-            if (vm->gc_requested)                                                 \
-                gc_collect(vm);                                                   \
-            return;                                                               \
-        }                                                                         \
-                                                                                  \
-        VM_DISPATCH_SAFE();                                                       \
+        Frame *frame = &vm->frames[--vm->frame_sp];                                \
+                                                                                   \
+        while (vm->iter_sp > frame->iters_top)                                     \
+            vm->iter_sp--;                                                         \
+                                                                                   \
+        if (vm->iter_sp != -1)                                                     \
+            iter = vm->iters[vm->iter_sp];                                         \
+                                                                                   \
+        vm->pc = frame->pc;                                                        \
+        vm->bp = frame->bp;                                                        \
+        vm->sp = frame->sp;                                                        \
+        vm->ip = frame->ip;                                                        \
+                                                                                   \
+        if (!frame->is_recursive)                                                  \
+        {                                                                          \
+            vm->globals = frame->globals;                                          \
+            vm->global_cache = frame->global_cache;                                \
+            vm->code = frame->code;                                                \
+            vm->constants = frame->constants;                                      \
+            vm->names = frame->names;                                              \
+            vm->instrs = frame->instrs;                                            \
+            vm->function = (Object *)frame->function;                              \
+        }                                                                          \
+                                                                                   \
+        PUSH(retval);                                                              \
+                                                                                   \
+        code = (uint8_t *)vm->code->data;                                          \
+        constants_data = (Value *)vm->constants->data;                             \
+        length = vm->code->size;                                                   \
+        pc = vm->pc;                                                               \
+        if (!frame->is_recursive)                                                  \
+            function = frame->function;                                            \
+                                                                                   \
+        if (vm->frame_sp < frame_sp)                                               \
+        {                                                                          \
+            if (vm->gc_requested)                                                  \
+                gc_collect(vm);                                                    \
+            return;                                                                \
+        }                                                                          \
+                                                                                   \
+        VM_DISPATCH_SAFE();                                                        \
     } while (0)
 
     BEGIN_VM_LOOP();
@@ -4332,7 +4333,8 @@ OP_MAP_SET:
     if (!IS_STRING(key))
         vm_error(vm, "Map literal keys must be strings.");
     PiMap *map = AS_MAP(peek_stack(vm));
-    ht_put(map->table, AS_CSTRING(key), &value);
+    if (ht_put(map->table, AS_CSTRING(key), &value))
+        map_dirty(map);
     if (IS_FUN(value))
     {
         if (strcmp(AS_CSTRING(key), "compute") == 0)
@@ -4544,20 +4546,18 @@ OP_GET_MEMBER:
         if (bracket_access && IS_STRING(index) && !map->bracket_access)
             vm_error(vm, "Bracket member access is disabled for this object.");
 
-        if (!bracket_access && IS_STRING(index) && !map->super_instance &&
-            map->last_member_key == AS_OBJ(index) &&
-            IS_FUN(map->last_bound_method) &&
-            AS_FUN(map->last_bound_method)->instance == AS_OBJ(container))
-        {
-            vm->stack[vm->sp - 1] = map->last_bound_method;
-            break;
-        }
-
         PiMap *owner = map_owner(map, index);
         Value item = NEW_NIL();
         if (owner)
         {
-            if (IS_STRING(index))
+            if (IS_STRING(index) &&
+                map->_key == AS_OBJ(index) &&
+                map->owner == owner &&
+                owner->version == map->owner_version)
+            {
+                item = map->_value;
+            }
+            else if (IS_STRING(index))
             {
                 Value *val = ht_get(owner->table, AS_CSTRING(index));
                 if (val)
@@ -4567,40 +4567,58 @@ OP_GET_MEMBER:
                 item = map_get(owner, index);
         }
 
-        bool bind_object_method = owner != NULL && IS_FUN(item) && owner == vm->object_proto;
+        bool bind_object_method = owner != NULL && IS_FUN(item) &&
+                                  owner == vm->object_proto;
+
         if ((map->is_instance && owner != NULL && IS_FUN(item)) || bind_object_method)
         {
-            Object *target = map->super_instance ? map->super_instance : AS_OBJ(container);
-            bool cacheable_bound_method = owner != map;
-            PiMap *cache = cacheable_bound_method && target->type == OBJ_MAP ? (PiMap *)target : NULL;
-            Value *cached = (cache && cache->last_bound_source == AS_OBJ(item) &&
-                             IS_FUN(cache->last_bound_method) &&
-                             AS_FUN(cache->last_bound_method)->instance == target)
-                                ? &cache->last_bound_method
-                            : (cache && IS_STRING(index) && cache->bound_methods)
-                                ? ht_get(cache->bound_methods, AS_CSTRING(index))
-                                : NULL;
+            Object *target = map->super_instance
+                                 ? map->super_instance
+                                 : AS_OBJ(container);
 
-            if (cached && IS_FUN(*cached) &&
-                AS_FUN(*cached)->bound_source == AS_OBJ(item) &&
-                AS_FUN(*cached)->instance == target)
-                item = *cached;
-            else
+            /*
+             * Caching is only worthwhile when:
+             *   - the key is a compiled string constant (pointer-stable)
+             *   - the method lives on a prototype, not the instance itself
+             *     (owner != map means we walked the chain at least one step)
+             *   - the target is a PiMap we can attach a BoundCache to
+             *
+             * Dynamic string keys (obj["m1"+"m2"]) always miss the cache and
+             * fall through to bind() directly — correct but uncached.
+             */
+            bool cacheable = IS_STRING(index) &&
+                             owner != map &&
+                             target->type == OBJ_MAP;
+
+            if (cacheable)
             {
-                item = bind(vm, AS_FUN(item), target);
-                if (cache && IS_STRING(index))
+                PiMap *instance_cache = (PiMap *)target;
+                Object *key_obj = AS_OBJ(index);         // stable PiString pointer
+                uint32_t mhash = AS_STRING(index)->hash; // already computed at parse time
+
+                Value cached = get_boundCache(instance_cache, mhash, key_obj, owner);
+
+                if (IS_FUN(cached))
                 {
-                    if (!cache->bound_methods)
-                        cache->bound_methods = ht_create(sizeof(Value));
-                    ht_put(cache->bound_methods, AS_CSTRING(index), &item);
+                    // Cache hit:
+                    // bind() was called at some earlier point; reuse the result.
+                    // No allocation, no hash table, no prototype walk.
+                    item = cached;
+                }
+                else
+                {
+                    // bind() allocates a new Function on the GC heap.
+                    // We store it so the next access to the same method on the
+                    // same instance is free.
+                    item = bind(vm, AS_FUN(item), target);
+                    put_boundCache(instance_cache, mhash, key_obj, owner, item);
                 }
             }
-
-            if (cache)
+            else
             {
-                cache->last_bound_source = AS_OBJ(item)->type == OBJ_FUN ? AS_FUN(item)->bound_source : NULL;
-                cache->last_bound_method = item;
-                cache->last_member_key = IS_STRING(index) ? AS_OBJ(index) : NULL;
+                // Not cacheable: super call, bracket access with dynamic key,
+                // or method defined directly on the instance map itself.
+                item = bind(vm, AS_FUN(item), target);
             }
         }
 
@@ -4830,10 +4848,16 @@ OP_SET_MEMBER:
             vm_error(vm, "Bracket member access is disabled for this object.");
         if (map->is_instance)
         {
-            char *key = as_string(index);
+            char *owned_key = NULL;
+            const char *key = IS_STRING(index) ? AS_CSTRING(index) : (owned_key = as_string(index));
             if (!ht_set(map->table, key, &value))
-                ht_put(map->table, key, &value);
-            free(key);
+            {
+                if (ht_put(map->table, key, &value))
+                    map_dirty(map);
+            }
+            else
+                map_dirty(map);
+            free(owned_key);
         }
         else
         {

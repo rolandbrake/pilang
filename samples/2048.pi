@@ -1,0 +1,381 @@
+import random
+import io
+
+const SIZE = 4
+const LAST = 3
+
+fun make_board() {
+    let board = []
+
+    for y in 0..SIZE {
+        let row = []
+        for x in 0..SIZE
+            row.push(0)
+        board.push(row)
+    }
+
+    return board
+}
+
+fun empty_cells(board) {
+    let cells = []
+
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            if (board[y][x] == 0)
+                cells.push([x, y])
+        }
+    }
+
+    return cells
+}
+
+fun add_random_tile(board) {
+    let cells = empty_cells(board)
+
+    if (#cells == 0)
+        return false
+
+    let max_index = #cells - 1
+    let index = random.randint(0, max_index)
+    let cell = cells[index]
+
+    let value = 2
+    if (random.randint(1, 10) == 10)
+        value = 4
+
+    let x = cell[0]
+    let y = cell[1]
+
+    board[y][x] = value
+    return true
+}
+
+fun copy_board(board) {
+    let result = []
+
+    for y in 0..SIZE {
+        let row = []
+        for x in 0..SIZE
+            row.push(board[y][x])
+        result.push(row)
+    }
+
+    return result
+}
+
+fun boards_equal(a, b) {
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            if (a[y][x] != b[y][x])
+                return false
+        }
+    }
+
+    return true
+}
+
+fun print_cell(value) {
+    if (value == 0) {
+        printf("    ")
+    } elif (value == 2) {
+        printf("{0:fg:cyan bold}", "   2")
+    } elif (value == 4) {
+        printf("{0:fg:blue bold}", "   4")
+    } elif (value == 8) {
+        printf("{0:fg:green bold}", "   8")
+    } elif (value == 16) {
+        printf("{0:fg:yellow bold}", "  16")
+    } elif (value == 32) {
+        printf("{0:fg:magenta bold}", "  32")
+    } elif (value == 64) {
+        printf("{0:fg:red bold}", "  64")
+    } elif (value == 128) {
+        printf("{0:fg:cyan bold}", " 128")
+    } elif (value == 256) {
+        printf("{0:fg:blue bold}", " 256")
+    } elif (value == 512) {
+        printf("{0:fg:green bold}", " 512")
+    } elif (value == 1024) {
+        printf("{0:fg:yellow bold}", "1024")
+    } elif (value == 2048) {
+        printf("{0:fg:red bold}", "2048")
+    } else {
+        printf("{0:fg:white bold}", "####")
+    }
+}
+
+fun print_border() {
+    printf("+")
+    for i in 0..SIZE
+        printf("----+")
+    printf("\n")
+}
+
+fun render(board, score, moves) {
+    io.pos(0, 0)
+
+    printf("{0:fg:cyan bold}  {1:fg:white} {2:d}  {3:fg:white} {4:d}\n",
+        "2048", "score", score, "moves", moves)
+
+    printf("{0:fg:yellow} {1}\n",
+        "controls:",
+        "w/up | s/down | a/left | d/right | q quit")
+
+    print_border()
+
+    for y in 0..SIZE {
+        printf("|")
+
+        for x in 0..SIZE {
+            print_cell(board[y][x])
+            printf("|")
+        }
+
+        printf("\n")
+        print_border()
+    }
+}
+
+fun compress_line(line) {
+    let result = []
+
+    for i in 0..SIZE {
+        if (line[i] != 0)
+            result.push(line[i])
+    }
+
+    while (#result < SIZE)
+        result.push(0)
+
+    return result
+}
+
+fun merge_line(line) {
+    let result = compress_line(line)
+    let gained = 0
+    let i = 0
+
+    while (i < LAST) {
+        let next = i + 1
+
+        if (result[i] != 0 && result[i] == result[next]) {
+            result[i] *= 2
+            gained += result[i]
+            result[next] = 0
+        }
+
+        i++
+    }
+
+    result = compress_line(result)
+
+    return {
+        line: result,
+        score: gained
+    }
+}
+
+fun reverse_line(line) {
+    let result = []
+
+    let i = LAST
+    while (i >= 0) {
+        result.push(line[i])
+        i--
+    }
+
+    return result
+}
+
+fun move_left(board) {
+    let gained = 0
+
+    for y in 0..SIZE {
+        let merged = merge_line(board[y])
+        board[y] = merged.line
+        gained += merged.score
+    }
+
+    return gained
+}
+
+fun move_right(board) {
+    let gained = 0
+
+    for y in 0..SIZE {
+        let reversed = reverse_line(board[y])
+        let merged = merge_line(reversed)
+        let final_line = reverse_line(merged.line)
+
+        board[y] = final_line
+        gained += merged.score
+    }
+
+    return gained
+}
+
+fun get_column(board, x) {
+    let col = []
+
+    for y in 0..SIZE
+        col.push(board[y][x])
+
+    return col
+}
+
+fun set_column(board, x, col) {
+    for y in 0..SIZE
+        board[y][x] = col[y]
+}
+
+fun move_up(board) {
+    let gained = 0
+
+    for x in 0..SIZE {
+        let col = get_column(board, x)
+        let merged = merge_line(col)
+
+        set_column(board, x, merged.line)
+        gained += merged.score
+    }
+
+    return gained
+}
+
+fun move_down(board) {
+    let gained = 0
+
+    for x in 0..SIZE {
+        let col = get_column(board, x)
+        let reversed = reverse_line(col)
+        let merged = merge_line(reversed)
+        let final_col = reverse_line(merged.line)
+
+        set_column(board, x, final_col)
+        gained += merged.score
+    }
+
+    return gained
+}
+
+fun has_won(board) {
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            if (board[y][x] >= 2048)
+                return true
+        }
+    }
+
+    return false
+}
+
+fun has_moves(board) {
+    if (#empty_cells(board) > 0)
+        return true
+
+    for y in 0..SIZE {
+        for x in 0..SIZE {
+            let value = board[y][x]
+
+            if (x < LAST) {
+                let nx = x + 1
+                if (board[y][nx] == value)
+                    return true
+            }
+
+            if (y < LAST) {
+                let ny = y + 1
+                if (board[ny][x] == value)
+                    return true
+            }
+        }
+    }
+
+    return false
+}
+
+fun apply_move(board, command) {
+    if (command == "a" || command == "left")
+        return move_left(board)
+
+    if (command == "d" || command == "right")
+        return move_right(board)
+
+    if (command == "w" || command == "up")
+        return move_up(board)
+
+    if (command == "s" || command == "down")
+        return move_down(board)
+
+    return -1
+}
+
+fun play() {
+    random.seed(time())
+    io.clear()
+    io.cursor(false)
+
+    let board = make_board()
+    let score = 0
+    let moves = 0
+    let running = true
+    let quit = false
+    let won = false
+    let dirty = true
+
+    add_random_tile(board)
+    add_random_tile(board)
+
+    while (running) {
+        if (dirty) {
+            render(board, score, moves)
+            dirty = false
+        }
+
+        let command = io.key(50)
+
+        if (command != nil) {
+            command = lower(command)
+
+            if (command == "q" || command == "quit") {
+                quit = true
+                running = false
+            } else {
+                let before = copy_board(board)
+                let gained = apply_move(board, command)
+
+                if (gained >= 0 && !boards_equal(before, board)) {
+                    score += gained
+                    moves++
+
+                    add_random_tile(board)
+
+                    if (has_won(board))
+                        won = true
+
+                    if (!has_moves(board))
+                        running = false
+
+                    dirty = true
+                }
+            }
+        }
+    }
+
+    render(board, score, moves)
+    io.cursor(true)
+
+    if (quit) {
+        printf("{0:fg:yellow bold} {1:fg:white} {2:d}\n",
+            "QUIT", "score", score)
+    } elif (won) {
+        printf("{0:fg:green bold} {1:fg:white} {2:d}\n",
+            "YOU WIN!", "score", score)
+    } else {
+        printf("{0:fg:red bold} {1:fg:white} {2:d}\n",
+            "GAME OVER", "score", score)
+    }
+}
+
+play()

@@ -1035,6 +1035,25 @@ char *as_stringWithFormat(vm_t *vm, Value val)
             return sb_finish(&sb);
         }
 
+        case OBJ_CLASS:
+        {
+            PiClass *_class = AS_CLASS(val);
+            char *result = malloc(256);
+            snprintf(result, 256, "<class %s>", _class->name ? _class->name : "<anonymous>");
+            return result;
+        }
+
+        case OBJ_INSTANCE:
+        {
+            PiInstance *instance = AS_INSTANCE(val);
+            char *result = malloc(256);
+            const char *name = instance->_class && instance->_class->name
+                                   ? instance->_class->name
+                                   : "<anonymous>";
+            snprintf(result, 256, "<instance %s>", name);
+            return result;
+        }
+
         case OBJ_SET:
         {
             PiSet *set = AS_SET(val);
@@ -1405,6 +1424,10 @@ char *type_name(Value val)
                 return map->intrinsic_name ? map->intrinsic_name : "object";
             return "map";
         }
+        case OBJ_CLASS:
+            return "class";
+        case OBJ_INSTANCE:
+            return "instance";
         case OBJ_SET:
             return "set";
         case OBJ_TUPLE:

@@ -1,0 +1,69 @@
+// Binary tree allocation, member access, recursion, and traversal.
+class Node {
+    constructor(item, left, right) {
+        this.item = item
+        this.left = left
+        this.right = right
+    }
+}
+
+fun make_tree(item, depth) {
+    if depth <= 0 {
+        return Node(item, nil, nil)
+    }
+
+    return Node(
+        item,
+        make_tree(item * 2 - 1, depth - 1),
+        make_tree(item * 2, depth - 1)
+    )
+}
+
+fun check_tree(node) {
+    if node.left == nil {
+        return node.item
+    }
+
+    return node.item + check_tree(node.left) - check_tree(node.right)
+}
+
+fun iteration_count(max_depth, depth, min_depth) {
+    let count = 1
+    let repeat = max_depth - depth + min_depth
+
+    while repeat > 0 {
+        count *= 2
+        repeat--
+    }
+
+    return count
+}
+
+fun main() {
+    let min_depth = 4
+    let max_depth = 10
+
+    let t0 = time()
+    let stretch = make_tree(0, max_depth + 1)
+    let total = check_tree(stretch)
+    let long_lived = make_tree(0, max_depth)
+    let depth = min_depth
+
+    while depth <= max_depth {
+        let iterations = iteration_count(max_depth, depth, min_depth)
+        let i = 1
+
+        while i <= iterations {
+            total += check_tree(make_tree(i, depth))
+            total += check_tree(make_tree(-i, depth))
+            i++
+        }
+
+        depth += 2
+    }
+
+    total += check_tree(long_lived)
+    println(time() - t0)
+}
+
+main()

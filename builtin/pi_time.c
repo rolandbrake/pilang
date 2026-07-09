@@ -42,8 +42,8 @@ static Value time_string(vm_t *vm, const char *text)
 
 static void map_putValue(PiMap *map, const char *key, Value value)
 {
-    if (!ht_set(map->table, key, &value))
-        ht_put(map->table, key, &value);
+    if (ht_set(map->table, key, &value) || ht_put(map->table, key, &value))
+        map_dirty(map);
 }
 
 static Value map_getValue(PiMap *map, const char *key, Value fallback)

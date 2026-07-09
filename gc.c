@@ -2,6 +2,7 @@
 #include "pi_list.h"
 #include "pi_func.h"
 #include "pi_module.h"
+#include "pi_class.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -174,34 +175,50 @@ static void mark_references(Object *obj)
             mark_object((Object *)map->proto);
         if (map->super_instance)
             mark_object(map->super_instance);
-        if (map->last_bound_source)
-            mark_object(map->last_bound_source);
-        if (map->last_member_key)
-            mark_object(map->last_member_key);
-        mark_value(map->last_bound_method);
+        if (map->_key)
+            mark_object(map->_key);
+        if (map->owner)
+            mark_object((Object *)map->owner);
+        mark_value(map->_value);
 
         table_t *table = map->table;
-        if (!table)
-            break;
-
-        for (int i = 0; i < table->capacity; i++)
+        if (table)
         {
-            ht_item *item = &table->items[i];
-            if (!item->key || !item->value)
-                continue;
+            for (int i = 0; i < table->capacity; i++)
+            {
+                ht_item *item = &table->items[i];
+                if (!item->key || !item->value)
+                    continue;
 
-            Value *val = (Value *)item->value;
-            if (val && IS_OBJ(*val))
-                mark_object(AS_OBJ(*val));
+                Value *val = (Value *)item->value;
+                if (val)
+                    mark_value(*val);
+            }
         }
 
-        table = map->bound_methods;
-        if (table)
-            for (int i = 0; i < table->capacity; i++)
-                if (table->items[i].key != NULL && table->items[i].value != NULL)
-                    mark_value(*(Value *)table->items[i].value);
+        if (map->bound_cache)
+        {
+            for (int i = 0; i < BOUND_CACHE_SIZE; i++)
+            {
+                BoundCache *entry = &map->bound_cache[i];
+                if (!entry->proto)
+                    continue;
+
+                mark_object(entry->key);
+                mark_object((Object *)entry->proto);
+                mark_value(entry->bound_fn);
+            }
+        }
         break;
     }
+
+    case OBJ_CLASS:
+        mark_class((PiClass *)obj);
+        break;
+
+    case OBJ_INSTANCE:
+        mark_instance((PiInstance *)obj);
+        break;
 
     case OBJ_SET:
     {
@@ -422,10 +439,17 @@ void free_object(Object *obj)
         if (map->intrinsic_name)
             free(map->intrinsic_name);
         ht_free(map->table);
-        if (map->bound_methods)
-            ht_free(map->bound_methods);
+        free(map->bound_cache);
         break;
     }
+
+    case OBJ_CLASS:
+        free_class((PiClass *)obj);
+        break;
+
+    case OBJ_INSTANCE:
+        free_instance((PiInstance *)obj);
+        break;
 
     case OBJ_SET:
     {

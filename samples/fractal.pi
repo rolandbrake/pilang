@@ -1,0 +1,71 @@
+import math
+
+const WIDTH = 96
+const HEIGHT = 25
+const MAX_ITER = 32
+const PIXEL = "O"    // Use "@", "#", "■", or "●" if preferred
+
+fun mandelbrot(cx, cy) {
+    let x = 0
+    let y = 0
+    let iter = 0
+
+    while (iter < MAX_ITER && x * x + y * y <= 4) {
+        let xx = x * x - y * y + cx
+        let yy = 2 * x * y + cy
+        x = xx
+        y = yy
+        iter++
+    }
+
+    return iter
+}
+
+fun print_pixel(iter) {
+    if (iter == MAX_ITER) {
+        printf("{0:fg:white bold}", PIXEL)
+    } elif (iter < 3) {
+        printf("{0:fg:blue bold}", PIXEL)
+    } elif (iter < 6) {
+        printf("{0:fg:cyan bold}", PIXEL)
+    } elif (iter < 10) {
+        printf("{0:fg:green bold}", PIXEL)
+    } elif (iter < 15) {
+        printf("{0:fg:yellow bold}", PIXEL)
+    } elif (iter < 22) {
+        printf("{0:fg:magenta bold}", PIXEL)
+    } else {
+        printf("{0:fg:red bold}", PIXEL)
+    }
+}
+
+for (yPixel in 0..HEIGHT) {
+    let cy = (yPixel / (HEIGHT / 2)) - 1
+
+    for (xPixel in 0..WIDTH) {
+        let cx = (xPixel / (WIDTH / 3.1)) - 2.25
+        let iter = mandelbrot(cx, cy)
+        print_pixel(iter)
+    }
+
+    println()
+}
+
+// for (yPixel in 0..24) {
+//   let y = yPixel / 12 - 1
+//   for (xPixel in 0..80) {
+//     let x = xPixel / 30 - 2
+//     let x0 = x
+//     let y0 = y
+//     let iter = 0
+//     while (iter < 11 && x0 * x0 + y0 * y0 <= 4) {
+//       let x1 = (x0 * x0) - (y0 * y0) + x
+//       let y1 = 2 * x0 * y0 + y
+//       x0 = x1
+//       y0 = y1
+//       iter = iter + 1
+//     }
+//     print(" .-:;+=xX$& "[iter])
+//   }
+//   println()
+// }

@@ -4,7 +4,7 @@
 #include "pi_object.h"
 #include "common.h"
 
-#define CREATE_OBJ(obj, type) (obj *)create_obj(sizeof(obj), type)
+#define CREATE_OBJ(obj, type) (obj *)alloc_object(sizeof(obj), type)
 
 typedef struct
 {
@@ -24,7 +24,7 @@ typedef struct set_table
 /* Monotonically increasing runtime object identifier. */
 static uint64_t _ID = 1;
 
-static Object *create_obj(size_t size, o_type type)
+Object *alloc_object(size_t size, o_type type)
 {
     Object *obj = (Object *)malloc(size);
     if (!obj)
@@ -250,10 +250,12 @@ Object *new_map(table_t *table, bool is_instance)
 {
     PiMap *map = CREATE_OBJ(PiMap, OBJ_MAP);
     map->table = table;
-    map->bound_methods = NULL;
-    map->last_bound_source = NULL;
-    map->last_bound_method = NEW_NIL();
-    map->last_member_key = NULL;
+    map->bound_cache = NULL; // allocated lazily; plain dicts never touch this
+    map->_key = NULL;
+    map->_value = NEW_NIL();
+    map->version = 0;
+    map->owner_version = 0;
+    map->owner = NULL;
     map->intrinsic_name = NULL;
     map->locked = false;
     map->bracket_access = true;
@@ -517,14 +519,51 @@ static inline const char *map_keyChars(Value key, char **owned_out)
     return *owned_out;
 }
 
+static inline bool map_cacheHit(PiMap *map, Value key)
+{
+    return IS_STRING(key) &&
+           map->_key == AS_OBJ(key) &&
+           map->owner != NULL &&
+           map->owner->version == map->owner_version;
+}
+
+static inline void map_cacheStore(PiMap *map, Value key, PiMap *owner, Value value)
+{
+    if (!IS_STRING(key) || owner == NULL)
+        return;
+
+    map->_key = AS_OBJ(key);
+    map->_value = value;
+    map->owner = owner;
+    map->owner_version = owner->version;
+}
+
+void map_dirty(PiMap *map)
+{
+    if (!map)
+        return;
+
+    map->version++;
+    map->_key = NULL;
+    map->_value = NEW_NIL();
+    map->owner = NULL;
+    map->owner_version = 0;
+}
+
 Value map_get(PiMap *map, Value key)
 {
+    if (map_cacheHit(map, key))
+        return map->_value;
+
     char *owned;
     const char *key_str = map_keyChars(key, &owned);
     PiMap *owner = map_findOwner(map, key_str);
     void *item = owner ? ht_get(owner->table, key_str) : NULL;
+    Value value = item ? *(Value *)item : NEW_NIL();
+    if (item)
+        map_cacheStore(map, key, owner, value);
     free(owned);
-    return item ? *(Value *)item : NEW_NIL();
+    return value;
 }
 
 Value map_getValueByKey(PiMap *map, const char *key)
@@ -553,11 +592,7 @@ bool map_delete(PiMap *map, Value key)
     {
         removed = ht_delete(owner->table, key_str);
         if (removed)
-        {
-            owner->last_bound_source = NULL;
-            owner->last_bound_method = NEW_NIL();
-            owner->last_member_key = NULL;
-        }
+            map_dirty(owner);
     }
     free(owned);
     return removed;
@@ -572,12 +607,11 @@ void map_set(PiMap *map, Value key, Value value)
     if (owner == NULL)
         owner = map;
 
-    if (!ht_set(owner->table, key_str, &value) && !owner->locked)
-        ht_put(owner->table, key_str, &value);
-
-    owner->last_bound_source = NULL;
-    owner->last_bound_method = NEW_NIL();
-    owner->last_member_key = NULL;
+    bool changed = ht_set(owner->table, key_str, &value);
+    if (!changed && !owner->locked)
+        changed = ht_put(owner->table, key_str, &value);
+    if (changed)
+        map_dirty(owner);
 
     if (IS_FUN(value))
     {
@@ -592,9 +626,18 @@ void map_set(PiMap *map, Value key, Value value)
 
 PiMap *map_owner(PiMap *map, Value key)
 {
+    if (map_cacheHit(map, key))
+        return map->owner;
+
     char *owned;
     const char *key_str = map_keyChars(key, &owned);
     PiMap *owner = map_findOwner(map, key_str);
+    if (owner)
+    {
+        Value *item = ht_get(owner->table, key_str);
+        if (item)
+            map_cacheStore(map, key, owner, *item);
+    }
     free(owned);
     return owner;
 }

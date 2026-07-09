@@ -40,8 +40,8 @@ static Value state_get(vm_t *vm, PiMap *state, const char *key, const Value fall
 
 static void state_set(PiMap *state, const char *key, Value value)
 {
-    if (!ht_set(state->table, key, &value))
-        ht_put(state->table, key, &value);
+    if (ht_set(state->table, key, &value) || ht_put(state->table, key, &value))
+        map_dirty(state);
 }
 
 // Native wrapper callbacks recover their closure state from the currently executing function.

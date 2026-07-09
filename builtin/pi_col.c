@@ -231,7 +231,8 @@ Value pi_remove(vm_t *vm, int argc, Value *argv)
     {
         PiMap *map = AS_MAP(collection);
         char *key = as_string(argv[1]);
-        ht_delete(map->table, key);
+        if (ht_delete(map->table, key))
+            map_dirty(map);
         free(key);
         return collection;
     }

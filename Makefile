@@ -27,6 +27,7 @@ CORE_SRCS := \
 	pi_string.c \
 	pi_value.c \
 	pi_object.c \
+	pi_class.c \
 	pi_compiler.c \
 	pi_parser.c \
 	pi_vm.c \

@@ -28,6 +28,8 @@ typedef struct SDL_Rect
 #define IS_TENSOR(o) IS_OBJ_TYPE(o, OBJ_TENSOR)
 #define IS_NUM_LIST(o) (IS_LIST(o) && AS_LIST(o)->is_numeric)
 #define IS_MAP(o) IS_OBJ_TYPE(o, OBJ_MAP)
+#define IS_CLASS(o) IS_OBJ_TYPE(o, OBJ_CLASS)
+#define IS_INSTANCE(o) IS_OBJ_TYPE(o, OBJ_INSTANCE)
 #define IS_OBJECT(o) (IS_MAP(o) && AS_MAP(o)->proto != NULL)
 #define IS_MODULE(o) IS_OBJ_TYPE(o, OBJ_MODULE)
 #define IS_FUN(o) IS_OBJ_TYPE(o, OBJ_FUN)
@@ -52,6 +54,8 @@ typedef struct SDL_Rect
 #define AS_LIST(o) ((PiList *)AS_OBJ(o))
 #define AS_TENSOR(o) ((PiTensor *)AS_OBJ(o))
 #define AS_MAP(o) ((PiMap *)AS_OBJ(o))
+#define AS_CLASS(o) ((PiClass *)AS_OBJ(o))
+#define AS_INSTANCE(o) ((PiInstance *)AS_OBJ(o))
 #define AS_MODULE(o) ((ObjModule *)AS_OBJ(o))
 #define AS_RANGE(o) ((PiRange *)AS_OBJ(o))
 #define AS_SLICE(o) ((PiSlice *)AS_OBJ(o))
@@ -85,6 +89,8 @@ typedef enum
     OBJ_LIST,
     OBJ_TENSOR,
     OBJ_MAP,
+    OBJ_CLASS,
+    OBJ_INSTANCE,
     OBJ_SET,
     OBJ_TUPLE,
     OBJ_MODULE,
@@ -106,6 +112,9 @@ typedef enum
 } o_type;
 
 typedef struct ObjModule ObjModule;
+typedef struct PiMap PiMap;
+typedef struct PiClass PiClass;
+typedef struct PiInstance PiInstance;
 
 typedef enum
 {
@@ -214,10 +223,10 @@ typedef struct
     Object object; // Object header
     union
     {
-        float *f32;   /* TN_FLOAT32 — 32-bit IEEE float                  */
-        double *f64;  /* TN_FLOAT64 — 64-bit IEEE double                 */
-        int32_t *i32; /* TN_INT32   — 32-bit signed integer              */
-        int64_t *i64; /* TN_INT64   — 64-bit signed integer              */
+        float *f32;   /* TN_FLOAT32 - 32-bit IEEE float                  */
+        double *f64;  /* TN_FLOAT64 - 64-bit IEEE double                 */
+        int32_t *i32; /* TN_INT32   - 32-bit signed integer              */
+        int64_t *i64; /* TN_INT64   - 64-bit signed integer              */
         void *raw;    /* untyped pointer used for float casts in getFlat */
 
     } data; // union for different data types
@@ -232,17 +241,65 @@ typedef struct
     int current;  // Iterator state along the first dimension
 } PiTensor;
 
+struct PiClass
+{
+    Object object;
+    char *name;
+
+    table_t *methods; // instance methods
+    table_t *static_fields;
+
+    table_t *slots; // instance field name -> slot index
+    int slot_count;
+
+    PiClass *super;
+
+};
+
+struct PiInstance
+{
+    Object object;
+
+    PiClass *_class;
+
+    Value *slots; // fast instance fields
+    bool *slot_used;
+    int slot_capacity;
+
+    table_t *fields; // optional dynamic fallback
+
+};
+
+#define BOUND_CACHE_SIZE 8
+
+typedef struct
+{
+    uint32_t key_hash;      // fast pre-filter, avoids most strcmp
+    Object *key;            // bound key
+    PiMap *proto;           // which prototype this method came from
+    uint64_t proto_version; // proto->version at cache time, detects structural change
+    Value bound_fn;         // the already-bound Function value
+} BoundCache;
+
 typedef struct PiMap
 {
     Object object;
     table_t *table;
     // Lazily-created cache of bound prototype methods.  Keeping it separate
     // from `table` prevents method caching from changing visible properties.
-    table_t *bound_methods;
-    // Most hot loops repeatedly call one method; avoid a second hash lookup.
-    Object *last_bound_source;
-    Value last_bound_method;
-    Object *last_member_key;
+    // table_t *bound_methods;
+    BoundCache *bound_cache; // NULL for plain dicts, allocated on first method call for instances
+
+    // chached current key-value pair for iteration
+    Object *_key;
+    Value _value;
+
+    // map version number for detecting modifications during iteration
+    uint64_t version;
+
+    // owner version number for detecting modifications in the owner map during iteration
+    uint64_t owner_version;
+    struct PiMap *owner;
 
     char *intrinsic_name;
 
@@ -424,6 +481,7 @@ typedef struct PiChart3D
 } PiChart3D;
 
 uint32_t string_hash(char *chars, size_t length);
+Object *alloc_object(size_t size, o_type type);
 Object *new_pistring(char *str);
 PiString *copy_pistring(char *chars, int length);
 
@@ -440,6 +498,49 @@ Object *tensor_rowAsList(PiTensor *tensor, int row);
 
 Object *new_map(table_t *table, bool is_instance);
 
+static inline Value get_boundCache(PiMap *instance,
+                                   uint32_t key_hash,
+                                   Object *key,
+                                   PiMap *proto)
+{
+    BoundCache *cache = instance->bound_cache;
+    if (!cache)
+        return NEW_NIL();
+
+    for (int i = 0; i < BOUND_CACHE_SIZE; i++)
+    {
+        if (cache[i].proto == proto &&
+            cache[i].key_hash == key_hash &&
+            cache[i].proto_version == proto->version &&
+            cache[i].key == key)
+        {
+            return cache[i].bound_fn;
+        }
+    }
+    return NEW_NIL();
+}
+
+static inline void put_boundCache(PiMap *instance,
+                                  uint32_t key_hash,
+                                  Object *key,
+                                  PiMap *proto,
+                                  Value bound_fn)
+{
+    if (!instance->bound_cache)
+    {
+        instance->bound_cache = calloc(BOUND_CACHE_SIZE, sizeof(BoundCache));
+        if (!instance->bound_cache)
+            return; // allocation failure: silently skip caching, correctness unaffected
+    }
+
+    int slot = (int)(key_hash & (BOUND_CACHE_SIZE - 1));
+    instance->bound_cache[slot].key_hash = key_hash;
+    instance->bound_cache[slot].key = key;
+    instance->bound_cache[slot].proto = proto;
+    instance->bound_cache[slot].proto_version = proto->version;
+    instance->bound_cache[slot].bound_fn = bound_fn;
+}
+
 Object *new_set(void);                    // Create empty set
 bool set_add(PiSet *set, Value value);    // Add element
 bool set_has(PiSet *set, Value value);    // Check membership
@@ -455,9 +556,15 @@ Object *new_file(FILE *file, char *filename, char *mode);
 
 Value map_get(PiMap *map, Value key);
 Value map_getValueByKey(PiMap *map, const char *key);
+
+void map_dirty(PiMap *map);
+
 void map_set(PiMap *map, Value key, Value value);
+
 bool map_has(PiMap *map, Value key);
+
 bool map_delete(PiMap *map, Value key);
+
 PiMap *map_owner(PiMap *map, Value key);
 
 int map_size(PiMap *map);
