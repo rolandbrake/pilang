@@ -79,7 +79,7 @@ static bool map_equals(PiMap *left, PiMap *right)
     // Use iterator over left map
     ht_iter it = ht_iterator(left->table);
     while (ht_next(&it)) {
-        char *key = it.key;
+        const char *key = it.key;
         Value *left_value = (Value*)it.value;
         Value *right_value = ht_get(right->table, key);
 
@@ -106,8 +106,8 @@ static int map_compare(PiMap *left, PiMap *right)
     int right_size = ht_length(right->table);
 
     // Collect keys using iterators
-    char **left_keys = malloc(sizeof(char *) * left_size);
-    char **right_keys = malloc(sizeof(char *) * right_size);
+    const char **left_keys = malloc(sizeof(char *) * left_size);
+    const char **right_keys = malloc(sizeof(char *) * right_size);
     if (!left_keys || !right_keys) {
         free(left_keys);
         free(right_keys);
@@ -183,7 +183,7 @@ Value pi_clone(vm_t *vm, int argc, Value *argv)
     // Use iterator to copy all entries
     ht_iter it = ht_iterator(original->table);
     while (ht_next(&it)) {
-        char *key = it.key;
+        const char *key = it.key;
         Value *value = (Value*)it.value;
         if (value)
             ht_put(map->table, key, value);
@@ -220,8 +220,8 @@ Value pi_keys(vm_t *vm, int argc, Value *argv)
 
     ht_iter it = ht_iterator(map->table);
     while (ht_next(&it)) {
-        char *key = it.key;
-        list_add(list, &NEW_OBJ(new_pistring(key)));
+        const char *key = it.key;
+        list_add(list, &NEW_OBJ(new_pistring(strdup(key))));
     }
 
     return NEW_OBJ(new_list(list));

@@ -184,13 +184,10 @@ static void mark_references(Object *obj)
         table_t *table = map->table;
         if (table)
         {
-            for (int i = 0; i < table->capacity; i++)
+            ht_iter it = ht_iterator(table);
+            while (ht_next(&it))
             {
-                ht_item *item = &table->items[i];
-                if (!item->key || !item->value)
-                    continue;
-
-                Value *val = (Value *)item->value;
+                Value *val = (Value *)it.value;
                 if (val)
                     mark_value(*val);
             }

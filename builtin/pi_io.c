@@ -538,7 +538,7 @@ static char *display_mapString(vm_t *vm, PiMap *map)
     ht_iter it = ht_iterator(map->table);
     for (int i = 0; ht_next(&it); i++)
     {
-        char *key = it.key;
+        const char *key = it.key;
         Value *stored = it.value;
         char *quoted_key = display_quoteString(key);
         char *value = stored ? display_valueString(vm, *stored, true) : strdup("nil");

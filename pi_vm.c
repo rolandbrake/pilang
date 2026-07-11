@@ -1112,7 +1112,7 @@ static void finalize_mapLiteral(vm_t *vm, PiMap *map)
     ht_iter it = ht_iterator(map->table);
     while (ht_next(&it))
     {
-        char *key = it.key;
+        const char *key = it.key;
         Value *item = (Value *)it.value; // it.value points to stored Value
 
         if (!item || !IS_FUN(*item))
@@ -1145,7 +1145,7 @@ static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
     ht_iter it = ht_iterator(map->table);
     while (ht_next(&it))
     {
-        char *key = it.key;
+        const char *key = it.key;
         Value *item = (Value *)it.value;
         if (item == NULL)
             continue;
@@ -4030,10 +4030,10 @@ OP_LOOP:
                 if (IS_OBJ(value))
                     add_obj(vm, AS_OBJ(value));
                 push_stack(vm, NEW_NIL());
-                push_stack(vm, make_iterPair(vm, NEW_OBJ(add_obj(vm, new_pistring(map->it.key))), value));
+                push_stack(vm, make_iterPair(vm, NEW_OBJ(add_obj(vm, new_pistring(strdup(map->it.key)))), value));
             }
             else
-                push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(map->it.key))));
+                push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(strdup(map->it.key)))));
         }
         else
         {
@@ -5072,7 +5072,7 @@ OP_IMPORT_ALL:
     ht_iter it = ht_iterator(table);
     while (ht_next(&it))
     {
-        char *key = it.key;
+        const char *key = it.key;
         Value *value = (Value *)it.value;
         if (!value)
             continue;

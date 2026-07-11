@@ -379,8 +379,8 @@ static int map_compare(PiMap *left, PiMap *right)
         return cmp;
 
     int sz = ht_length(left->table);
-    char **lk = malloc(sizeof(char *) * sz);
-    char **rk = malloc(sizeof(char *) * sz);
+    const char **lk = malloc(sizeof(char *) * sz);
+    const char **rk = malloc(sizeof(char *) * sz);
     if (!lk || !rk)
     {
         free(lk);

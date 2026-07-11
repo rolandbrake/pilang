@@ -976,7 +976,7 @@ void dis(compiler_t *comp)
     ht_iter it = ht_iterator(comp->instrs);
     while (ht_next(&it))
     {
-        char *scope_name = it.key;
+        const char *scope_name = it.key;
         list_t *instrs = (list_t *)it.value; // stored as void*, cast back
 
         char header_buf[256];

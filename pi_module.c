@@ -517,7 +517,7 @@ Value load_module(vm_t *vm, const char *name)
     ht_iter it = ht_iterator(defined_globals);
     while (ht_next(&it))
     {
-        char *key = it.key;
+        const char *key = it.key;
         if (is_private_moduleName(key))
             continue;
 
