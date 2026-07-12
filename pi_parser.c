@@ -207,8 +207,7 @@ static void emit_boundMethodCall(parser_t *parser, const char *receiver, const c
     load_variable(parser->comp, (char *)receiver);
 
     int method_index = store_const(parser->comp, NEW_OBJ(new_pistring((char *)method)));
-    emit_16u(parser->comp, OP_LOAD_CONST, (char *)method, method_index);
-    emit(parser->comp, OP_GET_MEMBER);
+    emit_16u(parser->comp, OP_GET_MEMBER, (char *)method, method_index);
 }
 
 static bool is_integerLiteralValue(double value)
@@ -3282,15 +3281,14 @@ static void member_expr(parser_t *parser)
             token_t name = consume(parser, TK_ID, "Expect property name after '.'");
 
             int index = store_const(parser->comp, new_value(name));
-            emit_16u(parser->comp, OP_LOAD_CONST, token_value(name), index);
 
             bool is_chained_access = parser->is_store && parser->force_store &&
                                      has_accessContinuation(parser, name);
 
             if (!is_chained_access && is_assign(parser))
-                emit(parser->comp, OP_SET_MEMBER);
+                emit_16u(parser->comp, OP_SET_MEMBER, token_value(name), index);
             else
-                emit(parser->comp, OP_GET_MEMBER);
+                emit_16u(parser->comp, OP_GET_MEMBER, token_value(name), index);
         }
 
         // Handle property access using bracket notation and slicing for lists and tensors
@@ -3349,8 +3347,7 @@ static void member_expr(parser_t *parser)
             if (token.type == TK_SUPER)
             {
                 int ctor_index = store_const(parser->comp, NEW_OBJ(new_pistring("constructor")));
-                emit_16u(parser->comp, OP_LOAD_CONST, "constructor", ctor_index);
-                emit(parser->comp, OP_GET_MEMBER);
+                emit_16u(parser->comp, OP_GET_MEMBER, "constructor", ctor_index);
             }
 
             if (!check(parser, TK_RPAREN))

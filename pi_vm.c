@@ -4468,11 +4468,44 @@ OP_PUSH_SLICE:
     VM_DISPATCH_SAFE();
 }
 
+OP_GET_SLOT:
+{
+    uint8_t slot = code[pc++];
+    Value container = vm->stack[vm->sp - 1];
+
+    if (!IS_MAP(container) || !AS_MAP(container)->slots || slot >= AS_MAP(container)->slot_count)
+        vm_error(vm, "Invalid slot access.");
+
+    vm->stack[vm->sp - 1] = AS_MAP(container)->slots[slot];
+    VM_DISPATCH_SAFE();
+}
+
+OP_SET_SLOT:
+{
+    uint8_t slot = code[pc++];
+    Value container = pop_stack(vm);
+    Value value = pop_stack(vm);
+
+    if (!IS_MAP(container) || !AS_MAP(container)->slots || slot >= AS_MAP(container)->slot_count)
+        vm_error(vm, "Invalid slot assignment.");
+
+    AS_MAP(container)->slots[slot] = value;
+    map_dirty(AS_MAP(container));
+    VM_DISPATCH_SAFE();
+}
+
 OP_GET_ITEM:
 OP_GET_MEMBER:
 {
     bool bracket_access = current_op == OP_GET_ITEM;
-    Value index = POP();
+    Value index;
+    if (bracket_access)
+        index = POP();
+    else
+    {
+        uint16_t name_idx = (uint16_t)((code[pc++] << 8) | code[pc++]);
+        index = constants_data[name_idx];
+    }
     Value container = vm->stack[vm->sp - 1];
     Value method_result;
 
@@ -4792,9 +4825,23 @@ OP_SET_ITEM:
 OP_SET_MEMBER:
 {
     bool bracket_access = current_op == OP_SET_ITEM;
-    Value index = pop_stack(vm);
-    Value container = pop_stack(vm);
-    Value value = pop_stack(vm);
+    Value index;
+    Value container;
+    Value value;
+
+    if (bracket_access)
+    {
+        index = pop_stack(vm);
+        container = pop_stack(vm);
+        value = pop_stack(vm);
+    }
+    else
+    {
+        uint16_t name_idx = (uint16_t)((code[pc++] << 8) | code[pc++]);
+        index = constants_data[name_idx];
+        container = pop_stack(vm);
+        value = pop_stack(vm);
+    }
     Value method_result;
 
     if (!IS_OBJ(container))

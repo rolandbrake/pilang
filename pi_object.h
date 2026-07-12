@@ -253,7 +253,6 @@ struct PiClass
     int slot_count;
 
     PiClass *super;
-
 };
 
 struct PiInstance
@@ -267,7 +266,6 @@ struct PiInstance
     int slot_capacity;
 
     table_t *fields; // optional dynamic fallback
-
 };
 
 #define BOUND_CACHE_SIZE 8
@@ -286,7 +284,7 @@ typedef struct PiMap
     Object object;
     table_t *table;
     // Lazily-created cache of bound prototype methods.  Keeping it separate
-    // from `table` prevents method caching from changing visible properties.
+    // from table prevents method caching from changing visible properties.
     // table_t *bound_methods;
     BoundCache *bound_cache; // NULL for plain dicts, allocated on first method call for instances
 
@@ -302,6 +300,9 @@ typedef struct PiMap
     struct PiMap *owner;
 
     char *intrinsic_name;
+
+    Value *slots; // only non-NULL when is_instance == true
+    uint32_t slot_count;
 
     // Flag to indicate if the map is locked for modifications
     // (e.g., during method lookup to prevent infinite recursion)

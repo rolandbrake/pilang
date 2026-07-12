@@ -1053,6 +1053,8 @@ void dis(compiler_t *comp)
             case OP_LOAD_CONST:
             case OP_PUSH_LIST:
             case OP_PUSH_MAP:
+            case OP_GET_MEMBER:
+            case OP_SET_MEMBER:
                 snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d",
                          line++, op_names[opcode], (int16_t)((operands[0] << 8) | operands[1]));
                 line += 2;
@@ -1138,6 +1140,8 @@ void dis(compiler_t *comp)
             case OP_LOAD_CONST:
             case OP_PUSH_LIST:
             case OP_PUSH_MAP:
+            case OP_GET_MEMBER:
+            case OP_SET_MEMBER:
                 snprintf(line_buf, sizeof(line_buf),
                          "\033[38;2;107;107;107m%-4d\033[0m: "
                          "\033[38;2;139;0;0m%-15s\033[0m "

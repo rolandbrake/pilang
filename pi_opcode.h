@@ -109,6 +109,8 @@ static inline int operand_count(uint8_t op)
     case OP_PUSH_MAP:
     case OP_PUSH_SET:
     case OP_PUSH_CLOSURE:
+    case OP_GET_MEMBER:
+    case OP_SET_MEMBER:
         return 2;
 
     case OP_STORE_GLOBAL:
