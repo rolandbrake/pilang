@@ -51,7 +51,6 @@ typedef enum
     OP_UNARY = 0x2a,
     OP_DEBUG = 0x2b,
     OP_POP_ITER = 0x2c,
-    OP_CLOSE_UPVALUE = 0x3c,
     OP_IMPORT = 0x3d,
     OP_GET_EXPORT = 0x3e,
     OP_IMPORT_ALL = 0x3f,

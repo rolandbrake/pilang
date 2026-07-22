@@ -103,7 +103,6 @@ static const char *op_names[] = {
     [0x2a] = "UNARY_OP",
     [0x2b] = "DEBUG_OP",
     [0x2c] = "POP_ITER",
-    [0x3c] = "CLOSE_UPVALUE",
     [0x3d] = "IMPORT_OP",
     [0x3e] = "GET_EXPORT",
     [0x3f] = "IMPORT_ALL",

@@ -257,12 +257,9 @@ Object *new_map(table_t *table, bool is_instance)
     map->owner_version = 0;
     map->owner = NULL;
     map->intrinsic_name = NULL;
-    map->locked = false;
-    map->bracket_access = true;
-    map->has_compute = false;
-    map->has_rcompute = false;
+    map->flags = MAP_BRACKET;
     map->it = ht_iterator(table);
-    map->is_instance = is_instance;
+    MAP_SET_FLAG(map, MAP_IS_INSTANCE, is_instance);
     map->super_instance = NULL;
     map->proto = NULL;
     return (Object *)map;
@@ -588,7 +585,7 @@ bool map_delete(PiMap *map, Value key)
     const char *key_str = map_keyChars(key, &owned);
     PiMap *owner = map_findOwner(map, key_str);
     bool removed = false;
-    if (owner != NULL && !owner->locked)
+    if (owner != NULL && !MAP_HAS_FLAG(owner, MAP_LOCKED))
     {
         removed = ht_delete(owner->table, key_str);
         if (removed)
@@ -608,7 +605,7 @@ void map_set(PiMap *map, Value key, Value value)
         owner = map;
 
     bool changed = ht_set(owner->table, key_str, &value);
-    if (!changed && !owner->locked)
+    if (!changed && !MAP_HAS_FLAG(owner, MAP_LOCKED))
         changed = ht_put(owner->table, key_str, &value);
     if (changed)
         map_dirty(owner);
@@ -616,9 +613,9 @@ void map_set(PiMap *map, Value key, Value value)
     if (IS_FUN(value))
     {
         if (strcmp(key_str, "compute") == 0)
-            owner->has_compute = true;
+            MAP_SET_FLAG(owner, MAP_HAS_COMPUTE, true);
         if (strcmp(key_str, "rcompute") == 0)
-            owner->has_rcompute = true;
+            MAP_SET_FLAG(owner, MAP_HAS_RCOMPUTE, true);
     }
 
     free(owned);

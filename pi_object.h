@@ -279,6 +279,22 @@ typedef struct
     Value bound_fn;         // the already-bound Function value
 } BoundCache;
 
+#define MAP_IS_INSTANCE 0x01
+#define MAP_LOCKED 0x02
+#define MAP_BRACKET 0x04
+#define MAP_HAS_COMPUTE 0x08
+#define MAP_HAS_RCOMPUTE 0x10
+
+#define MAP_HAS_FLAG(map, flag) (((map)->flags & (flag)) != 0)
+#define MAP_SET_FLAG(map, flag, value)                 \
+    do                                                 \
+    {                                                  \
+        if (value)                                     \
+            (map)->flags |= (uint8_t)(flag);           \
+        else                                           \
+            (map)->flags &= (uint8_t)~(uint8_t)(flag); \
+    } while (0)
+
 typedef struct PiMap
 {
     Object object;
@@ -304,19 +320,7 @@ typedef struct PiMap
     Value *slots; // only non-NULL when is_instance == true
     uint32_t slot_count;
 
-    // Flag to indicate if the map is locked for modifications
-    // (e.g., during method lookup to prevent infinite recursion)
-    bool locked;
-
-    // Flag to indicate if the map is being accessed via bracket notation (e.g., obj[key])
-    bool bracket_access;
-
-    // Flag to indicate if this map represents an instance of
-    // a class (as opposed to a class definition)
-    bool is_instance;
-
-    bool has_compute;  // Flag to indicate if the map has a compute method for computed properties
-    bool has_rcompute; // Flag to indicate if the map has a rcompute method for reverse computed properties
+    uint8_t flags; // MAP_* bitset for locked/bracket/instance/compute state
 
     // Reference to the superclass instance for inheritance (if any)
     Object *super_instance;

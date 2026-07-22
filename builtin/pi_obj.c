@@ -170,13 +170,12 @@ Value pi_clone(vm_t *vm, int argc, Value *argv)
     PiMap *original = AS_MAP(argv[0]);
 
     table_t *new_table = ht_create(sizeof(Value));
-    Object *obj = new_map(new_table, original->is_instance);
+    Object *obj = new_map(new_table, MAP_HAS_FLAG(original, MAP_IS_INSTANCE));
     PiMap *map = (PiMap *)obj;
 
     map->proto = original->proto;
     map->super_instance = original->super_instance;
-    map->locked = original->locked;
-    map->bracket_access = original->bracket_access;
+    map->flags = original->flags;
     if (original->intrinsic_name)
         map->intrinsic_name = strdup(original->intrinsic_name);
 
@@ -230,7 +229,7 @@ Value pi_keys(vm_t *vm, int argc, Value *argv)
 Value pi_toString(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !(IS_MAP(argv[0]) &&
-                      AS_MAP(argv[0])->is_instance))
+                      MAP_HAS_FLAG(AS_MAP(argv[0]), MAP_IS_INSTANCE)))
         vm_error(vm, "[format] expects an object as the first argument.");
 
     char *text = as_string(argv[0]);
@@ -240,7 +239,7 @@ Value pi_toString(vm_t *vm, int argc, Value *argv)
 Value pi_valueOf(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !(IS_MAP(argv[0]) &&
-                      AS_MAP(argv[0])->is_instance))
+                      MAP_HAS_FLAG(AS_MAP(argv[0]), MAP_IS_INSTANCE)))
         vm_error(vm, "[format] expects an object as the first argument.");
 
     return argv[0];
@@ -280,16 +279,18 @@ Value pi_extends(vm_t *vm, int argc, Value *argv)
     else
         vm_error(vm, "[extends] expects either child.extends(parent) or Object.extends(parent, child).");
 
-    if (parent->is_instance)
+    if (MAP_HAS_FLAG(parent, MAP_IS_INSTANCE))
         vm_error(vm, "[extends] parent must be a prototype map, not an instance.");
 
-    if (child->is_instance)
+    if (MAP_HAS_FLAG(child, MAP_IS_INSTANCE))
         vm_error(vm, "[extends] child must be a map literal or prototype, not an instance.");
 
     child->proto = parent;
     map_dirty(child);
-    child->has_compute = child->has_compute || parent->has_compute;
-    child->has_rcompute = child->has_rcompute || parent->has_rcompute;
+    if (MAP_HAS_FLAG(parent, MAP_HAS_COMPUTE))
+        MAP_SET_FLAG(child, MAP_HAS_COMPUTE, true);
+    if (MAP_HAS_FLAG(parent, MAP_HAS_RCOMPUTE))
+        MAP_SET_FLAG(child, MAP_HAS_RCOMPUTE, true);
     return NEW_OBJ((Object *)child);
 }
 
@@ -443,7 +444,7 @@ Value pi_lock(vm_t *vm, int argc, Value *argv)
     else
         vm_error(vm, "[lock] expects obj.lock(value) or Object.lock(obj, value).");
 
-    map->locked = locked;
+    MAP_SET_FLAG(map, MAP_LOCKED, locked);
     return NEW_OBJ((Object *)map);
 }
 
@@ -466,7 +467,7 @@ Value pi_bracketAccess(vm_t *vm, int argc, Value *argv)
     else
         vm_error(vm, "[bracketAccess] expects obj.bracketAccess(value) or Object.bracketAccess(obj, value).");
 
-    map->bracket_access = enabled;
+    MAP_SET_FLAG(map, MAP_BRACKET, enabled);
     return NEW_OBJ((Object *)map);
 }
 
@@ -513,7 +514,7 @@ Value pi_set(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[set] expects either obj.set(key, value) or Object.set(obj, key, value).");
 
     PiMap *owner = map_owner(map, key);
-    if (map->locked && owner == NULL)
+    if (MAP_HAS_FLAG(map, MAP_LOCKED) && owner == NULL)
         vm_error(vm, "[set] cannot add a new key to a locked object.");
 
     map_set(map, key, value);
@@ -560,7 +561,7 @@ Value pi_delete(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[delete] expects either obj.delete(key) or Object.delete(obj, key).");
 
     PiMap *owner = map_owner(map, key);
-    if (owner && owner->locked)
+    if (owner && MAP_HAS_FLAG(owner, MAP_LOCKED))
         vm_error(vm, "[delete] cannot delete from a locked object.");
 
     return NEW_BOOL(map_delete(map, key));

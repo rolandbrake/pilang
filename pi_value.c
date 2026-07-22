@@ -340,7 +340,7 @@ static bool map_equals(PiMap *left, PiMap *right)
         return true;
     if (map_size(left) != map_size(right))
         return false;
-    if (left->is_instance != right->is_instance ||
+    if (MAP_HAS_FLAG(left, MAP_IS_INSTANCE) != MAP_HAS_FLAG(right, MAP_IS_INSTANCE) ||
         !string_equals(left->intrinsic_name, right->intrinsic_name))
         return false;
     if ((left->proto == NULL) != (right->proto == NULL))
@@ -370,7 +370,7 @@ static int map_compare(PiMap *left, PiMap *right)
     if (cmp != 0)
         return cmp;
 
-    cmp = normalize_compare((int)left->is_instance - (int)right->is_instance);
+    cmp = normalize_compare((int)MAP_HAS_FLAG(left, MAP_IS_INSTANCE) - (int)MAP_HAS_FLAG(right, MAP_IS_INSTANCE));
     if (cmp != 0)
         return cmp;
 
@@ -971,7 +971,7 @@ static void tensor_appendToSb(sb_t *sb, PiTensor *tensor, int dim, int *indices)
 char *as_stringWithFormat(vm_t *vm, Value val)
 {
     /* Let instances override via .format() method. */
-    if (vm != NULL && IS_MAP(val) && AS_MAP(val)->is_instance)
+    if (vm != NULL && IS_MAP(val) && MAP_HAS_FLAG(AS_MAP(val), MAP_IS_INSTANCE))
     {
         Value formatted = vm_callMethodNoArgs(vm, val, "format");
         if (!(IS_MAP(formatted) && AS_MAP(formatted) == AS_MAP(val)))

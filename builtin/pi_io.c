@@ -632,7 +632,7 @@ static char *display_valueString(vm_t *vm, Value value, bool nested)
 {
     // Instances can customize their printed representation by defining format().
     // Returning the same instance avoids infinite recursion.
-    if (IS_MAP(value) && AS_MAP(value)->is_instance)
+    if (IS_MAP(value) && MAP_HAS_FLAG(AS_MAP(value), MAP_IS_INSTANCE))
     {
         Value formatted = vm_callMethodNoArgs(vm, value, "format");
         if (!(IS_MAP(formatted) && AS_MAP(formatted) == AS_MAP(value)))

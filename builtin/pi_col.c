@@ -642,17 +642,13 @@ Value pi_copy(vm_t *vm, int argc, Value *argv)
     {
         PiMap *original = AS_MAP(value);
         table_t *table = ht_create(sizeof(Value));
-        Object *obj = add_obj(vm, new_map(table, original->is_instance));
+        Object *obj = add_obj(vm, new_map(table, MAP_HAS_FLAG(original, MAP_IS_INSTANCE)));
         PiMap *copy = (PiMap *)obj;
 
         copy->proto = original->proto;
 
         copy->super_instance = original->super_instance;
-        copy->locked = original->locked;
-        copy->bracket_access = original->bracket_access;
-
-        copy->has_compute = original->has_compute;
-        copy->has_rcompute = original->has_rcompute;
+        copy->flags = original->flags;
 
         if (original->intrinsic_name)
             copy->intrinsic_name = strdup(original->intrinsic_name);

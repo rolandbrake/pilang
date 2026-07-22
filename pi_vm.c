@@ -1122,9 +1122,9 @@ static void finalize_mapLiteral(vm_t *vm, PiMap *map)
         fn->is_method = true;
         fn->owner = (Object *)map;
         if (strcmp(key, "compute") == 0)
-            map->has_compute = true;
+            MAP_SET_FLAG(map, MAP_HAS_COMPUTE, true);
         else if (strcmp(key, "rcompute") == 0)
-            map->has_rcompute = true;
+            MAP_SET_FLAG(map, MAP_HAS_RCOMPUTE, true);
 
         has_methods = true;
     }
@@ -1158,9 +1158,9 @@ static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
         if (IS_FUN(*item))
         {
             if (strcmp(key, "compute") == 0)
-                target->has_compute = true;
+                MAP_SET_FLAG(target, MAP_HAS_COMPUTE, true);
             else if (strcmp(key, "rcompute") == 0)
-                target->has_rcompute = true;
+                MAP_SET_FLAG(target, MAP_HAS_RCOMPUTE, true);
         }
     }
 }
@@ -1205,7 +1205,7 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
     else if (IS_MAP(callee))
     {
         PiMap *map = AS_MAP(callee);
-        if (map->is_instance)
+        if (MAP_HAS_FLAG(map, MAP_IS_INSTANCE))
         {
             if (object_instanceCall(vm, map, num_args, args, kw_args, &result))
             {
@@ -1639,7 +1639,7 @@ static PiMap *map_ownerByKey(PiMap *map, const char *key)
  */
 static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
 {
-    if (!IS_MAP(receiver) || !AS_MAP(receiver)->is_instance)
+    if (!IS_MAP(receiver) || !MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
         return receiver;
 
     PiMap *owner = map_ownerByKey(AS_MAP(receiver), name);
@@ -1651,7 +1651,7 @@ static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
     if (!IS_FUN(method))
         return receiver;
 
-    if (AS_MAP(receiver)->is_instance)
+    if (MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
     {
         Object *target = AS_MAP(receiver)->super_instance ? AS_MAP(receiver)->super_instance : AS_OBJ(receiver);
         method = bind(vm, AS_FUN(method), target);
@@ -1682,7 +1682,7 @@ Value vm_callMethodNoArgs(vm_t *vm, Value receiver, const char *name)
  */
 static bool try_callMethodOneArg(vm_t *vm, Value receiver, const char *name, Value arg, Value *result)
 {
-    if (!IS_MAP(receiver) || !AS_MAP(receiver)->is_instance)
+    if (!IS_MAP(receiver) || !MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
         return false;
 
     PiMap *owner = map_ownerByKey(AS_MAP(receiver), name);
@@ -1694,7 +1694,7 @@ static bool try_callMethodOneArg(vm_t *vm, Value receiver, const char *name, Val
     if (!IS_FUN(method))
         return false;
 
-    if (AS_MAP(receiver)->is_instance)
+    if (MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
     {
         Object *target = AS_MAP(receiver)->super_instance ? AS_MAP(receiver)->super_instance : AS_OBJ(receiver);
         method = bind(vm, AS_FUN(method), target);
@@ -1719,7 +1719,7 @@ static bool try_callMethodOneArg(vm_t *vm, Value receiver, const char *name, Val
  */
 static bool try_callMethodArgs(vm_t *vm, Value receiver, const char *name, int argc, Value *args, Value *result)
 {
-    if (!IS_MAP(receiver) || !AS_MAP(receiver)->is_instance)
+    if (!IS_MAP(receiver) || !MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
         return false;
 
     PiMap *owner = map_ownerByKey(AS_MAP(receiver), name);
@@ -1759,7 +1759,7 @@ static bool try_callMethodArgs(vm_t *vm, Value receiver, const char *name, int a
  */
 static bool try_callComputeMethod(vm_t *vm, Value receiver, const char *name, int op, bool has_other, Value other, Value *result)
 {
-    if (!IS_MAP(receiver) || !AS_MAP(receiver)->is_instance)
+    if (!IS_MAP(receiver) || !MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
         return false;
 
     PiMap *owner = map_ownerByKey(AS_MAP(receiver), name);
@@ -1771,7 +1771,7 @@ static bool try_callComputeMethod(vm_t *vm, Value receiver, const char *name, in
     if (!IS_FUN(method))
         return false;
 
-    if (AS_MAP(receiver)->is_instance)
+    if (MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
     {
         Object *target = AS_MAP(receiver)->super_instance ? AS_MAP(receiver)->super_instance : AS_OBJ(receiver);
         method = bind(vm, AS_FUN(method), target);
@@ -1895,7 +1895,7 @@ static bool try_overloadedCompare(vm_t *vm, Value left, Value right, int *cmp)
  */
 static Value to_primitive(vm_t *vm, Value value, bool pref_string)
 {
-    if (!IS_MAP(value) || !AS_MAP(value)->is_instance)
+    if (!IS_MAP(value) || !MAP_HAS_FLAG(AS_MAP(value), MAP_IS_INSTANCE))
         return value;
 
     (void)pref_string;
@@ -1935,9 +1935,8 @@ static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value k
     Object *instance = add_obj(vm, new_map(table, true));
 
     ((PiMap *)instance)->proto = map;
-    ((PiMap *)instance)->bracket_access = map->bracket_access;
-    ((PiMap *)instance)->has_compute = map->has_compute;
-    ((PiMap *)instance)->has_rcompute = map->has_rcompute;
+    ((PiMap *)instance)->flags = map->flags;
+    MAP_SET_FLAG((PiMap *)instance, MAP_IS_INSTANCE, true);
 
     // Push the new instance onto the VM stack
     // vm->stack[vm->sp] = NEW_OBJ(instance);
@@ -2998,7 +2997,7 @@ OP_BINARY:
         VM_DISPATCH_SAFE();
     }
 
-    if (op != 5 && op != 6 && op != 15 && IS_MAP(left) && AS_MAP(left)->has_compute)
+    if (op != 5 && op != 6 && op != 15 && IS_MAP(left) && MAP_HAS_FLAG(AS_MAP(left), MAP_HAS_COMPUTE))
     {
         Value computed = NEW_NIL();
         if (try_callCompute(vm, left, op, true, right, &computed))
@@ -3008,7 +3007,7 @@ OP_BINARY:
         }
     }
 
-    if (op != 5 && op != 6 && op != 15 && IS_MAP(right) && AS_MAP(right)->has_rcompute)
+    if (op != 5 && op != 6 && op != 15 && IS_MAP(right) && MAP_HAS_FLAG(AS_MAP(right), MAP_HAS_RCOMPUTE))
     {
         Value computed = NEW_NIL();
         if (try_callReflectedCompute(vm, right, op, left, &computed))
@@ -3763,7 +3762,7 @@ OP_CALL_FUNCTION:
     {
         PiMap *map = AS_MAP(callee);
         Value result;
-        if (map->is_instance)
+        if (MAP_HAS_FLAG(map, MAP_IS_INSTANCE))
         {
             if (object_instanceCall(vm, map, num_args, args, NEW_NIL(), &result))
                 PUSH(result);
@@ -3820,7 +3819,7 @@ OP_CALL_FUNCTION_KW:
     else if (IS_MAP(callee))
     {
         PiMap *map = AS_MAP(callee);
-        if (map->is_instance)
+        if (MAP_HAS_FLAG(map, MAP_IS_INSTANCE))
         {
             if (!object_instanceCall(vm, map, num_args, args, kw_args, &result))
             {
@@ -4318,8 +4317,8 @@ OP_PUSH_MAP:
     set_stackTop(vm, _sp);
     Object *map = add_obj(vm, new_map(table, false));
     PiMap *pimap = (PiMap *)map;
-    pimap->has_compute = has_compute;
-    pimap->has_rcompute = has_rcompute;
+    MAP_SET_FLAG(pimap, MAP_HAS_COMPUTE, has_compute);
+    MAP_SET_FLAG(pimap, MAP_HAS_RCOMPUTE, has_rcompute);
     push_stack(vm, NEW_OBJ(map));
     VM_DISPATCH_SAFE();
 }
@@ -4338,9 +4337,9 @@ OP_MAP_SET:
     if (IS_FUN(value))
     {
         if (strcmp(AS_CSTRING(key), "compute") == 0)
-            map->has_compute = true;
+            MAP_SET_FLAG(map, MAP_HAS_COMPUTE, true);
         else if (strcmp(AS_CSTRING(key), "rcompute") == 0)
-            map->has_rcompute = true;
+            MAP_SET_FLAG(map, MAP_HAS_RCOMPUTE, true);
     }
     VM_DISPATCH_SAFE();
 }
@@ -4576,7 +4575,7 @@ OP_GET_MEMBER:
             vm->stack[vm->sp - 1] = method_result;
             break;
         }
-        if (bracket_access && IS_STRING(index) && !map->bracket_access)
+        if (bracket_access && IS_STRING(index) && !MAP_HAS_FLAG(map, MAP_BRACKET))
             vm_error(vm, "Bracket member access is disabled for this object.");
 
         PiMap *owner = map_owner(map, index);
@@ -4603,7 +4602,7 @@ OP_GET_MEMBER:
         bool bind_object_method = owner != NULL && IS_FUN(item) &&
                                   owner == vm->object_proto;
 
-        if ((map->is_instance && owner != NULL && IS_FUN(item)) || bind_object_method)
+        if ((MAP_HAS_FLAG(map, MAP_IS_INSTANCE) && owner != NULL && IS_FUN(item)) || bind_object_method)
         {
             Object *target = map->super_instance
                                  ? map->super_instance
@@ -4661,24 +4660,27 @@ OP_GET_MEMBER:
     case OBJ_MODULE:
     {
         ObjModule *module = AS_MODULE(container);
-        char *property = as_string(index);
+        char *owned_property = NULL;
+        const char *property = IS_STRING(index) ? AS_CSTRING(index) : (owned_property = as_string(index));
         Value item = NEW_NIL();
         if (is_private_moduleName(property))
         {
-            free(property);
+            free(owned_property);
             vm_error(vm, "Cannot access private module member.");
         }
-        if (strcmp(property, "name") == 0)
+        if (property[0] == 'n' && strcmp(property, "name") == 0)
             item = NEW_OBJ(add_obj(vm, new_pistring(strdup(module->name ? module->name : ""))));
-        else if (strcmp(property, "is_main") == 0)
+        else if (property[0] == 'i' && strcmp(property, "is_main") == 0)
             item = NEW_BOOL(module->is_main);
-        else if (strcmp(property, "path") == 0)
+        else if (property[0] == 'p' && strcmp(property, "path") == 0)
             item = NEW_OBJ(add_obj(vm, new_pistring(strdup(module->path ? module->path : ""))));
-        else if (strcmp(property, "exports") == 0)
+        else if (property[0] == 'e' && strcmp(property, "exports") == 0)
             item = NEW_OBJ((Object *)module->exports);
-        else if (module->exports)
+        else if (module->exports && IS_STRING(index))
             item = map_get(module->exports, index);
-        free(property);
+        else if (module->exports)
+            item = map_getValueByKey(module->exports, property);
+        free(owned_property);
         vm->stack[vm->sp - 1] = item;
         break;
     }
@@ -4891,9 +4893,9 @@ OP_SET_MEMBER:
         Value args[2] = {index, value};
         if (!IS_STRING(index) && try_callMethodArgs(vm, container, "setItem", 2, args, &method_result))
             break;
-        if (bracket_access && IS_STRING(index) && !map->bracket_access)
+        if (bracket_access && IS_STRING(index) && !MAP_HAS_FLAG(map, MAP_BRACKET))
             vm_error(vm, "Bracket member access is disabled for this object.");
-        if (map->is_instance)
+        if (MAP_HAS_FLAG(map, MAP_IS_INSTANCE))
         {
             char *owned_key = NULL;
             const char *key = IS_STRING(index) ? AS_CSTRING(index) : (owned_key = as_string(index));
@@ -4908,7 +4910,7 @@ OP_SET_MEMBER:
         }
         else
         {
-            if (map->locked && map_owner(map, index) == NULL)
+            if (MAP_HAS_FLAG(map, MAP_LOCKED) && map_owner(map, index) == NULL)
                 vm_error(vm, "Cannot add a new key to a locked object.");
             map_set(map, index, value);
         }
