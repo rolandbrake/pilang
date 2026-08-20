@@ -394,9 +394,6 @@ static Value make_kernelList(vm_t *vm, const double *values, int rows, int cols)
 
         PiList *row = (PiList *)add_obj(vm, new_list(row_items));
         row->is_numeric = true;
-        row->is_matrix = false;
-        row->rows = 1;
-        row->cols = cols;
 
         Value row_value = NEW_OBJ(row);
         list_add(outer_items, &row_value);
@@ -404,9 +401,6 @@ static Value make_kernelList(vm_t *vm, const double *values, int rows, int cols)
 
     PiList *outer = (PiList *)add_obj(vm, new_list(outer_items));
     outer->is_numeric = false;
-    outer->is_matrix = true;
-    outer->rows = rows;
-    outer->cols = cols;
     return NEW_OBJ(outer);
 }
 

@@ -281,9 +281,6 @@ Value tn_shape(vm_t *vm, int argc, Value *argv)
 
     PiList *shape = (PiList *)new_list(items);
     shape->is_numeric = true;
-    shape->is_matrix = false;
-    shape->rows = 1;
-    shape->cols = tensor->ndim;
     return NEW_OBJ(add_obj(vm, (Object *)shape));
 }
 
@@ -1155,9 +1152,6 @@ Value tn_dense(vm_t *vm, int argc, Value *argv)
 
     PiList *result = (PiList *)new_list(items);
     result->is_numeric = true;
-    result->is_matrix = false;
-    result->rows = 1;
-    result->cols = out_features;
     return NEW_OBJ(add_obj(vm, (Object *)result));
 }
 

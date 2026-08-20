@@ -40,7 +40,6 @@ Value pi_round(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -163,7 +162,6 @@ Value pi_rand_n(vm_t *vm, int argc, Value *argv)
 
     PiList *result = (PiList *)new_list(list);
     result->is_numeric = true;
-    result->is_matrix = false;
 
     return NEW_OBJ(result);
 }
@@ -341,7 +339,6 @@ Value pi_abs(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -378,7 +375,6 @@ Value mt_floor(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -414,7 +410,6 @@ Value mt_ceil(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -450,7 +445,6 @@ Value mt_sqrt(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -486,7 +480,6 @@ Value mt_sin(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -522,7 +515,6 @@ Value mt_cos(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -568,7 +560,6 @@ Value mt_asin(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -604,7 +595,6 @@ Value mt_tan(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -650,7 +640,6 @@ Value mt_acos(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -691,7 +680,6 @@ Value mt_atan(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -731,7 +719,6 @@ Value mt_deg(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -772,7 +759,6 @@ Value mt_rad(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -828,7 +814,6 @@ Value mt_exp(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -872,7 +857,6 @@ Value mt_log2(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -915,7 +899,6 @@ Value mt_log10(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
         return NEW_OBJ(list);
     }
     else
@@ -961,7 +944,6 @@ Value pi_pow(vm_t *vm, int argc, Value *argv)
 
         PiList *list = (PiList *)new_list(result);
         list->is_numeric = true;
-        list->is_matrix = false;
 
         return NEW_OBJ(list);
     }
@@ -1012,7 +994,6 @@ Value mt_linspace(vm_t *vm, int argc, Value *argv)
 
     PiList *result = (PiList *)new_list(list);
     result->is_numeric = true;
-    result->is_matrix = true;
 
     return NEW_OBJ(result);
 }
@@ -1040,7 +1021,6 @@ Value mt_arange(vm_t *vm, int argc, Value *argv)
 
     PiList *result = (PiList *)new_list(list);
     result->is_numeric = true;
-    result->is_matrix = true;
 
     return NEW_OBJ(result);
 }

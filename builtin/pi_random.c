@@ -133,9 +133,6 @@ Value rd_shuffle(vm_t *vm, int argc, Value *argv)
 
     PiList *result = (PiList *)new_list(items);
     result->is_numeric = source->is_numeric;
-    result->is_matrix = source->is_matrix;
-    result->rows = source->rows;
-    result->cols = source->cols;
     return NEW_OBJ(add_obj(vm, (Object *)result));
 }
 

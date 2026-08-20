@@ -2,7 +2,7 @@
 #include "pi_list.h"
 #include "pi_func.h"
 #include "pi_module.h"
-#include "pi_class.h"
+
 
 #ifdef _WIN32
 #include <windows.h>
@@ -208,14 +208,6 @@ static void mark_references(Object *obj)
         }
         break;
     }
-
-    case OBJ_CLASS:
-        mark_class((PiClass *)obj);
-        break;
-
-    case OBJ_INSTANCE:
-        mark_instance((PiInstance *)obj);
-        break;
 
     case OBJ_SET:
     {
@@ -440,14 +432,6 @@ void free_object(Object *obj)
         break;
     }
 
-    case OBJ_CLASS:
-        free_class((PiClass *)obj);
-        break;
-
-    case OBJ_INSTANCE:
-        free_instance((PiInstance *)obj);
-        break;
-
     case OBJ_SET:
     {
         PiSet *set = (PiSet *)obj;
@@ -550,7 +534,6 @@ void mark_roots(vm_t *vm)
 {
     for (int i = 0; i < vm->sp; i++)
         mark_value(vm->stack[i]);
-
 
     for (int i = 0; i < vm->frame_sp; i++)
     {

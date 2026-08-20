@@ -157,9 +157,6 @@ Value fs_readLinesLimit(vm_t *vm, int argc, Value *argv)
 
     PiList *result = (PiList *)new_list(lines);
     result->is_numeric = false;
-    result->is_matrix = false;
-    result->rows = count;
-    result->cols = 1;
     return NEW_OBJ(add_obj(vm, (Object *)result));
 }
 

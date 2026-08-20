@@ -58,7 +58,6 @@ typedef enum
     OP_LOAD_SUPER = 0x41,
     OP_TENSOR_GET = 0x42,
     OP_TENSOR_SET = 0x43,
-    OP_LIST_FINALIZE = 0x44,
     OP_CALL_SPREAD = 0x45,
     OP_MAP_SET = 0x46,
     OP_MAP_EXTEND = 0x47,

@@ -79,9 +79,15 @@ Object *new_list(list_t *items)
     PiList *list = CREATE_OBJ(PiList, OBJ_LIST);
     list->items = items;
     list->current = 0;
-    list->is_numeric = false;
-    list->cols = -1;
-    list->rows = -1;
+    list->is_numeric = true;
+    for (int i = 0; i < items->size; i++)
+    {
+        if (!IS_NUM(*(Value *)list_getAt(items, i)))
+        {
+            list->is_numeric = false;
+            break;
+        }
+    }
     return (Object *)list;
 }
 
@@ -240,9 +246,6 @@ Object *tensor_rowAsList(PiTensor *tensor, int row)
 
     PiList *list = (PiList *)new_list(items);
     list->is_numeric = true;
-    list->is_matrix = false;
-    list->rows = 1;
-    list->cols = row_size;
     return (Object *)list;
 }
 

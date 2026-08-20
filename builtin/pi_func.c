@@ -85,9 +85,6 @@ static Value new_valueList(vm_t *vm, int count, Value *items)
 
     PiList *result = (PiList *)add_obj(vm, new_list(list));
     result->is_numeric = is_numeric;
-    result->is_matrix = false;
-    result->rows = is_numeric ? 1 : -1;
-    result->cols = is_numeric ? count : -1;
     return NEW_OBJ(result);
 }
 
@@ -120,7 +117,6 @@ Value _pi_map(vm_t *vm, int argc, Value *argv)
 
     PiList *result = (PiList *)new_list(list);
     result->is_numeric = false;
-    result->is_matrix = false;
 
     result->is_numeric = true;
 
@@ -158,7 +154,6 @@ Value pi_filter(vm_t *vm, int argc, Value *argv)
 
     PiList *result = (PiList *)new_list(list);
     result->is_numeric = input->is_numeric;
-    result->is_matrix = false;
 
     return NEW_OBJ(result);
 }
@@ -309,7 +304,6 @@ static Value fn_juxtCall(vm_t *vm, int argc, Value *argv)
 
     PiList *out = (PiList *)add_obj(vm, new_list(results));
     out->is_numeric = is_numeric;
-    out->is_matrix = false;
     return NEW_OBJ(out);
 }
 

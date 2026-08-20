@@ -110,7 +110,6 @@ static const char *op_names[] = {
     [0x41] = "LOAD_SUPER",
     [0x42] = "TENSOR_GET",
     [0x43] = "TENSOR_SET",
-    [0x44] = "LIST_FINALIZE",
     [0x45] = "CALL_SPREAD",
     [0x46] = "MAP_SET",
     [0x47] = "MAP_EXTEND",
@@ -1062,7 +1061,6 @@ void dis(compiler_t *comp)
 
             case OP_LIST_APPEND:
             case OP_LIST_EXTEND:
-            case OP_LIST_FINALIZE:
             case OP_COMP_END:
             case OP_MAP_SET:
             case OP_MAP_EXTEND:
@@ -1152,7 +1150,6 @@ void dis(compiler_t *comp)
 
             case OP_LIST_APPEND:
             case OP_LIST_EXTEND:
-            case OP_LIST_FINALIZE:
             case OP_COMP_END:
             case OP_MAP_SET:
             case OP_MAP_EXTEND:

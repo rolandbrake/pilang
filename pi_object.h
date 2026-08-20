@@ -201,12 +201,7 @@ typedef struct
     list_t *items;
 
     int current;     // Iterator state
-    bool is_numeric; // Flag to indicate if the list contains only double values
-    bool is_matrix;  // Flag to indicate if the list is a 2D matrix
-
-    // Matrix dimensions
-    int rows;
-    int cols;
+    bool is_numeric; // Cached flag: true if every item is numeric
 
 } PiList;
 
@@ -241,32 +236,31 @@ typedef struct
     int current;  // Iterator state along the first dimension
 } PiTensor;
 
-struct PiClass
+typedef struct PiClass
 {
     Object object;
+
     char *name;
-
-    table_t *methods; // instance methods
-    table_t *static_fields;
-
-    table_t *slots; // instance field name -> slot index
-    int slot_count;
-
+    table_t members;
     PiClass *super;
-};
 
-struct PiInstance
+    uint8_t flags;
+
+} PiClass;
+
+typedef struct PiInstance
 {
     Object object;
 
+    table_t members;
     PiClass *_class;
 
-    Value *slots; // fast instance fields
-    bool *slot_used;
-    int slot_capacity;
+    Value *slots; // array of values for instance slots (only used if _class != NULL)
+    int slot_count;
 
-    table_t *fields; // optional dynamic fallback
-};
+    uint8_t flags;
+
+} PiInstance;
 
 #define BOUND_CACHE_SIZE 8
 

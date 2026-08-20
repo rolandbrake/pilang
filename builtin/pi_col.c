@@ -618,9 +618,6 @@ Value pi_copy(vm_t *vm, int argc, Value *argv)
 
         PiList *copy = (PiList *)add_obj(vm, new_list(items));
         copy->is_numeric = original->is_numeric;
-        copy->is_matrix = original->is_matrix;
-        copy->rows = original->rows;
-        copy->cols = original->cols;
         return NEW_OBJ((Object *)copy);
     }
 
@@ -1371,7 +1368,6 @@ Value cl_copy(vm_t *vm, int argc, Value *argv)
 
         PiList *result = (PiList *)new_list(copied_items);
         result->is_numeric = orig->is_numeric;
-        result->is_matrix = orig->is_matrix;
 
         return NEW_OBJ(result);
     }

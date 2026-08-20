@@ -1014,74 +1014,7 @@ static Value bind_nativeMethod(vm_t *vm, Object *instance, NativeMethod *method)
     return native;
 }
 
-/**
- * Refresh list metadata flags for numeric/matrix optimizations.
- */
-static void refresh_listMeta(PiList *plist)
-{
-    int size = LIST_SIZE(plist->items);
-
-    if (size == 0)
-    {
-        plist->is_numeric = true;
-        plist->is_matrix = false;
-        plist->rows = 0;
-        plist->cols = 0;
-        return;
-    }
-
-    bool is_numeric = true;
-    for (int i = 0; i < size; i++)
-    {
-        Value value = *(Value *)list_getAt(plist->items, i);
-        if (!IS_NUM(value))
-        {
-            is_numeric = false;
-            break;
-        }
-    }
-
-    if (is_numeric)
-    {
-        plist->is_numeric = true;
-        plist->is_matrix = false;
-        plist->rows = 1;
-        plist->cols = size;
-        return;
-    }
-
-    bool is_matrix = true;
-    int cols = -1;
-    for (int i = 0; i < size; i++)
-    {
-        Value value = *(Value *)list_getAt(plist->items, i);
-        if (!IS_LIST(value))
-        {
-            is_matrix = false;
-            break;
-        }
-
-        PiList *row = AS_LIST(value);
-        if (!row->is_numeric)
-        {
-            is_matrix = false;
-            break;
-        }
-
-        if (cols == -1)
-            cols = row->items->size;
-        else if (row->items->size != cols)
-        {
-            is_matrix = false;
-            break;
-        }
-    }
-
-    plist->is_numeric = false;
-    plist->is_matrix = is_matrix;
-    plist->rows = is_matrix ? size : -1;
-    plist->cols = is_matrix ? cols : -1;
-}
+static inline void vm_listAppendValue(PiList *list, Value value);
 
 /**
  * Append all values from an iterable into the target list.
@@ -1099,7 +1032,7 @@ static void list_extendFromIterable(vm_t *vm, PiList *plist, Value iterable)
         Value value = iter_next(iter);
         if (IS_OBJ(value))
             add_obj(vm, AS_OBJ(value));
-        list_add(plist->items, &value);
+        vm_listAppendValue(plist, value);
     }
 }
 
@@ -1321,44 +1254,34 @@ static inline void vm_listAppendValue(PiList *list, Value value)
         _list_grow(items);
     ((Value *)items->data)[items->size++] = value;
 
-    if (list->rows == 1 && list->cols >= 0)
+    if (!IS_NUM(value))
+        list->is_numeric = false;
+}
+
+static bool list_getNumericMatrixShape(PiList *list, int *rows, int *cols)
+{
+    int count = LIST_SIZE(list->items);
+    if (count == 0)
+        return false;
+
+    int width = -1;
+    for (int i = 0; i < count; i++)
     {
-        if (!IS_NUM(value))
-        {
-            list->rows = -1;
-            list->cols = -1;
-            list->is_numeric = false;
-        }
-        else
-            list->cols++;
-    }
-    else if (list->rows > 1 && list->cols > 0)
-    {
+        Value value = *(Value *)list_getAt(list->items, i);
         if (!IS_LIST(value))
-        {
-            list->rows = -1;
-            list->cols = -1;
-            list->is_numeric = false;
-        }
-        else
-        {
-            PiList *r_list = AS_LIST(value);
-            if (!r_list->is_numeric || r_list->items->size != list->cols)
-            {
-                list->rows = -1;
-                list->cols = -1;
-                list->is_numeric = false;
-            }
-            else
-                list->rows++;
-        }
+            return false;
+        PiList *row = AS_LIST(value);
+        if (!row->is_numeric)
+            return false;
+        if (width < 0)
+            width = LIST_SIZE(row->items);
+        else if (width != LIST_SIZE(row->items))
+            return false;
     }
-    else if (items->size == 2 && IS_NUM(value) && IS_NUM(((Value *)items->data)[0]))
-    {
-        list->is_numeric = true;
-        list->rows = 1;
-        list->cols = 2;
-    }
+
+    *rows = count;
+    *cols = width;
+    return true;
 }
 
 static inline Value op_binaryNum(int op, double l, double r)
@@ -2342,7 +2265,6 @@ void vm_run(vm_t *vm)
         [OP_COMP_BEGIN] = VM_TARGET(OP_COMP_BEGIN),
         [OP_COMP_END] = VM_TARGET(OP_COMP_END),
         [OP_LIST_EXTEND] = VM_TARGET(OP_LIST_EXTEND),
-        [OP_LIST_FINALIZE] = VM_TARGET(OP_LIST_FINALIZE),
         [OP_PUSH_MAP] = VM_TARGET(OP_PUSH_MAP),
         [OP_MAP_SET] = VM_TARGET(OP_MAP_SET),
         [OP_MAP_EXTEND] = VM_TARGET(OP_MAP_EXTEND),
@@ -3187,13 +3109,12 @@ OP_BINARY:
         {
             PiList *A = AS_LIST(left);
             PiList *B = AS_LIST(right);
-            if (!A->is_numeric || !B->is_numeric)
-                vm_error(vm, "Matrix multiplication requires numeric lists.");
-            if (A->cols == -1 || B->cols == -1)
-                vm_error(vm, "Matrix dimensions are not set properly.");
-            if (A->cols != B->rows)
+            int m, n, n_right, p;
+            if (!list_getNumericMatrixShape(A, &m, &n) ||
+                !list_getNumericMatrixShape(B, &n_right, &p))
+                vm_error(vm, "Matrix multiplication requires rectangular numeric lists.");
+            if (n != n_right)
                 vm_error(vm, "Matrix multiplication dimension mismatch.");
-            int m = A->rows, n = A->cols, p = B->cols;
             list_t *result = list_create(sizeof(Value));
             for (int i = 0; i < m; i++)
             {
@@ -3216,9 +3137,6 @@ OP_BINARY:
                 list_add(result, &row);
             }
             Object *res_obj = add_obj(vm, new_list(result));
-            ((PiList *)res_obj)->is_numeric = true;
-            ((PiList *)res_obj)->rows = m;
-            ((PiList *)res_obj)->cols = p;
             push_stack(vm, NEW_OBJ(res_obj));
             break;
         }
@@ -4103,72 +4021,18 @@ OP_PUSH_LIST:
     if (numElements == 0)
     {
         Object *l_obj = add_obj(vm, new_list(list));
-        PiList *plist = (PiList *)l_obj;
-        plist->is_numeric = true;
-        plist->is_matrix = false;
-        plist->rows = 0;
-        plist->cols = 0;
         push_stack(vm, NEW_OBJ(l_obj));
         VM_DISPATCH_SAFE();
     }
 
     int element_base = vm->sp - numElements;
-    bool is_numeric = true, is_matrix = true;
-    int rows = -1, cols = -1;
-
     for (int i = 0; i < numElements; i++)
     {
         Value v = vm->stack[element_base + i];
-        if (is_numeric && !IS_NUM(v))
-            is_numeric = false;
         list_add(list, &v);
     }
 
-    if (is_numeric)
-    {
-        is_matrix = false;
-        rows = 1;
-        cols = numElements;
-    }
-    else
-    {
-        Value first = vm->stack[element_base];
-        if (IS_LIST(first))
-        {
-            PiList *pl0 = (PiList *)AS_OBJ(first);
-            if (pl0->is_numeric)
-            {
-                cols = pl0->items->size;
-                rows = numElements;
-                for (int i = 0; i < numElements; i++)
-                {
-                    Value v = vm->stack[element_base + i];
-                    if (!IS_LIST(v))
-                    {
-                        is_matrix = false;
-                        break;
-                    }
-                    PiList *pl = (PiList *)AS_OBJ(v);
-                    if (!pl->is_numeric || pl->items->size != cols)
-                    {
-                        is_matrix = false;
-                        break;
-                    }
-                }
-            }
-            else
-                is_matrix = false;
-        }
-        else
-            is_matrix = false;
-    }
-
     Object *l_obj = add_obj(vm, new_list(list));
-    PiList *plist = (PiList *)l_obj;
-    plist->is_numeric = is_numeric;
-    plist->is_matrix = is_matrix;
-    plist->rows = is_matrix ? rows : -1;
-    plist->cols = is_matrix ? cols : -1;
     set_stackTop(vm, element_base);
     push_stack(vm, NEW_OBJ(l_obj));
     VM_DISPATCH_SAFE();
@@ -4219,15 +4083,6 @@ OP_PUSH_TUPLE:
     VM_DISPATCH_SAFE();
 }
 
-OP_LIST_APPEND:
-{
-    Value value = pop_stack(vm);
-    if (!IS_LIST(peek_stack(vm)))
-        vm_error(vm, "List append expects a list target.");
-    list_add(AS_LIST(peek_stack(vm))->items, &value);
-    VM_DISPATCH_SAFE();
-}
-
 OP_COMP_APPEND:
 {
     int local = code[pc++];
@@ -4238,7 +4093,7 @@ OP_COMP_APPEND:
     Value target = vm->stack[slot];
     if (!IS_LIST(target))
         vm_error(vm, "List append local expects a list target.");
-    list_add(AS_LIST(target)->items, &value);
+    vm_listAppendValue(AS_LIST(target), value);
     VM_DISPATCH_SAFE();
 }
 
@@ -4251,9 +4106,6 @@ OP_COMP_BEGIN:
     Object *l_obj = add_obj(vm, new_list(list));
     PiList *plist = (PiList *)l_obj;
     plist->is_numeric = true;
-    plist->is_matrix = false;
-    plist->rows = 0;
-    plist->cols = 0;
     push_stack(vm, NEW_OBJ(l_obj));
     int top = vm->comp_sp++;
     vm->comp_frames[top].base = vm->sp - 1;
@@ -4271,8 +4123,16 @@ OP_COMP_END:
     int top = vm->comp_sp - 1;
     if (vm->comp_frames[top].base != vm->sp - 1)
         vm_error(vm, "List comprehension stack is unbalanced.");
-    refresh_listMeta(AS_LIST(peek_stack(vm)));
     vm->comp_sp--;
+    VM_DISPATCH_SAFE();
+}
+
+OP_LIST_APPEND:
+{
+    Value value = pop_stack(vm);
+    if (!IS_LIST(peek_stack(vm)))
+        vm_error(vm, "List append expects a list target.");
+    vm_listAppendValue(AS_LIST(peek_stack(vm)), value);
     VM_DISPATCH_SAFE();
 }
 
@@ -4282,14 +4142,6 @@ OP_LIST_EXTEND:
     if (!IS_LIST(peek_stack(vm)))
         vm_error(vm, "List extend expects a list target.");
     list_extendFromIterable(vm, AS_LIST(peek_stack(vm)), iterable);
-    VM_DISPATCH_SAFE();
-}
-
-OP_LIST_FINALIZE:
-{
-    if (!IS_LIST(peek_stack(vm)))
-        vm_error(vm, "List finalize expects a list target.");
-    refresh_listMeta(AS_LIST(peek_stack(vm)));
     VM_DISPATCH_SAFE();
 }
 
@@ -4883,8 +4735,7 @@ OP_SET_MEMBER:
         list_t *list = pi_list->items;
         int _index = get_index(as_number(index), list_size(list));
         list_set(list, _index, &value);
-        if (!IS_NUM(value))
-            pi_list->is_numeric = false;
+        list_refreshNumericFlag(pi_list);
         break;
     }
     case OBJ_MAP:

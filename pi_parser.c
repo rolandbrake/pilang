@@ -281,10 +281,7 @@ static void emit_spreadListLiteral(parser_t *parser)
     emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
 
     if (match(parser, TK_RBRACKET))
-    {
-        emit(parser->comp, OP_LIST_FINALIZE);
         return;
-    }
 
     do
     {
@@ -299,7 +296,6 @@ static void emit_spreadListLiteral(parser_t *parser)
     } while (match(parser, TK_COMMA));
 
     consume(parser, TK_RBRACKET, "Expect ']' at the end of list literal.");
-    emit(parser->comp, OP_LIST_FINALIZE);
 }
 
 static bool call_hasSpreadArgs(parser_t *parser)
@@ -3408,8 +3404,6 @@ static void member_expr(parser_t *parser)
             consume(parser, TK_RPAREN, "Expect ')' after function call");
             set_pos(parser, token);
             char *name = strcmp(token_value(token), ")") == 0 ? "<FUN>" : token_value(token);
-            if (saw_spread)
-                emit(parser->comp, OP_LIST_FINALIZE);
             if (named > 0)
                 emit_16u(parser->comp, OP_PUSH_MAP, "", named);
             if (saw_spread)
