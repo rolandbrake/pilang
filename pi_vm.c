@@ -1098,6 +1098,52 @@ static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
     }
 }
 
+/*
+ * Return whether two maps contain at least one common key. This lets
+ * MAP_EXTEND remove redundant repeated spreads without changing the
+ * left-to-right, last-write-wins rule.
+ */
+static bool map_hasKeyOverlap(PiMap *left, PiMap *right)
+{
+    PiMap *smaller = left->table->size <= right->table->size ? left : right;
+    PiMap *larger = smaller == left ? right : left;
+    ht_iter it = ht_iterator(smaller->table);
+
+    while (ht_next(&it))
+    {
+        if (ht_has(larger->table, it.key))
+            return true;
+    }
+    return false;
+}
+
+static bool map_extendSourceIsRedundant(Value *sources, int index)
+{
+    PiMap *source = AS_MAP(sources[index]);
+    int previous = -1;
+
+    for (int i = index - 1; i >= 0; i--)
+    {
+        if (sources[i].type == sources[index].type && AS_MAP(sources[i]) == source)
+        {
+            previous = i;
+            break;
+        }
+    }
+
+    if (previous < 0)
+        return false;
+
+    for (int i = previous + 1; i < index; i++)
+    {
+        PiMap *intermediate = AS_MAP(sources[i]);
+        if (map_hasKeyOverlap(source, intermediate))
+            return false;
+    }
+
+    return true;
+}
+
 /**
  * Attempt an object instance call via its `call` method.
  */
@@ -4175,8 +4221,20 @@ OP_MAP_EXTEND:
     if (source_count <= 0 || source_base <= 0 || !IS_MAP(vm->stack[source_base - 1]))
         vm_error(vm, "Map extend expects a map target.");
     PiMap *target = AS_MAP(vm->stack[source_base - 1]);
+
+    /* Validate every source before applying duplicate-spread optimization. */
     for (int i = 0; i < source_count; i++)
-        map_extendFromMap(vm, target, vm->stack[source_base + i]);
+    {
+        if (!IS_MAP(vm->stack[source_base + i]))
+            vm_error(vm, "Map spread expects a map value.");
+    }
+
+    for (int i = 0; i < source_count; i++)
+    {
+        Value *sources = &vm->stack[source_base];
+        if (!map_extendSourceIsRedundant(sources, i))
+            map_extendFromMap(vm, target, sources[i]);
+    }
     set_stackTop(vm, source_base);
     VM_DISPATCH_SAFE();
 }
