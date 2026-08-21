@@ -2260,7 +2260,6 @@ void vm_run(vm_t *vm)
         [OP_PUSH_LIST] = VM_TARGET(OP_PUSH_LIST),
         [OP_PUSH_SET] = VM_TARGET(OP_PUSH_SET),
         [OP_PUSH_TUPLE] = VM_TARGET(OP_PUSH_TUPLE),
-        [OP_LIST_APPEND] = VM_TARGET(OP_LIST_APPEND),
         [OP_COMP_APPEND] = VM_TARGET(OP_COMP_APPEND),
         [OP_COMP_BEGIN] = VM_TARGET(OP_COMP_BEGIN),
         [OP_COMP_END] = VM_TARGET(OP_COMP_END),
@@ -4126,21 +4125,16 @@ OP_COMP_END:
     VM_DISPATCH_SAFE();
 }
 
-OP_LIST_APPEND:
-{
-    Value value = pop_stack(vm);
-    if (!IS_LIST(peek_stack(vm)))
-        vm_error(vm, "List append expects a list target.");
-    vm_listAppendValue(AS_LIST(peek_stack(vm)), value);
-    VM_DISPATCH_SAFE();
-}
-
 OP_LIST_EXTEND:
 {
-    Value iterable = pop_stack(vm);
-    if (!IS_LIST(peek_stack(vm)))
+    int source_count = code[pc++];
+    int source_base = vm->sp - source_count;
+    if (source_count <= 0 || source_base <= 0 || !IS_LIST(vm->stack[source_base - 1]))
         vm_error(vm, "List extend expects a list target.");
-    list_extendFromIterable(vm, AS_LIST(peek_stack(vm)), iterable);
+    PiList *target = AS_LIST(vm->stack[source_base - 1]);
+    for (int i = 0; i < source_count; i++)
+        list_extendFromIterable(vm, target, vm->stack[source_base + i]);
+    set_stackTop(vm, source_base);
     VM_DISPATCH_SAFE();
 }
 

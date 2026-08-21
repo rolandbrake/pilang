@@ -279,6 +279,8 @@ static double consume_fillEndpoint(parser_t *parser)
 static void emit_spreadListLiteral(parser_t *parser)
 {
     emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
+    int source_count = 0;
+    int pending_items = 0;
 
     if (match(parser, TK_RBRACKET))
         return;
@@ -288,14 +290,33 @@ static void emit_spreadListLiteral(parser_t *parser)
         if (check(parser, TK_RBRACKET))
             break;
 
-        bool is_spread = match(parser, TK_ELLIPSIS);
-
-        cond_expr(parser);
-
-        emit(parser->comp, is_spread ? OP_LIST_EXTEND : OP_LIST_APPEND);
+        if (match(parser, TK_ELLIPSIS))
+        {
+            if (pending_items > 0)
+            {
+                emit_16u(parser->comp, OP_PUSH_LIST, "", pending_items);
+                pending_items = 0;
+                source_count++;
+            }
+            cond_expr(parser);
+            source_count++;
+        }
+        else
+        {
+            cond_expr(parser);
+            pending_items++;
+        }
     } while (match(parser, TK_COMMA));
 
     consume(parser, TK_RBRACKET, "Expect ']' at the end of list literal.");
+    if (pending_items > 0)
+    {
+        emit_16u(parser->comp, OP_PUSH_LIST, "", pending_items);
+        source_count++;
+    }
+    if (source_count > 255)
+        p_error("List literal cannot contain more than 255 spread segments.", peek(parser).line, peek(parser).column);
+    emit_8u(parser->comp, OP_LIST_EXTEND, "", source_count);
 }
 
 static bool call_hasSpreadArgs(parser_t *parser)
@@ -3367,6 +3388,9 @@ static void member_expr(parser_t *parser)
 
             if (!check(parser, TK_RPAREN))
             {
+                int spread_source_count = 0;
+                int pending_args = 0;
+                bool spread_args_finalized = false;
                 if (saw_spread)
                     emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
 
@@ -3381,8 +3405,14 @@ static void member_expr(parser_t *parser)
                                      "Positional arguments must come before named arguments.");
                         }
 
+                        if (pending_args > 0)
+                        {
+                            emit_16u(parser->comp, OP_PUSH_LIST, "", pending_args);
+                            pending_args = 0;
+                            spread_source_count++;
+                        }
                         expr(parser);
-                        emit(parser->comp, OP_LIST_EXTEND);
+                        spread_source_count++;
                     }
                     else if (check(parser, TK_ID) && peek_next(parser).type == TK_ASSIGN)
                     {
@@ -3392,6 +3422,20 @@ static void member_expr(parser_t *parser)
 
                         if (!saw_named)
                             saw_named = true;
+
+                        if (saw_spread && !spread_args_finalized)
+                        {
+                            if (pending_args > 0)
+                            {
+                                emit_16u(parser->comp, OP_PUSH_LIST, "", pending_args);
+                                pending_args = 0;
+                                spread_source_count++;
+                            }
+                            if (spread_source_count > 255)
+                                p_error("Spread argument list cannot contain more than 255 sources.", key_tok.line, key_tok.column);
+                            emit_8u(parser->comp, OP_LIST_EXTEND, "", spread_source_count);
+                            spread_args_finalized = true;
+                        }
 
                         if (named >= 256)
                             p_errorf(key_tok.line, key_tok.column, "Too many named arguments.");
@@ -3414,11 +3458,24 @@ static void member_expr(parser_t *parser)
                         }
                         expr(parser);
                         if (saw_spread)
-                            emit(parser->comp, OP_LIST_APPEND);
+                            pending_args++;
                         else
                             args++;
                     }
                 } while (match(parser, TK_COMMA));
+
+                if (saw_spread && !spread_args_finalized)
+                {
+                    if (pending_args > 0)
+                    {
+                        emit_16u(parser->comp, OP_PUSH_LIST, "", pending_args);
+                        pending_args = 0;
+                        spread_source_count++;
+                    }
+                    if (spread_source_count > 255)
+                        p_error("Spread argument list cannot contain more than 255 sources.", peek(parser).line, peek(parser).column);
+                    emit_8u(parser->comp, OP_LIST_EXTEND, "", spread_source_count);
+                }
             }
             consume(parser, TK_RPAREN, "Expect ')' after function call");
             set_pos(parser, token);

@@ -86,7 +86,6 @@ static const char *op_names[] = {
     [0x19] = "PUSH_RANGE",
     [0x1a] = "BINARY_OP",
     [0x1b] = "PUSH_LIST",
-    [0x20] = "LIST_APPEND",
     [0x21] = "LIST_EXTEND",
     [0x1c] = "STORE_UPVALUE",
     [0x1d] = "LOAD_UPVALUE",
@@ -1022,6 +1021,7 @@ void dis(compiler_t *comp)
             case OP_COMP_APPEND:
             case OP_MAP_FINALIZE:
             case OP_MAP_EXTEND:
+            case OP_LIST_EXTEND:
                 snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d",
                          line++, op_names[opcode], operands[0]);
                 line++;
@@ -1059,8 +1059,6 @@ void dis(compiler_t *comp)
                 pc += 2;
                 break;
 
-            case OP_LIST_APPEND:
-            case OP_LIST_EXTEND:
             case OP_COMP_END:
                 snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s",
                          line++, op_names[opcode]);
@@ -1101,6 +1099,7 @@ void dis(compiler_t *comp)
             case OP_COMP_APPEND:
             case OP_MAP_FINALIZE:
             case OP_MAP_EXTEND:
+            case OP_LIST_EXTEND:
                 snprintf(line_buf, sizeof(line_buf),
                          "\033[38;2;107;107;107m%-4d\033[0m: "
                          "\033[38;2;139;0;0m%-15s\033[0m "
@@ -1147,8 +1146,6 @@ void dis(compiler_t *comp)
                 pc += 2;
                 break;
 
-            case OP_LIST_APPEND:
-            case OP_LIST_EXTEND:
             case OP_COMP_END:
                 snprintf(line_buf, sizeof(line_buf),
                          "\033[38;2;107;107;107m%-4d\033[0m: "

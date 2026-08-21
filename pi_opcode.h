@@ -34,7 +34,6 @@ typedef enum
     OP_PUSH_RANGE = 0x19,
     OP_BINARY = 0x1a,
     OP_PUSH_LIST = 0x1b,
-    OP_LIST_APPEND = 0x20,
     OP_LIST_EXTEND = 0x21,
     OP_STORE_UPVALUE = 0x1c,
     OP_LOAD_UPVALUE = 0x1d,
@@ -132,6 +131,7 @@ static inline int operand_count(uint8_t op)
     case OP_COMP_BEGIN:
     case OP_MAP_FINALIZE:
     case OP_MAP_EXTEND:
+    case OP_LIST_EXTEND:
         return 1;
 
     default:
