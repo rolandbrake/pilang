@@ -1352,6 +1352,8 @@ static list_t *param_list(parser_t *parser)
 static void emit_spreadMapLiteral(parser_t *parser)
 {
     emit_16u(parser->comp, OP_PUSH_MAP, "", 0);
+    int source_count = 0;
+    int pending_entries = 0;
 
     if (match(parser, TK_RBRACE))
     {
@@ -1366,8 +1368,14 @@ static void emit_spreadMapLiteral(parser_t *parser)
 
         if (match(parser, TK_ELLIPSIS))
         {
+            if (pending_entries > 0)
+            {
+                emit_16u(parser->comp, OP_PUSH_MAP, "", pending_entries);
+                pending_entries = 0;
+                source_count++;
+            }
             cond_expr(parser);
-            emit(parser->comp, OP_MAP_EXTEND);
+            source_count++;
             continue;
         }
 
@@ -1433,10 +1441,21 @@ static void emit_spreadMapLiteral(parser_t *parser)
         }
 
         emit_16u(parser->comp, OP_LOAD_CONST, key, index);
-        emit(parser->comp, OP_MAP_SET);
+        pending_entries++;
     } while (match(parser, TK_COMMA) && !check(parser, TK_RBRACE));
 
     consume(parser, TK_RBRACE, "Expect '}' at the end of map literal.");
+    if (pending_entries > 0)
+    {
+        emit_16u(parser->comp, OP_PUSH_MAP, "", pending_entries);
+        source_count++;
+    }
+    if (source_count > 0)
+    {
+        if (source_count > 255)
+            p_error("Map literal cannot contain more than 255 spread segments.", peek(parser).line, peek(parser).column);
+        emit_8u(parser->comp, OP_MAP_EXTEND, "", source_count);
+    }
     emit_mapFinalize(parser);
 }
 

@@ -59,7 +59,6 @@ typedef enum
     OP_TENSOR_GET = 0x42,
     OP_TENSOR_SET = 0x43,
     OP_CALL_SPREAD = 0x45,
-    OP_MAP_SET = 0x46,
     OP_MAP_EXTEND = 0x47,
     OP_MAP_FINALIZE = 0x48,
     OP_COMP_APPEND = 0x49,
@@ -132,6 +131,7 @@ static inline int operand_count(uint8_t op)
     case OP_COMP_APPEND:
     case OP_COMP_BEGIN:
     case OP_MAP_FINALIZE:
+    case OP_MAP_EXTEND:
         return 1;
 
     default:

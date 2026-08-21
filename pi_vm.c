@@ -2266,7 +2266,6 @@ void vm_run(vm_t *vm)
         [OP_COMP_END] = VM_TARGET(OP_COMP_END),
         [OP_LIST_EXTEND] = VM_TARGET(OP_LIST_EXTEND),
         [OP_PUSH_MAP] = VM_TARGET(OP_PUSH_MAP),
-        [OP_MAP_SET] = VM_TARGET(OP_MAP_SET),
         [OP_MAP_EXTEND] = VM_TARGET(OP_MAP_EXTEND),
         [OP_MAP_FINALIZE] = VM_TARGET(OP_MAP_FINALIZE),
         [OP_PUSH_FUNCTION] = VM_TARGET(OP_PUSH_FUNCTION),
@@ -4175,33 +4174,16 @@ OP_PUSH_MAP:
     VM_DISPATCH_SAFE();
 }
 
-OP_MAP_SET:
-{
-    Value key = pop_stack(vm);
-    Value value = pop_stack(vm);
-    if (!IS_MAP(peek_stack(vm)))
-        vm_error(vm, "Map set expects a map target.");
-    if (!IS_STRING(key))
-        vm_error(vm, "Map literal keys must be strings.");
-    PiMap *map = AS_MAP(peek_stack(vm));
-    if (ht_put(map->table, AS_CSTRING(key), &value))
-        map_dirty(map);
-    if (IS_FUN(value))
-    {
-        if (strcmp(AS_CSTRING(key), "compute") == 0)
-            MAP_SET_FLAG(map, MAP_HAS_COMPUTE, true);
-        else if (strcmp(AS_CSTRING(key), "rcompute") == 0)
-            MAP_SET_FLAG(map, MAP_HAS_RCOMPUTE, true);
-    }
-    VM_DISPATCH_SAFE();
-}
-
 OP_MAP_EXTEND:
 {
-    Value source = pop_stack(vm);
-    if (!IS_MAP(peek_stack(vm)))
+    int source_count = code[pc++];
+    int source_base = vm->sp - source_count;
+    if (source_count <= 0 || source_base <= 0 || !IS_MAP(vm->stack[source_base - 1]))
         vm_error(vm, "Map extend expects a map target.");
-    map_extendFromMap(vm, AS_MAP(peek_stack(vm)), source);
+    PiMap *target = AS_MAP(vm->stack[source_base - 1]);
+    for (int i = 0; i < source_count; i++)
+        map_extendFromMap(vm, target, vm->stack[source_base + i]);
+    set_stackTop(vm, source_base);
     VM_DISPATCH_SAFE();
 }
 

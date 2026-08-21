@@ -111,7 +111,6 @@ static const char *op_names[] = {
     [0x42] = "TENSOR_GET",
     [0x43] = "TENSOR_SET",
     [0x45] = "CALL_SPREAD",
-    [0x46] = "MAP_SET",
     [0x47] = "MAP_EXTEND",
     [0x48] = "MAP_FINALIZE",
     [0x49] = "COMP_APPEND",
@@ -1022,6 +1021,7 @@ void dis(compiler_t *comp)
             case OP_COMP_BEGIN:
             case OP_COMP_APPEND:
             case OP_MAP_FINALIZE:
+            case OP_MAP_EXTEND:
                 snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d",
                          line++, op_names[opcode], operands[0]);
                 line++;
@@ -1062,8 +1062,6 @@ void dis(compiler_t *comp)
             case OP_LIST_APPEND:
             case OP_LIST_EXTEND:
             case OP_COMP_END:
-            case OP_MAP_SET:
-            case OP_MAP_EXTEND:
                 snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s",
                          line++, op_names[opcode]);
                 break;
@@ -1102,6 +1100,7 @@ void dis(compiler_t *comp)
             case OP_COMP_BEGIN:
             case OP_COMP_APPEND:
             case OP_MAP_FINALIZE:
+            case OP_MAP_EXTEND:
                 snprintf(line_buf, sizeof(line_buf),
                          "\033[38;2;107;107;107m%-4d\033[0m: "
                          "\033[38;2;139;0;0m%-15s\033[0m "
@@ -1151,8 +1150,6 @@ void dis(compiler_t *comp)
             case OP_LIST_APPEND:
             case OP_LIST_EXTEND:
             case OP_COMP_END:
-            case OP_MAP_SET:
-            case OP_MAP_EXTEND:
                 snprintf(line_buf, sizeof(line_buf),
                          "\033[38;2;107;107;107m%-4d\033[0m: "
                          "\033[38;2;139;0;0m%-15s\033[0m",
