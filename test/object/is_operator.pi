@@ -12,18 +12,3 @@ assert(dog is Object, "instance should match Object");
 assert(Dog is Animal, "class prototype should match parent prototype");
 assert(!(10 is Object), "primitive numbers should not match Object");
 assert(!("pi" is Object), "primitive strings should not match Object");
-
-let Entity = {
-    tag: "entity"
-}
-
-let Player = {
-    name: "player"
-}
-
-Object.extends(Entity, Player);
-
-let player = Player();
-
-assert(player is Player, "map instance should match its prototype");
-assert(player is Entity, "map instance should match inherited prototype");

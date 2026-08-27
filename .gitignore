@@ -87,3 +87,6 @@ dt_vm.c
 # Ignore Python bytecode and cache recursively
 __pycache__/
 *.pyc
+
+# Local agent instructions
+AGENTS.md

@@ -8,6 +8,8 @@
 
 typedef struct Value Value;
 
+#define PI_MAX_LIST_SIZE 1000000
+
 #define LIST_SIZE(l) ((l)->size)
 #define LIST_AT(l, i) (*(Value *)list_getAt((l), (i)))
 

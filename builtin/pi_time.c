@@ -40,12 +40,6 @@ static Value time_string(vm_t *vm, const char *text)
     return NEW_OBJ(add_obj(vm, new_pistring(strdup(text ? text : ""))));
 }
 
-static void map_putValue(PiMap *map, const char *key, Value value)
-{
-    if (ht_set(map->table, key, &value) || ht_put(map->table, key, &value))
-        map_dirty(map);
-}
-
 static Value map_getValue(PiMap *map, const char *key, Value fallback)
 {
     Value *value = (Value *)ht_get(map->table, key);
@@ -67,26 +61,24 @@ static PiMap *require_timeMap(vm_t *vm, Value value, const char *name)
 static Value new_timeObject(vm_t *vm, const struct tm *tm_ptr, int millis, bool utc)
 {
     struct tm copy = *tm_ptr;
-    PiMap *map = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
+    PiMap *map = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
 
-    map->proto = vm->object_proto;
-    map->intrinsic_name = strdup("Time");
-    map_putValue(map, "_type", time_string(vm, "Time"));
-    map_putValue(map, "year", NEW_NUM(copy.tm_year + 1900));
-    map_putValue(map, "month", NEW_NUM(copy.tm_mon + 1));
-    map_putValue(map, "day", NEW_NUM(copy.tm_mday));
-    map_putValue(map, "hour", NEW_NUM(copy.tm_hour));
-    map_putValue(map, "minute", NEW_NUM(copy.tm_min));
-    map_putValue(map, "second", NEW_NUM(copy.tm_sec));
-    map_putValue(map, "millisecond", NEW_NUM(millis));
-    map_putValue(map, "weekday", NEW_NUM(copy.tm_wday));
-    map_putValue(map, "yearday", NEW_NUM(copy.tm_yday + 1));
-    map_putValue(map, "isdst", NEW_BOOL(copy.tm_isdst > 0));
-    map_putValue(map, "utc", NEW_BOOL(utc));
+    map_setValueByKey(map, "_type", time_string(vm, "Time"));
+    map_setValueByKey(map, "year", NEW_NUM(copy.tm_year + 1900));
+    map_setValueByKey(map, "month", NEW_NUM(copy.tm_mon + 1));
+    map_setValueByKey(map, "day", NEW_NUM(copy.tm_mday));
+    map_setValueByKey(map, "hour", NEW_NUM(copy.tm_hour));
+    map_setValueByKey(map, "minute", NEW_NUM(copy.tm_min));
+    map_setValueByKey(map, "second", NEW_NUM(copy.tm_sec));
+    map_setValueByKey(map, "millisecond", NEW_NUM(millis));
+    map_setValueByKey(map, "weekday", NEW_NUM(copy.tm_wday));
+    map_setValueByKey(map, "yearday", NEW_NUM(copy.tm_yday + 1));
+    map_setValueByKey(map, "isdst", NEW_BOOL(copy.tm_isdst > 0));
+    map_setValueByKey(map, "utc", NEW_BOOL(utc));
 
     time_t epoch = utc ? timegm_portable(&copy) : mktime(&copy);
-    map_putValue(map, "unix", NEW_NUM((double)epoch));
-    map_putValue(map, "millis", NEW_NUM((double)epoch * 1000.0 + millis));
+    map_setValueByKey(map, "unix", NEW_NUM((double)epoch));
+    map_setValueByKey(map, "millis", NEW_NUM((double)epoch * 1000.0 + millis));
 
     return NEW_OBJ(map);
 }
@@ -399,14 +391,12 @@ Value tm_iso(vm_t *vm, int argc, Value *argv)
 
 static Value new_timerObject(vm_t *vm, double ms, bool repeating, int ticks)
 {
-    PiMap *map = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    map->proto = vm->object_proto;
-    map->intrinsic_name = strdup("Timer");
-    map_putValue(map, "_type", time_string(vm, "Timer"));
-    map_putValue(map, "ms", NEW_NUM(ms));
-    map_putValue(map, "repeating", NEW_BOOL(repeating));
-    map_putValue(map, "active", NEW_BOOL(false));
-    map_putValue(map, "ticks", NEW_NUM(ticks));
+    PiMap *map = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(map, "_type", time_string(vm, "Timer"));
+    map_setValueByKey(map, "ms", NEW_NUM(ms));
+    map_setValueByKey(map, "repeating", NEW_BOOL(repeating));
+    map_setValueByKey(map, "active", NEW_BOOL(false));
+    map_setValueByKey(map, "ticks", NEW_NUM(ticks));
     return NEW_OBJ(map);
 }
 

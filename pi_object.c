@@ -249,22 +249,11 @@ Object *tensor_rowAsList(PiTensor *tensor, int row)
     return (Object *)list;
 }
 
-Object *new_map(table_t *table, bool is_instance)
+Object *new_map(table_t *table)
 {
     PiMap *map = CREATE_OBJ(PiMap, OBJ_MAP);
     map->table = table;
-    map->bound_cache = NULL; // allocated lazily; plain dicts never touch this
-    map->_key = NULL;
-    map->_value = NEW_NIL();
-    map->version = 0;
-    map->owner_version = 0;
-    map->owner = NULL;
-    map->intrinsic_name = NULL;
-    map->flags = MAP_BRACKET;
     map->it = ht_iterator(table);
-    MAP_SET_FLAG(map, MAP_IS_INSTANCE, is_instance);
-    map->super_instance = NULL;
-    map->proto = NULL;
     return (Object *)map;
 }
 
@@ -493,158 +482,98 @@ Object *new_slice(double start, double stop, double step)
     return (Object *)slice;
 }
 
-/* Walks the prototype chain and returns the map that owns the key. */
-static PiMap *map_findOwner(PiMap *map, const char *key_str)
-{
-    while (map != NULL)
-    {
-        if (ht_get(map->table, key_str) != NULL)
-            return map;
-        map = map->proto;
-    }
-    return NULL;
-}
-
-/* Member names are compiled PiStrings.  Borrow their stable character buffer
- * instead of allocating a duplicate through as_string(); other key types keep
- * the existing conversion path and report ownership through owned_out. */
-static inline const char *map_keyChars(Value key, char **owned_out)
+static inline const char *map_keyChars(Value key, char **owned)
 {
     if (IS_STRING(key))
     {
-        *owned_out = NULL;
+        *owned = NULL;
         return AS_CSTRING(key);
     }
-    *owned_out = as_string(key);
-    return *owned_out;
-}
 
-static inline bool map_cacheHit(PiMap *map, Value key)
-{
-    return IS_STRING(key) &&
-           map->_key == AS_OBJ(key) &&
-           map->owner != NULL &&
-           map->owner->version == map->owner_version;
-}
-
-static inline void map_cacheStore(PiMap *map, Value key, PiMap *owner, Value value)
-{
-    if (!IS_STRING(key) || owner == NULL)
-        return;
-
-    map->_key = AS_OBJ(key);
-    map->_value = value;
-    map->owner = owner;
-    map->owner_version = owner->version;
-}
-
-void map_dirty(PiMap *map)
-{
-    if (!map)
-        return;
-
-    map->version++;
-    map->_key = NULL;
-    map->_value = NEW_NIL();
-    map->owner = NULL;
-    map->owner_version = 0;
+    *owned = as_string(key);
+    return *owned;
 }
 
 Value map_get(PiMap *map, Value key)
 {
-    if (map_cacheHit(map, key))
-        return map->_value;
+    if (!map)
+        return NEW_NIL();
 
-    char *owned;
-    const char *key_str = map_keyChars(key, &owned);
-    PiMap *owner = map_findOwner(map, key_str);
-    void *item = owner ? ht_get(owner->table, key_str) : NULL;
+    char *owned = NULL;
+    const char *_key = map_keyChars(key, &owned);
+
+    void *item = ht_get(map->table, _key);
     Value value = item ? *(Value *)item : NEW_NIL();
-    if (item)
-        map_cacheStore(map, key, owner, value);
+
     free(owned);
     return value;
 }
 
 Value map_getValueByKey(PiMap *map, const char *key)
 {
-    PiMap *owner = map_findOwner(map, key);
-    void *item = owner ? ht_get(owner->table, key) : NULL;
+    if (!map || !key)
+        return NEW_NIL();
+
+    void *item = ht_get(map->table, key);
     return item ? *(Value *)item : NEW_NIL();
+}
+
+void map_setValueByKey(PiMap *map, const char *key, Value value)
+{
+    if (!map || !key)
+        return;
+
+    ht_put(map->table, key, &value);
 }
 
 bool map_has(PiMap *map, Value key)
 {
-    char *owned;
-    const char *key_str = map_keyChars(key, &owned);
-    bool found = map_findOwner(map, key_str) != NULL;
+    if (!map)
+        return false;
+
+    char *owned = NULL;
+    const char *_key = map_keyChars(key, &owned);
+
+    bool found = ht_get(map->table, _key) != NULL;
+
     free(owned);
     return found;
 }
 
 bool map_delete(PiMap *map, Value key)
 {
-    char *owned;
-    const char *key_str = map_keyChars(key, &owned);
-    PiMap *owner = map_findOwner(map, key_str);
-    bool removed = false;
-    if (owner != NULL && !MAP_HAS_FLAG(owner, MAP_LOCKED))
-    {
-        removed = ht_delete(owner->table, key_str);
-        if (removed)
-            map_dirty(owner);
-    }
+    if (!map)
+        return false;
+
+    char *owned = NULL;
+    const char *_key = map_keyChars(key, &owned);
+
+    bool removed = ht_delete(map->table, _key);
+
     free(owned);
     return removed;
 }
 
-/* Updates an existing prototype owner when possible; inserts into current map otherwise. */
+/* Updates an existing key or inserts a new key into this map. */
 void map_set(PiMap *map, Value key, Value value)
 {
-    char *owned;
-    const char *key_str = map_keyChars(key, &owned);
-    PiMap *owner = map_findOwner(map, key_str);
-    if (owner == NULL)
-        owner = map;
+    if (!map)
+        return;
 
-    bool changed = ht_set(owner->table, key_str, &value);
-    if (!changed && !MAP_HAS_FLAG(owner, MAP_LOCKED))
-        changed = ht_put(owner->table, key_str, &value);
-    if (changed)
-        map_dirty(owner);
+    char *owned = NULL;
+    const char *_key = map_keyChars(key, &owned);
 
-    if (IS_FUN(value))
-    {
-        if (strcmp(key_str, "compute") == 0)
-            MAP_SET_FLAG(owner, MAP_HAS_COMPUTE, true);
-        if (strcmp(key_str, "rcompute") == 0)
-            MAP_SET_FLAG(owner, MAP_HAS_RCOMPUTE, true);
-    }
+    bool changed = ht_set(map->table, _key, &value);
+
+    if (!changed)
+        changed = ht_put(map->table, _key, &value);
 
     free(owned);
-}
-
-PiMap *map_owner(PiMap *map, Value key)
-{
-    if (map_cacheHit(map, key))
-        return map->owner;
-
-    char *owned;
-    const char *key_str = map_keyChars(key, &owned);
-    PiMap *owner = map_findOwner(map, key_str);
-    if (owner)
-    {
-        Value *item = ht_get(owner->table, key_str);
-        if (item)
-            map_cacheStore(map, key, owner, *item);
-    }
-    free(owned);
-    return owner;
 }
 
 int map_size(PiMap *map)
 {
-    return map->table->size;
+    return map ? map->table->size : 0;
 }
 
 uint32_t code_hash(uint8_t *code)
@@ -781,6 +710,12 @@ void iter_reset(Object *col)
     case OBJ_MAP:
         ht_reset(&((PiMap *)col)->it);
         break;
+    case OBJ_CLASS:
+        ht_reset(&((PiClass *)col)->it);
+        break;
+    case OBJ_INSTANCE:
+        ht_reset(&((PiInstance *)col)->it);
+        break;
     case OBJ_SET:
         ((PiSet *)col)->current = 0;
         break;
@@ -816,6 +751,10 @@ bool iter_hasNext(Object *col)
     }
     case OBJ_MAP:
         return ht_hasNext(&((PiMap *)col)->it);
+    case OBJ_CLASS:
+        return ht_hasNext(&((PiClass *)col)->it);
+    case OBJ_INSTANCE:
+        return ht_hasNext(&((PiInstance *)col)->it);
     case OBJ_SET:
     {
         PiSet *set = (PiSet *)col;
@@ -871,6 +810,18 @@ Value iter_next(Object *col)
         ht_next(&map->it);
         return *(Value *)map->it.value;
     }
+    case OBJ_CLASS:
+    {
+        PiClass *_class = (PiClass *)col;
+        ht_next(&_class->it);
+        return *(Value *)_class->it.value;
+    }
+    case OBJ_INSTANCE:
+    {
+        PiInstance *instance = (PiInstance *)col;
+        ht_next(&instance->it);
+        return *(Value *)instance->it.value;
+    }
     case OBJ_SET:
     {
         PiSet *set = (PiSet *)col;
@@ -893,6 +844,8 @@ bool is_iterable(Object *obj)
     case OBJ_STRING:
     case OBJ_RANGE:
     case OBJ_MAP:
+    case OBJ_CLASS:
+    case OBJ_INSTANCE:
     case OBJ_SET:
     case OBJ_TUPLE:
         return true;

@@ -346,7 +346,7 @@ Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin, b
     module->names = NULL;
     module->instrs = NULL;
     module->globals = NULL;
-    Object *exports_obj = add_obj(vm, new_map(ht_create(sizeof(Value)), false));
+    Object *exports_obj = add_obj(vm, new_map(ht_create(sizeof(Value))));
     module->exports = (PiMap *)exports_obj;
     return add_obj(vm, (Object *)module);
 }

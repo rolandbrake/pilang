@@ -231,8 +231,7 @@ Value pi_remove(vm_t *vm, int argc, Value *argv)
     {
         PiMap *map = AS_MAP(collection);
         char *key = as_string(argv[1]);
-        if (ht_delete(map->table, key))
-            map_dirty(map);
+        ht_delete(map->table, key);
         free(key);
         return collection;
     }
@@ -639,16 +638,8 @@ Value pi_copy(vm_t *vm, int argc, Value *argv)
     {
         PiMap *original = AS_MAP(value);
         table_t *table = ht_create(sizeof(Value));
-        Object *obj = add_obj(vm, new_map(table, MAP_HAS_FLAG(original, MAP_IS_INSTANCE)));
+        Object *obj = add_obj(vm, new_map(table));
         PiMap *copy = (PiMap *)obj;
-
-        copy->proto = original->proto;
-
-        copy->super_instance = original->super_instance;
-        copy->flags = original->flags;
-
-        if (original->intrinsic_name)
-            copy->intrinsic_name = strdup(original->intrinsic_name);
 
         ht_iter it = ht_iterator(original->table);
         while (ht_next(&it))

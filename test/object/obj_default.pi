@@ -1,6 +1,6 @@
-Point = {
-    x: 10,
-    y: 20
+class Point {
+    X = 10
+    Y = 20
 }
 
 p = Point()
@@ -10,5 +10,5 @@ c = p.clone()
 println(p.format())
 println(p.hash() > 0)
 println(c.format())
-println(c.x)
-println(plain.format)
+println(c.X)
+println(type(plain))

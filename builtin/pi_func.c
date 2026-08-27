@@ -38,12 +38,6 @@ static Value state_get(vm_t *vm, PiMap *state, const char *key, const Value fall
     return value ? *value : fallback;
 }
 
-static void state_set(PiMap *state, const char *key, Value value)
-{
-    if (ht_set(state->table, key, &value) || ht_put(state->table, key, &value))
-        map_dirty(state);
-}
-
 // Native wrapper callbacks recover their closure state from the currently executing function.
 static PiMap *current_stateMap(vm_t *vm, const char *name)
 {
@@ -248,8 +242,8 @@ Value fn_compose(vm_t *vm, int argc, Value *argv)
         list_add(fns, &argv[i]);
     }
 
-    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(state, "fns", NEW_OBJ(add_obj(vm, new_list(fns))));
+    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(state, "fns", NEW_OBJ(add_obj(vm, new_list(fns))));
     return make_nativeWrapper(vm, "compose", fn_composeCall, (Object *)state);
 }
 
@@ -282,8 +276,8 @@ Value fn_pipe(vm_t *vm, int argc, Value *argv)
         list_add(fns, &argv[i]);
     }
 
-    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(state, "fns", NEW_OBJ(add_obj(vm, new_list(fns))));
+    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(state, "fns", NEW_OBJ(add_obj(vm, new_list(fns))));
     return make_nativeWrapper(vm, "pipe", fn_pipeCall, (Object *)state);
 }
 
@@ -319,8 +313,8 @@ Value fn_juxt(vm_t *vm, int argc, Value *argv)
         list_add(fns, &argv[i]);
     }
 
-    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(state, "fns", NEW_OBJ(add_obj(vm, new_list(fns))));
+    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(state, "fns", NEW_OBJ(add_obj(vm, new_list(fns))));
     return make_nativeWrapper(vm, "juxt", fn_juxtCall, (Object *)state);
 }
 
@@ -349,10 +343,10 @@ static Value fn_curryCall(vm_t *vm, int argc, Value *argv)
     Value arg_list = new_valueList(vm, total, all_args);
     free(all_args);
 
-    PiMap *next = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(next, "fn", fn_value);
-    state_set(next, "arity", NEW_NUM(arity));
-    state_set(next, "args", arg_list);
+    PiMap *next = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(next, "fn", fn_value);
+    map_setValueByKey(next, "arity", NEW_NUM(arity));
+    map_setValueByKey(next, "args", arg_list);
 
     return make_nativeWrapper(vm, "curry", fn_curryCall, (Object *)next);
 }
@@ -370,10 +364,10 @@ Value fn_curry(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "curry(fn, [arity]): arity must be positive");
 
     list_t *empty = list_create(sizeof(Value));
-    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(state, "fn", argv[0]);
-    state_set(state, "arity", NEW_NUM(arity));
-    state_set(state, "args", NEW_OBJ(add_obj(vm, new_list(empty))));
+    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(state, "fn", argv[0]);
+    map_setValueByKey(state, "arity", NEW_NUM(arity));
+    map_setValueByKey(state, "args", NEW_OBJ(add_obj(vm, new_list(empty))));
 
     return make_nativeWrapper(vm, "curry", fn_curryCall, (Object *)state);
 }
@@ -403,9 +397,9 @@ Value fn_partial(vm_t *vm, int argc, Value *argv)
 
     require_fun(vm, argv[0], "partial");
 
-    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(state, "fn", argv[0]);
-    state_set(state, "args", clone_argList(vm, argv + 1, argc - 1));
+    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(state, "fn", argv[0]);
+    map_setValueByKey(state, "args", clone_argList(vm, argv + 1, argc - 1));
     return make_nativeWrapper(vm, "partial", fn_partialCall, (Object *)state);
 }
 
@@ -435,8 +429,8 @@ Value fn_spread(vm_t *vm, int argc, Value *argv)
 
     require_fun(vm, argv[0], "spread");
 
-    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(state, "fn", argv[0]);
+    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(state, "fn", argv[0]);
     return make_nativeWrapper(vm, "spread", fn_spreadCall, (Object *)state);
 }
 
@@ -455,8 +449,8 @@ Value fn_unspread(vm_t *vm, int argc, Value *argv)
 
     require_fun(vm, argv[0], "unspread");
 
-    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(state, "fn", argv[0]);
+    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(state, "fn", argv[0]);
     return make_nativeWrapper(vm, "unspread", fn_unspreadCall, (Object *)state);
 }
 
@@ -495,10 +489,10 @@ Value fn_memoize(vm_t *vm, int argc, Value *argv)
     if (argc >= 2)
         require_fun(vm, argv[1], "memoize");
 
-    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(state, "fn", argv[0]);
-    state_set(state, "key_fn", argc >= 2 ? argv[1] : NEW_NIL());
-    state_set(state, "cache", NEW_OBJ(add_obj(vm, new_map(ht_create(sizeof(Value)), false))));
+    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(state, "fn", argv[0]);
+    map_setValueByKey(state, "key_fn", argc >= 2 ? argv[1] : NEW_NIL());
+    map_setValueByKey(state, "cache", NEW_OBJ(add_obj(vm, new_map(ht_create(sizeof(Value))))));
     return make_nativeWrapper(vm, "memoize", fn_memoizeCall, (Object *)state);
 }
 
@@ -510,8 +504,8 @@ static Value fn_onceCall(vm_t *vm, int argc, Value *argv)
 
     Value fn_value = state_get(vm, state, "fn", NEW_NIL());
     Value result = call_func(vm, AS_FUN(fn_value), argc, argv, NEW_NIL());
-    state_set(state, "done", NEW_BOOL(true));
-    state_set(state, "result", result);
+    map_setValueByKey(state, "done", NEW_BOOL(true));
+    map_setValueByKey(state, "result", result);
     return result;
 }
 
@@ -522,10 +516,10 @@ Value fn_once(vm_t *vm, int argc, Value *argv)
 
     require_fun(vm, argv[0], "once");
 
-    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(state, "fn", argv[0]);
-    state_set(state, "done", NEW_BOOL(false));
-    state_set(state, "result", NEW_NIL());
+    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(state, "fn", argv[0]);
+    map_setValueByKey(state, "done", NEW_BOOL(false));
+    map_setValueByKey(state, "result", NEW_NIL());
     return make_nativeWrapper(vm, "once", fn_onceCall, (Object *)state);
 }
 
@@ -540,8 +534,8 @@ static Value fn_throttleCall(vm_t *vm, int argc, Value *argv)
 
     Value fn_value = state_get(vm, state, "fn", NEW_NIL());
     Value result = call_func(vm, AS_FUN(fn_value), argc, argv, NEW_NIL());
-    state_set(state, "last", NEW_NUM(now_ms()));
-    state_set(state, "result", result);
+    map_setValueByKey(state, "last", NEW_NUM(now_ms()));
+    map_setValueByKey(state, "result", result);
     return result;
 }
 
@@ -552,11 +546,11 @@ Value fn_throttle(vm_t *vm, int argc, Value *argv)
 
     require_fun(vm, argv[1], "throttle");
 
-    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(state, "ms", argv[0]);
-    state_set(state, "fn", argv[1]);
-    state_set(state, "last", NEW_NUM(-1));
-    state_set(state, "result", NEW_NIL());
+    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(state, "ms", argv[0]);
+    map_setValueByKey(state, "fn", argv[1]);
+    map_setValueByKey(state, "last", NEW_NUM(-1));
+    map_setValueByKey(state, "result", NEW_NIL());
     return make_nativeWrapper(vm, "throttle", fn_throttleCall, (Object *)state);
 }
 
@@ -568,13 +562,13 @@ static Value fn_debounceCall(vm_t *vm, int argc, Value *argv)
     double last = as_number(state_get(vm, state, "last_call", NEW_NUM(-1)));
     double now = now_ms();
 
-    state_set(state, "last_call", NEW_NUM(now));
+    map_setValueByKey(state, "last_call", NEW_NUM(now));
     if (last >= 0 && now - last < ms)
         return state_get(vm, state, "result", NEW_NIL());
 
     Value fn_value = state_get(vm, state, "fn", NEW_NIL());
     Value result = call_func(vm, AS_FUN(fn_value), argc, argv, NEW_NIL());
-    state_set(state, "result", result);
+    map_setValueByKey(state, "result", result);
     return result;
 }
 
@@ -585,11 +579,11 @@ Value fn_debounce(vm_t *vm, int argc, Value *argv)
 
     require_fun(vm, argv[1], "debounce");
 
-    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(state, "ms", argv[0]);
-    state_set(state, "fn", argv[1]);
-    state_set(state, "last_call", NEW_NUM(-1));
-    state_set(state, "result", NEW_NIL());
+    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(state, "ms", argv[0]);
+    map_setValueByKey(state, "fn", argv[1]);
+    map_setValueByKey(state, "last_call", NEW_NUM(-1));
+    map_setValueByKey(state, "result", NEW_NIL());
     return make_nativeWrapper(vm, "debounce", fn_debounceCall, (Object *)state);
 }
 
@@ -619,9 +613,9 @@ Value fn_thunk(vm_t *vm, int argc, Value *argv)
 
     require_fun(vm, argv[0], "thunk");
 
-    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(state, "fn", argv[0]);
-    state_set(state, "args", clone_argList(vm, argv + 1, argc - 1));
+    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(state, "fn", argv[0]);
+    map_setValueByKey(state, "args", clone_argList(vm, argv + 1, argc - 1));
     return make_nativeWrapper(vm, "thunk", fn_thunkCall, (Object *)state);
 }
 
@@ -635,7 +629,7 @@ static Value fn_iterateCall(vm_t *vm, int argc, Value *argv)
     Value current = state_get(vm, state, "current", NEW_NIL());
     Value fn_value = state_get(vm, state, "fn", NEW_NIL());
     Value next = call_funcv(vm, AS_FUN(fn_value), 1, current);
-    state_set(state, "current", next);
+    map_setValueByKey(state, "current", next);
     return current;
 }
 
@@ -646,9 +640,9 @@ Value fn_iterate(vm_t *vm, int argc, Value *argv)
 
     require_fun(vm, argv[1], "iterate");
 
-    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    state_set(state, "current", argv[0]);
-    state_set(state, "fn", argv[1]);
+    PiMap *state = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
+    map_setValueByKey(state, "current", argv[0]);
+    map_setValueByKey(state, "fn", argv[1]);
     return make_nativeWrapper(vm, "iterate", fn_iterateCall, (Object *)state);
 }
 

@@ -1,6 +1,6 @@
 // Bound instance-method call and return overhead.
 class Worker {
-    transform(value) {
+    Transform(value) {
         return value * 1.000_001 + 0.5;
     }
 }
@@ -12,7 +12,7 @@ fun main() {
     let value = 0;
 
     while i < 500_000 {
-        value = worker.transform(value);
+        value = worker.Transform(value);
         i++;
     }
 

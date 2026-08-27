@@ -111,7 +111,6 @@ static const char *op_names[] = {
     [0x43] = "TENSOR_SET",
     [0x45] = "CALL_SPREAD",
     [0x47] = "MAP_EXTEND",
-    [0x48] = "MAP_FINALIZE",
     [0x49] = "COMP_APPEND",
     [0x4a] = "PUSH_SET",
     [0x4b] = "PUSH_TUPLE",
@@ -119,6 +118,7 @@ static const char *op_names[] = {
     [0x4d] = "SET_MEMBER",
     [0x4e] = "COMP_BEGIN",
     [0x4f] = "COMP_END",
+    [0x50] = "PUSH_CLASS",
 };
 
 static context_t *create_context(bool is_function, list_t *code, char *fun_name)
@@ -1019,7 +1019,6 @@ void dis(compiler_t *comp)
             case OP_TENSOR_SET:
             case OP_COMP_BEGIN:
             case OP_COMP_APPEND:
-            case OP_MAP_FINALIZE:
             case OP_MAP_EXTEND:
             case OP_LIST_EXTEND:
                 snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d",
@@ -1051,6 +1050,9 @@ void dis(compiler_t *comp)
             case OP_LOAD_CONST:
             case OP_PUSH_LIST:
             case OP_PUSH_MAP:
+            case OP_PUSH_SET:
+            case OP_PUSH_TUPLE:
+            case OP_PUSH_CLASS:
             case OP_GET_MEMBER:
             case OP_SET_MEMBER:
                 snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d",
@@ -1097,7 +1099,6 @@ void dis(compiler_t *comp)
             case OP_TENSOR_SET:
             case OP_COMP_BEGIN:
             case OP_COMP_APPEND:
-            case OP_MAP_FINALIZE:
             case OP_MAP_EXTEND:
             case OP_LIST_EXTEND:
                 snprintf(line_buf, sizeof(line_buf),
@@ -1135,6 +1136,9 @@ void dis(compiler_t *comp)
             case OP_LOAD_CONST:
             case OP_PUSH_LIST:
             case OP_PUSH_MAP:
+            case OP_PUSH_SET:
+            case OP_PUSH_TUPLE:
+            case OP_PUSH_CLASS:
             case OP_GET_MEMBER:
             case OP_SET_MEMBER:
                 snprintf(line_buf, sizeof(line_buf),

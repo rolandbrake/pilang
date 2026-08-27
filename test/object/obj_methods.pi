@@ -1,47 +1,35 @@
-Base = Object.extends(Object, {
-    tag: "base"
-})
-
-User = {
-    name: "Ada",
-    age: 32
+class Base {
+    TAG = "base"
 }
 
-Object.extends(Base, User)
-
-Copy = {
-    name: "Ada",
-    age: 22
+class User : Base {
+    NAME = "Ada"
+    AGE = 32
 }
 
-Object.extends(Base, Copy)
+class Copy : Base {
+    NAME = "Ada"
+    AGE = 22
+}
 
-println(User.type()) 
-println(User.equals(Copy))
-println(User.ident(Copy)) 
-println(User.compare(Copy))
-
-println(User.has("name")) 
-println(User.get("name"))
+assert(User.type() == "class", "class type should be class")
+assert(User.equals(Copy) == false, "different classes should not be equal")
+assert(User.ident(User), "ident should recognize the same class")
+assert(User.has("NAME"), "class member should exist")
+assert(User.get("NAME") == "Ada", "class member should be readable")
 
 User.set("role", "admin")
-println(User.get("role"))
-println(User.has("role"))
-
-println(User.delete("role"))
-println(User.has("role"))
-
-println(User.get("tag"))
+assert(User.get("role") == "admin", "class member should be writable")
+assert(User.delete("role"), "class member should be deletable")
+assert(!User.has("role"), "deleted member should be absent")
+assert(User.get("TAG") == "base", "inherited member should be readable")
 
 it = User.iterator()
-println(it.next())
-println(it.next())
-println(it.next())
-println(it.next())
+assert(it.next() != nil, "class iterator should produce members")
+assert(Object.type(User) == "class", "Object.type should identify classes")
+assert(Object.get(User, "AGE") == 32, "Object.get should read class members")
 
-println(Object.type(User))
-println(Object.equals(User, Copy))
-println(Object.compare(User, Copy))
-println(Object.get(User, "age"))
-
-
+user = User()
+assert(user.type() == "User", "instance type should be its class name")
+assert(user.get("NAME") == "Ada", "instance should read inherited class members")
+println(user)

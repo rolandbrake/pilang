@@ -1,46 +1,43 @@
-Point = {
-    c: 10,
+class Point {
+    C = 10
+
     label() {
-        return "(" + this.x + ", " + this.y + ")";
-    },
+        return "(" + this.x + ", " + this.y + ")"
+    }
+
     constructor(x, y) {
-        this.x = x;
-        this.y = y;
+        this.x = x
+        this.y = y
     }
 }
 
-ColorPoint = Object.extends(Point, {
-        constructor(x, y) {
-        super.constructor(x, y);
-    },
-    label() {
-        return super.label() + " ColorPoint";
-    }
-})    
-
-
-
-
-
-ColorPoint2 = Object.extends(Point, {
+class ColorPoint : Point {
     constructor(x, y) {
-        super(x, y);
-    },
-    label() {
-        return super.label() + " ColorPoint2";
+        super(x, y)
     }
-})
 
-point = Point(1, 2);
-child = ColorPoint(3, 4);
+    label() {
+        return super.label() + " ColorPoint"
+    }
+}
 
+class ColorPoint2 : Point {
+    constructor(x, y) {
+        super(x, y)
+    }
+
+    label() {
+        return super.label() + " ColorPoint2"
+    }
+}
+
+point = Point(1, 2)
+child = ColorPoint(3, 4)
 println(point.label())
 println(child.x)
 println(child.y)
 println(child.label())
-
-child.c += 1
-
-println(child.c)
-println(ColorPoint.c)
-println(Point.c)
+child.C += 1
+println(child.C)
+println(ColorPoint.C)
+println(Point.C)

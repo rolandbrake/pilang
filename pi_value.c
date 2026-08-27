@@ -340,17 +340,6 @@ static bool map_equals(PiMap *left, PiMap *right)
         return true;
     if (map_size(left) != map_size(right))
         return false;
-    if (MAP_HAS_FLAG(left, MAP_IS_INSTANCE) != MAP_HAS_FLAG(right, MAP_IS_INSTANCE) ||
-        !string_equals(left->intrinsic_name, right->intrinsic_name))
-        return false;
-    if ((left->proto == NULL) != (right->proto == NULL))
-        return false;
-    if (left->proto != NULL && left->proto != right->proto &&
-        !map_equals(left->proto, right->proto))
-        return false;
-    if (left->super_instance != right->super_instance)
-        return false;
-
     ht_iter it = ht_iterator(left->table);
     while (ht_next(&it))
     {
@@ -367,14 +356,6 @@ static int map_compare(PiMap *left, PiMap *right)
         return 0;
 
     int cmp = normalize_compare(map_size(left) - map_size(right));
-    if (cmp != 0)
-        return cmp;
-
-    cmp = normalize_compare((int)MAP_HAS_FLAG(left, MAP_IS_INSTANCE) - (int)MAP_HAS_FLAG(right, MAP_IS_INSTANCE));
-    if (cmp != 0)
-        return cmp;
-
-    cmp = compare_strings(left->intrinsic_name, right->intrinsic_name);
     if (cmp != 0)
         return cmp;
 
@@ -424,15 +405,7 @@ static int map_compare(PiMap *left, PiMap *right)
     free(lk);
     free(rk);
 
-    if (left->super_instance != right->super_instance)
-        return left->super_instance > right->super_instance ? 1 : -1;
-    if (left->proto == NULL && right->proto == NULL)
-        return 0;
-    if (left->proto == NULL)
-        return -1;
-    if (right->proto == NULL)
-        return 1;
-    return map_compare(left->proto, right->proto);
+    return 0;
 }
 
 static bool range_equals(PiRange *left, PiRange *right)
@@ -971,10 +944,10 @@ static void tensor_appendToSb(sb_t *sb, PiTensor *tensor, int dim, int *indices)
 char *as_stringWithFormat(vm_t *vm, Value val)
 {
     /* Let instances override via .format() method. */
-    if (vm != NULL && IS_MAP(val) && MAP_HAS_FLAG(AS_MAP(val), MAP_IS_INSTANCE))
+    if (vm != NULL && IS_INSTANCE(val))
     {
         Value formatted = vm_callMethodNoArgs(vm, val, "format");
-        if (!(IS_MAP(formatted) && AS_MAP(formatted) == AS_MAP(val)))
+        if (!(IS_OBJ(formatted) && AS_OBJ(formatted) == AS_OBJ(val)))
             return as_stringWithFormat(vm, formatted);
     }
 
@@ -1418,16 +1391,16 @@ char *type_name(Value val)
         case OBJ_TENSOR:
             return "tensor";
         case OBJ_MAP:
-        {
-            PiMap *map = AS_MAP(val);
-            if (map->proto != NULL)
-                return map->intrinsic_name ? map->intrinsic_name : "object";
             return "map";
-        }
         case OBJ_CLASS:
             return "class";
         case OBJ_INSTANCE:
-            return "instance";
+        {
+            PiInstance *instance = AS_INSTANCE(val);
+            return instance->_class && instance->_class->name
+                       ? instance->_class->name
+                       : "instance";
+        }
         case OBJ_SET:
             return "set";
         case OBJ_TUPLE:

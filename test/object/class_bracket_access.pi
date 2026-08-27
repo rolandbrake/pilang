@@ -1,0 +1,7 @@
+class List {
+    Format() {
+        return "[]"
+    }
+}
+
+assert(List["Format"]() == "[]", "classes should support bracket member access")

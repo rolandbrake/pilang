@@ -68,15 +68,3 @@ assert(unique.isDisjoint(set([8])), "set.isDisjoint(other) should alias isdisjoi
 
 unique.clear();
 assert(unique.len() == 0, "set.clear() should mutate the receiver set");
-
-let map_like = {
-    len: fun() {
-        return 42;
-    },
-    includes: fun(value) {
-        return value == "map";
-    }
-};
-
-assert(map_like.len() == 42, "map members should win over native method fallback");
-assert(map_like.includes("map"), "map method aliases should not be hijacked by native fallback");

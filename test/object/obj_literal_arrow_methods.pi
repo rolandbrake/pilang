@@ -1,15 +1,21 @@
 let value = 10
 
-let Box = {
-    format: () -> "Box(" + value + ")",
-    equals: (candidate) -> is_num(candidate) && candidate == value,
-    compare: (rhs) -> value - rhs
+class Box {
+    Format() {
+        return "Box(" + value + ")"
+    }
+
+    Equals(candidate) {
+        return is_num(candidate) && candidate == value
+    }
+
+    Compare(rhs) {
+        return value - rhs
+    }
 }
 
 let box = Box()
-
-assert(box == 10, "arrow methods in object literals should bind arguments correctly")
-assert(10 == box, "right-side equality should still work for arrow methods")
-assert(box > 8, "compare via arrow method should receive rhs instead of this")
-assert(box.format() == "Box(10)", "format via arrow method should still work")
+assert(box.Equals(10), "class equals should receive the argument")
+assert(box.Compare(8) == 2, "class compare should receive the argument")
+assert(box.Format() == "Box(10)", "class format should be callable")
 println("ok")

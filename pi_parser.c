@@ -56,7 +56,7 @@ static void primary(parser_t *parser);
 
 static void emit_spreadListLiteral(parser_t *parser);
 static void emit_spreadMapLiteral(parser_t *parser);
-static void emit_classMap(parser_t *parser, const char *class_name);
+static void emit_classMap(parser_t *parser, const char *class_name, const char *parent_name);
 static void emit_boundMethodCall(parser_t *parser, const char *receiver, const char *method, int argc);
 
 static void emit_nilReturn(compiler_t *comp)
@@ -76,7 +76,6 @@ static void emit_defaultReturn(compiler_t *comp)
         emit_nilReturn(comp);
     }
 }
-
 
 static void emit_listComprehension(parser_t *parser);
 static int emit_literalFill(parser_t *parser, double previous, double endpoint, token_t token);
@@ -102,7 +101,6 @@ void set_pos(parser_t *parser, token_t token);
 static bool is_functionLiteral(parser_t *parser, int index);
 static bool is_objectLiteral(parser_t *parser, int index);
 static char *get_pendingFunctionName(parser_t *parser);
-static void emit_mapFinalize(parser_t *parser);
 static bool numeric_literalSegment(parser_t *parser, int start, int end, double *value);
 static double consume_fillEndpoint(parser_t *parser);
 
@@ -186,20 +184,6 @@ static char *get_pendingFunctionName(parser_t *parser)
     parser->fun_name = NULL;
 
     return name ? strdup(name) : NULL;
-}
-
-static void emit_mapFinalize(parser_t *parser)
-{
-    int name_index = 0xFF;
-    char *descr = "";
-
-    if (parser->object_name != NULL)
-    {
-        name_index = store_name(parser->comp, parser->object_name);
-        descr = parser->object_name;
-    }
-
-    emit_8u(parser->comp, OP_MAP_FINALIZE, descr, name_index);
 }
 
 static void emit_boundMethodCall(parser_t *parser, const char *receiver, const char *method, int argc)
@@ -1378,7 +1362,6 @@ static void emit_spreadMapLiteral(parser_t *parser)
 
     if (match(parser, TK_RBRACE))
     {
-        emit_mapFinalize(parser);
         return;
     }
 
@@ -1477,10 +1460,9 @@ static void emit_spreadMapLiteral(parser_t *parser)
             p_error("Map literal cannot contain more than 255 spread segments.", peek(parser).line, peek(parser).column);
         emit_8u(parser->comp, OP_MAP_EXTEND, "", source_count);
     }
-    emit_mapFinalize(parser);
 }
 
-static void emit_classMap(parser_t *parser, const char *class_name)
+static void emit_classMap(parser_t *parser, const char *class_name, const char *parent_name)
 {
     char *prev_obj = parser->object_name;
     parser->object_name = (char *)class_name;
@@ -1562,8 +1544,14 @@ static void emit_classMap(parser_t *parser, const char *class_name)
 
     consume(parser, TK_RBRACE, "Expect '}' after class body.");
     pop_object(parser->comp);
-    emit_16u(parser->comp, OP_PUSH_MAP, "", size);
-    emit_mapFinalize(parser);
+
+    /* PUSH_CLASS consumes member pairs followed by the class name and
+       superclass.  Object is resolved normally, so a missing superclass is
+       represented by the language-level Object value. */
+    int name_index = store_const(parser->comp, NEW_OBJ(new_pistring(strdup(class_name))));
+    emit_16u(parser->comp, OP_LOAD_CONST, (char *)class_name, name_index);
+    load_variable(parser->comp, (char *)parent_name);
+    emit_16u(parser->comp, OP_PUSH_CLASS, "", size);
 
     parser->object_name = prev_obj;
 }
@@ -1582,34 +1570,8 @@ static void class_decl(parser_t *parser)
 
     consume(parser, TK_LBRACE, "Expect '{' before class body.");
 
-    emit_classMap(parser, class_name);
+    emit_classMap(parser, class_name, parent_name);
     add_variable(parser->comp, class_name);
-
-    emit_boundMethodCall(parser, "Object", "extends", 2);
-    load_variable(parser->comp, parent_name);
-    load_variable(parser->comp, class_name);
-    emit_8u(parser->comp, OP_CALL_FUNCTION, "extends", 2);
-    emit(parser->comp, OP_POP);
-
-    emit_boundMethodCall(parser, class_name, "setName", 1);
-    int name_index = store_const(parser->comp, NEW_OBJ(new_pistring(class_name)));
-    emit_16u(parser->comp, OP_LOAD_CONST, class_name, name_index);
-    emit_8u(parser->comp, OP_CALL_FUNCTION, "setName", 1);
-    emit(parser->comp, OP_POP);
-
-    emit_boundMethodCall(parser, "Object", "lock", 2);
-    load_variable(parser->comp, class_name);
-    int lock_index = store_const(parser->comp, NEW_BOOL(true));
-    emit_16u(parser->comp, OP_LOAD_CONST, "true", lock_index);
-    emit_8u(parser->comp, OP_CALL_FUNCTION, "lock", 2);
-    emit(parser->comp, OP_POP);
-
-    emit_boundMethodCall(parser, "Object", "bracketAccess", 2);
-    load_variable(parser->comp, class_name);
-    int bracket_index = store_const(parser->comp, NEW_BOOL(false));
-    emit_16u(parser->comp, OP_LOAD_CONST, "false", bracket_index);
-    emit_8u(parser->comp, OP_CALL_FUNCTION, "bracketAccess", 2);
-    emit(parser->comp, OP_POP);
 }
 static void func_decl(parser_t *parser)
 {
@@ -3312,9 +3274,15 @@ static void member_expr(parser_t *parser)
         set_pos(parser, token);
         if (match(parser, TK_DOT))
         {
-            token_t token = previous(parser);
             // Handle property access using dot notation
             token_t name = consume(parser, TK_ID, "Expect property name after '.'");
+
+            bool super_constructor = token.type == TK_SUPER ||
+                                     (parser->current >= 3 &&
+                                      parser->tokens[parser->current - 3].type == TK_SUPER);
+            if (super_constructor && strcmp(token_value(name), "constructor") == 0)
+                p_error("Call the superclass constructor with super(...), not super.constructor(...).",
+                        name.line, name.column);
 
             int index = store_const(parser->comp, new_value(name));
 
@@ -3710,40 +3678,40 @@ static void primary(parser_t *parser)
                 if (match(parser, TK_COMMA))
                 {
                     // At least one comma means tuple literal.
-                // (expr,)  is a single-element tuple.
-                // (expr, expr, ...) is a multi-element tuple.
-                // A trailing comma after the last element is allowed.
-                int size = 1;
-                double previous_number = 0;
-                bool previous_is_number = numeric_literalSegment(parser, _current, parser->current - 1,
-                                                                 &previous_number);
-                while (!check(parser, TK_RPAREN) && !is_atEnd(parser))
-                {
-                    if (match(parser, TK_ELLIPSIS))
+                    // (expr,)  is a single-element tuple.
+                    // (expr, expr, ...) is a multi-element tuple.
+                    // A trailing comma after the last element is allowed.
+                    int size = 1;
+                    double previous_number = 0;
+                    bool previous_is_number = numeric_literalSegment(parser, _current, parser->current - 1,
+                                                                     &previous_number);
+                    while (!check(parser, TK_RPAREN) && !is_atEnd(parser))
                     {
-                        token_t ellipsis = previous(parser);
-                        if (!previous_is_number)
-                            p_error("Fill expansion requires an integer numeric literal before ', ...,'.",
-                                    ellipsis.line, ellipsis.column);
+                        if (match(parser, TK_ELLIPSIS))
+                        {
+                            token_t ellipsis = previous(parser);
+                            if (!previous_is_number)
+                                p_error("Fill expansion requires an integer numeric literal before ', ...,'.",
+                                        ellipsis.line, ellipsis.column);
 
-                        consume(parser, TK_COMMA, "Expect ',' after '...' in tuple fill expansion.");
-                        double endpoint = consume_fillEndpoint(parser);
-                        size += emit_literalFill(parser, previous_number, endpoint, ellipsis);
-                        previous_number = endpoint;
-                        previous_is_number = true;
+                            consume(parser, TK_COMMA, "Expect ',' after '...' in tuple fill expansion.");
+                            double endpoint = consume_fillEndpoint(parser);
+                            size += emit_literalFill(parser, previous_number, endpoint, ellipsis);
+                            previous_number = endpoint;
+                            previous_is_number = true;
+                            if (!match(parser, TK_COMMA))
+                                break;
+                            continue;
+                        }
+
+                        int item_start = parser->current;
+                        cond_expr(parser);
+                        size++;
+                        previous_is_number = numeric_literalSegment(parser, item_start, parser->current,
+                                                                    &previous_number);
                         if (!match(parser, TK_COMMA))
                             break;
-                        continue;
                     }
-
-                    int item_start = parser->current;
-                    cond_expr(parser);
-                    size++;
-                    previous_is_number = numeric_literalSegment(parser, item_start, parser->current,
-                                                               &previous_number);
-                    if (!match(parser, TK_COMMA))
-                        break;
-                }
                     consume(parser, TK_RPAREN, "Expect ')' after tuple literal.");
                     emit_16u(parser->comp, OP_PUSH_TUPLE, "", size);
                 }
@@ -3757,6 +3725,11 @@ static void primary(parser_t *parser)
     }
     else if (match(parser, TK_SUPER))
     {
+        if (check(parser, TK_DOT) &&
+            parser->tokens[parser->current + 1].type == TK_ID &&
+            strcmp(tk_string(parser->tokens[parser->current + 1]), "constructor") == 0)
+            p_error("Call the superclass constructor with super(...), not super.constructor(...).",
+                    previous(parser).line, previous(parser).column);
         set_pos(parser, previous(parser));
         emit(parser->comp, OP_LOAD_SUPER);
     }
@@ -3922,7 +3895,6 @@ static void primary(parser_t *parser)
             push_object(parser->comp);
             pop_object(parser->comp);
             emit_16u(parser->comp, OP_PUSH_MAP, "", 0);
-            emit_mapFinalize(parser);
         }
         else if (!is_mapEntry(parser) && !map_hasSpreadItems(parser))
         {
@@ -4020,7 +3992,6 @@ static void primary(parser_t *parser)
                 consume(parser, TK_RBRACE, "Expect '}' at the end of map literal.");
                 pop_object(parser->comp);
                 emit_16u(parser->comp, OP_PUSH_MAP, "", size);
-                emit_mapFinalize(parser);
             }
         }
     }

@@ -170,7 +170,7 @@ typedef struct vm_t
 
     table_t *modules;    // Hash table to store loaded modules by name
     char *current_path;  // Current working directory for resolving relative imports
-    PiMap *object_proto; // Shared default prototype for object-style maps
+    PiClass *object_class; // Root class for the class/instance model
 
 } vm_t;
 

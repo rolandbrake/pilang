@@ -309,7 +309,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     vm->stack[aux_base + 1] = function->need_kwargs
                                   ? ((IS_OBJ(kw_args) && OBJ_TYPE(kw_args) == OBJ_MAP)
                                          ? kw_args
-                                         : NEW_OBJ(add_obj(vm, new_map(ht_create(sizeof(Value)), false))))
+                                         : NEW_OBJ(add_obj(vm, new_map(ht_create(sizeof(Value))))))
                                   : NEW_NIL();
 
     vm->sp = aux_base + 2;

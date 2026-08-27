@@ -1,9 +1,9 @@
 class A {
-    x = 1
+    X = 1
 }
 
-A.x = 2
-println(A.x)
+A.X = 2
+println(A.X)
 
 Object.lock(A, false)
 A.y = 3

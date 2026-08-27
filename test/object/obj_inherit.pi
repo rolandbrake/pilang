@@ -1,22 +1,24 @@
-let Animal = {
-  kind: "animal",
-  speak() {
-    return "generic " + this.kind
-  }
+class Animal {
+    KIND = "animal"
+
+    speak() {
+        return "generic " + this.kind
+    }
 }
 
-let Dog = Object.extends(Animal, {
-  constructor(name) {
-    this.name = name
-    this.kind = "dog"
-  },
-  speak() {
-    return this.name + " says woof"
-  }
-})
+class Dog : Animal {
+    constructor(name) {
+        this.name = name
+        this.kind = "dog"
+    }
 
-let dog = Dog("Milo")
+    speak() {
+        return this.name + " says woof"
+    }
+}
 
-println(Animal.kind)
-println(dog.kind)
+dog = Dog("Milo")
+assert(dog.kind == "dog", "instance fields should override inherited values")
+assert(dog.speak() == "Milo says woof", "derived methods should be callable")
+assert(dog.type() == "Dog", "derived instance should report its class")
 println(dog.speak())

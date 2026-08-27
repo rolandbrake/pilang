@@ -1,12 +1,15 @@
-Counter = {
-    count: 0,
-    call() {
+class Counter {
+    constructor() {
+        this.count = 0
+    }
+
+    increment() {
         this.count = this.count + 1
         return this.count
     }
 }
 
 c = Counter()
-println(Counter.call)
-println(c())
-println(c())
+println(Counter.increment)
+println(c.increment())
+println(c.increment())

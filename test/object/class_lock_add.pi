@@ -1,0 +1,6 @@
+class A {
+    X = 1
+}
+
+A.y = 2
+assert(A.y == 2, "classes should allow adding members")

@@ -24,8 +24,8 @@
 
 volatile interrupt_flag_t interrupt_requested = 0;
 
-static PiMap *create_objectProto(vm_t *vm);
-static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value kw_args);
+static void add_objectClassMembers(PiClass *klass);
+static Object *construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Value kw_args);
 static Value bind(vm_t *vm, Function *function, Object *instance);
 static Value bind_nativeMethod(vm_t *vm, Object *instance, NativeMethod *method);
 static void gc_collect(vm_t *vm);
@@ -579,7 +579,7 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     vm->modules = ht_create(sizeof(Value));
     // Set current path to the working directory at VM initialization
     vm->current_path = getcwd(NULL, 0);
-    vm->object_proto = NULL;
+    vm->object_class = NULL;
 
     if (entry_name && entry_name[0] != '\0')
     {
@@ -611,9 +611,10 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     Value main_moduleVal = NEW_OBJ(main_moduleObj);
     ht_put(vm->globals, "module", &main_moduleVal);
 
-    vm->object_proto = create_objectProto(vm);
-    Value object_protoVal = NEW_OBJ((Object *)vm->object_proto);
-    ht_put(vm->globals, "Object", &object_protoVal);
+    vm->object_class = (PiClass *)add_obj(vm, new_class("Object", NULL, ht_create(sizeof(Value))));
+    add_objectClassMembers(vm->object_class);
+    Value object_classVal = NEW_OBJ((Object *)vm->object_class);
+    ht_put(vm->globals, "Object", &object_classVal);
 
     return vm;
 }
@@ -1037,36 +1038,6 @@ static void list_extendFromIterable(vm_t *vm, PiList *plist, Value iterable)
 }
 
 /**
- * Mark function values found in a map literal as methods and attach the map prototype.
- */
-static void finalize_mapLiteral(vm_t *vm, PiMap *map)
-{
-    bool has_methods = false;
-    ht_iter it = ht_iterator(map->table);
-    while (ht_next(&it))
-    {
-        const char *key = it.key;
-        Value *item = (Value *)it.value; // it.value points to stored Value
-
-        if (!item || !IS_FUN(*item))
-            continue;
-
-        Function *fn = AS_FUN(*item);
-        fn->is_method = true;
-        fn->owner = (Object *)map;
-        if (strcmp(key, "compute") == 0)
-            MAP_SET_FLAG(map, MAP_HAS_COMPUTE, true);
-        else if (strcmp(key, "rcompute") == 0)
-            MAP_SET_FLAG(map, MAP_HAS_RCOMPUTE, true);
-
-        has_methods = true;
-    }
-
-    if (map->proto == NULL && has_methods)
-        map->proto = vm->object_proto;
-}
-
-/**
  * Copy entries from source map into target map, preserving object references.
  */
 static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
@@ -1086,15 +1057,7 @@ static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
         if (IS_OBJ(*item))
             add_obj(vm, AS_OBJ(*item));
 
-        if (ht_put(target->table, key, item))
-            map_dirty(target);
-        if (IS_FUN(*item))
-        {
-            if (strcmp(key, "compute") == 0)
-                MAP_SET_FLAG(target, MAP_HAS_COMPUTE, true);
-            else if (strcmp(key, "rcompute") == 0)
-                MAP_SET_FLAG(target, MAP_HAS_RCOMPUTE, true);
-        }
+        ht_put(target->table, key, item);
     }
 }
 
@@ -1144,23 +1107,6 @@ static bool map_extendSourceIsRedundant(Value *sources, int index)
     return true;
 }
 
-/**
- * Attempt an object instance call via its `call` method.
- */
-
-static bool object_instanceCall(vm_t *vm, PiMap *map, size_t argc, Value *args, Value kw_args, Value *result)
-{
-    Value call_method = map_getValueByKey(map, "call");
-    if (!IS_FUN(call_method))
-        return false;
-
-    Value bound = bind(vm, AS_FUN(call_method), (Object *)map);
-    *result = call_func(vm, AS_FUN(bound), argc, args, kw_args);
-    if (IS_OBJ(*result))
-        add_obj(vm, AS_OBJ(*result));
-    return true;
-}
-
 static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw_args, bool has_named)
 {
     int num_args = arg_list->items->size;
@@ -1183,19 +1129,12 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
     }
     else if (IS_MAP(callee))
     {
-        PiMap *map = AS_MAP(callee);
-        if (MAP_HAS_FLAG(map, MAP_IS_INSTANCE))
-        {
-            if (object_instanceCall(vm, map, num_args, args, kw_args, &result))
-            {
-                free(args);
-                return result;
-            }
-            free(args);
-            vm_error(vm, "Attempt to call an Object instance.");
-        }
-
-        result = NEW_OBJ(construct(vm, map, num_args, args, kw_args));
+        free(args);
+        vm_error(vm, "Maps are not callable; use a class to create instances.");
+    }
+    else if (IS_CLASS(callee))
+    {
+        result = NEW_OBJ(construct(vm, AS_CLASS(callee), num_args, args, kw_args));
     }
     else
     {
@@ -1513,83 +1452,50 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
     return NEW_OBJ(fn);
 }
 
-/**
- * Creates the object prototype map.
- *
- * @param vm The virtual machine instance.
- * @return The object prototype map.
- */
-static PiMap *create_objectProto(vm_t *vm)
+static void add_objectClassMembers(PiClass *klass)
 {
-    Object *obj = add_obj(vm, new_map(ht_create(sizeof(Value)), false));
-    PiMap *proto = (PiMap *)obj;
-
-    // Create built-in functions
+    table_t *members = klass->members;
     Value format = *new_native("format", pi_toString);
-
     Value hash = *new_native("hash", pi_hashCode);
-
     Value clone = *new_native("clone", pi_clone);
-
     Value extends_fn = *new_native("extends", pi_extends);
-
     Value equals_fn = *new_native("equals", pi_equals);
     Value ident_fn = *new_native("ident", pi_ident);
     Value compare_fn = *new_native("compare", pi_compare);
-
     Value type_fn = *new_native("type", pi_type);
     Value name_fn = *new_native("name", pi_name);
     Value set_name_fn = *new_native("setName", pi_setName);
     Value lock_fn = *new_native("lock", pi_lock);
     Value bracket_access_fn = *new_native("bracketAccess", pi_bracketAccess);
-
     Value get_fn = *new_native("get", pi_get);
     Value set_fn = *new_native("set", pi_set);
     Value has_fn = *new_native("has", pi_has);
     Value delete_fn = *new_native("delete", pi_delete);
-
     Value iterator_fn = *new_native("iterator", pi_iterator);
     Value next_fn = *new_native("next", pi_next);
-
     Value keys = *new_native("keys", pi_keys);
     Value values = *new_native("values", pi_values);
 
-    // Add built-in functions to the object prototype map
-    ht_put(proto->table, "format", &format);
-    ht_put(proto->table, "hash", &hash);
-    ht_put(proto->table, "clone", &clone);
-    ht_put(proto->table, "extends", &extends_fn);
-    ht_put(proto->table, "equals", &equals_fn);
-    ht_put(proto->table, "ident", &ident_fn);
-    ht_put(proto->table, "compare", &compare_fn);
-    ht_put(proto->table, "type", &type_fn);
-    ht_put(proto->table, "name", &name_fn);
-    ht_put(proto->table, "setName", &set_name_fn);
-    ht_put(proto->table, "lock", &lock_fn);
-    ht_put(proto->table, "bracketAccess", &bracket_access_fn);
-    ht_put(proto->table, "get", &get_fn);
-    ht_put(proto->table, "set", &set_fn);
-    ht_put(proto->table, "has", &has_fn);
-    ht_put(proto->table, "delete", &delete_fn);
-    ht_put(proto->table, "iterator", &iterator_fn);
-    ht_put(proto->table, "next", &next_fn);
-    ht_put(proto->table, "keys", &keys);
-    ht_put(proto->table, "values", &values);
-
-    return proto;
-}
-
-static PiMap *map_ownerByKey(PiMap *map, const char *key)
-{
-    while (map != NULL)
-    {
-        if (ht_get(map->table, key) != NULL)
-            return map;
-
-        map = map->proto;
-    }
-
-    return NULL;
+    ht_put(members, "format", &format);
+    ht_put(members, "hash", &hash);
+    ht_put(members, "clone", &clone);
+    ht_put(members, "extends", &extends_fn);
+    ht_put(members, "equals", &equals_fn);
+    ht_put(members, "ident", &ident_fn);
+    ht_put(members, "compare", &compare_fn);
+    ht_put(members, "type", &type_fn);
+    ht_put(members, "name", &name_fn);
+    ht_put(members, "setName", &set_name_fn);
+    ht_put(members, "lock", &lock_fn);
+    ht_put(members, "bracketAccess", &bracket_access_fn);
+    ht_put(members, "get", &get_fn);
+    ht_put(members, "set", &set_fn);
+    ht_put(members, "has", &has_fn);
+    ht_put(members, "delete", &delete_fn);
+    ht_put(members, "iterator", &iterator_fn);
+    ht_put(members, "next", &next_fn);
+    ht_put(members, "keys", &keys);
+    ht_put(members, "values", &values);
 }
 
 /**
@@ -1608,245 +1514,28 @@ static PiMap *map_ownerByKey(PiMap *map, const char *key)
  */
 static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
 {
-    if (!IS_MAP(receiver) || !MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
-        return receiver;
-
-    PiMap *owner = map_ownerByKey(AS_MAP(receiver), name);
-    if (owner == NULL)
-        return receiver;
-
-    Value *method_ptr = ht_get(owner->table, name);
-    Value method = method_ptr ? *method_ptr : NEW_NIL();
-    if (!IS_FUN(method))
-        return receiver;
-
-    if (MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
+    if (IS_INSTANCE(receiver) || IS_CLASS(receiver))
     {
-        Object *target = AS_MAP(receiver)->super_instance ? AS_MAP(receiver)->super_instance : AS_OBJ(receiver);
-        method = bind(vm, AS_FUN(method), target);
+        Value method;
+        bool found = IS_INSTANCE(receiver)
+                         ? instance_getMember(AS_INSTANCE(receiver), name, &method)
+                         : class_getMember(AS_CLASS(receiver), name, &method);
+        if (!found || !IS_FUN(method))
+            return receiver;
+
+        Object *target = IS_INSTANCE(receiver) || AS_FUN(method)->is_native
+                             ? AS_OBJ(receiver)
+                             : NULL;
+        Value bound = bind(vm, AS_FUN(method), target);
+        return call_func(vm, AS_FUN(bound), 0, NULL, NEW_NIL());
     }
 
-    return call_func(vm, AS_FUN(method), 0, NULL, NEW_NIL());
+    return receiver;
 }
 
 Value vm_callMethodNoArgs(vm_t *vm, Value receiver, const char *name)
 {
     return call_methodNoArgs(vm, receiver, name);
-}
-
-/**
- * Attempts to call a method on an object with one argument.
- *
- * This function attempts to find the named method on the given object, and if
- * it exists, calls it with the given argument. If the object does not contain the
- * named method, or if the method does not return a primitive value, this
- * function returns false.
- *
- * @param vm The virtual machine instance.
- * @param receiver The object to call the method on.
- * @param name The name of the method to call.
- * @param arg The argument to pass to the method.
- * @param result If the method call is successful, the result of the method call.
- * @return true if the method call is successful, false otherwise.
- */
-static bool try_callMethodOneArg(vm_t *vm, Value receiver, const char *name, Value arg, Value *result)
-{
-    if (!IS_MAP(receiver) || !MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
-        return false;
-
-    PiMap *owner = map_ownerByKey(AS_MAP(receiver), name);
-    if (owner == NULL)
-        return false;
-
-    Value *method_ptr = ht_get(owner->table, name);
-    Value method = method_ptr ? *method_ptr : NEW_NIL();
-    if (!IS_FUN(method))
-        return false;
-
-    if (MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
-    {
-        Object *target = AS_MAP(receiver)->super_instance ? AS_MAP(receiver)->super_instance : AS_OBJ(receiver);
-        method = bind(vm, AS_FUN(method), target);
-    }
-
-    Value args[1];
-    args[0] = arg;
-
-    *result = call_func(vm, AS_FUN(method), 1, args, NEW_NIL());
-    if (IS_OBJ(*result))
-        add_obj(vm, AS_OBJ(*result));
-
-    return true;
-}
-
-/**
- * Attempts to call a method on an object with an arbitrary argument list.
- *
- * Used by syntax-level overrides where the number of arguments is fixed by the
- * operator, such as indexing and slicing. Only object instances participate so
- * plain map indexing keeps its direct key lookup behavior.
- */
-static bool try_callMethodArgs(vm_t *vm, Value receiver, const char *name, int argc, Value *args, Value *result)
-{
-    if (!IS_MAP(receiver) || !MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
-        return false;
-
-    PiMap *owner = map_ownerByKey(AS_MAP(receiver), name);
-    if (owner == NULL)
-        return false;
-
-    Value *method_ptr = ht_get(owner->table, name);
-    Value method = method_ptr ? *method_ptr : NEW_NIL();
-    if (!IS_FUN(method))
-        return false;
-
-    Object *target = AS_MAP(receiver)->super_instance ? AS_MAP(receiver)->super_instance : AS_OBJ(receiver);
-    method = bind(vm, AS_FUN(method), target);
-
-    *result = call_func(vm, AS_FUN(method), argc, args, NEW_NIL());
-    if (IS_OBJ(*result))
-        add_obj(vm, AS_OBJ(*result));
-
-    return true;
-}
-
-/**
- * Attempts to call the compute method on the given object.
- *
- * This function attempts to call the compute method on the given object. The compute
- * method takes two arguments: the first is an integer representing the operation to
- * perform, and the second is the other object to use in the operation. If the method
- * call is successful, the result of the method call is stored in result.
- *
- * @param vm The virtual machine instance.
- * @param receiver The object to call the method on.
- * @param op The operation to perform.
- * @param has_other true if the other object should be passed to the method, false otherwise.
- * @param other The other object to use in the operation.
- * @param result If the method call is successful, the result of the method call.
- * @return true if the method call is successful, false otherwise.
- */
-static bool try_callComputeMethod(vm_t *vm, Value receiver, const char *name, int op, bool has_other, Value other, Value *result)
-{
-    if (!IS_MAP(receiver) || !MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
-        return false;
-
-    PiMap *owner = map_ownerByKey(AS_MAP(receiver), name);
-    if (owner == NULL)
-        return false;
-
-    Value *method_ptr = ht_get(owner->table, name);
-    Value method = method_ptr ? *method_ptr : NEW_NIL();
-    if (!IS_FUN(method))
-        return false;
-
-    if (MAP_HAS_FLAG(AS_MAP(receiver), MAP_IS_INSTANCE))
-    {
-        Object *target = AS_MAP(receiver)->super_instance ? AS_MAP(receiver)->super_instance : AS_OBJ(receiver);
-        method = bind(vm, AS_FUN(method), target);
-    }
-
-    Value args[2];
-    args[0] = NEW_NUM(op);
-    if (has_other)
-        args[1] = other;
-
-    *result = call_func(vm, AS_FUN(method), has_other ? 2 : 1, args, NEW_NIL());
-    if (IS_OBJ(*result))
-        add_obj(vm, AS_OBJ(*result));
-
-    return true;
-}
-
-static bool try_callCompute(vm_t *vm, Value receiver, int op, bool has_other, Value other, Value *result)
-{
-    return try_callComputeMethod(vm, receiver, "compute", op, has_other, other, result);
-}
-
-static bool try_callReflectedCompute(vm_t *vm, Value receiver, int op, Value other, Value *result)
-{
-    return try_callComputeMethod(vm, receiver, "rcompute", op, true, other, result);
-}
-
-/**
- * Attempts to call the equals method on the given objects.
- *
- * This function attempts to call the equals method on the given objects. The equals
- * method takes one argument: the other object to compare to. If the method call
- * is successful, the result of the method call is used to determine if the
- * objects are equal.
- *
- * @param vm The virtual machine instance.
- * @param left The first object to compare.
- * @param right The second object to compare.
- * @param result If the method call is successful, this is set to true if the objects
- *         are equal, and false otherwise.
- * @return true if the method call is successful, false otherwise.
- */
-static bool try_overloadedEquals(vm_t *vm, Value left, Value right, bool *result)
-{
-    Value method_result = NEW_NIL();
-    if (try_callMethodOneArg(vm, left, "equals", right, &method_result))
-    {
-        *result = !is_false(vm, method_result);
-        return true;
-    }
-
-    if (try_callMethodOneArg(vm, right, "equals", left, &method_result))
-    {
-        *result = !is_false(vm, method_result);
-        return true;
-    }
-
-    return false;
-}
-
-/**
- * Attempts to call the compare method on the given objects.
- *
- * This function first attempts to call the object's "compare" method with the
- * given other object as an argument. If the method call is successful, the result
- * of the method call is used to determine the comparison result.
- *
- * If the first method call is not successful, this function then attempts to call
- * the other object's "compare" method with the given object as an argument. If the
- * second method call is successful, the result of the method call is used to
- * determine the comparison result, but with the sign flipped.
- *
- * If neither method call is successful, this function returns false.
- *
- * @param vm The virtual machine instance.
- * @param left The first object to compare.
- * @param right The second object to compare.
- * @param cmp If the method call is successful, this is set to a negative value if the
- *         first object is less than the second, zero if they are equal, and a positive
- *         value if the first object is greater than the second.
- * @return true if the method call is successful, false otherwise.
- */
-static bool try_overloadedCompare(vm_t *vm, Value left, Value right, int *cmp)
-{
-    Value method_result = NEW_NIL();
-    if (try_callMethodOneArg(vm, left, "compare", right, &method_result))
-    {
-        // The compare method must return a number.
-        if (!is_numeric(method_result))
-            vm_error(vm, "Object compare(other) must return a number.");
-        double value = as_number(method_result);
-        *cmp = (value > 0) - (value < 0);
-        return true;
-    }
-
-    if (try_callMethodOneArg(vm, right, "compare", left, &method_result))
-    {
-        // The compare method must return a number.
-        if (!is_numeric(method_result))
-            vm_error(vm, "Object compare(other) must return a number.");
-        double value = as_number(method_result);
-        *cmp = -((value > 0) - (value < 0));
-        return true;
-    }
-
-    return false;
 }
 
 /**
@@ -1864,7 +1553,7 @@ static bool try_overloadedCompare(vm_t *vm, Value left, Value right, int *cmp)
  */
 static Value to_primitive(vm_t *vm, Value value, bool pref_string)
 {
-    if (!IS_MAP(value) || !MAP_HAS_FLAG(AS_MAP(value), MAP_IS_INSTANCE))
+    if (!IS_INSTANCE(value))
         return value;
 
     (void)pref_string;
@@ -1875,52 +1564,20 @@ static Value to_primitive(vm_t *vm, Value value, bool pref_string)
     return value;
 }
 
-/**
- * Constructs a new object instance from a given prototype map.
- *
- * This function creates a new map instance, setting the original map as its
- * prototype and copying over its key-value pairs. If a key holds a function,
- * it is bound to the new instance. The constructor function is called if it exists.
- *
- * @param vm The virtual machine instance.
- * @param map The prototype map from which to construct the object.
- * @param argc The number of arguments provided for the constructor.
- * @param argv The arguments to pass to the constructor.
- * @return A new object instance.
- */
-static Object *construct(vm_t *vm, PiMap *map, size_t argc, Value *argv, Value kw_args)
+static Object *construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Value kw_args)
 {
+    if (!_class)
+        vm_error(vm, "Cannot construct a null class.");
 
-    // ensure that the object prototype is set if the object has no parent
-    if (map != NULL && map->proto == NULL && vm->object_proto != NULL && map != vm->object_proto)
-        map->proto = vm->object_proto;
-
-    // Create a new table for the instance
-    table_t *table = ht_create(sizeof(Value));
-
-    // Create a new map instance and set its prototype.
-    // Members stay on the prototype map by default; only `this.*`
-    // assignments create instance-local state.
-    Object *instance = add_obj(vm, new_map(table, true));
-
-    ((PiMap *)instance)->proto = map;
-    ((PiMap *)instance)->flags = map->flags;
-    MAP_SET_FLAG((PiMap *)instance, MAP_IS_INSTANCE, true);
-
-    // Push the new instance onto the VM stack
-    // vm->stack[vm->sp] = NEW_OBJ(instance);
-
-    // Invoke the constructor if it exists
-    Value constructor = map_getValueByKey(map, "constructor");
-
-    if (IS_FUN(constructor))
+    Object *instance = add_obj(vm, new_instance(_class));
+    Value constructor;
+    if (class_getMember(_class, "constructor", &constructor) && IS_FUN(constructor))
     {
         Value bound = bind(vm, AS_FUN(constructor), instance);
         push_stack(vm, NEW_OBJ(instance));
-        call_func(vm, AS_FUN(bound), argc, argv, kw_args);
+        (void)call_func(vm, AS_FUN(bound), argc, argv, kw_args);
         pop_stack(vm);
     }
-
     return instance;
 }
 
@@ -2311,8 +1968,8 @@ void vm_run(vm_t *vm)
         [OP_COMP_END] = VM_TARGET(OP_COMP_END),
         [OP_LIST_EXTEND] = VM_TARGET(OP_LIST_EXTEND),
         [OP_PUSH_MAP] = VM_TARGET(OP_PUSH_MAP),
+        [OP_PUSH_CLASS] = VM_TARGET(OP_PUSH_CLASS),
         [OP_MAP_EXTEND] = VM_TARGET(OP_MAP_EXTEND),
-        [OP_MAP_FINALIZE] = VM_TARGET(OP_MAP_FINALIZE),
         [OP_PUSH_FUNCTION] = VM_TARGET(OP_PUSH_FUNCTION),
         [OP_PUSH_CLOSURE] = VM_TARGET(OP_PUSH_CLOSURE),
         [OP_LOAD_UPVALUE] = VM_TARGET(OP_LOAD_UPVALUE),
@@ -2536,11 +2193,15 @@ OP_LOAD_SUPER:
     if (!function->is_method || function->instance == NULL)
         vm_error(vm, "super is only available inside object methods.");
 
-    Object *super_obj = add_obj(vm, new_map(ht_create(sizeof(Value)), true));
-    PiMap *super = (PiMap *)super_obj;
-    super->proto = function->owner ? ((PiMap *)function->owner)->proto : NULL;
-    super->super_instance = function->instance;
-    push_stack(vm, NEW_OBJ(super_obj));
+    if (!function->owner || function->owner->type != OBJ_CLASS)
+        vm_error(vm, "super is only available inside a class method.");
+    PiInstance *instance = (PiInstance *)function->instance;
+    PiClass *owner = (PiClass *)function->owner;
+    if (!owner->super)
+        vm_error(vm, "Class has no superclass.");
+    PiInstance *super_view = (PiInstance *)new_instance(owner->super);
+    super_view->fields = instance->fields;
+    push_stack(vm, NEW_OBJ(add_obj(vm, (Object *)super_view)));
     VM_DISPATCH_SAFE();
 }
 
@@ -2805,7 +2466,7 @@ OP_COMPARE:
         }
         case OBJ_MAP:
         {
-            result = (map_owner(AS_MAP(right), left) != NULL);
+            result = map_has(AS_MAP(right), left);
             break;
         }
         case OBJ_SET:
@@ -2852,14 +2513,6 @@ OP_COMPARE:
     if (op <= 1)
     {
         bool result = false;
-        if (IS_MAP(left) || IS_MAP(right))
-        {
-            if (try_overloadedEquals(vm, left, right, &result))
-            {
-                push_stack(vm, NEW_BOOL(op == 0 ? result : !result));
-                VM_DISPATCH_SAFE();
-            }
-        }
         if (IS_OBJ(left) && IS_OBJ(right) && AS_OBJ(left) == AS_OBJ(right))
         {
             push_stack(vm, NEW_BOOL(op == 0));
@@ -2874,21 +2527,9 @@ OP_COMPARE:
 
     {
         int cmp = 0;
-        if (IS_MAP(left) || IS_MAP(right))
-        {
-            if (!try_overloadedCompare(vm, left, right, &cmp))
-            {
-                Value l = TO_PRIM_NUM(left);
-                Value r = TO_PRIM_NUM(right);
-                cmp = compare(l, r);
-            }
-        }
-        else
-        {
-            Value l = TO_PRIM_NUM(left);
-            Value r = TO_PRIM_NUM(right);
-            cmp = compare(l, r);
-        }
+        Value l = TO_PRIM_NUM(left);
+        Value r = TO_PRIM_NUM(right);
+        cmp = compare(l, r);
         bool result;
         switch (op)
         {
@@ -2961,26 +2602,6 @@ OP_BINARY:
     {
         PUSH(op_binaryNum(op, as_number(left), as_number(right)));
         VM_DISPATCH_SAFE();
-    }
-
-    if (op != 5 && op != 6 && op != 15 && IS_MAP(left) && MAP_HAS_FLAG(AS_MAP(left), MAP_HAS_COMPUTE))
-    {
-        Value computed = NEW_NIL();
-        if (try_callCompute(vm, left, op, true, right, &computed))
-        {
-            push_stack(vm, computed);
-            VM_DISPATCH_SAFE();
-        }
-    }
-
-    if (op != 5 && op != 6 && op != 15 && IS_MAP(right) && MAP_HAS_FLAG(AS_MAP(right), MAP_HAS_RCOMPUTE))
-    {
-        Value computed = NEW_NIL();
-        if (try_callReflectedCompute(vm, right, op, left, &computed))
-        {
-            push_stack(vm, computed);
-            VM_DISPATCH_SAFE();
-        }
     }
 
     switch (op)
@@ -3187,9 +2808,16 @@ OP_BINARY:
         if (IS_LIST(left))
         {
             Value right_prim = TO_PRIM(vm, right, false);
-            int count = (int)as_number(right_prim);
+            double count_number = as_number(right_prim);
             list_t *list = as_list(left);
-            list_t *result = list_create(list->i_size);
+            if (!isfinite(count_number) || count_number < 0 || floor(count_number) != count_number)
+                vm_error(vm, "List repetition count must be a non-negative integer.");
+            if (count_number > 0 && list->size > PI_MAX_LIST_SIZE / count_number)
+                vm_errorf(vm, "List repetition exceeds the maximum of %d elements.", PI_MAX_LIST_SIZE);
+
+            int count = (int)count_number;
+            int result_size = (int)(list->size * count_number);
+            list_t *result = list_createCap(list->i_size, result_size);
             for (int i = 0; i < count; i++)
                 list_addAll(result, list);
             Object *res_obj = new_list(result);
@@ -3449,24 +3077,40 @@ OP_BINARY:
     }
     case 15:
     {
+        if (IS_INSTANCE(left) && IS_CLASS(right))
+        {
+            bool matches = false;
+            for (PiClass *current = AS_INSTANCE(left)->_class; current; current = current->super)
+            {
+                if (current == AS_CLASS(right))
+                {
+                    matches = true;
+                    break;
+                }
+            }
+            push_stack(vm, NEW_BOOL(matches));
+            break;
+        }
+        if (IS_CLASS(left) && IS_CLASS(right))
+        {
+            bool matches = false;
+            for (PiClass *current = AS_CLASS(left); current; current = current->super)
+            {
+                if (current == AS_CLASS(right))
+                {
+                    matches = true;
+                    break;
+                }
+            }
+            push_stack(vm, NEW_BOOL(matches));
+            break;
+        }
         if (!IS_MAP(left) || !IS_MAP(right))
         {
             push_stack(vm, NEW_BOOL(false));
             break;
         }
-        PiMap *map = AS_MAP(left);
-        PiMap *proto = AS_MAP(right);
-        while (map != NULL)
-        {
-            if (map == proto)
-            {
-                push_stack(vm, NEW_BOOL(true));
-                goto binary_is_done;
-            }
-            map = map->proto;
-        }
-        push_stack(vm, NEW_BOOL(false));
-    binary_is_done:;
+        push_stack(vm, NEW_BOOL(AS_MAP(left) == AS_MAP(right)));
         break;
     }
     default:
@@ -3550,16 +3194,6 @@ OP_UNARY:
     {
         vm->stack[vm->sp - 1] = NEW_BOOL(true);
         VM_DISPATCH_SAFE();
-    }
-
-    if (IS_MAP(operand) && (op == 0 || op == 1 || op == 3))
-    {
-        Value computed = NEW_NIL();
-        if (try_callCompute(vm, operand, 100 + op, false, NEW_NIL(), &computed))
-        {
-            vm->stack[vm->sp - 1] = computed;
-            VM_DISPATCH_SAFE();
-        }
     }
 
     if (op == 2)
@@ -3720,26 +3354,16 @@ OP_CALL_FUNCTION:
         Value result = call_func(vm, AS_FUN(callee), num_args, args, NEW_NIL());
         PUSH(result);
     }
+    else if (IS_CLASS(callee))
+    {
+        Value result = NEW_OBJ(construct(vm, AS_CLASS(callee), num_args, args, NEW_NIL()));
+        PUSH(result);
+    }
     else if (IS_MAP(callee))
     {
-        PiMap *map = AS_MAP(callee);
-        Value result;
-        if (MAP_HAS_FLAG(map, MAP_IS_INSTANCE))
-        {
-            if (object_instanceCall(vm, map, num_args, args, NEW_NIL(), &result))
-                PUSH(result);
-            else
-            {
-                if (num_args > 8)
-                    free(args);
-                vm_error(vm, "Attempt to call an Object instance with no `call` method.");
-            }
-        }
-        else
-        {
-            result = NEW_OBJ(construct(vm, map, num_args, args, NEW_NIL()));
-            PUSH(result);
-        }
+        if (num_args > 8)
+            free(args);
+        vm_error(vm, "Maps are not callable; use a class to create instances.");
     }
     else
     {
@@ -3778,20 +3402,15 @@ OP_CALL_FUNCTION_KW:
         if (IS_OBJ(result))
             add_obj(vm, AS_OBJ(result));
     }
+    else if (IS_CLASS(callee))
+    {
+        result = NEW_OBJ(construct(vm, AS_CLASS(callee), num_args, args, kw_args));
+    }
     else if (IS_MAP(callee))
     {
-        PiMap *map = AS_MAP(callee);
-        if (MAP_HAS_FLAG(map, MAP_IS_INSTANCE))
-        {
-            if (!object_instanceCall(vm, map, num_args, args, kw_args, &result))
-            {
-                if (num_args > 8)
-                    free(args);
-                vm_error(vm, "Attempt to call an Object instance.");
-            }
-        }
-        else
-            result = NEW_OBJ(construct(vm, AS_MAP(callee), num_args, args, kw_args));
+        if (num_args > 8)
+            free(args);
+        vm_error(vm, "Maps are not callable; use a class to create instances.");
     }
     else
     {
@@ -4189,7 +3808,6 @@ OP_PUSH_MAP:
     int numElements = code[pc++] << 8;
     numElements |= code[pc++];
     table_t *table = ht_create(sizeof(Value));
-    bool has_compute = false, has_rcompute = false;
     int _sp = vm->sp - (numElements * 2);
 
     for (int i = _sp; i < vm->sp; i += 2)
@@ -4197,20 +3815,44 @@ OP_PUSH_MAP:
         Value value = vm->stack[i];
         char *key = AS_CSTRING(vm->stack[i + 1]);
         ht_put(table, key, &value);
-        if (IS_FUN(value))
-        {
-            if (strcmp(key, "compute") == 0)
-                has_compute = true;
-            else if (strcmp(key, "rcompute") == 0)
-                has_rcompute = true;
-        }
     }
     set_stackTop(vm, _sp);
-    Object *map = add_obj(vm, new_map(table, false));
-    PiMap *pimap = (PiMap *)map;
-    MAP_SET_FLAG(pimap, MAP_HAS_COMPUTE, has_compute);
-    MAP_SET_FLAG(pimap, MAP_HAS_RCOMPUTE, has_rcompute);
+    Object *map = add_obj(vm, new_map(table));
     push_stack(vm, NEW_OBJ(map));
+    VM_DISPATCH_SAFE();
+}
+
+OP_PUSH_CLASS:
+{
+    int num_members = code[pc++] << 8;
+    num_members |= code[pc++];
+    int base = vm->sp - (num_members * 2 + 2);
+    if (base < 0 || !IS_STRING(vm->stack[base + num_members * 2]) ||
+        !IS_CLASS(vm->stack[base + num_members * 2 + 1]))
+        vm_error(vm, "PUSH_CLASS expects members, a class name, and a superclass.");
+
+    table_t *members = ht_create(sizeof(Value));
+    for (int i = 0; i < num_members * 2; i += 2)
+    {
+        Value value = vm->stack[base + i];
+        Value key = vm->stack[base + i + 1];
+        if (!IS_STRING(key))
+            vm_error(vm, "Class member names must be strings.");
+        ht_put(members, AS_CSTRING(key), &value);
+    }
+
+    const char *name = AS_CSTRING(vm->stack[base + num_members * 2]);
+    PiClass *super = AS_CLASS(vm->stack[base + num_members * 2 + 1]);
+    Object *klass = add_obj(vm, new_class(name, super, members));
+    ht_iter member_it = ht_iterator(members);
+    while (ht_next(&member_it))
+    {
+        Value *member = (Value *)member_it.value;
+        if (member && IS_FUN(*member))
+            AS_FUN(*member)->owner = klass;
+    }
+    set_stackTop(vm, base);
+    push_stack(vm, NEW_OBJ(klass));
     VM_DISPATCH_SAFE();
 }
 
@@ -4236,18 +3878,6 @@ OP_MAP_EXTEND:
             map_extendFromMap(vm, target, sources[i]);
     }
     set_stackTop(vm, source_base);
-    VM_DISPATCH_SAFE();
-}
-
-OP_MAP_FINALIZE:
-{
-    int name_index = code[pc++];
-    if (!IS_MAP(peek_stack(vm)))
-        vm_error(vm, "Map finalize expects a map target.");
-    PiMap *map = AS_MAP(peek_stack(vm));
-    finalize_mapLiteral(vm, map);
-    if (name_index != 0xFF && map->proto != NULL && map->intrinsic_name == NULL)
-        map->intrinsic_name = strdup(string_get(vm->names, name_index));
     VM_DISPATCH_SAFE();
 }
 
@@ -4353,32 +3983,6 @@ OP_PUSH_SLICE:
     VM_DISPATCH_SAFE();
 }
 
-OP_GET_SLOT:
-{
-    uint8_t slot = code[pc++];
-    Value container = vm->stack[vm->sp - 1];
-
-    if (!IS_MAP(container) || !AS_MAP(container)->slots || slot >= AS_MAP(container)->slot_count)
-        vm_error(vm, "Invalid slot access.");
-
-    vm->stack[vm->sp - 1] = AS_MAP(container)->slots[slot];
-    VM_DISPATCH_SAFE();
-}
-
-OP_SET_SLOT:
-{
-    uint8_t slot = code[pc++];
-    Value container = pop_stack(vm);
-    Value value = pop_stack(vm);
-
-    if (!IS_MAP(container) || !AS_MAP(container)->slots || slot >= AS_MAP(container)->slot_count)
-        vm_error(vm, "Invalid slot assignment.");
-
-    AS_MAP(container)->slots[slot] = value;
-    map_dirty(AS_MAP(container));
-    VM_DISPATCH_SAFE();
-}
-
 OP_GET_ITEM:
 OP_GET_MEMBER:
 {
@@ -4396,6 +4000,30 @@ OP_GET_MEMBER:
 
     if (!IS_OBJ(container))
         vm_error(vm, "Unsupported operand type for get item operator.\n");
+
+    if (OBJ_TYPE(container) == OBJ_CLASS || OBJ_TYPE(container) == OBJ_INSTANCE)
+    {
+        char *owned_key = NULL;
+        const char *key = IS_STRING(index) ? AS_CSTRING(index) : (owned_key = as_string(index));
+        Value item = NEW_NIL();
+        bool found = OBJ_TYPE(container) == OBJ_CLASS
+                         ? class_getMember(AS_CLASS(container), key, &item)
+                         : instance_getMember(AS_INSTANCE(container), key, &item);
+        if (!found)
+        {
+            vm_errorf(vm, "Member '%s' was not found on %s.", key, type_name(container));
+        }
+        free(owned_key);
+        if (IS_FUN(item))
+        {
+            Object *receiver = NULL;
+            if (OBJ_TYPE(container) == OBJ_INSTANCE || AS_FUN(item)->is_native)
+                receiver = AS_OBJ(container);
+            item = bind(vm, AS_FUN(item), receiver);
+        }
+        vm->stack[vm->sp - 1] = item;
+        VM_DISPATCH_SAFE();
+    }
 
     if (IS_SLICE(index) &&
         (OBJ_TYPE(container) == OBJ_LIST ||
@@ -4453,94 +4081,11 @@ OP_GET_MEMBER:
         }
         break;
     }
+    // TODO: check out later!
     case OBJ_MAP:
     {
         PiMap *map = AS_MAP(container);
-        if (!IS_STRING(index) && try_callMethodArgs(vm, container, "getItem", 1, &index, &method_result))
-        {
-            vm->stack[vm->sp - 1] = method_result;
-            break;
-        }
-        if (bracket_access && IS_STRING(index) && !MAP_HAS_FLAG(map, MAP_BRACKET))
-            vm_error(vm, "Bracket member access is disabled for this object.");
-
-        PiMap *owner = map_owner(map, index);
-        Value item = NEW_NIL();
-        if (owner)
-        {
-            if (IS_STRING(index) &&
-                map->_key == AS_OBJ(index) &&
-                map->owner == owner &&
-                owner->version == map->owner_version)
-            {
-                item = map->_value;
-            }
-            else if (IS_STRING(index))
-            {
-                Value *val = ht_get(owner->table, AS_CSTRING(index));
-                if (val)
-                    item = *val;
-            }
-            else
-                item = map_get(owner, index);
-        }
-
-        bool bind_object_method = owner != NULL && IS_FUN(item) &&
-                                  owner == vm->object_proto;
-
-        if ((MAP_HAS_FLAG(map, MAP_IS_INSTANCE) && owner != NULL && IS_FUN(item)) || bind_object_method)
-        {
-            Object *target = map->super_instance
-                                 ? map->super_instance
-                                 : AS_OBJ(container);
-
-            /*
-             * Caching is only worthwhile when:
-             *   - the key is a compiled string constant (pointer-stable)
-             *   - the method lives on a prototype, not the instance itself
-             *     (owner != map means we walked the chain at least one step)
-             *   - the target is a PiMap we can attach a BoundCache to
-             *
-             * Dynamic string keys (obj["m1"+"m2"]) always miss the cache and
-             * fall through to bind() directly — correct but uncached.
-             */
-            bool cacheable = IS_STRING(index) &&
-                             owner != map &&
-                             target->type == OBJ_MAP;
-
-            if (cacheable)
-            {
-                PiMap *instance_cache = (PiMap *)target;
-                Object *key_obj = AS_OBJ(index);         // stable PiString pointer
-                uint32_t mhash = AS_STRING(index)->hash; // already computed at parse time
-
-                Value cached = get_boundCache(instance_cache, mhash, key_obj, owner);
-
-                if (IS_FUN(cached))
-                {
-                    // Cache hit:
-                    // bind() was called at some earlier point; reuse the result.
-                    // No allocation, no hash table, no prototype walk.
-                    item = cached;
-                }
-                else
-                {
-                    // bind() allocates a new Function on the GC heap.
-                    // We store it so the next access to the same method on the
-                    // same instance is free.
-                    item = bind(vm, AS_FUN(item), target);
-                    put_boundCache(instance_cache, mhash, key_obj, owner, item);
-                }
-            }
-            else
-            {
-                // Not cacheable: super call, bracket access with dynamic key,
-                // or method defined directly on the instance map itself.
-                item = bind(vm, AS_FUN(item), target);
-            }
-        }
-
-        vm->stack[vm->sp - 1] = item;
+        vm->stack[vm->sp - 1] = map_get(map, index);
         break;
     }
     case OBJ_MODULE:
@@ -4735,6 +4280,18 @@ OP_SET_MEMBER:
     if (!IS_OBJ(container))
         vm_error(vm, "Unsupported operand type for set item operator.\n");
 
+    if (OBJ_TYPE(container) == OBJ_CLASS || OBJ_TYPE(container) == OBJ_INSTANCE)
+    {
+        char *owned_key = NULL;
+        const char *key = IS_STRING(index) ? AS_CSTRING(index) : (owned_key = as_string(index));
+        if (OBJ_TYPE(container) == OBJ_CLASS)
+            class_setMember(AS_CLASS(container), key, value);
+        else
+            instance_setMember(AS_INSTANCE(container), key, value);
+        free(owned_key);
+        VM_DISPATCH_SAFE();
+    }
+
     switch (OBJ_TYPE(container))
     {
     case OBJ_TENSOR:
@@ -4776,29 +4333,8 @@ OP_SET_MEMBER:
     {
         PiMap *map = AS_MAP(container);
         Value args[2] = {index, value};
-        if (!IS_STRING(index) && try_callMethodArgs(vm, container, "setItem", 2, args, &method_result))
-            break;
-        if (bracket_access && IS_STRING(index) && !MAP_HAS_FLAG(map, MAP_BRACKET))
-            vm_error(vm, "Bracket member access is disabled for this object.");
-        if (MAP_HAS_FLAG(map, MAP_IS_INSTANCE))
-        {
-            char *owned_key = NULL;
-            const char *key = IS_STRING(index) ? AS_CSTRING(index) : (owned_key = as_string(index));
-            if (!ht_set(map->table, key, &value))
-            {
-                if (ht_put(map->table, key, &value))
-                    map_dirty(map);
-            }
-            else
-                map_dirty(map);
-            free(owned_key);
-        }
-        else
-        {
-            if (MAP_HAS_FLAG(map, MAP_LOCKED) && map_owner(map, index) == NULL)
-                vm_error(vm, "Cannot add a new key to a locked object.");
-            map_set(map, index, value);
-        }
+
+        map_set(map, index, value);
         break;
     }
     case OBJ_MODULE:

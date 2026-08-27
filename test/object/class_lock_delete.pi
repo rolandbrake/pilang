@@ -1,0 +1,6 @@
+class A {
+    X = 1
+}
+
+A.delete("X")
+assert(!A.has("X"), "classes should allow deleting members")

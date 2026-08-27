@@ -105,6 +105,7 @@ DEBUG_LDLIBS ?= \
 	-lSDL2_Mixer \
 	-lSDL2_ttf \
 	-lSDL2 \
+	-lwinpthread \
 	-lshlwapi
 else
 PKG_CONFIG ?= pkg-config

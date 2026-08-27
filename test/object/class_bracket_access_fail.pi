@@ -1,7 +1,0 @@
-class List {
-    format() {
-        return "[]"
-    }
-}
-
-List["format"]

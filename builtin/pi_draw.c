@@ -1272,7 +1272,7 @@ Value dw_mouse(vm_t *vm, int argc, Value *argv)
     ht_put(table, "y", &NEW_NUM((double)y));
     ht_put(table, "left", &NEW_BOOL(buttons & SDL_BUTTON(SDL_BUTTON_LEFT)));
 
-    PiMap *map = (PiMap *)new_map(table, false);
+    PiMap *map = (PiMap *)new_map(table);
 
     return NEW_OBJ(map);
 }

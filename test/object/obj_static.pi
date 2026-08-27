@@ -1,16 +1,21 @@
-Point = {
-    c: 10, 
-    _private: 3,
+class Point {
+    VALUE = 10
+    _PRIVATE = 3
     constructor(x, y) {
         this.x = x;
         this.y = y;
     }
+
+    GetValue() {
+        return Point.VALUE
+    }
 }
 
-point = Point(1, 2);
-point.c += 1
+println(Point.GetValue())
+point = Point(1, 2)
+point.VALUE += 1
 other = Point(3, 4);
 
-println(point.c)
-println(other.c)
-println(Point.c)
+println(point.VALUE)
+println(other.VALUE)
+println(Point.VALUE)

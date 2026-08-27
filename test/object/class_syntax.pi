@@ -1,5 +1,5 @@
 class Animal {
-    type = "Animal"
+    TYPE = "Animal"
 
     constructor(name) {
         this.name = name
@@ -11,10 +11,10 @@ class Animal {
 }
 
 class Dog : Animal {
-    type = "Dog"
+    TYPE = "Dog"
 
     constructor(name, age) {
-        super.constructor(name)
+        super(name)
         this.age = age
     }
 
@@ -24,7 +24,7 @@ class Dog : Animal {
 }
 
 dog = Dog("Buddy", 5)
-println(Dog.type)
+println(Dog.TYPE)
 println(Object.name(Dog))
 println(dog.format())
 println(dog)

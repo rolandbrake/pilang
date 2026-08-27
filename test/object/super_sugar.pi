@@ -9,10 +9,10 @@ class B : A {
         super(value)
     }
 
-    get_value() {
+    getValue() {
         return this.value
     }
 }
 
 b = B(42)
-println(b.get_value())
+println(b.getValue())

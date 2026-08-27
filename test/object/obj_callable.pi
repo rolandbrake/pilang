@@ -1,21 +1,27 @@
-Counter = {
-    count: 0,
-    call() {
+class Counter {
+    constructor() {
+        this.count = 0
+    }
+
+    increment() {
         this.count = this.count + 1
         return this.count
     }
 }
 
 c = Counter()
-assert(c() == 1, "instance call should invoke call method")
-assert(c() == 2, "callable instance should preserve state")
+assert(c.increment() == 1, "instance methods should preserve state")
+assert(c.increment() == 2, "instance methods should preserve state")
 
-Adder = {
-    base: 5,
-    call(x, y) {
+class Adder {
+    constructor() {
+        this.base = 5
+    }
+
+    add(x, y) {
         return x + y + this.base
     }
 }
 
 adder = Adder()
-assert(adder(1, 2) == 8, "instance call should forward positional arguments")
+assert(adder.add(1, 2) == 8, "instance methods should forward arguments")

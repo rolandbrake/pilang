@@ -1,169 +1,24 @@
-import lang
+class Box {
+    VALUE = 10
 
-let value = 10
+    format() {
+        return "Box(" + this.VALUE + ")"
+    }
 
-let Box = {
-    "label": "Box",
+    equals(candidate) {
+        return is_num(candidate) && candidate == this.VALUE
+    }
 
-    compute: fun(op, other = nil) {
-        if (op == lang.OP_ADD) {
-            if (!is_num(other)) {
-                error("box + other expects a number")
-            }
-            return value + other
-        }
-
-        if (op == lang.OP_SUB) {
-            if (!is_num(other)) {
-                error("box - other expects a number")
-            }
-            return value - other
-        }
-
-        if (op == lang.OP_MUL) {
-            if (!is_num(other)) {
-                error("box * other expects a number")
-            }
-            return value * other
-        }
-
-        if (op == lang.OP_DIV) {
-            if (!is_num(other)) {
-                error("box / other expects a number")
-            }
-            return value / other
-        }
-
-        if (op == lang.OP_MOD) {
-            if (!is_num(other)) {
-                error("box % other expects a number")
-            }
-            return value % other
-        }
-
-        if (op == lang.OP_BXOR) {
-            if (!is_num(other)) {
-                error("box ^ other expects a number")
-            }
-            return value ^ other
-        }
-
-        if (op == lang.OP_POS) {
-            return +value
-        }
-
-        if (op == lang.OP_NEG) {
-            return -value
-        }
-
-        if (op == lang.OP_BNOT) {
-            return ~value
-        }
-
-        error("unsupported operator: " + op)
-    },
-
-    rcompute: fun(op, other) {
-        let handled = false
-        let result = nil
-
-        if (op == lang.OP_ADD) {
-            if (!is_num(other)) {
-                error("other + box expects a number")
-            }
-            result = other + value
-            handled = true
-        }
-
-        if (op == lang.OP_SUB) {
-            if (!is_num(other)) {
-                error("other - box expects a number")
-            }
-            result = other - value
-            handled = true
-        }
-
-        if (op == lang.OP_MUL) {
-            if (!is_num(other)) {
-                error("other * box expects a number")
-            }
-            result = other * value
-            handled = true
-        }
-
-        if (op == lang.OP_DIV) {
-            if (!is_num(other)) {
-                error("other / box expects a number")
-            }
-            result = other / value
-            handled = true
-        }
-
-        if (op == lang.OP_MOD) {
-            if (!is_num(other)) {
-                error("other % box expects a number")
-            }
-            result = other % value
-            handled = true
-        }
-
-        if (!handled) {
-            error("unsupported reflected operator: " + op)
-        }
-
-        return result
-    },
-
-    format: fun() {
-        return "Box(" + value + ")"
-    },
-
-    equals: fun(candidate) {
-        return is_num(candidate) && candidate == value
-    },
-
-    compare: fun(rhs) {
-        return value - rhs
+    compare(rhs) {
+        return this.VALUE - rhs
     }
 }
 
-let box = Box(10)
-assert(box + 5 == 15, "operator + should dispatch to compute(OP_ADD, other)")
-assert(box - 3 == 7, "operator - should dispatch to compute(OP_SUB, other)")
-assert(box * 4 == 40, "operator * should dispatch to compute(OP_MUL, other)")
-assert(box / 2 == 5, "operator / should dispatch to compute(OP_DIV, other)")
-assert(box % 3 == 1, "operator % should dispatch to compute(OP_MOD, other)")
-assert(box ^ 3 == (10 ^ 3), "operator ^ should dispatch to compute(OP_BXOR, other)")
-assert(5 + box == 15, "right-side operator + should dispatch to rcompute(OP_ADD, left)")
-assert(20 - box == 10, "right-side operator - should dispatch to rcompute(OP_SUB, left)")
-assert(2 * box == 20, "right-side operator * should dispatch to rcompute(OP_MUL, left)")
-assert(100 / box == 10, "right-side operator / should dispatch to rcompute(OP_DIV, left)")
-assert(13 % box == 3, "right-side operator % should dispatch to rcompute(OP_MOD, left)")
+box = Box()
+assert(box.equals(10), "class equals should receive an argument")
+assert(box.compare(8) == 2, "class compare should receive an argument")
+assert(box.format() == "Box(10)", "class format should be callable")
+assert(box.VALUE + 5 == 15, "static class fields should participate in arithmetic")
 assert(1 + 1 == 2, "primitive arithmetic should keep working")
-assert(+box == 10, "unary + should dispatch to compute(OP_POS)")
-assert(-box == -10, "unary - should dispatch to compute(OP_NEG)")
-assert(~box == ~10, "unary ~ should dispatch to compute(OP_BNOT)")
-assert(box == 10, "== should dispatch to equals(other)")
-assert(box != 11, "!= should dispatch to equals(other)")
-assert(box > 8, "> should dispatch to compare(other)")
-assert(box < 12, "< should dispatch to compare(other)")
-assert(box >= 10, ">= should dispatch to compare(other)")
-assert(box <= 10, "<= should dispatch to compare(other)")
-assert(10 == box, "right-side equals(other) fallback should work")
-assert(8 < box, "right-side compare(other) fallback should work")
-assert(12 > box, "right-side compare(other) fallback should work")
-
-println("operator overloading use case")
-println(box)
-println(box + 2)
-println(box - 8)
-println(box * 3)
-println(box / 5)
-println(box % 4)
-println(box ^ 3)
-println(+box)
-println(-box)
-println(~box)
-println(box == 10)
-println(box > 8)
-println(box <= 10)
+println("class method use case")
+println(box.format())

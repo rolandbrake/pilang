@@ -1,0 +1,19 @@
+// sieve of eratosthenes implementation in PiLang
+import math.{sqrt}
+
+n = 100
+primes = [true] * (n + 1)
+
+for i in 2..sqrt(n) {
+    if primes[i] {
+        for j in i*i..n:i {
+            primes[j] = false
+        }
+    }
+}
+
+for i in 2..n {
+    if primes[i] {
+        println(i)
+    }
+}

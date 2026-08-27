@@ -101,7 +101,7 @@ static Value os_string(vm_t *vm, const char *text)
 
 static PiMap *os_resultMap(vm_t *vm, const char *stdout_text, const char *stderr_text, int code)
 {
-    PiMap *result = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value)), false));
+    PiMap *result = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
     Value stdout_val = os_string(vm, stdout_text);
     Value stderr_val = os_string(vm, stderr_text);
     Value code_val = NEW_NUM(code);

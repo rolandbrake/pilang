@@ -171,16 +171,6 @@ static void mark_references(Object *obj)
     {
         PiMap *map = (PiMap *)obj;
 
-        if (map->proto)
-            mark_object((Object *)map->proto);
-        if (map->super_instance)
-            mark_object(map->super_instance);
-        if (map->_key)
-            mark_object(map->_key);
-        if (map->owner)
-            mark_object((Object *)map->owner);
-        mark_value(map->_value);
-
         table_t *table = map->table;
         if (table)
         {
@@ -193,17 +183,40 @@ static void mark_references(Object *obj)
             }
         }
 
-        if (map->bound_cache)
-        {
-            for (int i = 0; i < BOUND_CACHE_SIZE; i++)
-            {
-                BoundCache *entry = &map->bound_cache[i];
-                if (!entry->proto)
-                    continue;
+        break;
+    }
 
-                mark_object(entry->key);
-                mark_object((Object *)entry->proto);
-                mark_value(entry->bound_fn);
+    case OBJ_CLASS:
+    {
+        PiClass *_class = (PiClass *)obj;
+        if (_class->super)
+            mark_object((Object *)_class->super);
+        if (_class->members)
+        {
+            ht_iter it = ht_iterator(_class->members);
+            while (ht_next(&it))
+            {
+                Value *value = (Value *)it.value;
+                if (value)
+                    mark_value(*value);
+            }
+        }
+        break;
+    }
+
+    case OBJ_INSTANCE:
+    {
+        PiInstance *instance = (PiInstance *)obj;
+        if (instance->_class)
+            mark_object((Object *)instance->_class);
+        if (instance->fields)
+        {
+            ht_iter it = ht_iterator(instance->fields);
+            while (ht_next(&it))
+            {
+                Value *value = (Value *)it.value;
+                if (value)
+                    mark_value(*value);
             }
         }
         break;
@@ -425,10 +438,22 @@ void free_object(Object *obj)
     {
         PiMap *map = (PiMap *)obj;
         // Nested objects are owned by the VM object list and are freed separately.
-        if (map->intrinsic_name)
-            free(map->intrinsic_name);
         ht_free(map->table);
-        free(map->bound_cache);
+        break;
+    }
+
+    case OBJ_CLASS:
+    {
+        PiClass *_class = (PiClass *)obj;
+        free(_class->name);
+        ht_free(_class->members);
+        break;
+    }
+
+    case OBJ_INSTANCE:
+    {
+        PiInstance *instance = (PiInstance *)obj;
+        ht_free(instance->fields);
         break;
     }
 

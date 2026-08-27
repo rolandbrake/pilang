@@ -59,7 +59,7 @@ typedef enum
     OP_TENSOR_SET = 0x43,
     OP_CALL_SPREAD = 0x45,
     OP_MAP_EXTEND = 0x47,
-    OP_MAP_FINALIZE = 0x48,
+    /* 0x48 was MAP_FINALIZE; kept unused for bytecode compatibility. */
     OP_COMP_APPEND = 0x49,
     OP_PUSH_SET = 0x4a,
     OP_PUSH_TUPLE = 0x4b,
@@ -67,6 +67,7 @@ typedef enum
     OP_SET_MEMBER = 0x4d,
     OP_COMP_BEGIN = 0x4e,
     OP_COMP_END = 0x4f,
+    OP_PUSH_CLASS = 0x50,
 
 } OpCode;
 
@@ -103,6 +104,7 @@ static inline int operand_count(uint8_t op)
     case OP_LOOP:
     case OP_PUSH_LIST:
     case OP_PUSH_MAP:
+    case OP_PUSH_CLASS:
     case OP_PUSH_SET:
     case OP_PUSH_CLOSURE:
     case OP_GET_MEMBER:
@@ -129,7 +131,6 @@ static inline int operand_count(uint8_t op)
     case OP_CALL_SPREAD:
     case OP_COMP_APPEND:
     case OP_COMP_BEGIN:
-    case OP_MAP_FINALIZE:
     case OP_MAP_EXTEND:
     case OP_LIST_EXTEND:
         return 1;

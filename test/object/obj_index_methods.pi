@@ -18,16 +18,16 @@ class Box {
 
 box = Box([10, 20, 30, 40, 50])
 
-assert(box[1] == 20, "object indexing should dispatch to get_item(index)")
+assert(box.getItem(1) == 20, "instance methods should provide indexed access")
 
-box[2] = 99
-assert(box[2] == 99, "object index assignment should dispatch to set_item(index, value)")
+box.setItem(2, 99)
+assert(box.getItem(2) == 99, "instance methods should provide indexed assignment")
 
-part = box[1:4:2]
-assert(part[0] == 20, "object slicing should dispatch to slice(start, end, step)")
-assert(part[1] == 40, "object slicing should preserve the step argument")
+part = box.slice(1, 4, 2)
+assert(part[0] == 20, "instance slice method should preserve the start")
+assert(part[1] == 40, "instance slice method should preserve the step")
 
 println("object index methods")
-println(box[1])
-println(box[2])
+println(box.getItem(1))
+println(box.getItem(2))
 println(part)

@@ -5,6 +5,9 @@
 
 static list_t *_list_alloc(int i_size, int capacity)
 {
+    if (i_size <= 0 || capacity < 0 || capacity > PI_MAX_LIST_SIZE)
+        return NULL;
+
     list_t *list = malloc(sizeof(list_t));
     if (!list)
         return NULL;
@@ -26,7 +29,7 @@ list_t *list_create(int i_size)
 {
     list_t *list = _list_alloc(i_size, INIT_CAP);
     if (!list)
-        error("[list_create] Out of memory.");
+        error("list create: Out of memory.");
     return list;
 }
 
@@ -35,17 +38,21 @@ list_t *list_createCap(int i_size, int capacity)
 {
     if (capacity < INIT_CAP)
         capacity = INIT_CAP;
+    if (capacity > PI_MAX_LIST_SIZE)
+        error("List size exceeds the maximum of %d elements.", PI_MAX_LIST_SIZE);
     list_t *list = _list_alloc(i_size, capacity);
     if (!list)
-        error("[list_createCap] Out of memory.");
+        error("list create: Out of memory.");
     return list;
 }
 
 void _list_expand(list_t *list, int new_cap)
 {
+    if (new_cap > PI_MAX_LIST_SIZE)
+        error("List size exceeds the maximum of %d elements.", PI_MAX_LIST_SIZE);
     void *data = realloc(list->data, (size_t)new_cap * list->i_size);
     if (!data)
-        error("[_list_expand] Out of memory.");
+        error("list expand: Out of memory.");
     list->data = data;
     list->capacity = new_cap;
 }
@@ -68,6 +75,9 @@ list_t *list_addAll(list_t *list, const list_t *items)
 {
     if (!items || items->size == 0)
         return list;
+
+    if (items->size > PI_MAX_LIST_SIZE - list->size)
+        error("List size exceeds the maximum of %d elements.", PI_MAX_LIST_SIZE);
 
     int new_size = list->size + items->size;
     if (new_size > list->capacity)
@@ -115,7 +125,7 @@ void list_addFirst(list_t *list, const void *item)
 void *list_pop(list_t *list)
 {
     if (list->size == 0)
-        error("[list_pop] List is empty.");
+        error("List is empty.");
 
     list->size--;
     /* The slot at size is no longer "live" but the bytes are intact */
@@ -140,7 +150,7 @@ void *list_remove(list_t *list, int index)
 list_t *list_map(list_t *list, Value *(*func)(Value *))
 {
     if (!list || !func)
-        error("[list_map] Invalid arguments.");
+        error("Invalid arguments.");
 
     list_t *result = list_createCap(list->i_size, list->size > INIT_CAP ? list->size : INIT_CAP);
 

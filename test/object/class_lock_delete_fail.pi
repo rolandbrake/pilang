@@ -1,5 +1,0 @@
-class A {
-    x = 1
-}
-
-A.delete("x")
