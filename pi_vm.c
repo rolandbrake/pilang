@@ -348,6 +348,16 @@ static instr_t *vm_currentInstr(vm_t *vm)
     return vm_instrForOffset(vm, vm->error_pc);
 }
 
+static const char *vm_callName(vm_t *vm, int offset)
+{
+    instr_t *instr = vm_instrForOffset(vm, offset);
+
+    if (!instr || !instr->descr || instr->descr[0] == '\0' || strcmp(instr->descr, "<FUN>") == 0)
+        return NULL;
+
+    return instr->descr;
+}
+
 vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
 {
     vm_t *vm = (vm_t *)malloc(sizeof(vm_t));
@@ -2800,7 +2810,11 @@ OP_CALL_FUNCTION:
     {
         if (num_args > 8)
             free(args);
-        vm_error(vm, "Attempt to call a non-function value.");
+        const char *name = vm_callName(vm, instr_pc);
+        if (name)
+            vm_errorf(vm, "Attempt to call '%s', which is not a function.", name);
+        else
+            vm_error(vm, "Attempt to call a non-function value.");
     }
 
     if (num_args > 8)
@@ -2847,7 +2861,11 @@ OP_CALL_FUNCTION_KW:
     {
         if (num_args > 8)
             free(args);
-        vm_error(vm, "Attempt to call a non-function object.");
+        const char *name = vm_callName(vm, instr_pc);
+        if (name)
+            vm_errorf(vm, "Attempt to call '%s', which is not a function.", name);
+        else
+            vm_error(vm, "Attempt to call a non-function object.");
     }
 
     if (num_args > 8)
