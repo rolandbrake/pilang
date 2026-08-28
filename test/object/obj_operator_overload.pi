@@ -1,0 +1,23 @@
+import lang
+
+class Vec2 {
+    constructor(x, y) {
+        this.x = x
+        this.y = y
+    }
+
+    compute(op, other) {
+        if op == lang.OP_ADD {
+            return Vec2(this.x + other.x, this.y + other.y)
+        }
+    }
+
+    format() {
+        return "Vec2(" + this.x + ", " + this.y + ")"
+    }
+}
+
+let result = Vec2(2, 3) + Vec2(4, 1)
+assert(result.x == 6, "operator overload should add the x components")
+assert(result.y == 4, "operator overload should add the y components")
+assert(result.format() == "Vec2(6, 4)", "operator overload should return a Vec2")

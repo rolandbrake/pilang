@@ -1236,6 +1236,27 @@ static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
     return receiver;
 }
 
+static bool call_methodWithArgs(vm_t *vm, Value receiver, const char *name,
+                                Value *args, int argc, Value *result)
+{
+    if (!IS_INSTANCE(receiver) && !IS_CLASS(receiver))
+        return false;
+
+    Value method;
+    bool found = IS_INSTANCE(receiver)
+                     ? instance_getMember(AS_INSTANCE(receiver), name, &method)
+                     : class_getMember(AS_CLASS(receiver), name, &method);
+    if (!found || !IS_FUN(method))
+        return false;
+
+    Object *target = IS_INSTANCE(receiver) || AS_FUN(method)->is_native
+                         ? AS_OBJ(receiver)
+                         : NULL;
+    Value bound = bind(vm, AS_FUN(method), target);
+    *result = call_func(vm, AS_FUN(bound), argc, args, NEW_NIL());
+    return true;
+}
+
 Value vm_callMethodNoArgs(vm_t *vm, Value receiver, const char *name)
 {
     return call_methodNoArgs(vm, receiver, name);
@@ -2044,6 +2065,21 @@ OP_BINARY:
         PUSH(op_binaryNum(op, as_number(left), as_number(right)));
         VM_DISPATCH_SAFE();
     }
+
+    if (op <= 13)
+    {
+        Value operator_args[2] = {NEW_NUM(op), right};
+        Value reflected_args[2] = {NEW_NUM(op), left};
+        Value result;
+        if (call_methodWithArgs(vm, left, "compute", operator_args, 2, &result) ||
+            call_methodWithArgs(vm, right, "rcompute", reflected_args, 2, &result))
+        {
+            PUSH(result);
+            VM_DISPATCH_SAFE();
+        }
+    }
+
+
 
     switch (op)
     {
