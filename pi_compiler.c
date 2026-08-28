@@ -227,15 +227,6 @@ static loop_t *pop_loopContext(compiler_t *comp)
     return loop ? *loop : NULL;
 }
 
-static upvalue_t *create_upvalue(int index, bool is_local)
-{
-    upvalue_t *upvalue = malloc(sizeof(upvalue_t));
-
-    upvalue->index = index;
-    upvalue->is_local = is_local;
-    return upvalue;
-}
-
 compiler_t *init_compiler()
 {
 
@@ -279,15 +270,6 @@ compiler_t *init_compiler()
     stack_push(comp->contexts, &comp->current);
 
     return comp;
-}
-
-static int read_short(compiler_t *comp, int index)
-{
-    uint8_t *code = (uint8_t *)comp->code->data;
-    int high = code[index] & 0xFF;
-    int low = code[index + 1] & 0xFF;
-
-    return (high << 8) | low;
 }
 
 void add_code(compiler_t *comp, byte _byte)
@@ -371,15 +353,6 @@ void print_locals(compiler_t *comp)
            local->is_captured ? "true" : "false");
 
     printf("\n");
-}
-
-static void print_local(void *_local)
-{
-    local_t *local = (local_t *)_local;
-    printf("Local: name = %s, depth = %d, is_captured = %s\n",
-           local->name,
-           local->depth,
-           local->is_captured ? "true" : "false");
 }
 
 void add_localConst(compiler_t *comp, char *name, bool is_const)

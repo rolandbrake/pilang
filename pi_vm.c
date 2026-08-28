@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdint.h>
+#include <stdarg.h>
 #include <time.h>
 #include <unistd.h>
 #include <string.h>
@@ -27,92 +28,49 @@ volatile interrupt_flag_t interrupt_requested = 0;
 static void add_objectClassMembers(PiClass *klass);
 static Object *construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Value kw_args);
 static Value bind(vm_t *vm, Function *function, Object *instance);
-static Value bind_nativeMethod(vm_t *vm, Object *instance, NativeMethod *method);
+static Value bind_nativeMethod(Object *instance, NativeMethod *method);
 static void gc_collect(vm_t *vm);
 
-/**
- * Return a newly allocated string containing only the directory portion
- * of a filesystem path.
- *
- * Examples:
- *   "/home/user/file.pi" -> "/home/user"
- *   "C:\\temp\\file.pi"  -> "C:\\temp"
- *   "file.pi"            -> "."
- *   NULL                 -> "."
- *
- * The caller owns the returned string and must free it.
- */
 static char *copy_dirName(const char *path)
 {
-    /* Invalid or empty path -> current directory. */
     if (!path || path[0] == '\0')
         return strdup(".");
 
-    /* Work on a writable copy. */
     char *dir = strdup(path);
     int len = (int)strlen(dir);
 
-    /*
-     * Walk backwards until we find a directory separator.
-     * Supports both Unix ('/') and Windows ('\\') paths.
-     */
     while (len > 0 && dir[len - 1] != '/' && dir[len - 1] != '\\')
         len--;
 
-    /*
-     * No separator found, therefore the path contains only a file name.
-     * Return "." to represent the current directory.
-     */
     if (len == 0)
     {
         free(dir);
         return strdup(".");
     }
 
-    /*
-     * Replace the separator with a null terminator,
-     * leaving only the directory portion.
-     */
     dir[len - 1] = '\0';
     return dir;
 }
 
-/**
- * Return the module currently executing in the VM.
- *
- * The runtime stores the active module in the global variable "module".
- * If no valid module is available, NULL is returned.
- */
 static ObjModule *vm_currentModule(vm_t *vm)
 {
-    /* VM or global namespace unavailable. */
     if (!vm || !vm->globals)
         return NULL;
 
-    /* Retrieve global "module" binding. */
     Value *module_val = ht_get(vm->globals, "module");
 
-    /* Ensure the binding exists and contains a module object. */
     if (!module_val || !IS_MODULE(*module_val))
         return NULL;
 
     return AS_MODULE(*module_val);
 }
 
-/**
- * Recalculate whether every element in the list is numeric.
- *
- * Some list operations maintain an optimization flag
- * (list->is_numeric) that allows fast numeric operations.
- * Since mutations may invalidate the flag, we rescan the list.
- */
 static void list_refreshNumericFlag(PiList *list)
 {
     bool numeric = true;
 
     for (int i = 0; i < LIST_SIZE(list->items); i++)
     {
-        /* Any non-number disables the optimization. */
         if (!IS_NUM(*(Value *)list_getAt(list->items, i)))
         {
             numeric = false;
@@ -131,21 +89,6 @@ static Value make_iterPair(vm_t *vm, Value first, Value second)
     return NEW_OBJ(add_obj(vm, new_list(items)));
 }
 
-/**
- * Assign values into a list slice.
- *
- * Supports:
- *   list[a:b]     = sequence
- *   list[a:b:c]   = sequence
- *
- * Rules:
- *   - RHS must be a list or tuple.
- *   - Step 1 slices may grow or shrink the target list.
- *   - Extended slices (step != 1) require matching lengths.
- *
- * The implementation snapshots the source sequence first so
- * self-assignment scenarios remain safe.
- */
 static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
 {
     if (!IS_LIST(value) && !IS_TUPLE(value))
@@ -162,10 +105,6 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
     if (step == 0)
         vm_error(vm, "Slice step cannot be zero.");
 
-    /*
-     * Convert slice boundaries into concrete list indices.
-     * Infinite start/stop values represent omitted bounds.
-     */
     int start;
     int end;
 
@@ -179,11 +118,6 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
     else
         end = slice_index((int)slice->stop, size, step);
 
-    /*
-     * Copy source values into a temporary buffer.
-     * This prevents corruption if source and target refer
-     * to the same underlying list.
-     */
     int source_count = LIST_SIZE(source);
     Value *snapshot = NULL;
 
@@ -198,20 +132,11 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
             snapshot[i] = *(Value *)list_getAt(source, i);
     }
 
-    /*
-     * Simple slice assignment:
-     *
-     *     list[a:b] = values
-     *
-     * Elements may be inserted or removed, changing the
-     * overall length of the list.
-     */
     if (step == 1)
     {
         int delete_count = end > start ? end - start : 0;
         int new_size = size - delete_count + source_count;
 
-        /* Ensure enough capacity before moving memory. */
         if (new_size > items->capacity)
         {
             int new_capacity = items->capacity;
@@ -226,10 +151,6 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
             _list_expand(items, new_capacity);
         }
 
-        /*
-         * Shift the tail portion of the list to create
-         * or remove space for replacement values.
-         */
         void *insert_at = (byte *)items->data + start * items->i_size;
         void *tail_from =
             (byte *)items->data + (start + delete_count) * items->i_size;
@@ -241,7 +162,6 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
             tail_from,
             (size - start - delete_count) * items->i_size);
 
-        /* Copy replacement values into the gap. */
         if (source_count > 0)
             memcpy(insert_at, snapshot, source_count * items->i_size);
 
@@ -249,13 +169,6 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
     }
     else
     {
-        /*
-         * Extended slice assignment:
-         *
-         *     list[a:b:c] = values
-         *
-         * Length must match exactly because positions are fixed.
-         */
         int target_count = 0;
 
         if (step > 0)
@@ -276,7 +189,6 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
                      "Extended slice assignment requires matching lengths.");
         }
 
-        /* Replace each selected element individually. */
         int current = start;
 
         for (int i = 0; i < source_count; i++)
@@ -288,17 +200,9 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
 
     free(snapshot);
 
-    /* Recompute numeric optimization state. */
     list_refreshNumericFlag(target);
 }
 
-/**
- * Determine whether two sets contain exactly the same elements.
- *
- * Since hash tables store unique keys, equality is:
- *   - same number of entries
- *   - every key in left exists in right
- */
 static bool set_equals(PiSet *left, PiSet *right)
 {
     if (set_size(left) != set_size(right))
@@ -314,12 +218,6 @@ static bool set_equals(PiSet *left, PiSet *right)
     return true;
 }
 
-/**
- * Return true if every element in 'left' exists in 'right'.
- *
- * Implements mathematical subset semantics:
- *     left ⊆ right
- */
 static bool set_isSubset(PiSet *left, PiSet *right)
 {
     for (int i = 0; i < set_size(left); i++)
@@ -332,26 +230,12 @@ static bool set_isSubset(PiSet *left, PiSet *right)
     return true;
 }
 
-/**
- * Perform a binary set operation and return a new set.
- *
- * Supported operations:
- *   8  -> intersection
- *   9  -> union
- *   10 -> symmetric difference
- *
- * The original sets are never modified.
- */
-static Object *set_ops(vm_t *vm, PiSet *left, PiSet *right, int op)
+static Object *set_ops(PiSet *left, PiSet *right, int op)
 {
     PiSet *result = (PiSet *)new_set();
 
     if (op == 9) /* union */
     {
-        /*
-         * Copy all elements from left, then add any
-         * elements from right not already present.
-         */
         for (int i = 0; i < set_size(left); i++)
             set_add(result, set_get(left, i));
 
@@ -360,9 +244,6 @@ static Object *set_ops(vm_t *vm, PiSet *left, PiSet *right, int op)
     }
     else if (op == 8) /* intersection */
     {
-        /*
-         * Keep only elements that exist in both sets.
-         */
         for (int i = 0; i < set_size(left); i++)
         {
             Value value = set_get(left, i);
@@ -372,9 +253,6 @@ static Object *set_ops(vm_t *vm, PiSet *left, PiSet *right, int op)
     }
     else if (op == 10) /* symmetric difference */
     {
-        /*
-         * Elements present in exactly one set.
-         */
         for (int i = 0; i < set_size(left); i++)
             set_add(result, set_get(left, i));
 
@@ -391,14 +269,7 @@ static Object *set_ops(vm_t *vm, PiSet *left, PiSet *right, int op)
     return (Object *)result;
 }
 
-/**
- * Return a new set containing:
- *
- *     left - right
- *
- * All elements present in left but absent from right.
- */
-static Object *set_difference(vm_t *vm, PiSet *left, PiSet *right)
+static Object *set_difference(PiSet *left, PiSet *right)
 {
     PiSet *result = (PiSet *)new_set();
     for (int i = 0; i < set_size(left); i++)
@@ -411,16 +282,6 @@ static Object *set_difference(vm_t *vm, PiSet *left, PiSet *right)
     return (Object *)result;
 }
 
-/**
- * Return a human-readable label for the currently executing module.
- *
- * Preference order:
- *   1. Full module path
- *   2. Module name
- *   3. NULL if unavailable
- *
- * Useful for diagnostics and stack traces.
- */
 static const char *vm_moduleLabel(vm_t *vm)
 {
     ObjModule *module = vm_currentModule(vm);
@@ -437,25 +298,11 @@ static const char *vm_moduleLabel(vm_t *vm)
     return NULL;
 }
 
-/**
- * Locate the instruction metadata corresponding to the VM's
- * current program counter.
- *
- * Instruction records are stored per scope/function and
- * contain source-level information (offset, line number, etc.).
- *
- * The algorithm returns the last instruction whose bytecode
- * offset does not exceed the current PC.
- */
 static instr_t *vm_instrForOffset(vm_t *vm, int target_offset)
 {
     if (!vm || !vm->instrs)
         return NULL;
 
-    /*
-     * Determine the active scope name.
-     * Global code is stored under "<global>".
-     */
     char *scope_name = "<global>";
 
     if (vm->function && IS_FUN(NEW_OBJ(vm->function)))
@@ -466,10 +313,6 @@ static instr_t *vm_instrForOffset(vm_t *vm, int target_offset)
             scope_name = fn->name;
     }
 
-    /*
-     * Retrieve instruction metadata for the active scope.
-     * Fallback to global scope if necessary.
-     */
     list_t *instrs = ht_get(vm->instrs, scope_name);
 
     if (!instrs && strcmp(scope_name, "<global>") != 0)
@@ -481,10 +324,6 @@ static instr_t *vm_instrForOffset(vm_t *vm, int target_offset)
     int size = list_size(instrs);
     instr_t *instr = NULL;
 
-    /*
-     * Find the instruction whose offset is the closest
-     * one less than or equal to the current program counter.
-     */
     for (int i = 0; i < size; i++)
     {
         instr_t *cur = (instr_t *)list_getAt(instrs, i);
@@ -509,32 +348,22 @@ static instr_t *vm_currentInstr(vm_t *vm)
     return vm_instrForOffset(vm, vm->error_pc);
 }
 
-/**
- * Initializes the virtual machine by allocating memory and
- * setting initial values for the program counter, stack pointer,
- * base pointer, and other components.
- */
 vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
 {
-
-    // Allocate memory for the virtual machine instance
     vm_t *vm = (vm_t *)malloc(sizeof(vm_t));
 
-    // Initialize program counter, stack pointer, and base pointer to 0
     vm->pc = 0;
     vm->error_pc = 0;
     vm->sp = 0;
     vm->bp = 0;
     vm->ip = 0;
 
-    // Set the code, constants, and names from the compiler to the VM
     vm->code = comp->code;
     vm->constants = comp->constants;
     vm->names = comp->names;
     vm->instrs = comp->instrs;
     vm->current_instr = NULL;
 
-    // Create a hash table to store global variables
     vm->globals = ht_create(sizeof(Value));
     vm->global_cache = &comp->global_cache;
 
@@ -568,16 +397,12 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     vm->function = NULL;
     vm->_kw_args = NEW_NIL();
 
-    // Initialize the garbage collector
     vm->next_gc = NEXT_GC;
     vm->obj_count = 0;
 
-    // Initialize the GC stack to NULL (it will be allocated when needed)
     vm->gc_stack = NULL;
 
-    // Initialize the modules table to store loaded modules by name
     vm->modules = ht_create(sizeof(Value));
-    // Set current path to the working directory at VM initialization
     vm->current_path = getcwd(NULL, 0);
     vm->object_class = NULL;
 
@@ -591,37 +416,32 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
         }
     }
 
-    // Expose current module context in every VM as `module`.
     const char *module_name = (entry_name && entry_name[0] != '\0') ? entry_name : "<main>";
     const char *module_path = (entry_name && entry_name[0] != '\0')
                                   ? entry_name
                                   : (vm->current_path ? vm->current_path : "");
-    Object *main_moduleObj = new_module(
+    Object *main_module_obj = new_module(
         vm,
         module_name,
         module_path,
         false,
         is_main);
 
-    // Mark main module as loaded to prevent issues with circular imports in the main file.
-    ObjModule *main_module = (ObjModule *)main_moduleObj;
+    /* Treat the entry module as loaded so imports cannot re-enter it. */
+    ObjModule *main_module = (ObjModule *)main_module_obj;
     main_module->state = MODULE_LOADED;
 
-    // Add main module to the global modules table so it can be referenced by name.
-    Value main_moduleVal = NEW_OBJ(main_moduleObj);
-    ht_put(vm->globals, "module", &main_moduleVal);
+    Value main_module_val = NEW_OBJ(main_module_obj);
+    ht_put(vm->globals, "module", &main_module_val);
 
     vm->object_class = (PiClass *)add_obj(vm, new_class("Object", NULL, ht_create(sizeof(Value))));
     add_objectClassMembers(vm->object_class);
-    Value object_classVal = NEW_OBJ((Object *)vm->object_class);
-    ht_put(vm->globals, "Object", &object_classVal);
+    Value object_class_val = NEW_OBJ((Object *)vm->object_class);
+    ht_put(vm->globals, "Object", &object_class_val);
 
     return vm;
 }
 
-/**
- * Reuse an existing VM for new bytecode while preserving globals.
- */
 void vm_reset(vm_t *vm, compiler_t *comp)
 {
     vm->pc = 0;
@@ -636,7 +456,7 @@ void vm_reset(vm_t *vm, compiler_t *comp)
     vm->instrs = comp->instrs;
     vm->current_instr = NULL;
 
-    /* Preserve vm->globals so shell state survives resets. */
+    /* Globals intentionally survive shell resets. */
     vm->global_cache = &comp->global_cache;
 
     vm->iter_sp = -1;
@@ -645,7 +465,6 @@ void vm_reset(vm_t *vm, compiler_t *comp)
 
     vm->running = true;
 
-    // Reset GC stats to trigger collection sooner if needed
     vm->counter = 0;
     vm->gc_count = 0;
     vm->gc_requested = false;
@@ -655,13 +474,9 @@ void vm_reset(vm_t *vm, compiler_t *comp)
     vm->function = NULL;
     vm->_kw_args = NEW_NIL();
 
-    // Mark new constants from the new compiler for GC
     mark_constants(vm);
 }
 
-/**
- * Add a newly created object to the VM's GC tracking list.
- */
 inline Object *add_obj(vm_t *vm, Object *obj)
 {
     if (obj->in_gcList)
@@ -775,16 +590,6 @@ Value vm_getKwargOr(vm_t *vm, const char *name, Value fallback)
     return vm_getKwarg(vm, name, &value) ? value : fallback;
 }
 
-/**
- * Counts the number of objects in the virtual machine's object list.
- *
- * This function iterates over the linked list of objects and returns the
- * total count of objects in the list. It is used for debugging purposes
- * to track the number of objects in use.
- *
- * @param vm The virtual machine instance.
- * @return The number of objects in the object list.
- */
 #ifdef DEBUG
 static inline int count_objs(vm_t *vm)
 {
@@ -792,10 +597,7 @@ static inline int count_objs(vm_t *vm)
     Object *obj = vm->objects;
     while (obj)
     {
-#ifdef DEBUG
-        // Print debugging information about the object
         printf("[DEBUG] Counting object at %p\n", (void *)obj);
-#endif
         count++;
         obj = obj->next;
     }
@@ -803,13 +605,8 @@ static inline int count_objs(vm_t *vm)
 }
 #endif
 
-/**
- * Report a runtime error and terminate execution.
- */
-
 void vm_error(vm_t *vm, const char *message)
 {
-
     instr_t *instr = vm_currentInstr(vm);
     const char *module_label = vm_moduleLabel(vm);
 
@@ -848,20 +645,13 @@ void vm_error(vm_t *vm, const char *message)
     }
 
     exit(EXIT_FAILURE);
-    return; // Unreachable, but added to satisfy non-void return type
 }
-
-/**
- * Format and report a runtime error.
- */
-#include <stdarg.h>
 
 void vm_errorf(vm_t *vm, const char *fmt, ...)
 {
     instr_t *instr = vm_currentInstr(vm);
     const char *module_label = vm_moduleLabel(vm);
 
-    // Format the message first
     char message[1024];
 
     va_list args;
@@ -907,9 +697,6 @@ void vm_errorf(vm_t *vm, const char *fmt, ...)
     exit(EXIT_FAILURE);
 }
 
-/**
- * Pop the top value from the VM stack.
- */
 static inline Value pop_stack(vm_t *vm)
 {
     if (vm->sp <= 0)
@@ -935,9 +722,6 @@ static inline void set_stackTop(vm_t *vm, int new_sp)
     vm->sp = new_sp;
 }
 
-/**
- * Push a value onto the VM stack.
- */
 static inline void push_stack(vm_t *vm, Value value)
 {
     if (vm->sp >= STACK_MAX)
@@ -946,9 +730,6 @@ static inline void push_stack(vm_t *vm, Value value)
     vm->stack[vm->sp++] = value;
 }
 
-/**
- * Return the top VM stack value without popping it.
- */
 static inline Value peek_stack(vm_t *vm)
 {
     if (vm->sp <= 0)
@@ -957,11 +738,7 @@ static inline Value peek_stack(vm_t *vm)
     return vm->stack[vm->sp - 1];
 }
 
-/*
- * Resolve a bytecode global-name index once per global table.  Values inside
- * table_t are individually allocated, so their addresses remain stable when
- * the hash table itself grows.
- */
+/* table_t stores values separately, so cached Value* entries survive rehashes. */
 static inline Value *global_slot(vm_t *vm, uint8_t index, const char *name)
 {
     GlobalCache *cache = vm->global_cache;
@@ -997,10 +774,8 @@ static inline int resolve_localSlot(vm_t *vm, int local)
     return vm->bp + local;
 }
 
-static Value bind_nativeMethod(vm_t *vm, Object *instance, NativeMethod *method)
+static Value bind_nativeMethod(Object *instance, NativeMethod *method)
 {
-    (void)vm;
-
     if (!method->has_cached_bound)
     {
         method->cached_bound = *new_native(method->name, method->func);
@@ -1017,9 +792,6 @@ static Value bind_nativeMethod(vm_t *vm, Object *instance, NativeMethod *method)
 
 static inline void vm_listAppendValue(PiList *list, Value value);
 
-/**
- * Append all values from an iterable into the target list.
- */
 static void list_extendFromIterable(vm_t *vm, PiList *plist, Value iterable)
 {
     if (!IS_OBJ(iterable) || !is_iterable(AS_OBJ(iterable)))
@@ -1037,9 +809,6 @@ static void list_extendFromIterable(vm_t *vm, PiList *plist, Value iterable)
     }
 }
 
-/**
- * Copy entries from source map into target map, preserving object references.
- */
 static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
 {
     if (!IS_MAP(source))
@@ -1061,11 +830,7 @@ static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
     }
 }
 
-/*
- * Return whether two maps contain at least one common key. This lets
- * MAP_EXTEND remove redundant repeated spreads without changing the
- * left-to-right, last-write-wins rule.
- */
+/* Used to preserve last-write-wins semantics when removing repeated spreads. */
 static bool map_hasKeyOverlap(PiMap *left, PiMap *right)
 {
     PiMap *smaller = left->table->size <= right->table->size ? left : right;
@@ -1107,11 +872,11 @@ static bool map_extendSourceIsRedundant(Value *sources, int index)
     return true;
 }
 
-static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw_args, bool has_named)
+static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw_args)
 {
     int num_args = arg_list->items->size;
 
-    // Heap-allocate instead of VLA to avoid silent stack overflow on large arg lists
+    /* Keep large argument lists off the C stack. */
     Value *args = num_args > 0 ? (Value *)malloc(num_args * sizeof(Value)) : NULL;
     if (num_args > 0 && !args)
         vm_error(vm, "Memory allocation failed for argument list.");
@@ -1140,16 +905,13 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
     {
         free(args);
         vm_error(vm, "Attempt to call a non-function object.");
-        result = NEW_NIL(); // unreachable, but keeps compiler happy
+        result = NEW_NIL();
     }
 
     free(args);
     return result;
 }
 
-/**
- * Push a VM frame onto the call stack.
- */
 void push_frame(vm_t *vm, Frame *frame)
 {
     if (vm->frame_sp >= STACK_MAX)
@@ -1158,9 +920,6 @@ void push_frame(vm_t *vm, Frame *frame)
     vm->frames[vm->frame_sp++] = *frame;
 }
 
-/**
- * Pop a frame from the call stack.
- */
 Frame *pop_frame(vm_t *vm)
 {
     if (vm->frame_sp <= 0)
@@ -1169,26 +928,11 @@ Frame *pop_frame(vm_t *vm)
     return &vm->frames[--vm->frame_sp];
 }
 
-/**
- * Reads a name from the list of names stored in the virtual machine.
- *
- * @param index The index of the name to read from the list of names.
- * @return A C string containing the name at the specified index.
- */
 static inline char *read_name(vm_t *vm, int index)
 {
     return string_get(vm->names, index);
 }
 
-/**
- * Checks if the given value is considered false.
- *
- * This function is used to compare a value to a boolean false value.
- * It checks if the value is NULL or if the type of the value is NIL.
- *
- * @param value The value to check.
- * @return true if the value is false, false otherwise.
- */
 static inline bool is_false(vm_t *vm, Value value)
 {
     return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
@@ -1196,18 +940,18 @@ static inline bool is_false(vm_t *vm, Value value)
 
 static inline int read_short(vm_t *vm)
 {
-    uint8_t *code = (uint8_t *)vm->code->data; // Access the bytecode from the VM's code
-    int high = code[vm->pc++] & 0xFF;          // Get the high byte and mask it
-    int low = code[vm->pc++] & 0xFF;           // Get the low byte and mask it
+    uint8_t *code = (uint8_t *)vm->code->data;
+    int high = code[vm->pc++] & 0xFF;
+    int low = code[vm->pc++] & 0xFF;
 
-    return (high << 8) | low; // Combine high and low bytes into a 16-bit short
+    return (high << 8) | low;
 }
 
 static inline int _read_short(uint8_t *code, int pc)
 {
-    int high = code[pc] & 0xFF;    // Get the high byte and mask it
-    int low = code[pc + 1] & 0xFF; // Get the low byte and mask it
-    return (high << 8) | low;      // Combine high and low bytes into a 16-bit short
+    int high = code[pc] & 0xFF;
+    int low = code[pc + 1] & 0xFF;
+    return (high << 8) | low;
 }
 
 static inline void vm_storeLocalSlot(vm_t *vm, int slot, Value value)
@@ -1309,13 +1053,8 @@ static inline Value op_binaryNum(int op, double l, double r)
     }
 }
 
-/**
- * Capture or reuse an open upvalue for a stack slot.
- */
 static UpValue *capture_upvalue(vm_t *vm, int index)
 {
-    // Iterate through the linked list of open upvalues until the upvalue with the
-    // given index is found.
     UpValue *prev = NULL;
     UpValue *upvalue = vm->openUpvalues;
     while (upvalue != NULL && upvalue->index != index)
@@ -1324,76 +1063,47 @@ static UpValue *capture_upvalue(vm_t *vm, int index)
         upvalue = upvalue->next;
     }
 
-    // If the upvalue with the given index is found, return it.
     if (upvalue != NULL && upvalue->index == index)
         return upvalue;
 
-    // Create a new upvalue if it does not exist.
-    UpValue *_upvalue = (UpValue *)malloc(sizeof(UpValue));
-    _upvalue->value = vm->stack[index]; // Reference stack value
-    _upvalue->index = index;
-    _upvalue->ref_count = 0;
+    UpValue *created_upvalue = (UpValue *)malloc(sizeof(UpValue));
+    created_upvalue->value = vm->stack[index];
+    created_upvalue->index = index;
+    created_upvalue->ref_count = 0;
 
-    // Append the new upvalue to the linked list of open upvalues.
-    _upvalue->next = upvalue;
+    created_upvalue->next = upvalue;
     if (prev == NULL)
-        vm->openUpvalues = _upvalue;
+        vm->openUpvalues = created_upvalue;
     else
-        prev->next = _upvalue;
+        prev->next = created_upvalue;
 
-    return _upvalue;
+    return created_upvalue;
 }
 
-/**
- * Removes an upvalue from the linked list of open upvalues in the VM.
- * This function iterates through the linked list of open upvalues and finds
- * the upvalue with the given index. It then removes the upvalue from the
- * list and updates the previous upvalue's next pointer if necessary.
- *
- * @param vm The virtual machine instance.
- * @param index The index of the upvalue to remove.
- */
 static void remove_upvalue(vm_t *vm, int index)
 {
-    UpValue *prev = NULL;                // Previous upvalue in the list
-    UpValue *upvalue = vm->openUpvalues; // Current upvalue in the list
+    UpValue *prev = NULL;
+    UpValue *upvalue = vm->openUpvalues;
 
-    // Iterate through the list of open upvalues until the upvalue with the
-    // given index is found.
     while (upvalue != NULL && upvalue->index != index)
     {
         prev = upvalue;
         upvalue = upvalue->next;
     }
 
-    // If the upvalue with the given index is found, remove it from the list
     if (upvalue != NULL && upvalue->index == index)
     {
-        // Mark the upvalue as removed by setting its index to -1
         upvalue->index = -1;
 
-        // Set the upvalue's value to the value at the given index in the stack
         upvalue->value = vm->stack[index];
 
-        // If the upvalue is at the beginning of the list, update the VM's openUpvalues
-        // pointer to point to the next upvalue in the list.
         if (prev == NULL)
             vm->openUpvalues = upvalue->next;
         else
-            // Otherwise, update the previous upvalue's next pointer to point to the next
-            // upvalue in the list, effectively removing the upvalue from the list.
             prev->next = upvalue->next;
     }
 }
 
-/**
- * Bind a function to an instance. The function is returned as a new function
- * with the first argument set to the instance.
- *
- * @param function The function to bind.
- * @param instance The instance to bind to.
- * @return A new function bound to the given instance.
- */
 static Value bind(vm_t *vm, Function *function, Object *instance)
 {
     if (function->is_native)
@@ -1407,7 +1117,6 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
         return *native;
     }
 
-    // Copy the function object to keep the original intact
     Object *fn = new_func(function->name, function->body,
                           function->params, NULL, instance);
     ((Function *)fn)->constants = function->constants;
@@ -1440,15 +1149,13 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
     ((Function *)fn)->owner = function->owner;
     ((Function *)fn)->bound_source = (Object *)function;
 
-    // Set the is_method flag to true
     ((Function *)fn)->is_method = true;
 
     ((Function *)fn)->need_args = function->body ? function->body->method_need_args : false;
     ((Function *)fn)->need_kwargs = function->body ? function->body->method_need_kwargs : false;
 
-    add_obj(vm, fn); // Critical - adds to GC tracking
+    add_obj(vm, fn);
 
-    // Return the new function
     return NEW_OBJ(fn);
 }
 
@@ -1498,20 +1205,6 @@ static void add_objectClassMembers(PiClass *klass)
     ht_put(members, "values", &values);
 }
 
-/**
- * Calls a method on an object without any arguments.
- *
- * This function attempts to find the named method on the given object, and if
- * it exists, calls it with no arguments. If the object does not contain the
- * named method, or if the method does not return a primitive value, this
- * function returns the original object.
- *
- * @param vm The virtual machine instance.
- * @param receiver The object to call the method on.
- * @param name The name of the method to call.
- * @return The result of calling the method, or the original object if it cannot
- *         be called.
- */
 static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
 {
     if (IS_INSTANCE(receiver) || IS_CLASS(receiver))
@@ -1538,19 +1231,6 @@ Value vm_callMethodNoArgs(vm_t *vm, Value receiver, const char *name)
     return call_methodNoArgs(vm, receiver, name);
 }
 
-/**
- * Attempts to coerce a given object into a primitive value.
- *
- * This function attempts to call the object's "format" method to coerce it
- * into a primitive value. If the object does not contain a format method,
- * or if the method does not return a primitive string, this function returns
- * the original object.
- *
- * @param vm The virtual machine instance.
- * @param value The object to coerce into a primitive value.
- * @param pref_string Unused; kept for API compatibility.
- * @return The coerced primitive value, or the original object if it cannot be coerced.
- */
 static Value to_primitive(vm_t *vm, Value value, bool pref_string)
 {
     if (!IS_INSTANCE(value))
@@ -1581,22 +1261,6 @@ static Object *construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Va
     return instance;
 }
 
-/**
- * Applies a binary operation to two doubles.
- *
- * This function applies a binary operation to two doubles and returns the result.
- * The operation is specified by the `op` parameter, which can take on the following values:
- *   - 0: add the two doubles together
- *   - 1: subtract the second double from the first double
- *   - 2: multiply the two doubles together
- *   - 3: divide the first double by the second double
- * Any other value of `op` will result in `NAN` being returned.
- *
- * @param op The operation to apply.
- * @param left The first double to operate on.
- * @param right The second double to operate on.
- * @return The result of applying the binary operation to the two doubles.
- */
 static double tensor_applyBinary(int op, double left, double right)
 {
     switch (op)
@@ -1614,24 +1278,6 @@ static double tensor_applyBinary(int op, double left, double right)
     }
 }
 
-/**
- * Applies a binary operation to a scalar and a tensor.
- *
- * This function applies a binary operation to a scalar and a tensor and returns the result.
- * The operation is specified by the `op` parameter, which can take on the following values:
- *   - 0: add the scalar to each element of the tensor
- *   - 1: subtract the scalar from each element of the tensor
- *   - 2: multiply each element of the tensor by the scalar
- *   - 3: divide each element of the tensor by the scalar
- * Any other value of `op` will result in `NAN` being returned.
- *
- * @param vm The virtual machine to allocate memory on.
- * @param tensor The tensor to operate on.
- * @param scalar The scalar to operate on.
- * @param op The operation to apply.
- * @param scalar_left Whether the scalar is on the left side of the operation.
- * @return The result of applying the binary operation to the scalar and the tensor.
- */
 static Value tensor_scalarBinary(vm_t *vm, PiTensor *tensor, double scalar, int op, bool scalar_left)
 {
     PiTensor *result = (PiTensor *)add_obj(vm, new_tensor(tensor->ndim, tensor->shape, tensor->type));
@@ -1703,7 +1349,6 @@ static Value tensor_broadcastBinary(vm_t *vm, PiTensor *left, PiTensor *right, i
     return NEW_OBJ(result);
 }
 
-// Tensor slice specification
 typedef struct TensorSliceSpec
 {
     int start;
@@ -1712,44 +1357,6 @@ typedef struct TensorSliceSpec
     int count;
 } TensorSliceSpec;
 
-/**
- * Returns a tensor slice specification from a given index and length.
- *
- * This function takes a length and an index and returns a tensor slice specification
- * that can be used to slice a 2D tensor. The index must be a number.
- *
- * @param vm The virtual machine to allocate memory on.
- * @param length The length of the tensor dimension.
- * @param index The index of the tensor dimension to slice at.
- * @return A tensor slice specification that can be used to slice a 2D tensor.
- */
-static TensorSliceSpec tensor2d_indexSpec(vm_t *vm, int length, Value index)
-{
-    TensorSliceSpec spec;
-
-    if (!IS_NUM(index))
-        vm_error(vm, "Tensor index must be a number.");
-
-    spec.start = get_index((int)as_number(index), length);
-    spec.end = spec.start + 1;
-    spec.step = 1;
-    spec.count = 1;
-    return spec;
-}
-
-/**
- * Returns a bound index for a tensor slice operation.
- *
- * This function takes a length, a value, and a sign and returns a bound index
- * that can be used to slice a tensor. The sign is used to determine whether the
- * bound should be ceilinged or floored.
- *
- * @param length The length of the tensor dimension.
- * @param value The value to bound.
- * @param sign The sign of the value. If the sign is positive, the bound is
- *        ceilinged. If the sign is negative, the bound is floored.
- * @return The bound index for the tensor slice operation.
- */
 static int tensor_sliceBound(int length, double value, int sign)
 {
     int bound = (int)value;
@@ -1773,144 +1380,6 @@ static int tensor_sliceBound(int length, double value, int sign)
     return bound;
 }
 
-/**
- * Returns a tensor slice specification from a given start, end, and step.
- *
- * This function takes a length, a start value, an end value, and a step value and
- * returns a tensor slice specification that can be used to slice a 2D tensor.
- *
- * The start and end values must be numbers, and the step value must be a non-zero
- * number. The sign of the step value determines whether the slice is taken from
- * the start to the end (positive step) or from the end to the start (negative step).
- *
- * If the start or end values are positive infinity, the slice is taken from the
- * start of the tensor. If the start or end values are negative infinity, the
- * slice is taken from the end of the tensor.
- *
- * @param vm The virtual machine to allocate memory on.
- * @param length The length of the tensor dimension.
- * @param start The starting index of the slice.
- * @param end The ending index of the slice.
- * @param step The step value of the slice.
- * @return A tensor slice specification that can be used to slice a 2D tensor.
- */
-static TensorSliceSpec tensor2d_sliceSpec(vm_t *vm, int length, Value start, Value end, Value step)
-{
-    TensorSliceSpec spec;
-    int sign;
-    int current;
-
-    if (!IS_NUM(start) || !IS_NUM(end))
-        vm_error(vm, "Tensor slice bounds must be numbers.");
-
-    if (!IS_NUM(step))
-        vm_error(vm, "Tensor slice step must be a number.");
-
-    spec.step = (int)as_number(step);
-    if (spec.step == 0)
-        vm_error(vm, "Tensor slice step cannot be zero.");
-
-    sign = spec.step > 0 ? 1 : -1;
-    spec.start = isinf(as_number(start)) ? (sign > 0 ? length : -1) : tensor_sliceBound(length, as_number(start), sign);
-    spec.end = isinf(as_number(end)) ? (sign > 0 ? length : -1) : tensor_sliceBound(length, as_number(end), sign);
-    spec.count = 0;
-
-    for (current = spec.start; sign * (spec.end - current) > 0; current += spec.step)
-        spec.count++;
-
-    return spec;
-}
-
-/**
- * Retrieves a value from a 2D tensor at a given row and column index.
- *
- * If the row or column index is a slice, the function will return a new 2D tensor
- * containing the values from the slice of the original tensor.
- *
- * @param vm The virtual machine to allocate memory on.
- * @param tensor The tensor to retrieve the value from.
- * @param row_is_slice Whether the row index is a slice.
- * @param row_start The starting index of the row slice.
- * @param row_end The ending index of the row slice.
- * @param row_step The step value of the row slice.
- * @param row_index The row index of the value to retrieve.
- * @param col_is_slice Whether the column index is a slice.
- * @param col_start The starting index of the column slice.
- * @param col_end The ending index of the column slice.
- * @param col_step The step value of the column slice.
- * @param col_index The column index of the value to retrieve.
- * @return A value from the tensor at the given row and column index, or a new
- *         tensor containing the values from the slice of the original tensor.
- */
-static Value tensor_get2d(vm_t *vm, PiTensor *tensor,
-                          bool row_is_slice, Value row_start, Value row_end, Value row_step, Value row_index,
-                          bool col_is_slice, Value col_start, Value col_end, Value col_step, Value col_index)
-{
-    if (tensor->ndim != 2)
-        vm_error(vm, "Two-dimensional indexing requires a rank-2 tensor.");
-
-    TensorSliceSpec row = row_is_slice
-                              ? tensor2d_sliceSpec(vm, tensor->shape[0], row_start, row_end, row_step)
-                              : tensor2d_indexSpec(vm, tensor->shape[0], row_index);
-    TensorSliceSpec col = col_is_slice
-                              ? tensor2d_sliceSpec(vm, tensor->shape[1], col_start, col_end, col_step)
-                              : tensor2d_indexSpec(vm, tensor->shape[1], col_index);
-
-    if (!row_is_slice && !col_is_slice)
-    {
-        int indices[2] = {row.start, col.start};
-        return NEW_NUM(tensor_get(tensor, indices));
-    }
-
-    int shape[2] = {row.count, col.count};
-    PiTensor *result = (PiTensor *)add_obj(vm, new_tensor(2, shape, tensor->type));
-    int out_row = 0;
-
-    for (int src_row = row.start; (row.step > 0 ? src_row < row.end : src_row > row.end); src_row += row.step)
-    {
-        int out_col = 0;
-        for (int src_col = col.start; (col.step > 0 ? src_col < col.end : src_col > col.end); src_col += col.step)
-        {
-            int src[2] = {src_row, src_col};
-            int dst[2] = {out_row, out_col};
-            tensor_set(result, dst, tensor_get(tensor, src));
-            out_col++;
-        }
-        out_row++;
-    }
-
-    return NEW_OBJ(result);
-}
-
-static void tensor_set2d(vm_t *vm, PiTensor *tensor, Value row_index,
-                         Value col_index, Value value)
-{
-    if (tensor->ndim != 2)
-        vm_error(vm, "Two-dimensional assignment requires a rank-2 tensor.");
-
-    if (!IS_NUM(row_index) || !IS_NUM(col_index))
-        vm_error(vm, "Tensor assignment indices must be numbers.");
-
-    if (!is_numeric(value))
-        vm_error(vm, "Tensor cell assignment requires a numeric value.");
-
-    int indices[2] = {
-        get_index((int)as_number(row_index), tensor->shape[0]),
-        get_index((int)as_number(col_index), tensor->shape[1]),
-    };
-    tensor_set(tensor, indices, as_number(value));
-}
-
-/**
- * Checks if a given module name is private.
- *
- * Private module names are any module name that starts with an underscore
- * character and is not empty. This is used to prevent modules from being
- * imported by other modules.
- *
- * @param name The module name to check.
- * @return True if the module name is private, false otherwise.
- */
 static bool is_private_moduleName(const char *name)
 {
     return name != NULL && name[0] == '_' && name[1] != '\0';
@@ -1930,11 +1399,6 @@ static bool is_private_moduleName(const char *name)
         vm_errorf((vm), __VA_ARGS__); \
     } while (0)
 
-/**
- * @brief Runs the virtual machine.
- *
- * @param vm The virtual machine to run.
- */
 void vm_run(vm_t *vm)
 {
     static const void *dispatch[256] = {
@@ -2001,18 +1465,14 @@ void vm_run(vm_t *vm)
     uint8_t current_op = OP_NO;
 #ifdef __EMSCRIPTEN__
     int browser_steps = 0;
-#else
-    int interrupt_steps = 0;
 #endif
     int safepoint_steps = 0;
 
     uint8_t *code = (uint8_t *)vm->code->data;
     Value *constants_data = (Value *)vm->constants->data;
 
-    Value value;
     Value nilValue;
     Object *iter = NULL;
-    UpValue *upValue;
     Function *function = (Function *)vm->function;
 
 #define VM_RETURN_WITH(value_expr)                                                 \
@@ -2084,26 +1544,26 @@ OP_STORE_GLOBAL:
     uint8_t index = code[pc++];
     char *name = read_name(vm, index);
 
-    Value _newValue = POP();
-    Value *oldValue = global_slot(vm, index, name);
-    if (oldValue && IS_FUN(*oldValue))
+    Value new_value = POP();
+    Value *old_value = global_slot(vm, index, name);
+    if (old_value && IS_FUN(*old_value))
     {
-        AS_FUN(*oldValue)->global_valid = false;
-        AS_FUN(*oldValue)->glonal_index = -1;
+        AS_FUN(*old_value)->global_valid = false;
+        AS_FUN(*old_value)->glonal_index = -1;
     }
 
-    if (oldValue)
-        *oldValue = _newValue;
+    if (old_value)
+        *old_value = new_value;
     else
     {
-        ht_put(vm->globals, name, &_newValue);
+        ht_put(vm->globals, name, &new_value);
         vm->global_cache->slots[index] = ht_get(vm->globals, name);
     }
-    if (IS_FUN(_newValue) && AS_FUN(_newValue)->name &&
-        strcmp(AS_FUN(_newValue)->name, name) == 0)
+    if (IS_FUN(new_value) && AS_FUN(new_value)->name &&
+        strcmp(AS_FUN(new_value)->name, name) == 0)
     {
-        AS_FUN(_newValue)->global_valid = true;
-        AS_FUN(_newValue)->glonal_index = index;
+        AS_FUN(new_value)->global_valid = true;
+        AS_FUN(new_value)->glonal_index = index;
     }
     VM_DISPATCH_SAFE();
 }
@@ -2218,8 +1678,7 @@ OP_STORE_LOCAL:
 OP_POP:
 {
     remove_upvalue(vm, vm->sp - 1);
-    Value value = POP();
-    (void)value;
+    POP();
     VM_DISPATCH_SAFE();
 }
 
@@ -2560,34 +2019,6 @@ OP_BINARY:
     Value right = vm->stack[vm->sp - 1];
     Value left = vm->stack[vm->sp - 2];
 
-    if (op <= 4 && IS_NUM(left) && IS_NUM(right))
-    {
-        double l = AS_NUM(left);
-        double r = AS_NUM(right);
-        vm->sp--;
-        switch (op)
-        {
-        case 0:
-            vm->stack[vm->sp - 1] = NEW_NUM(l + r);
-            break;
-        case 1:
-            vm->stack[vm->sp - 1] = NEW_NUM(l - r);
-            break;
-        case 2:
-            vm->stack[vm->sp - 1] = NEW_NUM(l * r);
-            break;
-        case 3:
-            vm->stack[vm->sp - 1] = NEW_NUM(r == 0.0 ? INFINITY : l / r);
-            break;
-        case 4:
-        {
-            int ir = (int)r;
-            vm->stack[vm->sp - 1] = ir == 0 ? NEW_NAN() : NEW_NUM((int)l % ir);
-            break;
-        }
-        }
-        VM_DISPATCH_SAFE();
-    }
     if (op <= 13 && IS_NUM(left) && IS_NUM(right))
     {
         vm->sp--;
@@ -2738,7 +2169,7 @@ OP_BINARY:
         }
         if (IS_SET(left) && IS_SET(right))
         {
-            push_stack(vm, NEW_OBJ(add_obj(vm, set_difference(vm, AS_SET(left), AS_SET(right)))));
+            push_stack(vm, NEW_OBJ(add_obj(vm, set_difference(AS_SET(left), AS_SET(right)))));
             break;
         }
         if (IS_TENSOR(left))
@@ -2944,7 +2375,7 @@ OP_BINARY:
     {
         if ((op == 8 || op == 9 || op == 10) && IS_SET(left) && IS_SET(right))
         {
-            push_stack(vm, NEW_OBJ(add_obj(vm, set_ops(vm, AS_SET(left), AS_SET(right), op))));
+            push_stack(vm, NEW_OBJ(add_obj(vm, set_ops(AS_SET(left), AS_SET(right), op))));
             break;
         }
         if (op == 10 && IS_LIST(left) && IS_LIST(right))
@@ -3441,7 +2872,7 @@ OP_CALL_SPREAD:
     Value callee = pop_stack(vm);
     vm->error_pc = vm->pc;
     vm->pc = pc;
-    push_stack(vm, call_withArgList(vm, callee, AS_LIST(arg_list_value), kw_args, has_named));
+    push_stack(vm, call_withArgList(vm, callee, AS_LIST(arg_list_value), kw_args));
     VM_DISPATCH_SAFE();
 }
 
@@ -3678,7 +3109,9 @@ OP_PUSH_RANGE:
 
 OP_PUSH_LIST:
 {
-    int numElements = (code[pc++] << 8) | code[pc++];
+    uint8_t high = code[pc++];
+    uint8_t low = code[pc++];
+    int numElements = (high << 8) | low;
     list_t *list = list_create(sizeof(Value));
 
     if (numElements == 0)
@@ -3703,7 +3136,9 @@ OP_PUSH_LIST:
 
 OP_PUSH_SET:
 {
-    int numElements = (code[pc++] << 8) | code[pc++];
+    uint8_t high = code[pc++];
+    uint8_t low = code[pc++];
+    int numElements = (high << 8) | low;
     PiSet *set = (PiSet *)new_set();
 
     if (numElements == 0)
@@ -3728,7 +3163,9 @@ OP_PUSH_SET:
 
 OP_PUSH_TUPLE:
 {
-    int numElements = (code[pc++] << 8) | code[pc++];
+    uint8_t high = code[pc++];
+    uint8_t low = code[pc++];
+    int numElements = (high << 8) | low;
     list_t *items = list_create(sizeof(Value));
     if (numElements > 0)
     {
@@ -3864,7 +3301,6 @@ OP_MAP_EXTEND:
         vm_error(vm, "Map extend expects a map target.");
     PiMap *target = AS_MAP(vm->stack[source_base - 1]);
 
-    /* Validate every source before applying duplicate-spread optimization. */
     for (int i = 0; i < source_count; i++)
     {
         if (!IS_MAP(vm->stack[source_base + i]))
@@ -3992,12 +3428,12 @@ OP_GET_MEMBER:
         index = POP();
     else
     {
-        uint16_t name_idx = (uint16_t)((code[pc++] << 8) | code[pc++]);
+        uint8_t high = code[pc++];
+        uint8_t low = code[pc++];
+        uint16_t name_idx = (uint16_t)((high << 8) | low);
         index = constants_data[name_idx];
     }
     Value container = vm->stack[vm->sp - 1];
-    Value method_result;
-
     if (!IS_OBJ(container))
         vm_error(vm, "Unsupported operand type for get item operator.\n");
 
@@ -4043,7 +3479,7 @@ OP_GET_MEMBER:
         NativeMethod *method = pi_nativeMethodFor(OBJ_TYPE(container), method_name);
         if (method)
         {
-            vm->stack[vm->sp - 1] = bind_nativeMethod(vm, AS_OBJ(container), method);
+            vm->stack[vm->sp - 1] = bind_nativeMethod(AS_OBJ(container), method);
             VM_DISPATCH_SAFE();
         }
         char available_methods[512];
@@ -4270,13 +3706,13 @@ OP_SET_MEMBER:
     }
     else
     {
-        uint16_t name_idx = (uint16_t)((code[pc++] << 8) | code[pc++]);
+        uint8_t high = code[pc++];
+        uint8_t low = code[pc++];
+        uint16_t name_idx = (uint16_t)((high << 8) | low);
         index = constants_data[name_idx];
         container = pop_stack(vm);
         value = pop_stack(vm);
     }
-    Value method_result;
-
     if (!IS_OBJ(container))
         vm_error(vm, "Unsupported operand type for set item operator.\n");
 
@@ -4332,7 +3768,6 @@ OP_SET_MEMBER:
     case OBJ_MAP:
     {
         PiMap *map = AS_MAP(container);
-        Value args[2] = {index, value};
 
         map_set(map, index, value);
         break;
@@ -4548,11 +3983,11 @@ OP_IMPORT_ALL:
             continue;
         if (OBJ_TYPE(module) == OBJ_MODULE && is_private_moduleName(key))
             continue;
-        Value *oldValue = ht_get(vm->globals, key);
-        if (oldValue && IS_FUN(*oldValue))
+        Value *old_value = ht_get(vm->globals, key);
+        if (old_value && IS_FUN(*old_value))
         {
-            AS_FUN(*oldValue)->global_valid = false;
-            AS_FUN(*oldValue)->glonal_index = -1;
+            AS_FUN(*old_value)->global_valid = false;
+            AS_FUN(*old_value)->glonal_index = -1;
         }
         if (!ht_set(vm->globals, key, value))
             ht_put(vm->globals, key, value);
@@ -4634,19 +4069,8 @@ L_VM_DONE:
     vm->pc = pc;
 }
 
-/**
- * Frees the memory allocated for a virtual machine instance.
- *
- * This function is used to clean up the memory allocated to the virtual
- * machine structure. It first frees the memory allocated to the global
- * hash table and then frees the virtual machine structure itself.
- *
- * @param vm The virtual machine instance to be deallocated.
- */
 void free_vm(vm_t *vm)
 {
-
-    // Free the memory allocated for hash tables
     if (vm->globals)
         ht_free(vm->globals);
     if (vm->modules)
@@ -4655,9 +4079,7 @@ void free_vm(vm_t *vm)
     if (vm->current_path)
         free(vm->current_path);
 
-    // Free the memory allocated for the mutex
     pthread_mutex_destroy(&vm->lock);
 
-    // Free the virtual machine structure itself
     free(vm);
 }

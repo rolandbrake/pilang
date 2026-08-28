@@ -30,7 +30,6 @@ static void for_stmt(parser_t *parser);
 static void break_stmt(parser_t *parser);
 static void continue_stmt(parser_t *parser);
 static void return_stmt(parser_t *parser);
-static void print(parser_t *parser);
 static void variable(parser_t *parser, bool is_const);
 static void expr(parser_t *parser);
 static void assignment(parser_t *parser, bool emit_load);
@@ -57,7 +56,6 @@ static void primary(parser_t *parser);
 static void emit_spreadListLiteral(parser_t *parser);
 static void emit_spreadMapLiteral(parser_t *parser);
 static void emit_classMap(parser_t *parser, const char *class_name, const char *parent_name);
-static void emit_boundMethodCall(parser_t *parser, const char *receiver, const char *method, int argc);
 
 static void emit_nilReturn(compiler_t *comp)
 {
@@ -184,14 +182,6 @@ static char *get_pendingFunctionName(parser_t *parser)
     parser->fun_name = NULL;
 
     return name ? strdup(name) : NULL;
-}
-
-static void emit_boundMethodCall(parser_t *parser, const char *receiver, const char *method, int argc)
-{
-    load_variable(parser->comp, (char *)receiver);
-
-    int method_index = store_const(parser->comp, NEW_OBJ(new_pistring((char *)method)));
-    emit_16u(parser->comp, OP_GET_MEMBER, (char *)method, method_index);
 }
 
 static bool is_integerLiteralValue(double value)
@@ -883,7 +873,7 @@ static token_t previous(parser_t *parser)
     return parser->tokens[parser->current - 1];
 }
 
-static bool is_delimiter(parser_t *parser, token_t token)
+static bool is_delimiter(token_t token)
 {
     return token.type == TK_SEMICOLON;
 }
@@ -895,7 +885,7 @@ static token_t next(parser_t *parser)
         parser->current++;
 
         token_t tok = peek(parser);
-        if (!is_delimiter(parser, tok))
+        if (!is_delimiter(tok))
             parser->last = tok;
     }
     return previous(parser);
@@ -1101,6 +1091,13 @@ static bool has_accessContinuation(parser_t *parser, token_t token)
            check_n(parser, 3, TK_DOT, TK_LBRACKET, TK_LPAREN);
 }
 
+static bool is_memberAssignment(parser_t *parser, token_t token)
+{
+    bool is_chained_access = parser->is_store && parser->force_store &&
+                             has_accessContinuation(parser, token);
+    return !is_chained_access && is_assign(parser);
+}
+
 void mark_tokens(parser_t *parser, int start, int end)
 {
     // Iterate over the range of tokens and mark them as skipped
@@ -1276,8 +1273,6 @@ static void var_decl(parser_t *parser, bool is_const)
 
 static void variable(parser_t *parser, bool is_const)
 {
-    int index = -1;
-
     token_t token = consume(parser, TK_ID, "Expect variable name");
     char *name = token_value(token);
     bool reserved_local_function = false;
@@ -1945,13 +1940,6 @@ static void block(parser_t *parser)
     pop_scope(parser->comp);
 
     consume(parser, TK_RBRACE, "Expect '}' after block.");
-}
-
-static void print(parser_t *parser)
-{
-    primary(parser);
-    emit(parser->comp, OP_PRINT);
-    consume_ifExist(parser, 1, TK_SEMICOLON);
 }
 
 static void condition(parser_t *parser)
@@ -2818,7 +2806,7 @@ static void cond_expr(parser_t *parser)
 
         cond_expr(parser);
 
-        token_t token = consume(parser, TK_COLON, "Expect ':' after '?'");
+        consume(parser, TK_COLON, "Expect ':' after '?'");
         int else_jump = emit_16u(parser->comp, OP_JUMP, "", 0);
 
         patch_jump(parser->comp, then_jump);
@@ -3286,10 +3274,7 @@ static void member_expr(parser_t *parser)
 
             int index = store_const(parser->comp, new_value(name));
 
-            bool is_chained_access = parser->is_store && parser->force_store &&
-                                     has_accessContinuation(parser, name);
-
-            if (!is_chained_access && is_assign(parser))
+            if (is_memberAssignment(parser, name))
                 emit_16u(parser->comp, OP_SET_MEMBER, token_value(name), index);
             else
                 emit_16u(parser->comp, OP_GET_MEMBER, token_value(name), index);
@@ -3298,8 +3283,7 @@ static void member_expr(parser_t *parser)
         // Handle property access using bracket notation and slicing for lists and tensors
         else if (match(parser, TK_LBRACKET))
         {
-            token_t token = previous(parser);
-            bool is_slice = slice_expr(parser); // still need return value for 1D
+            slice_expr(parser);
 
             if (check(parser, TK_COMMA))
             {
@@ -3320,9 +3304,7 @@ static void member_expr(parser_t *parser)
 
                 // Check for chained access before deciding whether this is an assignment to a tensor element or just an access
                 consume(parser, TK_RBRACKET, "Expect ']' after tensor index");
-                bool is_chained_access = parser->is_store && parser->force_store &&
-                                         has_accessContinuation(parser, previous(parser));
-                bool assign = !is_chained_access && is_assign(parser);
+                bool assign = is_memberAssignment(parser, previous(parser));
 
                 /* VM pops ndim values and checks each at runtime for slice vs index */
                 emit_8u(parser->comp, assign ? OP_TENSOR_SET : OP_TENSOR_GET, "", (uint8_t)ndim);
@@ -3331,11 +3313,8 @@ static void member_expr(parser_t *parser)
             {
                 /*  List / 1-D indexing: list[i] or list[a:b:c]  */
                 consume(parser, TK_RBRACKET, "Expect ']' after index");
-                bool is_chained_access = parser->is_store && parser->force_store &&
-                                         has_accessContinuation(parser, previous(parser));
-
                 // Always emit GET_ITEM or SET_ITEM - the slice object is already on the stack
-                bool assign = !is_chained_access && is_assign(parser);
+                bool assign = is_memberAssignment(parser, previous(parser));
                 emit(parser->comp, assign ? OP_SET_ITEM : OP_GET_ITEM);
             }
         }

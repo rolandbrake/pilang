@@ -130,34 +130,7 @@ typedef struct
     tk_type type; // value
 } keyword_t;
 
-static keyword_t keywords[KW_NUM] = {
-    {"false", TK_FALSE},
-    {"true", TK_TRUE},
-    {"for", TK_FOR},
-    {"in", TK_IN},
-    {"while", TK_WHILE},
-    {"fun", TK_FUN},
-    {"let", TK_LET},
-    {"const", TK_CONST},
-    {"INF", TK_INF},
-    {"NAN", TK_NAN},
-    {"break", TK_BREAK},
-    {"continue", TK_CONTINUE},
-    {"goto", TK_GOTO},
-    {"if", TK_IF},
-    {"else", TK_ELSE},
-    {"elif", TK_ELIF},
-    {"nil", TK_NIL},
-    {"is", TK_IS},
-    {"return", TK_RETURN},
-    {"class", TK_CLASS},    
-    {"super", TK_SUPER},
-    {"typeof", TK_TYPEOF},
-    {"debug", TK_DEBUG},
-    {"import", TK_IMPORT},
-    {"switch", TK_SWITCH},
-    {"match", TK_MATCH},
-};
+extern keyword_t keywords[KW_NUM];
 
 typedef struct
 {
@@ -172,119 +145,7 @@ typedef struct
     bool skip; // Flag indicating whether the current token should be skipped.
 } token_t;
 
-static const char *token_names[] = {
-
-    // Reserved Keywords
-    "TK_FOR",
-    "TK_IN",
-    "TK_WHILE",
-    "TK_IF",
-    "TK_ELSE",
-    "TK_ELIF",
-    "TK_INF",
-    "TK_NAN",
-    "TK_BREAK",
-    "TK_CONTINUE",
-    "TK_GOTO",
-    "TK_FUN",
-    "TK_RETURN",
-    "TK_CLASS",
-    "TK_SUPER",
-    "TK_LET",
-    "TK_CONST",
-    "TK_TRUE",
-    "TK_FALSE",
-    "TK_NIL",
-    "TK_IS",
-    "TK_PRINT",
-    "TK_TYPEOF",
-    "TK_DEBUG",
-    "TK_SWITCH",
-    "TK_MATCH",
-
-    // Literals
-    "TK_ID",
-    "TK_STR",
-    "TK_NUM",
-    "TK_BOOL",
-    "TK_LIST",
-    "TK_DIC",
-    "TK_SET",
-
-    // Single character tokens
-    "TK_LBRACKET",
-    "TK_RBRACKET",
-    "TK_LPAREN",
-    "TK_RPAREN",
-    "TK_LBRACE",
-    "TK_RBRACE",
-    "TK_SEMICOLON",
-    "TK_COLON",
-    "TK_COMMA",
-    "TK_ASSIGN",
-    "TK_DOT",
-    "TK_MINUS",
-    "TK_PLUS",
-    "TK_DIV",
-    "TK_MULT",
-    "TK_DOT_PROD",
-    "TK_MOD",
-    "TK_BITOR",
-    "TK_BITAND",
-    "TK_XOR",
-    "TK_BITNEG",
-    "TK_EQUAL",
-    "TK_LESS",
-    "TK_GREATER",
-    "TK_NOT",
-    "TK_TICK",
-    "TK_DBQUOTE",
-    "TK_QUOTE",
-    "TK_QUESTION",
-    "TK_HASH",
-
-    // Two characters tokens
-    "TK_LARROW",
-    "TK_RARROW",
-    "TK_PIPELINE",
-    "TK_DBDOTS",
-    "TK_INCR",
-    "TK_DECR",
-    "TK_POWER",
-    "TK_MINUS_ASSIGN",
-    "TK_PLUS_ASSIGN",
-    "TK_DIV_ASSIGN",
-    "TK_MULT_ASSIGN",
-    "TK_DOT_PROD_ASSIGN",
-    "TK_NEG_ASSIGN",
-    "TK_LESS_EQUAL",
-    "TK_NOT_EQUAL",
-    "TK_GREATER_EQUAL",
-    "TK_BITAND_ASSIGN",
-    "TK_BITOR_ASSIGN",
-    "TK_XOR_ASSIGN",
-    "TK_MOD_ASSIGN",
-    "TK_AND",
-    "TK_OR",
-    "TK_RSHIFT",
-    "TK_LSHIFT",
-
-    // Three characters tokens
-    "TK_URSHIFT",
-    "TK_ELLIPSIS",
-    "TK_RSHIFT_ASSIGN",
-    "TK_LSHIFT_ASSIGN",
-    "TK_POWER_ASSIGN",
-    "TK_AND_ASSIGN",
-    "TK_OR_ASSIGN",
-
-    // Four characters tokens
-    "TK_URSHIFT_ASSIGN",
-    "TK_IMPORT",
-
-    // Special tokens
-    "TK_EOF",
-};
+extern const char *token_names[];
 
 token_t create_token(tk_type type, char *start, int length, int line, int column);
 tk_type token_type(token_t token);

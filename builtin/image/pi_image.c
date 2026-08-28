@@ -175,7 +175,6 @@ Value im_flip(vm_t *vm, int argc, Value *argv)
     int w = img->surface->w;
     int h = img->surface->h;
     int bpp = img->surface->format->BytesPerPixel;
-    int pitch = img->surface->pitch;
 
     SDL_Surface *dst = create_surfaceSameFormat(img->surface, w, h);
     if (!dst)

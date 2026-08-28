@@ -1296,9 +1296,9 @@ Value dw_size(vm_t *vm, int argc, Value *argv)
     list_add(list, &NEW_NUM((double)ctx->width));
     list_add(list, &NEW_NUM((double)ctx->height));
 
-    PiList *_list = (PiList *)new_list(list);
+    PiList *result = (PiList *)add_obj(vm, new_list(list));
 
-    return NEW_OBJ(list);
+    return NEW_OBJ(result);
 }
 
 // Check if window is still running

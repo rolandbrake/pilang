@@ -6,8 +6,6 @@
 #include "pi_builtin.h"
 #include "../common.h"
 
-static uint32_t state = 2463534242;
-
 // xoshiro32** uses four 32-bit state values. splitmix32 expands a single seed into this state.
 static uint32_t rng_state[4];
 static int rng_initialized = 0;

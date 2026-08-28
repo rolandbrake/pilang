@@ -746,7 +746,6 @@ static void draw_colorBar(SDL_Renderer *r, PiChart *chart, double zmin, double z
             else
                 snprintf(label, sizeof(label), "%.2f", value);
 
-            int tw = strlen(label) * 5;
             draw_text(r, font, label, x_pos + width + 8, y_pos - 5, 0x444444, TEXT_NONE);
         }
 

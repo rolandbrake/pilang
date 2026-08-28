@@ -563,10 +563,7 @@ void map_set(PiMap *map, Value key, Value value)
     char *owned = NULL;
     const char *_key = map_keyChars(key, &owned);
 
-    bool changed = ht_set(map->table, _key, &value);
-
-    if (!changed)
-        changed = ht_put(map->table, _key, &value);
+    ht_put(map->table, _key, &value);
 
     free(owned);
 }

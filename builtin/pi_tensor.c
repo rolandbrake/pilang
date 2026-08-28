@@ -1568,7 +1568,6 @@ Value tn_rank(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "tensor.rank requires 2D tensor");
 
     int m = A->shape[0], n = A->shape[1];
-    PiTensor *U, *Vt;
     // Use SVD for stable rank determination; fallback to Gaussian elimination.
     // Simplified: use row reduction
     double **mat = malloc(m * sizeof(double *));
