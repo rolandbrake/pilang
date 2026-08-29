@@ -45,7 +45,7 @@ static bool delete_classType(Value target, Value key)
     if (!is_classType(target) || !IS_STRING(key))
         return false;
     if (IS_CLASS(target))
-        return ht_delete(AS_CLASS(target)->members, AS_CSTRING(key));
+        return class_deleteMember(AS_CLASS(target), AS_CSTRING(key));
     return ht_delete(AS_INSTANCE(target)->fields, AS_CSTRING(key));
 }
 

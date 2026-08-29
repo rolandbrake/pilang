@@ -173,7 +173,7 @@ typedef struct
     Object object;
     char *chars;
     size_t length;
-    uint32_t hash;
+    uint64_t hash;
 
     int current;
 } PiString;
@@ -245,6 +245,11 @@ typedef struct PiClass
     char *name;
     struct PiClass *super;
     table_t *members;
+
+    table_t field_names; // map field names to their indices
+    uint16_t slot_count;
+
+    uint64_t version;
     ht_iter it;
 
 } PiClass;
@@ -254,6 +259,8 @@ typedef struct PiInstance
     Object object;
 
     PiClass *_class;
+    Value *slots;
+
     table_t *fields;
     ht_iter it;
 
@@ -420,7 +427,7 @@ typedef struct PiChart3D
     char *zlabel;
 } PiChart3D;
 
-uint32_t string_hash(char *chars, size_t length);
+uint64_t string_hash(char *chars, size_t length);
 
 Object *alloc_object(size_t size, o_type type);
 
@@ -444,9 +451,14 @@ Object *new_class(const char *name, PiClass *super, table_t *members);
 Object *new_instance(PiClass *_class);
 
 bool class_getMember(PiClass *_class, const char *name, Value *out);
+bool class_getMemberHash(PiClass *_class, const char *name, uint64_t hash, Value *out);
+
 void class_setMember(PiClass *_class, const char *name, Value value);
+bool class_deleteMember(PiClass *_class, const char *name);
 
 bool instance_getMember(PiInstance *instance, const char *name, Value *out);
+bool instance_getMemberHash(PiInstance *instance, const char *name, uint64_t hash, Value *out);
+
 void instance_setMember(PiInstance *instance, const char *name, Value value);
 
 Object *new_set(void); // Create empty set

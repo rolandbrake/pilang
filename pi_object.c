@@ -38,14 +38,14 @@ Object *alloc_object(size_t size, o_type type)
     return obj;
 }
 
-/* FNV-1a hash used for string interning, maps, and sets. */
-uint32_t string_hash(char *chars, size_t length)
+/* FNV-1a hash used by the hash tables and cached on strings. */
+uint64_t string_hash(char *chars, size_t length)
 {
-    uint32_t hash = 2166136261u;
+    uint64_t hash = FNV_OFFSET;
     for (size_t i = 0; i < length; i++)
     {
         hash ^= (uint8_t)chars[i];
-        hash *= 16777619u;
+        hash *= FNV_PRIME;
     }
     return hash;
 }

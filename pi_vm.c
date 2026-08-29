@@ -3496,9 +3496,20 @@ OP_GET_MEMBER:
         char *owned_key = NULL;
         const char *key = IS_STRING(index) ? AS_CSTRING(index) : (owned_key = as_string(index));
         Value item = NEW_NIL();
-        bool found = OBJ_TYPE(container) == OBJ_CLASS
-                         ? class_getMember(AS_CLASS(container), key, &item)
-                         : instance_getMember(AS_INSTANCE(container), key, &item);
+        bool found;
+        if (!bracket_access && IS_STRING(index))
+        {
+            uint64_t hash = AS_STRING(index)->hash;
+            found = OBJ_TYPE(container) == OBJ_CLASS
+                        ? class_getMemberHash(AS_CLASS(container), key, hash, &item)
+                        : instance_getMemberHash(AS_INSTANCE(container), key, hash, &item);
+        }
+        else
+        {
+            found = OBJ_TYPE(container) == OBJ_CLASS
+                        ? class_getMember(AS_CLASS(container), key, &item)
+                        : instance_getMember(AS_INSTANCE(container), key, &item);
+        }
         if (!found)
         {
             vm_errorf(vm, "Member '%s' was not found on %s.", key, type_name(container));

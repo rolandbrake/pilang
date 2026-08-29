@@ -16,12 +16,27 @@ static bool table_getValue(table_t *table, const char *name, Value *out)
     return true;
 }
 
+static bool table_getValueHash(table_t *table, const char *name, uint64_t hash, Value *out)
+{
+    if (!table)
+        return false;
+
+    Value *value = (Value *)ht_getHash(table, name, hash);
+    if (!value)
+        return false;
+
+    if (out)
+        *out = *value;
+    return true;
+}
+
 Object *new_class(const char *name, PiClass *super, table_t *members)
 {
     PiClass *_class = CREATE_OBJ(PiClass, OBJ_CLASS);
     _class->name = name ? strdup(name) : NULL;
     _class->super = super;
     _class->members = members ? members : ht_create(sizeof(Value));
+    _class->version = 1;
     _class->it = ht_iterator(_class->members);
     return (Object *)_class;
 }
@@ -45,12 +60,34 @@ bool class_getMember(PiClass *_class, const char *name, Value *out)
     return false;
 }
 
+bool class_getMemberHash(PiClass *_class, const char *name, uint64_t hash, Value *out)
+{
+    for (PiClass *current = _class; current != NULL; current = current->super)
+    {
+        if (table_getValueHash(current->members, name, hash, out))
+            return true;
+    }
+    return false;
+}
+
 void class_setMember(PiClass *_class, const char *name, Value value)
 {
     if (!_class || !_class->members)
         return;
     if (!ht_set(_class->members, name, &value))
         ht_put(_class->members, name, &value);
+    _class->version++;
+}
+
+bool class_deleteMember(PiClass *_class, const char *name)
+{
+    if (!_class || !_class->members)
+        return false;
+
+    bool removed = ht_delete(_class->members, name);
+    if (removed)
+        _class->version++;
+    return removed;
 }
 
 bool instance_getMember(PiInstance *instance, const char *name, Value *out)
@@ -61,6 +98,16 @@ bool instance_getMember(PiInstance *instance, const char *name, Value *out)
     if (table_getValue(instance->fields, name, out))
         return true;
     return class_getMember(instance->_class, name, out);
+}
+
+bool instance_getMemberHash(PiInstance *instance, const char *name, uint64_t hash, Value *out)
+{
+    if (!instance)
+        return false;
+
+    if (table_getValueHash(instance->fields, name, hash, out))
+        return true;
+    return class_getMemberHash(instance->_class, name, hash, out);
 }
 
 void instance_setMember(PiInstance *instance, const char *name, Value value)

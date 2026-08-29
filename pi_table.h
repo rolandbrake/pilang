@@ -93,14 +93,13 @@ bool ht_expand(table_t *table);
 
 /*
  * Returns a pointer directly into the bucket's inline value storage.
- * No extra dereference - the value lives right after the ht_item header.
+ * No extra dereference the value lives right after the ht_item header.
  *
  * The hash is checked before strcmp, so keys that merely collide on their
  * bucket index (not their full hash) skip the strcmp entirely.
  */
-static inline void *ht_get(table_t *table, const char *key)
+static inline void *ht_getHash(table_t *table, const char *key, uint64_t hash)
 {
-    uint64_t hash = fnv_1a(key);
     uint32_t mask = table->capacity - 1;
     uint32_t idx = (uint32_t)(hash & mask);
 
@@ -116,6 +115,11 @@ static inline void *ht_get(table_t *table, const char *key)
 
         idx = (idx + 1) & mask;
     }
+}
+
+static inline void *ht_get(table_t *table, const char *key)
+{
+    return ht_getHash(table, key, fnv_1a(key));
 }
 
 /*
