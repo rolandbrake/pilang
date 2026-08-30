@@ -3497,12 +3497,37 @@ OP_GET_MEMBER:
         const char *key = IS_STRING(index) ? AS_CSTRING(index) : (owned_key = as_string(index));
         Value item = NEW_NIL();
         bool found;
+        bool bound_cache_hit = false;
         if (!bracket_access && IS_STRING(index))
         {
             uint64_t hash = AS_STRING(index)->hash;
-            found = OBJ_TYPE(container) == OBJ_CLASS
-                        ? class_getMemberHash(AS_CLASS(container), key, hash, &item)
-                        : instance_getMemberHash(AS_INSTANCE(container), key, hash, &item);
+            BoundCache *bound_cache = OBJ_TYPE(container) == OBJ_CLASS
+                                          ? AS_CLASS(container)->bound_cache
+                                          : AS_INSTANCE(container)->bound_cache;
+            uint64_t fields_version = OBJ_TYPE(container) == OBJ_INSTANCE &&
+                                              AS_INSTANCE(container)->fields
+                                          ? AS_INSTANCE(container)->fields->version
+                                          : 0;
+            uint64_t epoch = class_mutationVersion();
+
+            for (int i = 0; i < BOUND_CACHE_SIZE; i++)
+            {
+                BoundCache *entry = &bound_cache[i];
+                if (entry->valid && entry->key_hash == hash && entry->key == AS_OBJ(index) &&
+                    entry->class_epoch == epoch && entry->fields_version == fields_version &&
+                    entry->owner_table && entry->owner_table->version == entry->owner_version)
+                {
+                    item = entry->bound_fn;
+                    found = true;
+                    bound_cache_hit = true;
+                    break;
+                }
+            }
+
+            if (!bound_cache_hit)
+                found = OBJ_TYPE(container) == OBJ_CLASS
+                            ? class_getMemberHash(AS_CLASS(container), key, hash, &item)
+                            : instance_getMemberHash(AS_INSTANCE(container), key, hash, &item);
         }
         else
         {
@@ -3515,12 +3540,55 @@ OP_GET_MEMBER:
             vm_errorf(vm, "Member '%s' was not found on %s.", key, type_name(container));
         }
         free(owned_key);
-        if (IS_FUN(item))
+        if (IS_FUN(item) && !bound_cache_hit)
         {
             Object *receiver = NULL;
             if (OBJ_TYPE(container) == OBJ_INSTANCE || AS_FUN(item)->is_native)
                 receiver = AS_OBJ(container);
             item = bind(vm, AS_FUN(item), receiver);
+
+            if (!bracket_access && IS_STRING(index))
+            {
+                uint64_t hash = AS_STRING(index)->hash;
+                BoundCache *bound_cache = OBJ_TYPE(container) == OBJ_CLASS
+                                              ? AS_CLASS(container)->bound_cache
+                                              : AS_INSTANCE(container)->bound_cache;
+                uint8_t *next = OBJ_TYPE(container) == OBJ_CLASS
+                                    ? &AS_CLASS(container)->bound_cache_next
+                                    : &AS_INSTANCE(container)->bound_cache_next;
+                table_t *owner_table = NULL;
+
+                if (OBJ_TYPE(container) == OBJ_INSTANCE)
+                    owner_table = AS_INSTANCE(container)->fields &&
+                                          ht_getHash(AS_INSTANCE(container)->fields, key, hash)
+                                      ? AS_INSTANCE(container)->fields
+                                      : NULL;
+
+                for (PiClass *current = OBJ_TYPE(container) == OBJ_CLASS
+                                             ? AS_CLASS(container)
+                                             : AS_INSTANCE(container)->_class;
+                     !owner_table && current != NULL; current = current->super)
+                {
+                    if (current->members && ht_getHash(current->members, key, hash))
+                        owner_table = current->members;
+                }
+
+                if (owner_table)
+                {
+                    BoundCache *entry = &bound_cache[(*next)++ % BOUND_CACHE_SIZE];
+                    entry->key_hash = hash;
+                    entry->key = AS_OBJ(index);
+                    entry->owner_table = owner_table;
+                    entry->owner_version = owner_table->version;
+                    entry->class_epoch = class_mutationVersion();
+                    entry->fields_version = OBJ_TYPE(container) == OBJ_INSTANCE &&
+                                                    AS_INSTANCE(container)->fields
+                                                ? AS_INSTANCE(container)->fields->version
+                                                : 0;
+                    entry->bound_fn = item;
+                    entry->valid = true;
+                }
+            }
         }
         vm->stack[vm->sp - 1] = item;
         VM_DISPATCH_SAFE();

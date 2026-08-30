@@ -44,7 +44,7 @@ export default class PiCompoundStatement extends PiStatement {
         if (this.isProgram) {
           result += "\n\n"; // Two newlines for global scope
         } else {
-          result += "\n"; // One newline for blocks
+          result += "\n\n"; // Blank line between instructions
         }
       }
     }

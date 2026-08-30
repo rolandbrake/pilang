@@ -75,6 +75,7 @@ typedef struct
     uint32_t order_cap;  /* allocated slots in order[]                   */
     size_t i_size;       /* sizeof the value type                        */
     size_t item_stride;  /* sizeof(ht_item) + i_size                     */
+    uint64_t version;    /* changes whenever the table contents change */
 } table_t;
 
 #define HT_SLOT(t, i) ((ht_item *)((t)->items + (size_t)(i) * (t)->item_stride))

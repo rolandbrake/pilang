@@ -131,6 +131,7 @@ bool ht_expand(table_t *table)
     table->items = new_items;
     table->capacity = new_cap;
     table->order_size = new_order_size;
+    table->version++;
     return true;
 }
 
@@ -159,6 +160,7 @@ bool ht_put(table_t *table, const char *key, const void *value)
                 strcmp(table->keys_buf + slot->key_idx, key) == 0)
             {
                 memcpy(HT_SLOT_VALUE(slot), value, table->i_size);
+                table->version++;
                 return true;
             }
         }
@@ -195,6 +197,7 @@ bool ht_put(table_t *table, const char *key, const void *value)
         return false;
     }
     table->size++;
+    table->version++;
     return true;
 }
 
@@ -212,6 +215,7 @@ bool ht_set(table_t *table, const char *key, const void *value)
         if ((slot->flags & HT_FLAG_LIVE) && slot->hash == hash && strcmp(table->keys_buf + slot->key_idx, key) == 0)
         {
             memcpy(HT_SLOT_VALUE(slot), value, table->i_size);
+            table->version++;
             return true;
         }
         idx = (idx + 1) & mask;
@@ -249,6 +253,7 @@ bool ht_delete(table_t *table, const char *key)
 
             slot->flags = HT_FLAG_TOMB;
             table->size--;
+            table->version++;
 
             /* O(1) removal from order[]: find this slot's order entry and
              * swap with the tail, then shrink.  We store slot indices in

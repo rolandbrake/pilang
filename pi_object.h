@@ -118,6 +118,24 @@ typedef struct PiMap PiMap;
 typedef struct PiClass PiClass;
 typedef struct PiInstance PiInstance;
 
+#define BOUND_CACHE_SIZE 8
+
+typedef struct
+{
+    uint64_t key_hash;
+    Object *key;
+
+    table_t *owner_table;
+    uint64_t owner_version;
+
+    uint64_t class_epoch;
+
+    uint64_t fields_version;
+
+    Value bound_fn;
+    bool valid;
+} BoundCache;
+
 typedef enum
 {
     GC_WHITE, // Unmarked, potentially unreachable
@@ -250,6 +268,8 @@ typedef struct PiClass
     uint16_t slot_count;
 
     uint64_t version;
+    BoundCache bound_cache[BOUND_CACHE_SIZE];
+    uint8_t bound_cache_next;
     ht_iter it;
 
 } PiClass;
@@ -262,6 +282,8 @@ typedef struct PiInstance
     Value *slots;
 
     table_t *fields;
+    BoundCache bound_cache[BOUND_CACHE_SIZE];
+    uint8_t bound_cache_next;
     ht_iter it;
 
 } PiInstance;
@@ -455,6 +477,7 @@ bool class_getMemberHash(PiClass *_class, const char *name, uint64_t hash, Value
 
 void class_setMember(PiClass *_class, const char *name, Value value);
 bool class_deleteMember(PiClass *_class, const char *name);
+uint64_t class_mutationVersion(void);
 
 bool instance_getMember(PiInstance *instance, const char *name, Value *out);
 bool instance_getMemberHash(PiInstance *instance, const char *name, uint64_t hash, Value *out);

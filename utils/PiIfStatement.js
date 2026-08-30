@@ -54,10 +54,9 @@ export default class PiIfStatement extends PiStatement {
     result += this.formatComments(this._rparen, indent, "leading");
     result += ")";
     result += this.formatComments(this._rparen, indent, "trailing");
-    const headerHasLineComment = this._hasTrailingLineComment(this._rparen);
 
     // --- THEN BODY ---
-    result += this._formatBody(this._then, indent, headerHasLineComment);
+    result += this._formatBody(this._then, indent);
 
     // --- ELSE / ELIF ---
     if (this._else) {
@@ -106,14 +105,20 @@ export default class PiIfStatement extends PiStatement {
           indent,
           "trailing"
         );
-        // For else, we don't add space here since _formatBody will handle it
+        // A nested if is written as "else if", so keep its keyword.
+        if (this._else instanceof PiIfStatement) {
+          elseBlockStr += " ";
+        }
       }
 
       result += elseBlockStr;
 
       if (this._else instanceof PiIfStatement) {
-        // For elif chains, pass true to indicate it's part of a chain
-        result += this._else.format(indent, true);
+        // Elif chains already have their keyword from the parent. An
+        // explicit "else if" needs the nested statement to emit "if".
+        result += this._else
+          .format(indent, this._elseToken.type === TokenType.ELIF)
+          .trimStart();
       } else {
         result += this._formatBody(this._else, indent);
       }
@@ -122,21 +127,12 @@ export default class PiIfStatement extends PiStatement {
     return result;
   }
 
-  _formatBody(stmt, indent, forceNewline = false) {
+  _formatBody(stmt, indent) {
     if (stmt.isBlock) {
       return stmt.format(indent, true);
     } else {
-      const formattedBody = stmt.format(0).trim();
-      if (forceNewline || formattedBody.includes("\n")) {
-        return "\n" + stmt.format(indent + 2);
-      } else {
-        return " " + formattedBody;
-      }
+      return "\n" + stmt.format(indent + 2);
     }
-  }
-
-  _hasTrailingLineComment(token) {
-    return !!token?.trailingComments?.some((comment) => comment.kind === "line");
   }
 
   minify(context) {

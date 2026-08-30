@@ -56,12 +56,7 @@ export default class PiForStatement extends PiStatement {
       // The format method of PiBlockStatement handles the space and newlines
       result += this._body.format(indent, true); // isStatement = true
     } else {
-      const formattedBody = this._body.format(0).trim();
-      if (formattedBody.includes('\n')) {
-        result += "\n" + this._body.format(indent + 2);
-      } else {
-        result += " " + formattedBody;
-      }
+      result += "\n" + this._body.format(indent + 2);
     }
 
     return result;

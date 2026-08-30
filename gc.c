@@ -201,6 +201,15 @@ static void mark_references(Object *obj)
                     mark_value(*value);
             }
         }
+        for (int i = 0; i < BOUND_CACHE_SIZE; i++)
+        {
+            if (_class->bound_cache[i].valid)
+            {
+                if (_class->bound_cache[i].key)
+                    mark_object(_class->bound_cache[i].key);
+                mark_value(_class->bound_cache[i].bound_fn);
+            }
+        }
         break;
     }
 
@@ -217,6 +226,15 @@ static void mark_references(Object *obj)
                 Value *value = (Value *)it.value;
                 if (value)
                     mark_value(*value);
+            }
+        }
+        for (int i = 0; i < BOUND_CACHE_SIZE; i++)
+        {
+            if (instance->bound_cache[i].valid)
+            {
+                if (instance->bound_cache[i].key)
+                    mark_object(instance->bound_cache[i].key);
+                mark_value(instance->bound_cache[i].bound_fn);
             }
         }
         break;

@@ -37,12 +37,7 @@ export default class PiWhileStatement extends PiStatement {
     if (this._body.isBlock) {
       result += this._body.format(indent, true);
     } else {
-      const formattedBody = this._body.format(0).trim();
-      if (formattedBody.includes('\n')) {
-        result += "\n" + this._body.format(indent + 2);
-      } else {
-        result += " " + formattedBody;
-      }
+      result += "\n" + this._body.format(indent + 2);
     }
 
     return result;

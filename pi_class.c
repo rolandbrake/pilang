@@ -2,6 +2,8 @@
 
 #define CREATE_OBJ(obj, type) (obj *)alloc_object(sizeof(obj), type)
 
+static uint64_t class_epoch = 1;
+
 static bool table_getValue(table_t *table, const char *name, Value *out)
 {
     if (!table)
@@ -37,6 +39,8 @@ Object *new_class(const char *name, PiClass *super, table_t *members)
     _class->super = super;
     _class->members = members ? members : ht_create(sizeof(Value));
     _class->version = 1;
+    memset(_class->bound_cache, 0, sizeof(_class->bound_cache));
+    _class->bound_cache_next = 0;
     _class->it = ht_iterator(_class->members);
     return (Object *)_class;
 }
@@ -46,6 +50,8 @@ Object *new_instance(PiClass *_class)
     PiInstance *instance = CREATE_OBJ(PiInstance, OBJ_INSTANCE);
     instance->_class = _class;
     instance->fields = ht_create(sizeof(Value));
+    memset(instance->bound_cache, 0, sizeof(instance->bound_cache));
+    instance->bound_cache_next = 0;
     instance->it = ht_iterator(instance->fields);
     return (Object *)instance;
 }
@@ -77,6 +83,7 @@ void class_setMember(PiClass *_class, const char *name, Value value)
     if (!ht_set(_class->members, name, &value))
         ht_put(_class->members, name, &value);
     _class->version++;
+    class_epoch++;
 }
 
 bool class_deleteMember(PiClass *_class, const char *name)
@@ -86,8 +93,16 @@ bool class_deleteMember(PiClass *_class, const char *name)
 
     bool removed = ht_delete(_class->members, name);
     if (removed)
+    {
         _class->version++;
+        class_epoch++;
+    }
     return removed;
+}
+
+uint64_t class_mutationVersion(void)
+{
+    return class_epoch;
 }
 
 bool instance_getMember(PiInstance *instance, const char *name, Value *out)
