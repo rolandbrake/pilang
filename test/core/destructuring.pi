@@ -12,3 +12,18 @@ assert(b == 5, "destructuring should assign the second element from a function r
 
 println(a)
 println(b)
+
+(a, b) = (1, 2)
+assert(a == 1, "tuple destructuring should assign the first element")
+assert(b == 2, "tuple destructuring should assign the second element")
+
+fun tuple_pair(a, b) {
+    return (a, b)
+}
+
+(a, b) = tuple_pair(6, 7)
+assert(a == 6, "tuple destructuring should unpack a tuple return value")
+assert(b == 7, "tuple destructuring should unpack a tuple return value")
+
+(single,) = (9,)
+assert(single == 9, "tuple destructuring should support one-element tuples")

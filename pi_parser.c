@@ -21,7 +21,9 @@ static void func_decl(parser_t *parser);
 static void class_decl(parser_t *parser);
 static void statement(parser_t *parser);
 static void expr_state(parser_t *parser);
-static void destructure_assignStatement(parser_t *parser);
+static void destructure_ListAssignStatement(parser_t *parser);
+static void destructure_tupleAssignStatement(parser_t *parser);
+static bool is_tupleDestructureAssign(parser_t *parser);
 static void block(parser_t *parser);
 static void if_stmt(parser_t *parser);
 static void switch_stmt(parser_t *parser);
@@ -925,7 +927,7 @@ static bool match(parser_t *parser, tk_type type)
     return false;
 }
 
-static bool is_destructure_assign(parser_t *parser)
+static bool is_listDestructureAssign(parser_t *parser)
 {
     if (!check(parser, TK_LBRACKET))
         return false;
@@ -953,6 +955,40 @@ static bool is_destructure_assign(parser_t *parser)
     }
 
     bool is_assign = match(parser, TK_RBRACKET) && check(parser, TK_ASSIGN);
+    parser->current = current;
+    return is_assign;
+}
+
+static bool is_tupleDestructureAssign(parser_t *parser)
+{
+    if (!check(parser, TK_LPAREN))
+        return false;
+
+    int current = parser->current;
+    next(parser);
+
+    if (!check(parser, TK_ID))
+    {
+        parser->current = current;
+        return false;
+    }
+    next(parser);
+
+    bool has_comma = false;
+    while (match(parser, TK_COMMA))
+    {
+        has_comma = true;
+        if (check(parser, TK_RPAREN))
+            break;
+        if (!check(parser, TK_ID))
+        {
+            parser->current = current;
+            return false;
+        }
+        next(parser);
+    }
+
+    bool is_assign = has_comma && match(parser, TK_RPAREN) && check(parser, TK_ASSIGN);
     parser->current = current;
     return is_assign;
 }
@@ -1836,8 +1872,10 @@ static void import_stmt(parser_t *parser)
 
 static void statement(parser_t *parser)
 {
-    if (is_destructure_assign(parser))
-        destructure_assignStatement(parser);
+    if (is_listDestructureAssign(parser))
+        destructure_ListAssignStatement(parser);
+    else if (is_tupleDestructureAssign(parser))
+        destructure_tupleAssignStatement(parser);
     else if (match(parser, TK_LBRACE))
     {
         // Look ahead to check if it's an object literal (key: value format)
@@ -1879,7 +1917,7 @@ static void statement(parser_t *parser)
     // parser->is_return = false;
 }
 
-static void destructure_assignStatement(parser_t *parser)
+static void destructure_ListAssignStatement(parser_t *parser)
 {
     list_t *targets = list_create(sizeof(char *));
     consume(parser, TK_LBRACKET, "Expect '[' to start destructuring assignment.");
@@ -1892,6 +1930,39 @@ static void destructure_assignStatement(parser_t *parser)
 
     consume(parser, TK_RBRACKET, "Expect ']' after destructuring targets.");
     consume(parser, TK_ASSIGN, "Expect '=' after destructuring targets.");
+    expr(parser);
+
+    int size = list_size(targets);
+    for (int i = 0; i < size; i++)
+    {
+        char *name = *(char **)list_getAt(targets, i);
+        int index = store_const(parser->comp, NEW_NUM(i));
+
+        emit(parser->comp, OP_DUP_TOP);
+        emit_16u(parser->comp, OP_LOAD_CONST, name, index);
+        emit(parser->comp, OP_GET_ITEM);
+        store_variable(parser->comp, name);
+    }
+
+    emit(parser->comp, OP_POP);
+
+    if (need_delimiter(parser))
+        p_error("Expected delemiter between statements.", peek(parser).line, peek(parser).column);
+}
+
+static void destructure_tupleAssignStatement(parser_t *parser)
+{
+    list_t *targets = list_create(sizeof(char *));
+    consume(parser, TK_LPAREN, "Expect '(' to start tuple destructuring assignment.");
+    do
+    {
+        token_t name_tok = consume(parser, TK_ID, "Expect identifier in tuple destructuring assignment.");
+        char *name = token_value(name_tok);
+        list_add(targets, &name);
+    } while (match(parser, TK_COMMA) && !check(parser, TK_RPAREN));
+
+    consume(parser, TK_RPAREN, "Expect ')' after tuple destructuring targets.");
+    consume(parser, TK_ASSIGN, "Expect '=' after tuple destructuring targets.");
     expr(parser);
 
     int size = list_size(targets);
