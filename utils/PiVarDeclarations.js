@@ -1,18 +1,18 @@
 import PiStatement from "./PiStatement.js";
 
 export default class PiVarDeclarations extends PiStatement {
-  constructor(letToken, declarations, semicolonToken = null) {
+  constructor(declarationToken, declarations, semicolonToken = null) {
     const lastToken =
       semicolonToken || declarations[declarations.length - 1].getLastToken();
-    super(letToken, lastToken);
-    this._letToken = letToken;
+    super(declarationToken, lastToken);
+    this._declarationToken = declarationToken;
     this._declarations = declarations;
     this._semicolon = semicolonToken;
   }
 
   format(indent = 0) {
     let result = "";
-    const leadingComments = this.formatComments(this._letToken, indent, "leading");
+    const leadingComments = this.formatComments(this._declarationToken, indent, "leading");
     if (leadingComments.length > 0) {
       result += leadingComments;
     }
@@ -20,8 +20,8 @@ export default class PiVarDeclarations extends PiStatement {
       result += this.indent(indent);
     }
 
-    result += "let";
-    result += this.formatComments(this._letToken, indent, "trailing");
+    result += this._declarationToken.value;
+    result += this.formatComments(this._declarationToken, indent, "trailing");
     result += " ";
 
     const declStrings = this._declarations.map((decl) => decl.format(0));
@@ -37,7 +37,7 @@ export default class PiVarDeclarations extends PiStatement {
   }
 
   minify(context) {
-    let s = "let ";
+    let s = this._declarationToken.value + " ";
     for (let i = 0; i < this._declarations.length; i++) {
       const d = this._declarations[i];
       const name = d.getName();

@@ -1,0 +1,44 @@
+class First {
+    constructor(left) {
+        this.left = left
+    }
+}
+
+class Second {
+    constructor(value, left) {
+        this.value = value
+        this.left = left
+    }
+}
+
+class Dynamic {
+    constructor(value) {
+        this.value = value
+    }
+}
+
+fun read_left(object) {
+    return object.left
+}
+
+fun write_left(object, value) {
+    object.left = value
+}
+
+first = First(10)
+second = Second(20, 30)
+dynamic = Dynamic(40)
+dynamic.left = 50
+
+assert(read_left(first) == 10, "first class should use slot zero")
+assert(read_left(second) == 30, "second class should resolve a different slot")
+assert(read_left(first) == 10, "cache should switch back to the first class")
+assert(read_left(dynamic) == 50, "cache miss should fall back to an extra field")
+
+write_left(first, 11)
+write_left(second, 31)
+write_left(dynamic, 51)
+
+assert(read_left(first) == 11, "slot write should update the first class")
+assert(read_left(second) == 31, "slot write should update the second class")
+assert(read_left(dynamic) == 51, "fallback write should update the extra field")

@@ -262,16 +262,20 @@ typedef struct PiClass
 
     char *name;
     struct PiClass *super;
+
+    // Static members, methods, etc.
     table_t *members;
 
-    table_t field_names; // map field names to their indices
+    // instance field name -> slot index
+    table_t *field_names;
+
     uint16_t slot_count;
 
     uint64_t version;
     BoundCache bound_cache[BOUND_CACHE_SIZE];
     uint8_t bound_cache_next;
-    ht_iter it;
 
+    ht_iter it;
 } PiClass;
 
 typedef struct PiInstance
@@ -279,9 +283,12 @@ typedef struct PiInstance
     Object object;
 
     PiClass *_class;
-    Value *slots;
 
+    // Only created if genuinely dynamic fields are added.
     table_t *fields;
+    Value *slots;
+    bool owns_storage;
+
     BoundCache bound_cache[BOUND_CACHE_SIZE];
     uint8_t bound_cache_next;
     ht_iter it;
@@ -320,6 +327,14 @@ typedef struct GlobalCache
 
 typedef struct
 {
+    PiClass *cached_class;
+    uint16_t name_index;
+    uint16_t slot;
+    bool valid;
+} MemberCache;
+
+typedef struct
+{
     Object object;
     list_t *data;
     list_t *param_names; // Parameter names for functions using this code
@@ -331,6 +346,8 @@ typedef struct
     bool method_need_kwargs;
 
     GlobalCache global_cache;
+    MemberCache *member_caches;
+    int member_cache_count;
 
     uint32_t hash;
 } ObjCode;
@@ -474,6 +491,8 @@ Object *new_instance(PiClass *_class);
 
 bool class_getMember(PiClass *_class, const char *name, Value *out);
 bool class_getMemberHash(PiClass *_class, const char *name, uint64_t hash, Value *out);
+bool class_getFieldSlot(PiClass *_class, const char *name, uint16_t *slot);
+bool class_getFieldSlotHash(PiClass *_class, const char *name, uint64_t hash, uint16_t *slot);
 
 void class_setMember(PiClass *_class, const char *name, Value value);
 bool class_deleteMember(PiClass *_class, const char *name);

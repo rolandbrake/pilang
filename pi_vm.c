@@ -1472,9 +1472,11 @@ void vm_run(vm_t *vm)
         [OP_PUSH_SLICE] = VM_TARGET(OP_PUSH_SLICE),
         [OP_GET_ITEM] = VM_TARGET(OP_GET_ITEM),
         [OP_GET_MEMBER] = VM_TARGET(OP_GET_MEMBER),
+        [OP_GET_SLOT] = VM_TARGET(OP_GET_SLOT),
         [OP_TENSOR_GET] = VM_TARGET(OP_TENSOR_GET),
         [OP_SET_ITEM] = VM_TARGET(OP_SET_ITEM),
         [OP_SET_MEMBER] = VM_TARGET(OP_SET_MEMBER),
+        [OP_SET_SLOT] = VM_TARGET(OP_SET_SLOT),
         [OP_TENSOR_SET] = VM_TARGET(OP_TENSOR_SET),
         [OP_IMPORT] = VM_TARGET(OP_IMPORT),
         [OP_GET_EXPORT] = VM_TARGET(OP_GET_EXPORT),
@@ -1691,7 +1693,10 @@ OP_LOAD_SUPER:
     if (!owner->super)
         vm_error(vm, "Class has no superclass.");
     PiInstance *super_view = (PiInstance *)new_instance(owner->super);
+    free(super_view->slots);
     super_view->fields = instance->fields;
+    super_view->slots = instance->slots;
+    super_view->owns_storage = false;
     push_stack(vm, NEW_OBJ(add_obj(vm, (Object *)super_view)));
     VM_DISPATCH_SAFE();
 }
@@ -3317,10 +3322,14 @@ OP_PUSH_CLASS:
 {
     int num_members = code[pc++] << 8;
     num_members |= code[pc++];
-    int base = vm->sp - (num_members * 2 + 2);
-    if (base < 0 || !IS_STRING(vm->stack[base + num_members * 2]) ||
-        !IS_CLASS(vm->stack[base + num_members * 2 + 1]))
-        vm_error(vm, "PUSH_CLASS expects members, a class name, and a superclass.");
+    int num_fields = code[pc++] << 8;
+    num_fields |= code[pc++];
+    int base = vm->sp - (num_members * 2 + num_fields + 2);
+    int fields_base = base + num_members * 2;
+    int name_slot = fields_base + num_fields;
+    if (base < 0 || !IS_STRING(vm->stack[name_slot]) ||
+        !IS_CLASS(vm->stack[name_slot + 1]))
+        vm_error(vm, "PUSH_CLASS expects members, field names, a class name, and a superclass.");
 
     table_t *members = ht_create(sizeof(Value));
     for (int i = 0; i < num_members * 2; i += 2)
@@ -3332,9 +3341,24 @@ OP_PUSH_CLASS:
         ht_put(members, AS_CSTRING(key), &value);
     }
 
-    const char *name = AS_CSTRING(vm->stack[base + num_members * 2]);
-    PiClass *super = AS_CLASS(vm->stack[base + num_members * 2 + 1]);
+    const char *name = AS_CSTRING(vm->stack[name_slot]);
+    PiClass *super = AS_CLASS(vm->stack[name_slot + 1]);
     Object *klass = add_obj(vm, new_class(name, super, members));
+    PiClass *pi_class = (PiClass *)klass;
+    for (int i = 0; i < num_fields; i++)
+    {
+        Value field_name = vm->stack[fields_base + i];
+        if (!IS_STRING(field_name))
+            vm_error(vm, "Instance field names must be strings.");
+        const char *field = AS_CSTRING(field_name);
+        if (!ht_has(pi_class->field_names, field))
+        {
+            if (pi_class->slot_count == UINT16_MAX)
+                vm_error(vm, "Class has too many instance fields.");
+            uint16_t slot = pi_class->slot_count++;
+            ht_put(pi_class->field_names, field, &slot);
+        }
+    }
     ht_iter member_it = ht_iterator(members);
     while (ht_next(&member_it))
     {
@@ -3473,6 +3497,52 @@ OP_PUSH_SLICE:
     VM_DISPATCH_SAFE();
 }
 
+OP_GET_SLOT:
+{
+    uint16_t encoded_slot = (uint16_t)(code[pc++] << 8);
+    encoded_slot |= code[pc++];
+    Value container = vm->stack[vm->sp - 1];
+    MemberCache *cache = function && function->body &&
+                                 instr_pc < function->body->member_cache_count
+                             ? &function->body->member_caches[instr_pc]
+                             : NULL;
+
+    if (cache && cache->valid && IS_INSTANCE(container))
+    {
+        PiInstance *instance = AS_INSTANCE(container);
+        if (instance->_class == cache->cached_class)
+        {
+            vm->stack[vm->sp - 1] = instance->slots[encoded_slot];
+            VM_DISPATCH_SAFE();
+        }
+
+        Value name_value = constants_data[cache->name_index];
+        if (IS_STRING(name_value))
+        {
+            uint16_t resolved_slot;
+            PiString *name = AS_STRING(name_value);
+            if (class_getFieldSlotHash(instance->_class, name->chars, name->hash,
+                                       &resolved_slot))
+            {
+                cache->cached_class = instance->_class;
+                cache->slot = resolved_slot;
+                code[instr_pc + 1] = (uint8_t)(resolved_slot >> 8);
+                code[instr_pc + 2] = (uint8_t)resolved_slot;
+                vm->stack[vm->sp - 1] = instance->slots[resolved_slot];
+                VM_DISPATCH_SAFE();
+            }
+        }
+    }
+
+    if (!cache || !cache->valid)
+        vm_error(vm, "GET_SLOT has no member cache.");
+    code[instr_pc] = OP_GET_MEMBER;
+    code[instr_pc + 1] = (uint8_t)(cache->name_index >> 8);
+    code[instr_pc + 2] = (uint8_t)cache->name_index;
+    pc = instr_pc;
+    VM_DISPATCH_SAFE();
+}
+
 OP_GET_ITEM:
 OP_GET_MEMBER:
 {
@@ -3490,6 +3560,30 @@ OP_GET_MEMBER:
     Value container = vm->stack[vm->sp - 1];
     if (!IS_OBJ(container))
         vm_error(vm, "Unsupported operand type for get item operator.\n");
+
+    if (!bracket_access && IS_INSTANCE(container) && IS_STRING(index))
+    {
+        PiInstance *instance = AS_INSTANCE(container);
+        PiString *name = AS_STRING(index);
+        uint16_t slot;
+        if (class_getFieldSlotHash(instance->_class, name->chars, name->hash, &slot))
+        {
+            if (function && function->body && instr_pc < function->body->member_cache_count)
+            {
+                MemberCache *cache = &function->body->member_caches[instr_pc];
+                cache->cached_class = instance->_class;
+                cache->name_index = (uint16_t)((code[instr_pc + 1] << 8) |
+                                                code[instr_pc + 2]);
+                cache->slot = slot;
+                cache->valid = true;
+                code[instr_pc] = OP_GET_SLOT;
+                code[instr_pc + 1] = (uint8_t)(slot >> 8);
+                code[instr_pc + 2] = (uint8_t)slot;
+            }
+            vm->stack[vm->sp - 1] = instance->slots[slot];
+            VM_DISPATCH_SAFE();
+        }
+    }
 
     if (OBJ_TYPE(container) == OBJ_CLASS || OBJ_TYPE(container) == OBJ_INSTANCE)
     {
@@ -3823,6 +3917,50 @@ OP_TENSOR_GET:
     VM_DISPATCH_SAFE();
 }
 
+OP_SET_SLOT:
+{
+    uint16_t encoded_slot = (uint16_t)(code[pc++] << 8);
+    encoded_slot |= code[pc++];
+    if (vm->sp < 2)
+        vm_error(vm, "SET_SLOT expects a value and an instance.");
+    Value container = vm->stack[vm->sp - 1];
+    MemberCache *cache = function && function->body &&
+                                 instr_pc < function->body->member_cache_count
+                             ? &function->body->member_caches[instr_pc]
+                             : NULL;
+
+    if (cache && cache->valid && IS_INSTANCE(container))
+    {
+        PiInstance *instance = AS_INSTANCE(container);
+        uint16_t slot = encoded_slot;
+        if (instance->_class != cache->cached_class)
+        {
+            Value name_value = constants_data[cache->name_index];
+            if (!IS_STRING(name_value) ||
+                !class_getFieldSlotHash(instance->_class, AS_CSTRING(name_value),
+                                        AS_STRING(name_value)->hash, &slot))
+                goto deopt_set_slot;
+            cache->cached_class = instance->_class;
+            cache->slot = slot;
+            code[instr_pc + 1] = (uint8_t)(slot >> 8);
+            code[instr_pc + 2] = (uint8_t)slot;
+        }
+        Value receiver = pop_stack(vm);
+        (void)receiver;
+        instance->slots[slot] = pop_stack(vm);
+        VM_DISPATCH_SAFE();
+    }
+
+deopt_set_slot:
+    if (!cache || !cache->valid)
+        vm_error(vm, "SET_SLOT has no member cache.");
+    code[instr_pc] = OP_SET_MEMBER;
+    code[instr_pc + 1] = (uint8_t)(cache->name_index >> 8);
+    code[instr_pc + 2] = (uint8_t)cache->name_index;
+    pc = instr_pc;
+    VM_DISPATCH_SAFE();
+}
+
 OP_SET_ITEM:
 OP_SET_MEMBER:
 {
@@ -3848,6 +3986,30 @@ OP_SET_MEMBER:
     }
     if (!IS_OBJ(container))
         vm_error(vm, "Unsupported operand type for set item operator.\n");
+
+    if (!bracket_access && IS_INSTANCE(container) && IS_STRING(index))
+    {
+        PiInstance *instance = AS_INSTANCE(container);
+        PiString *name = AS_STRING(index);
+        uint16_t slot;
+        if (class_getFieldSlotHash(instance->_class, name->chars, name->hash, &slot))
+        {
+            if (function && function->body && instr_pc < function->body->member_cache_count)
+            {
+                MemberCache *cache = &function->body->member_caches[instr_pc];
+                cache->cached_class = instance->_class;
+                cache->name_index = (uint16_t)((code[instr_pc + 1] << 8) |
+                                                code[instr_pc + 2]);
+                cache->slot = slot;
+                cache->valid = true;
+                code[instr_pc] = OP_SET_SLOT;
+                code[instr_pc + 1] = (uint8_t)(slot >> 8);
+                code[instr_pc + 2] = (uint8_t)slot;
+            }
+            instance->slots[slot] = value;
+            VM_DISPATCH_SAFE();
+        }
+    }
 
     if (OBJ_TYPE(container) == OBJ_CLASS || OBJ_TYPE(container) == OBJ_INSTANCE)
     {

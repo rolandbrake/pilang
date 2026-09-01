@@ -13,6 +13,17 @@ export default class PiListExpression extends PiExpression {
     return this._exprs.length;
   }
 
+  compactFormat() {
+    if (this._exprs.length === 0) return "[]";
+
+    const items = this._exprs.map((expr) =>
+      typeof expr.compactFormat === "function"
+        ? expr.compactFormat()
+        : expr.format(0).trim()
+    );
+    return "[" + items.join(", ") + "]";
+  }
+
   format(indent = 0) {
     if (this._exprs.length === 0) {
       let result = this.indent(indent);
@@ -24,19 +35,18 @@ export default class PiListExpression extends PiExpression {
     const maxLineLength = 80;
     const innerIndent = indent + 2;
     const innerIndentStr = this.indent(innerIndent);
-    const formattedItems = this._exprs.map((expr) => expr.format(0).trim());
+    const formattedItems = this._exprs.map((expr) =>
+      typeof expr.compactFormat === "function"
+        ? expr.compactFormat()
+        : expr.format(0).trim()
+    );
     const hasComments = [this.start, this.end, ...this.commas].some(
       (token) =>
         token &&
         ((token.leadingComments && token.leadingComments.length > 0) ||
           (token.trailingComments && token.trailingComments.length > 0))
     );
-    const hasNestedOrMultiline = formattedItems.some(
-      (item) =>
-        item.includes("\n") ||
-        item.startsWith("[") ||
-        item.startsWith("{")
-    );
+    const hasNestedOrMultiline = formattedItems.some((item) => item.includes("\n"));
     const singleLine = "[" + formattedItems.join(", ") + "]";
 
     let result = this.indent(indent);
@@ -53,7 +63,17 @@ export default class PiListExpression extends PiExpression {
     }
     result += "\n";
 
-    if (!hasComments && !hasNestedOrMultiline) {
+    const hasNestedItems = formattedItems.some(
+      (item) => item.startsWith("[") || item.startsWith("{")
+    );
+
+    if (!hasComments && hasNestedItems) {
+      formattedItems.forEach((item, index) => {
+        result += innerIndentStr + item;
+        if (index < formattedItems.length - 1) result += ",";
+        if (index < formattedItems.length - 1) result += "\n";
+      });
+    } else if (!hasComments && !hasNestedOrMultiline) {
       const lines = [];
       let line = "";
 

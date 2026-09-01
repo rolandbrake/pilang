@@ -37,6 +37,9 @@ typedef struct
     char *fun_name; // (pending functoin name) Inferred name for the next direct function literal RHS.
     char *object_name; // Inferred name for the next direct object-literal RHS.
 
+    table_t *instance_field_names;
+    list_t *instance_fields;
+
     ParserMode mode; // The current parsing mode (file or REPL).
 
     bool had_error; // Flag indicating if an error has occurred during parsing.

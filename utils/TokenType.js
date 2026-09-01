@@ -16,6 +16,7 @@ const TokenType = {
   CLASS: "CLASS",
   SUPER: "SUPER",
   LET: "LET",
+  CONST: "CONST",
   TRUE: "TRUE",
   FALSE: "FALSE",
   NIL: "NIL",

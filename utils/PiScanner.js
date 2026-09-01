@@ -20,6 +20,7 @@ export default class PiScanner {
       while: TokenType.WHILE,
       fun: TokenType.FUN,
       let: TokenType.LET,
+      const: TokenType.CONST,
       INF: TokenType.INF,
       NAN: TokenType.NAN,
       break: TokenType.BREAK,

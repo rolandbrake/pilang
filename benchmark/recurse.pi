@@ -1,0 +1,21 @@
+// Recursive calls and repeated stack unwinding.
+fun recurse(n) {
+    if n == 0 {
+        return 0;
+    }
+    return recurse(n - 1) + 1;
+}
+
+fun main() {
+    let t0 = time();
+    let i = 0;
+
+    while i < 1000 {
+        recurse(1000);
+        i++;
+    }
+
+    println(time() - t0);
+}
+
+main();

@@ -228,6 +228,8 @@ static void mark_references(Object *obj)
                     mark_value(*value);
             }
         }
+        for (uint16_t i = 0; instance->_class && i < instance->_class->slot_count; i++)
+            mark_value(instance->slots[i]);
         for (int i = 0; i < BOUND_CACHE_SIZE; i++)
         {
             if (instance->bound_cache[i].valid)
@@ -275,6 +277,9 @@ static void mark_references(Object *obj)
         ObjCode *code = (ObjCode *)obj;
         mark_list(code->data);
         mark_list(code->param_names);
+        for (int i = 0; i < code->member_cache_count; i++)
+            if (code->member_caches[i].valid && code->member_caches[i].cached_class)
+                mark_object((Object *)code->member_caches[i].cached_class);
         break;
     }
 
@@ -465,13 +470,18 @@ void free_object(Object *obj)
         PiClass *_class = (PiClass *)obj;
         free(_class->name);
         ht_free(_class->members);
+        ht_free(_class->field_names);
         break;
     }
 
     case OBJ_INSTANCE:
     {
         PiInstance *instance = (PiInstance *)obj;
-        ht_free(instance->fields);
+        if (instance->owns_storage)
+        {
+            ht_free(instance->fields);
+            free(instance->slots);
+        }
         break;
     }
 
@@ -507,6 +517,7 @@ void free_object(Object *obj)
     {
         ObjCode *code = (ObjCode *)obj;
         list_free(code->data);
+        free(code->member_caches);
         if (code->param_names)
             list_free(code->param_names);
         break;

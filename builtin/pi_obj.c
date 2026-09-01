@@ -46,7 +46,10 @@ static bool delete_classType(Value target, Value key)
         return false;
     if (IS_CLASS(target))
         return class_deleteMember(AS_CLASS(target), AS_CSTRING(key));
-    return ht_delete(AS_INSTANCE(target)->fields, AS_CSTRING(key));
+    PiInstance *instance = AS_INSTANCE(target);
+    if (class_getFieldSlot(instance->_class, AS_CSTRING(key), NULL))
+        return false;
+    return instance->fields && ht_delete(instance->fields, AS_CSTRING(key));
 }
 
 static int compare_cstrings(const void *left, const void *right)
@@ -184,15 +187,30 @@ Value pi_clone(vm_t *vm, int argc, Value *argv)
         ht_iter it = ht_iterator(original->members);
         while (ht_next(&it))
             ht_put(members, it.key, it.value);
-        return NEW_OBJ(add_obj(vm, new_class(original->name, original->super, members)));
+        PiClass *copy = (PiClass *)new_class(original->name, original->super, members);
+        ht_free(copy->field_names);
+        copy->field_names = ht_create(sizeof(uint16_t));
+        ht_iter fields = ht_iterator(original->field_names);
+        while (ht_next(&fields))
+            ht_put(copy->field_names, fields.key, fields.value);
+        copy->slot_count = original->slot_count;
+        return NEW_OBJ(add_obj(vm, (Object *)copy));
     }
     if (argc >= 1 && IS_INSTANCE(argv[0]))
     {
         PiInstance *original = AS_INSTANCE(argv[0]);
         PiInstance *copy = (PiInstance *)new_instance(original->_class);
-        ht_iter it = ht_iterator(original->fields);
-        while (ht_next(&it))
-            ht_put(copy->fields, it.key, it.value);
+        if (original->_class->slot_count)
+            memcpy(copy->slots, original->slots,
+                   (size_t)original->_class->slot_count * sizeof(Value));
+        if (original->fields)
+        {
+            copy->fields = ht_create(sizeof(Value));
+            ht_iter it = ht_iterator(original->fields);
+            while (ht_next(&it))
+                ht_put(copy->fields, it.key, it.value);
+            copy->it = ht_iterator(copy->fields);
+        }
         return NEW_OBJ(add_obj(vm, (Object *)copy));
     }
 
@@ -242,9 +260,19 @@ Value pi_values(vm_t *vm, int argc, Value *argv)
     if (argc >= 1 && IS_INSTANCE(argv[0]))
     {
         list_t *list = list_create(sizeof(Value));
-        ht_iter it = ht_iterator(AS_INSTANCE(argv[0])->fields);
-        while (ht_next(&it))
-            list_add(list, (Value *)it.value);
+        PiInstance *instance = AS_INSTANCE(argv[0]);
+        ht_iter names = ht_iterator(instance->_class->field_names);
+        while (ht_next(&names))
+        {
+            uint16_t slot = *(uint16_t *)names.value;
+            list_add(list, &instance->slots[slot]);
+        }
+        if (instance->fields)
+        {
+            ht_iter it = ht_iterator(instance->fields);
+            while (ht_next(&it))
+                list_add(list, (Value *)it.value);
+        }
         return NEW_OBJ(new_list(list));
     }
 
@@ -290,11 +318,21 @@ Value pi_keys(vm_t *vm, int argc, Value *argv)
     if (argc >= 1 && IS_INSTANCE(argv[0]))
     {
         list_t *list = list_create(sizeof(Value));
-        ht_iter it = ht_iterator(AS_INSTANCE(argv[0])->fields);
-        while (ht_next(&it))
+        PiInstance *instance = AS_INSTANCE(argv[0]);
+        ht_iter names = ht_iterator(instance->_class->field_names);
+        while (ht_next(&names))
         {
-            Value key = NEW_OBJ(new_pistring(strdup(it.key)));
+            Value key = NEW_OBJ(new_pistring(strdup(names.key)));
             list_add(list, &key);
+        }
+        if (instance->fields)
+        {
+            ht_iter it = ht_iterator(instance->fields);
+            while (ht_next(&it))
+            {
+                Value key = NEW_OBJ(new_pistring(strdup(it.key)));
+                list_add(list, &key);
+            }
         }
         return NEW_OBJ(new_list(list));
     }

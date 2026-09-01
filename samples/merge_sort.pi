@@ -39,13 +39,12 @@ fun merge(left, right) {
     return result
 }
 
-fun append(list = [], result = []) {            
-    for(i in list)
-        result += i  
+fun append(items = [], result = []) {
+    for(i in items)
+        result += i
 }
 
-let list = [5,3,4,1,2]
-println(merge_sort(list))
+let arr = [5,3,4,1,2]
+println(merge_sort(arr))
 
-  
   

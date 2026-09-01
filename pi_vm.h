@@ -24,7 +24,7 @@ typedef int interrupt_flag_t;
 #define RUN_STEPS 1024 // max number of instructions to run
 
 // Initial GC threshold (number of newly allocated VM objects).
-#define NEXT_GC (1024 * 1024)
+#define NEXT_GC (1024 * 1024 * 64)
 
 // Macros for computed-goto opcode dispatch.
 // Requires GCC/Clang labels-as-values support.

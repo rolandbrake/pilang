@@ -119,6 +119,8 @@ static const char *op_names[] = {
     [0x4e] = "COMP_BEGIN",
     [0x4f] = "COMP_END",
     [0x50] = "PUSH_CLASS",
+    [0x51] = "GET_SLOT",
+    [0x52] = "SET_SLOT",
 };
 
 static context_t *create_context(bool is_function, list_t *code, char *fun_name)
@@ -880,6 +882,16 @@ int emit_16u(compiler_t *comp, OpCode opcode, char *descr, int operand)
     return _emit(comp, opcode, descr, 2, comp->current_line, comp->current_col, op1, op2);
 }
 
+int emit_16uX2(compiler_t *comp, OpCode opcode, char *descr, int first, int second)
+{
+    byte op1 = (byte)((first >> 8) & 0xff);
+    byte op2 = (byte)(first & 0xff);
+    byte op3 = (byte)((second >> 8) & 0xff);
+    byte op4 = (byte)(second & 0xff);
+    return _emit(comp, opcode, descr, 4, comp->current_line, comp->current_col,
+                 op1, op2, op3, op4);
+}
+
 int emit_pop(compiler_t *comp, int depth)
 {
     int size = get_localSize(comp, depth);
@@ -1025,13 +1037,23 @@ void dis(compiler_t *comp)
             case OP_PUSH_MAP:
             case OP_PUSH_SET:
             case OP_PUSH_TUPLE:
-            case OP_PUSH_CLASS:
             case OP_GET_MEMBER:
             case OP_SET_MEMBER:
+            case OP_GET_SLOT:
+            case OP_SET_SLOT:
                 snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d",
                          line++, op_names[opcode], (int16_t)((operands[0] << 8) | operands[1]));
                 line += 2;
                 pc += 2;
+                break;
+
+            case OP_PUSH_CLASS:
+                snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s members=%d fields=%d",
+                         line++, op_names[opcode],
+                         (operands[0] << 8) | operands[1],
+                         (operands[2] << 8) | operands[3]);
+                line += 4;
+                pc += 4;
                 break;
 
             case OP_COMP_END:
@@ -1111,9 +1133,10 @@ void dis(compiler_t *comp)
             case OP_PUSH_MAP:
             case OP_PUSH_SET:
             case OP_PUSH_TUPLE:
-            case OP_PUSH_CLASS:
             case OP_GET_MEMBER:
             case OP_SET_MEMBER:
+            case OP_GET_SLOT:
+            case OP_SET_SLOT:
                 snprintf(line_buf, sizeof(line_buf),
                          "\033[38;2;107;107;107m%-4d\033[0m: "
                          "\033[38;2;139;0;0m%-15s\033[0m "
@@ -1121,6 +1144,18 @@ void dis(compiler_t *comp)
                          line++, op_names[opcode], (int16_t)((operands[0] << 8) | operands[1]));
                 line += 2;
                 pc += 2;
+                break;
+
+            case OP_PUSH_CLASS:
+                snprintf(line_buf, sizeof(line_buf),
+                         "\033[38;2;107;107;107m%-4d\033[0m: "
+                         "\033[38;2;139;0;0m%-15s\033[0m "
+                         "\033[38;2;184;134;11mmembers=%d fields=%d\033[0m",
+                         line++, op_names[opcode],
+                         (operands[0] << 8) | operands[1],
+                         (operands[2] << 8) | operands[3]);
+                line += 4;
+                pc += 4;
                 break;
 
             case OP_COMP_END:

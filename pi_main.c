@@ -135,7 +135,7 @@ void main_loop()
     if (vm && vm->running)
     {
         while (vm->running && !paused)
-            run(vm);
+            vm_run(vm);
 
         if (!vm->running && !paused)
         {
@@ -194,7 +194,7 @@ void resume_execution(void)
         paused = false;
 
         while (vm->running && !paused)
-            run(vm);
+            vm_run(vm);
 
         browser_isExecuting = false;
         if (!vm->running && !paused)
@@ -219,7 +219,7 @@ int execute_source(void)
 #endif
 
     while (vm && vm->running && !paused)
-        run(vm);
+        vm_run(vm);
 
     if (paused)
     {

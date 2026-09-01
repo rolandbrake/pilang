@@ -595,6 +595,8 @@ Object *new_code(list_t *code)
     c->method_need_args = false;
     c->method_need_kwargs = false;
     memset(&c->global_cache, 0, sizeof(c->global_cache));
+    c->member_cache_count = code->size;
+    c->member_caches = calloc((size_t)code->size, sizeof(MemberCache));
     return (Object *)c;
 }
 
@@ -711,7 +713,8 @@ void iter_reset(Object *col)
         ht_reset(&((PiClass *)col)->it);
         break;
     case OBJ_INSTANCE:
-        ht_reset(&((PiInstance *)col)->it);
+        if (((PiInstance *)col)->fields)
+            ht_reset(&((PiInstance *)col)->it);
         break;
     case OBJ_SET:
         ((PiSet *)col)->current = 0;
@@ -751,7 +754,7 @@ bool iter_hasNext(Object *col)
     case OBJ_CLASS:
         return ht_hasNext(&((PiClass *)col)->it);
     case OBJ_INSTANCE:
-        return ht_hasNext(&((PiInstance *)col)->it);
+        return ((PiInstance *)col)->fields && ht_hasNext(&((PiInstance *)col)->it);
     case OBJ_SET:
     {
         PiSet *set = (PiSet *)col;
@@ -816,6 +819,8 @@ Value iter_next(Object *col)
     case OBJ_INSTANCE:
     {
         PiInstance *instance = (PiInstance *)col;
+        if (!instance->fields)
+            return NEW_NIL();
         ht_next(&instance->it);
         return *(Value *)instance->it.value;
     }

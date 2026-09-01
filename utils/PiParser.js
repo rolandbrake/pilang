@@ -91,7 +91,7 @@ export default class PiParser {
    */
   Declaration() {
     // Check if the declaration is a variable declaration
-    if (this.match(TokenType.LET)) {
+    if (this.match(TokenType.LET, TokenType.CONST)) {
       return this.VarDeclaration(this.previous());
     }
     // Check if the declaration is a function declaration

@@ -1192,6 +1192,8 @@ parser_t *init_parser(compiler_t *comp, token_t *tokens, ParserMode mode)
     parser->object_member = false;
     parser->fun_name = NULL;
     parser->object_name = NULL;
+    parser->instance_field_names = NULL;
+    parser->instance_fields = NULL;
 
     parser->comp = comp;
     set_errorSource(comp ? comp->source_name : NULL);
@@ -1496,7 +1498,11 @@ static void emit_spreadMapLiteral(parser_t *parser)
 static void emit_classMap(parser_t *parser, const char *class_name, const char *parent_name)
 {
     char *prev_obj = parser->object_name;
+    table_t *prev_field_names = parser->instance_field_names;
+    list_t *prev_fields = parser->instance_fields;
     parser->object_name = (char *)class_name;
+    parser->instance_field_names = ht_create(sizeof(uint16_t));
+    parser->instance_fields = list_create(sizeof(char *));
 
     push_object(parser->comp);
 
@@ -1579,11 +1585,24 @@ static void emit_classMap(parser_t *parser, const char *class_name, const char *
     /* PUSH_CLASS consumes member pairs followed by the class name and
        superclass.  Object is resolved normally, so a missing superclass is
        represented by the language-level Object value. */
+    int field_count = list_size(parser->instance_fields);
+    for (int i = 0; i < field_count; i++)
+    {
+        char *field_name = *(char **)list_getAt(parser->instance_fields, i);
+        int field_index = store_const(parser->comp,
+                                      NEW_OBJ(new_pistring(strdup(field_name))));
+        emit_16u(parser->comp, OP_LOAD_CONST, field_name, field_index);
+    }
+
     int name_index = store_const(parser->comp, NEW_OBJ(new_pistring(strdup(class_name))));
     emit_16u(parser->comp, OP_LOAD_CONST, (char *)class_name, name_index);
     load_variable(parser->comp, (char *)parent_name);
-    emit_16u(parser->comp, OP_PUSH_CLASS, "", size);
+    emit_16uX2(parser->comp, OP_PUSH_CLASS, "", size, field_count);
 
+    ht_free(parser->instance_field_names);
+    list_free(parser->instance_fields);
+    parser->instance_field_names = prev_field_names;
+    parser->instance_fields = prev_fields;
     parser->object_name = prev_obj;
 }
 
@@ -3319,9 +3338,23 @@ static bool slice_expr(parser_t *parser)
     return is_slice;
 }
 
+static void register_instanceField(parser_t *parser, char *name)
+{
+    if (!parser->instance_field_names || ht_has(parser->instance_field_names, name))
+        return;
+
+    int count = list_size(parser->instance_fields);
+    if (count >= UINT16_MAX)
+        p_error("Class has too many instance fields.", peek(parser).line, peek(parser).column);
+    uint16_t index = (uint16_t)count;
+    ht_put(parser->instance_field_names, name, &index);
+    list_add(parser->instance_fields, &name);
+}
+
 static void member_expr(parser_t *parser)
 {
     primary(parser);
+    bool direct_access = true;
 
     while (true)
     {
@@ -3343,12 +3376,20 @@ static void member_expr(parser_t *parser)
                 p_error("Call the superclass constructor with super(...), not super.constructor(...).",
                         name.line, name.column);
 
+            bool assign = is_memberAssignment(parser, name);
+            char *member_name = token_value(name);
+            if (assign && direct_access && parser->instance_field_names &&
+                token.type == TK_ID && strcmp(tk_string(token), "this") == 0)
+                register_instanceField(parser, member_name);
+
             int index = store_const(parser->comp, new_value(name));
 
-            if (is_memberAssignment(parser, name))
+            if (assign)
                 emit_16u(parser->comp, OP_SET_MEMBER, token_value(name), index);
             else
                 emit_16u(parser->comp, OP_GET_MEMBER, token_value(name), index);
+
+            direct_access = false;
         }
 
         // Handle property access using bracket notation and slicing for lists and tensors
