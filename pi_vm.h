@@ -24,7 +24,7 @@ typedef int interrupt_flag_t;
 #define RUN_STEPS 1024 // max number of instructions to run
 
 // Initial GC threshold (number of newly allocated VM objects).
-#define NEXT_GC (1024 * 1024 * 64)
+#define NEXT_GC (1024 * 1024 * 2)
 
 // Macros for computed-goto opcode dispatch.
 // Requires GCC/Clang labels-as-values support.
@@ -168,8 +168,8 @@ typedef struct vm_t
 
     int obj_count;
 
-    table_t *modules;    // Hash table to store loaded modules by name
-    char *current_path;  // Current working directory for resolving relative imports
+    table_t *modules;      // Hash table to store loaded modules by name
+    char *current_path;    // Current working directory for resolving relative imports
     PiClass *object_class; // Root class for the class/instance model
 
 } vm_t;

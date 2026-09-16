@@ -52,7 +52,8 @@ void _list_expand(list_t *list, int new_cap)
         error("List size exceeds the maximum of %d elements.", PI_MAX_LIST_SIZE);
     void *data = realloc(list->data, (size_t)new_cap * list->i_size);
     if (!data)
-        error("list expand: Out of memory.");
+        error("list expand: Out of memory (size=%d capacity=%d new_capacity=%d item_size=%d).",
+              list->size, list->capacity, new_cap, list->i_size);
     list->data = data;
     list->capacity = new_cap;
 }

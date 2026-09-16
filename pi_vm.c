@@ -28,6 +28,7 @@ volatile interrupt_flag_t interrupt_requested = 0;
 static void add_objectClassMembers(PiClass *klass);
 static Object *construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Value kw_args);
 static Value bind(vm_t *vm, Function *function, Object *instance);
+static Value bind_callable(vm_t *vm, PiInstance *instance);
 static Value bind_nativeMethod(Object *instance, NativeMethod *method);
 static void gc_collect(vm_t *vm);
 
@@ -904,14 +905,12 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
     }
     else if (IS_INSTANCE(callee))
     {
-        Value method;
-        if (!instance_getMember(AS_INSTANCE(callee), "call", &method) ||
-            !IS_FUN(method))
+        Value bound = bind_callable(vm, AS_INSTANCE(callee));
+        if (!IS_FUN(bound))
         {
             free(args);
             vm_error(vm, "Attempt to call a non-function object.");
         }
-        Value bound = bind(vm, AS_FUN(method), AS_OBJ(callee));
         result = call_func(vm, AS_FUN(bound), num_args, args, kw_args);
         if (IS_OBJ(result))
             add_obj(vm, AS_OBJ(result));
@@ -1181,6 +1180,49 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
     add_obj(vm, fn);
 
     return NEW_OBJ(fn);
+}
+
+static Value bind_callable(vm_t *vm, PiInstance *instance)
+{
+    const uint64_t call_hash = 0;
+    const uint64_t epoch = class_mutationVersion();
+    BoundCache *cache = instance->bound_cache;
+    table_t *owner_table = NULL;
+    Value method;
+
+    if (!instance_getMember(instance, "call", &method) || !IS_FUN(method))
+        return NEW_NIL();
+
+    for (PiClass *current = instance->_class; current != NULL; current = current->super)
+    {
+        if (current->members && ht_get(current->members, "call"))
+        {
+            owner_table = current->members;
+            break;
+        }
+    }
+
+    for (int i = 0; i < BOUND_CACHE_SIZE; i++)
+    {
+        BoundCache *entry = &cache[i];
+        if (entry->valid && entry->key == NULL && entry->key_hash == call_hash &&
+            entry->class_epoch == epoch && entry->owner_table == owner_table &&
+            entry->owner_table && entry->owner_version == owner_table->version &&
+            entry->fields_version == (instance->fields ? instance->fields->version : 0))
+            return entry->bound_fn;
+    }
+
+    Value bound = bind(vm, AS_FUN(method), (Object *)instance);
+    BoundCache *entry = &cache[instance->bound_cache_next++ % BOUND_CACHE_SIZE];
+    entry->key_hash = call_hash;
+    entry->key = NULL;
+    entry->owner_table = owner_table;
+    entry->owner_version = owner_table ? owner_table->version : 0;
+    entry->class_epoch = epoch;
+    entry->fields_version = instance->fields ? instance->fields->version : 0;
+    entry->bound_fn = bound;
+    entry->valid = true;
+    return bound;
 }
 
 static void add_objectClassMembers(PiClass *klass)
@@ -2752,10 +2794,10 @@ OP_CALL_FUNCTION:
         }
 
         size_t param_count = (!callee_fn->is_native && callee_fn->params)
-                                 ? (size_t)callee_fn->arity
-                                 : 0;
+                                    ? (size_t)callee_fn->arity
+                                    : 0;
         bool param_this = callee_fn->is_method && callee_fn->param_names &&
-                          (size_t)callee_fn->param_names->size + 1 == param_count;
+                            (size_t)callee_fn->param_names->size + 1 == param_count;
         size_t _param_count = param_count - (param_this ? 1 : 0);
 
         if (!callee_fn->is_native &&
@@ -2850,15 +2892,13 @@ OP_CALL_FUNCTION:
     }
     else if (IS_INSTANCE(callee))
     {
-        Value method;
-        if (!instance_getMember(AS_INSTANCE(callee), "call", &method) ||
-            !IS_FUN(method))
+        Value bound = bind_callable(vm, AS_INSTANCE(callee));
+        if (!IS_FUN(bound))
         {
             if (num_args > 8)
                 free(args);
             vm_error(vm, "Attempt to call a non-function object.");
         }
-        Value bound = bind(vm, AS_FUN(method), AS_OBJ(callee));
         Value result = call_func(vm, AS_FUN(bound), num_args, args, NEW_NIL());
         PUSH(result);
     }
@@ -2916,9 +2956,8 @@ OP_CALL_FUNCTION_KW:
     }
     else if (IS_INSTANCE(callee))
     {
-        Value method;
-        if (!instance_getMember(AS_INSTANCE(callee), "call", &method) ||
-            !IS_FUN(method))
+        Value bound = bind_callable(vm, AS_INSTANCE(callee));
+        if (!IS_FUN(bound))
         {
             if (num_args > 8)
                 free(args);
@@ -2926,7 +2965,6 @@ OP_CALL_FUNCTION_KW:
         }
         vm->error_pc = vm->pc;
         vm->pc = pc;
-        Value bound = bind(vm, AS_FUN(method), AS_OBJ(callee));
         result = call_func(vm, AS_FUN(bound), num_args, args, kw_args);
     }
     else if (IS_CLASS(callee))
@@ -3470,8 +3508,8 @@ OP_PUSH_CLOSURE:
         bool is_local = as_bool(pop_stack(vm));
         int index = as_number(pop_stack(vm));
         UpValue *upvalue = is_local
-                               ? capture_upvalue(vm, vm->bp + index)
-                               : function->upvalues[index];
+                                ? capture_upvalue(vm, vm->bp + index)
+                                : function->upvalues[index];
         if (upvalue)
             upvalue->ref_count++;
         upvalues[numUpvalues - i - 1] = upvalue;
@@ -3544,9 +3582,9 @@ OP_GET_SLOT:
     encoded_slot |= code[pc++];
     Value container = vm->stack[vm->sp - 1];
     MemberCache *cache = function && function->body &&
-                                 instr_pc < function->body->member_cache_count
-                             ? &function->body->member_caches[instr_pc]
-                             : NULL;
+                                    instr_pc < function->body->member_cache_count
+                                ? &function->body->member_caches[instr_pc]
+                                : NULL;
 
     if (cache && cache->valid && IS_INSTANCE(container))
     {
@@ -3563,7 +3601,7 @@ OP_GET_SLOT:
             uint16_t resolved_slot;
             PiString *name = AS_STRING(name_value);
             if (class_getFieldSlotHash(instance->_class, name->chars, name->hash,
-                                       &resolved_slot))
+                                        &resolved_slot))
             {
                 cache->cached_class = instance->_class;
                 cache->slot = resolved_slot;
@@ -3614,7 +3652,7 @@ OP_GET_MEMBER:
                 MemberCache *cache = &function->body->member_caches[instr_pc];
                 cache->cached_class = instance->_class;
                 cache->name_index = (uint16_t)((code[instr_pc + 1] << 8) |
-                                               code[instr_pc + 2]);
+                                                code[instr_pc + 2]);
                 cache->slot = slot;
                 cache->valid = true;
                 code[instr_pc] = OP_GET_SLOT;
@@ -3637,12 +3675,12 @@ OP_GET_MEMBER:
         {
             uint64_t hash = AS_STRING(index)->hash;
             BoundCache *bound_cache = OBJ_TYPE(container) == OBJ_CLASS
-                                          ? AS_CLASS(container)->bound_cache
-                                          : AS_INSTANCE(container)->bound_cache;
+                                            ? AS_CLASS(container)->bound_cache
+                                            : AS_INSTANCE(container)->bound_cache;
             uint64_t fields_version = OBJ_TYPE(container) == OBJ_INSTANCE &&
-                                              AS_INSTANCE(container)->fields
-                                          ? AS_INSTANCE(container)->fields->version
-                                          : 0;
+                                                AS_INSTANCE(container)->fields
+                                            ? AS_INSTANCE(container)->fields->version
+                                            : 0;
             uint64_t epoch = class_mutationVersion();
 
             for (int i = 0; i < BOUND_CACHE_SIZE; i++)
@@ -3686,8 +3724,8 @@ OP_GET_MEMBER:
             {
                 uint64_t hash = AS_STRING(index)->hash;
                 BoundCache *bound_cache = OBJ_TYPE(container) == OBJ_CLASS
-                                              ? AS_CLASS(container)->bound_cache
-                                              : AS_INSTANCE(container)->bound_cache;
+                                                ? AS_CLASS(container)->bound_cache
+                                                : AS_INSTANCE(container)->bound_cache;
                 uint8_t *next = OBJ_TYPE(container) == OBJ_CLASS
                                     ? &AS_CLASS(container)->bound_cache_next
                                     : &AS_INSTANCE(container)->bound_cache_next;
@@ -3695,14 +3733,14 @@ OP_GET_MEMBER:
 
                 if (OBJ_TYPE(container) == OBJ_INSTANCE)
                     owner_table = AS_INSTANCE(container)->fields &&
-                                          ht_getHash(AS_INSTANCE(container)->fields, key, hash)
-                                      ? AS_INSTANCE(container)->fields
-                                      : NULL;
+                                            ht_getHash(AS_INSTANCE(container)->fields, key, hash)
+                                        ? AS_INSTANCE(container)->fields
+                                        : NULL;
 
                 for (PiClass *current = OBJ_TYPE(container) == OBJ_CLASS
                                             ? AS_CLASS(container)
                                             : AS_INSTANCE(container)->_class;
-                     !owner_table && current != NULL; current = current->super)
+                        !owner_table && current != NULL; current = current->super)
                 {
                     if (current->members && ht_getHash(current->members, key, hash))
                         owner_table = current->members;
@@ -3731,8 +3769,8 @@ OP_GET_MEMBER:
 
     if (IS_SLICE(index) &&
         (OBJ_TYPE(container) == OBJ_LIST ||
-         OBJ_TYPE(container) == OBJ_TUPLE ||
-         OBJ_TYPE(container) == OBJ_STRING))
+            OBJ_TYPE(container) == OBJ_TUPLE ||
+            OBJ_TYPE(container) == OBJ_STRING))
     {
         PiSlice *s = AS_SLICE(index);
         vm->stack[vm->sp - 1] = get_slice(AS_OBJ(container), s->start, s->stop, s->step);
@@ -3966,9 +4004,9 @@ OP_SET_SLOT:
         vm_error(vm, "SET_SLOT expects a value and an instance.");
     Value container = vm->stack[vm->sp - 1];
     MemberCache *cache = function && function->body &&
-                                 instr_pc < function->body->member_cache_count
-                             ? &function->body->member_caches[instr_pc]
-                             : NULL;
+                                    instr_pc < function->body->member_cache_count
+                                ? &function->body->member_caches[instr_pc]
+                                : NULL;
 
     if (cache && cache->valid && IS_INSTANCE(container))
     {
@@ -4040,7 +4078,7 @@ OP_SET_MEMBER:
                 MemberCache *cache = &function->body->member_caches[instr_pc];
                 cache->cached_class = instance->_class;
                 cache->name_index = (uint16_t)((code[instr_pc + 1] << 8) |
-                                               code[instr_pc + 2]);
+                                                code[instr_pc + 2]);
                 cache->slot = slot;
                 cache->valid = true;
                 code[instr_pc] = OP_SET_SLOT;
