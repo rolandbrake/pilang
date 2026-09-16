@@ -1,0 +1,1980 @@
+{
+  "platform": "Windows-10-10.0.26200-SP0",
+  "baseline": "C:\\Users\\matebook\\Desktop\\pilang\\bin\\pilang-gc-64k.exe",
+  "profile": "C:\\Users\\matebook\\Desktop\\pilang\\bin\\pilang-gc-profile-64k.exe",
+  "runs": 3,
+  "workloads": {
+    "benchmark/gc/temporary.pi": {
+      "summary": {
+        "baseline_ms": 378.0,
+        "profile_ms": 384.0,
+        "profile_overhead_pct": 1.5873015873015872,
+        "collections_per_run": 18.0,
+        "mark_ms_per_run": 0.0989,
+        "sweep_ms_per_run": 87.3139,
+        "gc_pct": 22.783527367506515,
+        "first_collection_survival_pct": 0.002736050666607175,
+        "old_marked_pct": 65.76576576576576,
+        "old_value_slots_pct": 16.07232546459066,
+        "examined_by_age": [
+          2375687,
+          62,
+          128
+        ],
+        "retained_by_age": [
+          65,
+          8,
+          128
+        ],
+        "max_gc_ms": 6.355700000000001
+      },
+      "baseline": [
+        {
+          "returncode": 0,
+          "execution_ms": 373.0,
+          "events": [],
+          "stdout": "Execution Time: 373.0000 ms\n",
+          "stderr": ""
+        },
+        {
+          "returncode": 0,
+          "execution_ms": 378.0,
+          "events": [],
+          "stdout": "Execution Time: 378.0000 ms\n",
+          "stderr": ""
+        },
+        {
+          "returncode": 0,
+          "execution_ms": 394.0,
+          "events": [],
+          "stdout": "Execution Time: 394.0000 ms\n",
+          "stderr": ""
+        }
+      ],
+      "profile": [
+        {
+          "returncode": 0,
+          "execution_ms": 384.0,
+          "events": [
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0049,
+              "sweep_ms": 6.3484,
+              "marked": 4,
+              "old_marked": 0,
+              "value_slots": 106,
+              "old_value_slots": 0,
+              "examined": [
+                43693,
+                0,
+                0
+              ],
+              "retained": [
+                3,
+                0,
+                0
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0123,
+              "sweep_ms": 4.0624,
+              "marked": 4,
+              "old_marked": 0,
+              "value_slots": 109,
+              "old_value_slots": 0,
+              "examined": [
+                43691,
+                3,
+                0
+              ],
+              "retained": [
+                1,
+                3,
+                0
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0052,
+              "sweep_ms": 3.8063,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 113,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                3
+              ],
+              "retained": [
+                2,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0046,
+              "sweep_ms": 4.9783,
+              "marked": 3,
+              "old_marked": 3,
+              "value_slots": 107,
+              "old_value_slots": 20,
+              "examined": [
+                44600,
+                2,
+                3
+              ],
+              "retained": [
+                0,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0044,
+              "sweep_ms": 4.7996,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 111,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                0,
+                3
+              ],
+              "retained": [
+                1,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0045,
+              "sweep_ms": 4.6384,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 115,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                3
+              ],
+              "retained": [
+                2,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0051,
+              "sweep_ms": 5.0495,
+              "marked": 3,
+              "old_marked": 3,
+              "value_slots": 109,
+              "old_value_slots": 20,
+              "examined": [
+                44600,
+                2,
+                3
+              ],
+              "retained": [
+                0,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0037,
+              "sweep_ms": 4.525,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 111,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                0,
+                3
+              ],
+              "retained": [
+                1,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0046,
+              "sweep_ms": 4.9017,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 113,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                3
+              ],
+              "retained": [
+                2,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0046,
+              "sweep_ms": 4.8474,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 109,
+              "old_value_slots": 20,
+              "examined": [
+                44601,
+                2,
+                3
+              ],
+              "retained": [
+                1,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0048,
+              "sweep_ms": 4.541,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 113,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                3
+              ],
+              "retained": [
+                2,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0052,
+              "sweep_ms": 4.8392,
+              "marked": 3,
+              "old_marked": 3,
+              "value_slots": 107,
+              "old_value_slots": 20,
+              "examined": [
+                44600,
+                2,
+                3
+              ],
+              "retained": [
+                0,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0066,
+              "sweep_ms": 5.0223,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 111,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                0,
+                3
+              ],
+              "retained": [
+                1,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0051,
+              "sweep_ms": 4.9659,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 115,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                3
+              ],
+              "retained": [
+                2,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0044,
+              "sweep_ms": 4.5006,
+              "marked": 3,
+              "old_marked": 3,
+              "value_slots": 109,
+              "old_value_slots": 20,
+              "examined": [
+                44600,
+                2,
+                3
+              ],
+              "retained": [
+                0,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0045,
+              "sweep_ms": 4.9351,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 111,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                0,
+                3
+              ],
+              "retained": [
+                1,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0045,
+              "sweep_ms": 4.735,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 113,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                3
+              ],
+              "retained": [
+                2,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000002CFBC284410",
+              "mark_ms": 0.0047,
+              "sweep_ms": 4.8748,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 109,
+              "old_value_slots": 20,
+              "examined": [
+                44601,
+                2,
+                3
+              ],
+              "retained": [
+                1,
+                0,
+                3
+              ]
+            }
+          ],
+          "stdout": "Execution Time: 384.0000 ms\n",
+          "stderr": ""
+        },
+        {
+          "returncode": 0,
+          "execution_ms": 383.0,
+          "events": [
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0047,
+              "sweep_ms": 5.9663,
+              "marked": 4,
+              "old_marked": 0,
+              "value_slots": 106,
+              "old_value_slots": 0,
+              "examined": [
+                43693,
+                0,
+                0
+              ],
+              "retained": [
+                3,
+                0,
+                0
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0139,
+              "sweep_ms": 5.4954,
+              "marked": 4,
+              "old_marked": 0,
+              "value_slots": 109,
+              "old_value_slots": 0,
+              "examined": [
+                43691,
+                3,
+                0
+              ],
+              "retained": [
+                1,
+                3,
+                0
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0135,
+              "sweep_ms": 4.9378,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 113,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                3
+              ],
+              "retained": [
+                2,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0048,
+              "sweep_ms": 4.6274,
+              "marked": 3,
+              "old_marked": 3,
+              "value_slots": 107,
+              "old_value_slots": 20,
+              "examined": [
+                44600,
+                2,
+                3
+              ],
+              "retained": [
+                0,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0047,
+              "sweep_ms": 5.2405,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 111,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                0,
+                3
+              ],
+              "retained": [
+                1,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0053,
+              "sweep_ms": 4.0241,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 115,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                3
+              ],
+              "retained": [
+                2,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0047,
+              "sweep_ms": 4.0003,
+              "marked": 3,
+              "old_marked": 3,
+              "value_slots": 109,
+              "old_value_slots": 20,
+              "examined": [
+                44600,
+                2,
+                3
+              ],
+              "retained": [
+                0,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0071,
+              "sweep_ms": 4.1486,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 111,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                0,
+                3
+              ],
+              "retained": [
+                1,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0043,
+              "sweep_ms": 4.3881,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 113,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                3
+              ],
+              "retained": [
+                2,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0069,
+              "sweep_ms": 5.1276,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 109,
+              "old_value_slots": 20,
+              "examined": [
+                44601,
+                2,
+                3
+              ],
+              "retained": [
+                1,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0051,
+              "sweep_ms": 4.9338,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 113,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                3
+              ],
+              "retained": [
+                2,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0049,
+              "sweep_ms": 4.6739,
+              "marked": 3,
+              "old_marked": 3,
+              "value_slots": 107,
+              "old_value_slots": 20,
+              "examined": [
+                44600,
+                2,
+                3
+              ],
+              "retained": [
+                0,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0049,
+              "sweep_ms": 5.0804,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 111,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                0,
+                3
+              ],
+              "retained": [
+                1,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0053,
+              "sweep_ms": 5.4377,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 115,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                3
+              ],
+              "retained": [
+                2,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0048,
+              "sweep_ms": 4.6526,
+              "marked": 3,
+              "old_marked": 3,
+              "value_slots": 109,
+              "old_value_slots": 20,
+              "examined": [
+                44600,
+                2,
+                3
+              ],
+              "retained": [
+                0,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.005,
+              "sweep_ms": 4.552,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 111,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                0,
+                3
+              ],
+              "retained": [
+                1,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0046,
+              "sweep_ms": 4.4494,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 113,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                3
+              ],
+              "retained": [
+                2,
+                0,
+                3
+              ]
+            },
+            {
+              "vm": "000001BE4A863FD0",
+              "mark_ms": 0.0045,
+              "sweep_ms": 5.3382,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 109,
+              "old_value_slots": 20,
+              "examined": [
+                44601,
+                2,
+                3
+              ],
+              "retained": [
+                1,
+                0,
+                3
+              ]
+            }
+          ],
+          "stdout": "Execution Time: 383.0000 ms\n",
+          "stderr": ""
+        },
+        {
+          "returncode": 0,
+          "execution_ms": 384.0,
+          "events": [
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0045,
+              "sweep_ms": 6.3512,
+              "marked": 4,
+              "old_marked": 1,
+              "value_slots": 106,
+              "old_value_slots": 0,
+              "examined": [
+                43692,
+                0,
+                0
+              ],
+              "retained": [
+                2,
+                0,
+                0
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0115,
+              "sweep_ms": 4.8546,
+              "marked": 4,
+              "old_marked": 1,
+              "value_slots": 109,
+              "old_value_slots": 0,
+              "examined": [
+                43691,
+                2,
+                0
+              ],
+              "retained": [
+                1,
+                2,
+                0
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0042,
+              "sweep_ms": 4.5173,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 113,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                2
+              ],
+              "retained": [
+                2,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0048,
+              "sweep_ms": 5.6331,
+              "marked": 3,
+              "old_marked": 3,
+              "value_slots": 107,
+              "old_value_slots": 20,
+              "examined": [
+                44600,
+                2,
+                2
+              ],
+              "retained": [
+                0,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0047,
+              "sweep_ms": 4.6201,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 111,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                0,
+                2
+              ],
+              "retained": [
+                1,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0045,
+              "sweep_ms": 4.1875,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 115,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                2
+              ],
+              "retained": [
+                2,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0052,
+              "sweep_ms": 5.3625,
+              "marked": 3,
+              "old_marked": 3,
+              "value_slots": 109,
+              "old_value_slots": 20,
+              "examined": [
+                44600,
+                2,
+                2
+              ],
+              "retained": [
+                0,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0071,
+              "sweep_ms": 4.9102,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 111,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                0,
+                2
+              ],
+              "retained": [
+                1,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0049,
+              "sweep_ms": 4.6356,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 113,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                2
+              ],
+              "retained": [
+                2,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.005,
+              "sweep_ms": 4.8671,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 109,
+              "old_value_slots": 20,
+              "examined": [
+                44601,
+                2,
+                2
+              ],
+              "retained": [
+                1,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0049,
+              "sweep_ms": 4.7115,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 113,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                2
+              ],
+              "retained": [
+                2,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0049,
+              "sweep_ms": 5.0784,
+              "marked": 3,
+              "old_marked": 3,
+              "value_slots": 107,
+              "old_value_slots": 20,
+              "examined": [
+                44600,
+                2,
+                2
+              ],
+              "retained": [
+                0,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0052,
+              "sweep_ms": 5.3535,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 111,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                0,
+                2
+              ],
+              "retained": [
+                1,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0048,
+              "sweep_ms": 4.2951,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 115,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                2
+              ],
+              "retained": [
+                2,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0048,
+              "sweep_ms": 5.0351,
+              "marked": 3,
+              "old_marked": 3,
+              "value_slots": 109,
+              "old_value_slots": 20,
+              "examined": [
+                44600,
+                2,
+                2
+              ],
+              "retained": [
+                0,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0041,
+              "sweep_ms": 4.8249,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 111,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                0,
+                2
+              ],
+              "retained": [
+                1,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0042,
+              "sweep_ms": 4.5388,
+              "marked": 5,
+              "old_marked": 3,
+              "value_slots": 113,
+              "old_value_slots": 20,
+              "examined": [
+                43691,
+                1,
+                2
+              ],
+              "retained": [
+                2,
+                0,
+                2
+              ]
+            },
+            {
+              "vm": "000001C76A9657D0",
+              "mark_ms": 0.0047,
+              "sweep_ms": 4.7202,
+              "marked": 4,
+              "old_marked": 3,
+              "value_slots": 109,
+              "old_value_slots": 20,
+              "examined": [
+                44601,
+                2,
+                2
+              ],
+              "retained": [
+                1,
+                0,
+                2
+              ]
+            }
+          ],
+          "stdout": "Execution Time: 384.0000 ms\n",
+          "stderr": ""
+        }
+      ]
+    },
+    "benchmark/gc/persistent.pi": {
+      "summary": {
+        "baseline_ms": 472.0,
+        "profile_ms": 484.0,
+        "profile_overhead_pct": 2.542372881355932,
+        "collections_per_run": 14.0,
+        "mark_ms_per_run": 44.422333333333334,
+        "sweep_ms_per_run": 110.13383333333331,
+        "gc_pct": 32.132259182259176,
+        "first_collection_survival_pct": 7.318482894518637,
+        "old_marked_pct": 85.42977219148248,
+        "old_value_slots_pct": 85.99603131302109,
+        "examined_by_age": [
+          2460264,
+          180048,
+          2111214
+        ],
+        "retained_by_age": [
+          180054,
+          180012,
+          2111214
+        ],
+        "max_gc_ms": 16.2151
+      },
+      "baseline": [
+        {
+          "returncode": 0,
+          "execution_ms": 477.0,
+          "events": [],
+          "stdout": "Execution Time: 477.0000 ms\n",
+          "stderr": ""
+        },
+        {
+          "returncode": 0,
+          "execution_ms": 462.0,
+          "events": [],
+          "stdout": "Execution Time: 462.0000 ms\n",
+          "stderr": ""
+        },
+        {
+          "returncode": 0,
+          "execution_ms": 472.0,
+          "events": [],
+          "stdout": "Execution Time: 472.0000 ms\n",
+          "stderr": ""
+        }
+      ],
+      "profile": [
+        {
+          "returncode": 0,
+          "execution_ms": 487.0,
+          "events": [
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 2.0956,
+              "sweep_ms": 0.5006,
+              "marked": 43695,
+              "old_marked": 0,
+              "value_slots": 65649,
+              "old_value_slots": 0,
+              "examined": [
+                43694,
+                0,
+                0
+              ],
+              "retained": [
+                43694,
+                0,
+                0
+              ]
+            },
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 3.4705,
+              "sweep_ms": 8.1327,
+              "marked": 60007,
+              "old_marked": 0,
+              "value_slots": 90120,
+              "old_value_slots": 0,
+              "examined": [
+                55498,
+                43694,
+                0
+              ],
+              "retained": [
+                16312,
+                43694,
+                0
+              ]
+            },
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 6.0781,
+              "sweep_ms": 10.137,
+              "marked": 60004,
+              "old_marked": 43694,
+              "value_slots": 90116,
+              "old_value_slots": 73710,
+              "examined": [
+                60074,
+                16312,
+                43694
+              ],
+              "retained": [
+                0,
+                16310,
+                43694
+              ]
+            },
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 3.1751,
+              "sweep_ms": 8.1825,
+              "marked": 60005,
+              "old_marked": 60004,
+              "value_slots": 90118,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                0,
+                60004
+              ],
+              "retained": [
+                1,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 3.2799,
+              "sweep_ms": 8.8141,
+              "marked": 60006,
+              "old_marked": 60004,
+              "value_slots": 90120,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                1,
+                60004
+              ],
+              "retained": [
+                2,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 3.6627,
+              "sweep_ms": 8.4004,
+              "marked": 60004,
+              "old_marked": 60004,
+              "value_slots": 90116,
+              "old_value_slots": 90020,
+              "examined": [
+                60074,
+                2,
+                60004
+              ],
+              "retained": [
+                0,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 3.6232,
+              "sweep_ms": 8.797,
+              "marked": 60005,
+              "old_marked": 60004,
+              "value_slots": 90118,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                0,
+                60004
+              ],
+              "retained": [
+                1,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 3.2534,
+              "sweep_ms": 9.1083,
+              "marked": 60006,
+              "old_marked": 60004,
+              "value_slots": 90120,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                1,
+                60004
+              ],
+              "retained": [
+                2,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 3.4868,
+              "sweep_ms": 10.365,
+              "marked": 60004,
+              "old_marked": 60004,
+              "value_slots": 90116,
+              "old_value_slots": 90020,
+              "examined": [
+                60074,
+                2,
+                60004
+              ],
+              "retained": [
+                0,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 3.4625,
+              "sweep_ms": 8.5054,
+              "marked": 60005,
+              "old_marked": 60004,
+              "value_slots": 90118,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                0,
+                60004
+              ],
+              "retained": [
+                1,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 3.2628,
+              "sweep_ms": 8.5833,
+              "marked": 60006,
+              "old_marked": 60004,
+              "value_slots": 90120,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                1,
+                60004
+              ],
+              "retained": [
+                2,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 3.2289,
+              "sweep_ms": 8.2054,
+              "marked": 60004,
+              "old_marked": 60004,
+              "value_slots": 90116,
+              "old_value_slots": 90020,
+              "examined": [
+                60074,
+                2,
+                60004
+              ],
+              "retained": [
+                0,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 3.1829,
+              "sweep_ms": 8.2957,
+              "marked": 60005,
+              "old_marked": 60004,
+              "value_slots": 90118,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                0,
+                60004
+              ],
+              "retained": [
+                1,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "00000275EFC97360",
+              "mark_ms": 3.1906,
+              "sweep_ms": 8.2722,
+              "marked": 60006,
+              "old_marked": 60004,
+              "value_slots": 90120,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                1,
+                60004
+              ],
+              "retained": [
+                2,
+                0,
+                60004
+              ]
+            }
+          ],
+          "stdout": "Execution Time: 487.0000 ms\n",
+          "stderr": ""
+        },
+        {
+          "returncode": 0,
+          "execution_ms": 484.0,
+          "events": [
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 1.1598,
+              "sweep_ms": 0.5033,
+              "marked": 43695,
+              "old_marked": 0,
+              "value_slots": 65649,
+              "old_value_slots": 0,
+              "examined": [
+                43694,
+                0,
+                0
+              ],
+              "retained": [
+                43694,
+                0,
+                0
+              ]
+            },
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 1.7594,
+              "sweep_ms": 7.9061,
+              "marked": 60007,
+              "old_marked": 0,
+              "value_slots": 90120,
+              "old_value_slots": 0,
+              "examined": [
+                55498,
+                43694,
+                0
+              ],
+              "retained": [
+                16312,
+                43694,
+                0
+              ]
+            },
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 6.0303,
+              "sweep_ms": 8.944,
+              "marked": 60004,
+              "old_marked": 43694,
+              "value_slots": 90116,
+              "old_value_slots": 73710,
+              "examined": [
+                60074,
+                16312,
+                43694
+              ],
+              "retained": [
+                0,
+                16310,
+                43694
+              ]
+            },
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 1.9466,
+              "sweep_ms": 8.9998,
+              "marked": 60005,
+              "old_marked": 60004,
+              "value_slots": 90118,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                0,
+                60004
+              ],
+              "retained": [
+                1,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 3.7203,
+              "sweep_ms": 8.7754,
+              "marked": 60006,
+              "old_marked": 60004,
+              "value_slots": 90120,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                1,
+                60004
+              ],
+              "retained": [
+                2,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 3.3437,
+              "sweep_ms": 8.5514,
+              "marked": 60004,
+              "old_marked": 60004,
+              "value_slots": 90116,
+              "old_value_slots": 90020,
+              "examined": [
+                60074,
+                2,
+                60004
+              ],
+              "retained": [
+                0,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 3.1918,
+              "sweep_ms": 7.6465,
+              "marked": 60005,
+              "old_marked": 60004,
+              "value_slots": 90118,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                0,
+                60004
+              ],
+              "retained": [
+                1,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 3.233,
+              "sweep_ms": 7.9064,
+              "marked": 60006,
+              "old_marked": 60004,
+              "value_slots": 90120,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                1,
+                60004
+              ],
+              "retained": [
+                2,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 3.4074,
+              "sweep_ms": 8.3915,
+              "marked": 60004,
+              "old_marked": 60004,
+              "value_slots": 90116,
+              "old_value_slots": 90020,
+              "examined": [
+                60074,
+                2,
+                60004
+              ],
+              "retained": [
+                0,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 3.2388,
+              "sweep_ms": 8.5409,
+              "marked": 60005,
+              "old_marked": 60004,
+              "value_slots": 90118,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                0,
+                60004
+              ],
+              "retained": [
+                1,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 3.2372,
+              "sweep_ms": 7.8924,
+              "marked": 60006,
+              "old_marked": 60004,
+              "value_slots": 90120,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                1,
+                60004
+              ],
+              "retained": [
+                2,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 3.2754,
+              "sweep_ms": 8.2019,
+              "marked": 60004,
+              "old_marked": 60004,
+              "value_slots": 90116,
+              "old_value_slots": 90020,
+              "examined": [
+                60074,
+                2,
+                60004
+              ],
+              "retained": [
+                0,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 3.2128,
+              "sweep_ms": 8.0061,
+              "marked": 60005,
+              "old_marked": 60004,
+              "value_slots": 90118,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                0,
+                60004
+              ],
+              "retained": [
+                1,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002AA3A908660",
+              "mark_ms": 1.809,
+              "sweep_ms": 6.7912,
+              "marked": 60006,
+              "old_marked": 60004,
+              "value_slots": 90120,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                1,
+                60004
+              ],
+              "retained": [
+                2,
+                0,
+                60004
+              ]
+            }
+          ],
+          "stdout": "Execution Time: 484.0000 ms\n",
+          "stderr": ""
+        },
+        {
+          "returncode": 0,
+          "execution_ms": 472.0,
+          "events": [
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 2.171,
+              "sweep_ms": 0.574,
+              "marked": 43695,
+              "old_marked": 0,
+              "value_slots": 65649,
+              "old_value_slots": 0,
+              "examined": [
+                43694,
+                0,
+                0
+              ],
+              "retained": [
+                43694,
+                0,
+                0
+              ]
+            },
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 3.2026,
+              "sweep_ms": 9.0503,
+              "marked": 60007,
+              "old_marked": 0,
+              "value_slots": 90120,
+              "old_value_slots": 0,
+              "examined": [
+                55498,
+                43694,
+                0
+              ],
+              "retained": [
+                16312,
+                43694,
+                0
+              ]
+            },
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 4.2027,
+              "sweep_ms": 7.8356,
+              "marked": 60004,
+              "old_marked": 43694,
+              "value_slots": 90116,
+              "old_value_slots": 73710,
+              "examined": [
+                60074,
+                16312,
+                43694
+              ],
+              "retained": [
+                0,
+                16310,
+                43694
+              ]
+            },
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 3.193,
+              "sweep_ms": 8.7243,
+              "marked": 60005,
+              "old_marked": 60004,
+              "value_slots": 90118,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                0,
+                60004
+              ],
+              "retained": [
+                1,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 3.1643,
+              "sweep_ms": 8.3117,
+              "marked": 60006,
+              "old_marked": 60004,
+              "value_slots": 90120,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                1,
+                60004
+              ],
+              "retained": [
+                2,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 3.2445,
+              "sweep_ms": 8.5912,
+              "marked": 60004,
+              "old_marked": 60004,
+              "value_slots": 90116,
+              "old_value_slots": 90020,
+              "examined": [
+                60074,
+                2,
+                60004
+              ],
+              "retained": [
+                0,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 3.2225,
+              "sweep_ms": 8.4555,
+              "marked": 60005,
+              "old_marked": 60004,
+              "value_slots": 90118,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                0,
+                60004
+              ],
+              "retained": [
+                1,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 1.7958,
+              "sweep_ms": 6.8705,
+              "marked": 60006,
+              "old_marked": 60004,
+              "value_slots": 90120,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                1,
+                60004
+              ],
+              "retained": [
+                2,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 1.7687,
+              "sweep_ms": 6.6697,
+              "marked": 60004,
+              "old_marked": 60004,
+              "value_slots": 90116,
+              "old_value_slots": 90020,
+              "examined": [
+                60074,
+                2,
+                60004
+              ],
+              "retained": [
+                0,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 3.1896,
+              "sweep_ms": 8.1993,
+              "marked": 60005,
+              "old_marked": 60004,
+              "value_slots": 90118,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                0,
+                60004
+              ],
+              "retained": [
+                1,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 3.1755,
+              "sweep_ms": 7.8935,
+              "marked": 60006,
+              "old_marked": 60004,
+              "value_slots": 90120,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                1,
+                60004
+              ],
+              "retained": [
+                2,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 3.404,
+              "sweep_ms": 10.1545,
+              "marked": 60004,
+              "old_marked": 60004,
+              "value_slots": 90116,
+              "old_value_slots": 90020,
+              "examined": [
+                60074,
+                2,
+                60004
+              ],
+              "retained": [
+                0,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 3.1659,
+              "sweep_ms": 8.6076,
+              "marked": 60005,
+              "old_marked": 60004,
+              "value_slots": 90118,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                0,
+                60004
+              ],
+              "retained": [
+                1,
+                0,
+                60004
+              ]
+            },
+            {
+              "vm": "000002198414BDC0",
+              "mark_ms": 3.3484,
+              "sweep_ms": 9.1073,
+              "marked": 60006,
+              "old_marked": 60004,
+              "value_slots": 90120,
+              "old_value_slots": 90020,
+              "examined": [
+                60075,
+                1,
+                60004
+              ],
+              "retained": [
+                2,
+                0,
+                60004
+              ]
+            }
+          ],
+          "stdout": "Execution Time: 472.0000 ms\n",
+          "stderr": ""
+        }
+      ]
+    }
+  }
+}

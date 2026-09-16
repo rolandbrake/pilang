@@ -902,6 +902,20 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
         if (IS_OBJ(result))
             add_obj(vm, AS_OBJ(result));
     }
+    else if (IS_INSTANCE(callee))
+    {
+        Value method;
+        if (!instance_getMember(AS_INSTANCE(callee), "call", &method) ||
+            !IS_FUN(method))
+        {
+            free(args);
+            vm_error(vm, "Attempt to call a non-function object.");
+        }
+        Value bound = bind(vm, AS_FUN(method), AS_OBJ(callee));
+        result = call_func(vm, AS_FUN(bound), num_args, args, kw_args);
+        if (IS_OBJ(result))
+            add_obj(vm, AS_OBJ(result));
+    }
     else if (IS_MAP(callee))
     {
         free(args);
@@ -2834,6 +2848,20 @@ OP_CALL_FUNCTION:
         Value result = call_func(vm, AS_FUN(callee), num_args, args, NEW_NIL());
         PUSH(result);
     }
+    else if (IS_INSTANCE(callee))
+    {
+        Value method;
+        if (!instance_getMember(AS_INSTANCE(callee), "call", &method) ||
+            !IS_FUN(method))
+        {
+            if (num_args > 8)
+                free(args);
+            vm_error(vm, "Attempt to call a non-function object.");
+        }
+        Value bound = bind(vm, AS_FUN(method), AS_OBJ(callee));
+        Value result = call_func(vm, AS_FUN(bound), num_args, args, NEW_NIL());
+        PUSH(result);
+    }
     else if (IS_CLASS(callee))
     {
         Value result = NEW_OBJ(construct(vm, AS_CLASS(callee), num_args, args, NEW_NIL()));
@@ -2885,6 +2913,21 @@ OP_CALL_FUNCTION_KW:
         result = call_func(vm, AS_FUN(callee), num_args, args, kw_args);
         if (IS_OBJ(result))
             add_obj(vm, AS_OBJ(result));
+    }
+    else if (IS_INSTANCE(callee))
+    {
+        Value method;
+        if (!instance_getMember(AS_INSTANCE(callee), "call", &method) ||
+            !IS_FUN(method))
+        {
+            if (num_args > 8)
+                free(args);
+            vm_error(vm, "Attempt to call a non-function object.");
+        }
+        vm->error_pc = vm->pc;
+        vm->pc = pc;
+        Value bound = bind(vm, AS_FUN(method), AS_OBJ(callee));
+        result = call_func(vm, AS_FUN(bound), num_args, args, kw_args);
     }
     else if (IS_CLASS(callee))
     {

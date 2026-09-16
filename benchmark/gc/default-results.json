@@ -1,0 +1,303 @@
+{
+  "platform": "Windows-10-10.0.26200-SP0",
+  "baseline": "C:\\Users\\matebook\\Desktop\\pilang\\bin\\pilang.exe",
+  "profile": "C:\\Users\\matebook\\Desktop\\pilang\\bin\\pilang-gc-profile.exe",
+  "runs": 3,
+  "workloads": {
+    "benchmark/gc/temporary.pi": {
+      "summary": {
+        "baseline_ms": 299.0,
+        "profile_ms": 293.0,
+        "profile_overhead_pct": -2.0066889632107023,
+        "collections_per_run": 0.0,
+        "mark_ms_per_run": 0.0,
+        "sweep_ms_per_run": 0.0,
+        "gc_pct": 0.0,
+        "first_collection_survival_pct": 0,
+        "old_marked_pct": 0,
+        "old_value_slots_pct": 0,
+        "examined_by_age": [
+          0,
+          0,
+          0
+        ],
+        "retained_by_age": [
+          0,
+          0,
+          0
+        ],
+        "max_gc_ms": 0
+      },
+      "baseline": [
+        {
+          "execution_ms": 302.0,
+          "events": [],
+          "stdout": "Execution Time: 302.0000 ms\n"
+        },
+        {
+          "execution_ms": 299.0,
+          "events": [],
+          "stdout": "Execution Time: 299.0000 ms\n"
+        },
+        {
+          "execution_ms": 294.0,
+          "events": [],
+          "stdout": "Execution Time: 294.0000 ms\n"
+        }
+      ],
+      "profile": [
+        {
+          "execution_ms": 294.0,
+          "events": [],
+          "stdout": "Execution Time: 294.0000 ms\n"
+        },
+        {
+          "execution_ms": 292.0,
+          "events": [],
+          "stdout": "Execution Time: 292.0000 ms\n"
+        },
+        {
+          "execution_ms": 293.0,
+          "events": [],
+          "stdout": "Execution Time: 293.0000 ms\n"
+        }
+      ]
+    },
+    "benchmark/gc/persistent.pi": {
+      "summary": {
+        "baseline_ms": 332.0,
+        "profile_ms": 321.0,
+        "profile_overhead_pct": -3.3132530120481927,
+        "collections_per_run": 0.0,
+        "mark_ms_per_run": 0.0,
+        "sweep_ms_per_run": 0.0,
+        "gc_pct": 0.0,
+        "first_collection_survival_pct": 0,
+        "old_marked_pct": 0,
+        "old_value_slots_pct": 0,
+        "examined_by_age": [
+          0,
+          0,
+          0
+        ],
+        "retained_by_age": [
+          0,
+          0,
+          0
+        ],
+        "max_gc_ms": 0
+      },
+      "baseline": [
+        {
+          "execution_ms": 334.0,
+          "events": [],
+          "stdout": "Execution Time: 334.0000 ms\n"
+        },
+        {
+          "execution_ms": 332.0,
+          "events": [],
+          "stdout": "Execution Time: 332.0000 ms\n"
+        },
+        {
+          "execution_ms": 320.0,
+          "events": [],
+          "stdout": "Execution Time: 320.0000 ms\n"
+        }
+      ],
+      "profile": [
+        {
+          "execution_ms": 335.0,
+          "events": [],
+          "stdout": "Execution Time: 335.0000 ms\n"
+        },
+        {
+          "execution_ms": 319.0,
+          "events": [],
+          "stdout": "Execution Time: 319.0000 ms\n"
+        },
+        {
+          "execution_ms": 321.0,
+          "events": [],
+          "stdout": "Execution Time: 321.0000 ms\n"
+        }
+      ]
+    },
+    "benchmark/binary_tree.pi": {
+      "summary": {
+        "baseline_ms": 180.0,
+        "profile_ms": 181.0,
+        "profile_overhead_pct": 0.5555555555555556,
+        "collections_per_run": 0.0,
+        "mark_ms_per_run": 0.0,
+        "sweep_ms_per_run": 0.0,
+        "gc_pct": 0.0,
+        "first_collection_survival_pct": 0,
+        "old_marked_pct": 0,
+        "old_value_slots_pct": 0,
+        "examined_by_age": [
+          0,
+          0,
+          0
+        ],
+        "retained_by_age": [
+          0,
+          0,
+          0
+        ],
+        "max_gc_ms": 0
+      },
+      "baseline": [
+        {
+          "execution_ms": 180.0,
+          "events": [],
+          "stdout": "179.965087890625\nExecution Time: 180.0000 ms\n"
+        },
+        {
+          "execution_ms": 178.0,
+          "events": [],
+          "stdout": "177.37890625\nExecution Time: 178.0000 ms\n"
+        },
+        {
+          "execution_ms": 190.0,
+          "events": [],
+          "stdout": "189.906982421875\nExecution Time: 190.0000 ms\n"
+        }
+      ],
+      "profile": [
+        {
+          "execution_ms": 171.0,
+          "events": [],
+          "stdout": "169.73095703125\nExecution Time: 171.0000 ms\n"
+        },
+        {
+          "execution_ms": 182.0,
+          "events": [],
+          "stdout": "181.6708984375\nExecution Time: 182.0000 ms\n"
+        },
+        {
+          "execution_ms": 181.0,
+          "events": [],
+          "stdout": "180.962890625\nExecution Time: 181.0000 ms\n"
+        }
+      ]
+    },
+    "benchmark/gc/micrograd.pi": {
+      "summary": {
+        "baseline_ms": 203.0,
+        "profile_ms": 200.0,
+        "profile_overhead_pct": -1.477832512315271,
+        "collections_per_run": 0.0,
+        "mark_ms_per_run": 0.0,
+        "sweep_ms_per_run": 0.0,
+        "gc_pct": 0.0,
+        "first_collection_survival_pct": 0,
+        "old_marked_pct": 0,
+        "old_value_slots_pct": 0,
+        "examined_by_age": [
+          0,
+          0,
+          0
+        ],
+        "retained_by_age": [
+          0,
+          0,
+          0
+        ],
+        "max_gc_ms": 0
+      },
+      "baseline": [
+        {
+          "execution_ms": 203.0,
+          "events": [],
+          "stdout": "final loss: 6.61420883521882e-23\nExecution Time: 203.0000 ms\n"
+        },
+        {
+          "execution_ms": 201.0,
+          "events": [],
+          "stdout": "final loss: 6.61420883521882e-23\nExecution Time: 201.0000 ms\n"
+        },
+        {
+          "execution_ms": 210.0,
+          "events": [],
+          "stdout": "final loss: 6.61420883521882e-23\nExecution Time: 210.0000 ms\n"
+        }
+      ],
+      "profile": [
+        {
+          "execution_ms": 203.0,
+          "events": [],
+          "stdout": "final loss: 6.61420883521882e-23\nExecution Time: 203.0000 ms\n"
+        },
+        {
+          "execution_ms": 198.0,
+          "events": [],
+          "stdout": "final loss: 6.61420883521882e-23\nExecution Time: 198.0000 ms\n"
+        },
+        {
+          "execution_ms": 200.0,
+          "events": [],
+          "stdout": "final loss: 6.61420883521882e-23\nExecution Time: 200.0000 ms\n"
+        }
+      ]
+    },
+    "ML/linear_regression.pi": {
+      "summary": {
+        "baseline_ms": 54.0,
+        "profile_ms": 49.0,
+        "profile_overhead_pct": -9.25925925925926,
+        "collections_per_run": 0.0,
+        "mark_ms_per_run": 0.0,
+        "sweep_ms_per_run": 0.0,
+        "gc_pct": 0.0,
+        "first_collection_survival_pct": 0,
+        "old_marked_pct": 0,
+        "old_value_slots_pct": 0,
+        "examined_by_age": [
+          0,
+          0,
+          0
+        ],
+        "retained_by_age": [
+          0,
+          0,
+          0
+        ],
+        "max_gc_ms": 0
+      },
+      "baseline": [
+        {
+          "execution_ms": 54.0,
+          "events": [],
+          "stdout": "(w,b) found by gradient descent: 199.920641888791 100.987995377297\ninitial w,b: 0 0\nfinal w, b: 199.920641888791, 100.987995377297\ncost at end: 100.283915669402\nExecution Time: 54.0000 ms\n"
+        },
+        {
+          "execution_ms": 54.0,
+          "events": [],
+          "stdout": "(w,b) found by gradient descent: 199.993830732383 104.213985889304\ninitial w,b: 0 0\nfinal w, b: 199.993830732383, 104.213985889304\ncost at end: 88.8937238585309\nExecution Time: 54.0000 ms\n"
+        },
+        {
+          "execution_ms": 52.0,
+          "events": [],
+          "stdout": "(w,b) found by gradient descent: 199.993830732383 104.213985889304\ninitial w,b: 0 0\nfinal w, b: 199.993830732383, 104.213985889304\ncost at end: 88.8937238585309\nExecution Time: 52.0000 ms\n"
+        }
+      ],
+      "profile": [
+        {
+          "execution_ms": 54.0,
+          "events": [],
+          "stdout": "(w,b) found by gradient descent: 199.993830732383 104.213985889304\ninitial w,b: 0 0\nfinal w, b: 199.993830732383, 104.213985889304\ncost at end: 88.8937238585309\nExecution Time: 54.0000 ms\n"
+        },
+        {
+          "execution_ms": 49.0,
+          "events": [],
+          "stdout": "(w,b) found by gradient descent: 199.993830732383 104.213985889304\ninitial w,b: 0 0\nfinal w, b: 199.993830732383, 104.213985889304\ncost at end: 88.8937238585309\nExecution Time: 49.0000 ms\n"
+        },
+        {
+          "execution_ms": 46.0,
+          "events": [],
+          "stdout": "(w,b) found by gradient descent: 199.993830732383 104.213985889304\ninitial w,b: 0 0\nfinal w, b: 199.993830732383, 104.213985889304\ncost at end: 88.8937238585309\nExecution Time: 46.0000 ms\n"
+        }
+      ]
+    }
+  }
+}

@@ -13,7 +13,7 @@ const xs = [
 const ys = [1.0, -1.0, -1.0, 1.0]
 
 const model = MLP(3, [4, 400, 1])
-
+Z
 let loss_steps = []
 let loss_values = []
 
