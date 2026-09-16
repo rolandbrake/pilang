@@ -1,0 +1,190 @@
+
+import fs
+import string
+import col
+import time
+import math.{sum}
+
+fun read_text(path) {
+    let file = fs.open(path, "r")
+    let text = fs.read(file)
+    fs.close(file)
+    return text
+}
+
+fun words(text) {
+    // PiLang's character classification covers ASCII letters and digits.
+    text = lower(text)
+    let result = []
+    let start = 0
+    for i in 0..len(text) {
+        if !(string.is_alnum(text[i]) || text[i] == "_") {
+            if i > start col.append(result, text[start:i])
+            start = i + 1
+        }
+    }
+    if start < len(text) col.append(result, text[start:])
+    return result
+}
+
+fun Counter(items, counts = nil) {
+    if counts == nil counts = {}
+    for item in items
+        counts[item] = (item in counts ? counts[item] : 0) + 1
+    return counts
+}
+
+fun load_words(path) {
+    let counts = {}
+    // Count one line at a time to avoid retaining a million word strings.
+    for line in string.split(read_text(path), "\n")
+        Counter(words(line), counts)
+    return counts
+}
+
+let WORDS = load_words("big.txt")
+let N = sum(values(WORDS))
+
+fun count(word) {
+    return word in WORDS ? WORDS[word] : 0
+}
+
+fun P(word) {
+    return count(word) / N
+}
+
+fun correction(word) {
+    let best = word
+    let probability = -1
+    for candidate in candidates(word) {
+        let p = P(candidate)
+        if p > probability {
+            best = candidate
+            probability = p
+        }
+    }
+    return best
+}
+
+fun candidates(word) {
+    let result = known([word])
+    if len(result) > 0 return result
+    result = known(edits1(word))
+    if len(result) > 0 return result
+    // Consume two-edit candidates as they are produced, like the generator.
+    edits2(word, (edit) -> {
+        if edit in WORDS col.add(result, [edit])
+    })
+    return len(result) > 0 ? result : [word]
+}
+
+fun known(items) {
+    return set([word : word in items : word in WORDS])
+}
+
+fun edits1(word) {
+    let letters = "abcdefghijklmnopqrstuvwxyz"
+    let result = set()
+    for i in 0..(len(word) + 1) {
+        let L = word[:i]
+        let R = word[i:]
+        if len(R) > 0 col.add(result, [L + R[1:]])
+        if len(R) > 1 col.add(result, [L + R[1] + R[0] + R[2:]])
+        for c in letters {
+            if len(R) > 0 col.add(result, [L + c + R[1:]])
+            col.add(result, [L + c + R])
+        }
+    }
+    return result
+}
+
+// A callback replaces Python's lazy generator without storing all edits.
+fun edits2(word, visit) {
+    for e1 in edits1(word)
+        for e2 in edits1(e1)
+            visit(e2)
+}
+
+fun most_common(n) {
+    let remaining = set(keys(WORDS))
+    let result = []
+    for i in 0..min(n, len(remaining)) {
+        let best = nil
+        for word in remaining
+            if best == nil || count(word) > count(best) best = word
+        col.append(result, (best, count(best)))
+        remove(remaining, best)
+    }
+    return result
+}
+
+fun unit_tests() {
+    assert(correction("speling") == "spelling", "spell.pi test at line 126")
+    assert(correction("korrectud") == "corrected", "spell.pi test at line 127")
+    assert(correction("bycycle") == "bicycle", "spell.pi test at line 128")
+    assert(correction("inconvient") == "inconvenient", "spell.pi test at line 129")
+    assert(correction("arrainged") == "arranged", "spell.pi test at line 130")
+    assert(correction("peotry") == "poetry", "spell.pi test at line 131")
+    assert(correction("peotryy") == "poetry", "spell.pi test at line 132")
+    assert(correction("word") == "word", "spell.pi test at line 133")
+    assert(correction("quintessential") == "quintessential", "spell.pi test at line 134")
+    assert(words("This is a TEST.") == ["this", "is", "a", "test"], "spell.pi test at line 135")
+    assert(Counter(words("This is a test. 123; A TEST this is.")) ==
+        {"123": 1, "a": 2, "is": 2, "test": 2, "this": 2}, "spell.pi test at line 137")
+    assert(len(WORDS) == 32192, "spell.pi test at line 138")
+    assert(sum(values(WORDS)) == 1115504, "spell.pi test at line 139")
+    assert(most_common(10) == [
+        ("the", 79808), ("of", 40024), ("and", 38311), ("to", 28765),
+        ("in", 22020), ("a", 21124), ("that", 12512), ("he", 12401),
+        ("was", 11410), ("it", 10681)
+    ], "spell.pi test at line 144")
+    assert(WORDS["the"] == 79808, "spell.pi test at line 145")
+    assert(P("quintessential") == 0, "spell.pi test at line 146")
+    assert(0.07 < P("the") && P("the") < 0.08, "spell.pi test at line 147")
+    return "unit_tests pass"
+}
+
+fun spelltest(tests, verbose = false) {
+    let start = time.clock()
+    let good = 0
+    let unknown = 0
+    let n = len(tests)
+    for pair in tests {
+        let right = pair[0]
+        let wrong = pair[1]
+        let w = correction(wrong)
+        if w == right good += 1
+        else {
+            if !(right in WORDS) unknown += 1
+            if verbose
+                printf("correction({0}) => {1} ({2}); expected {3} ({4})\n",
+                    wrong, w, count(w), right, count(right))
+        }
+    }
+    let dt = time.clock() - start
+    printf("{0:.0%} of {1} correct ({2:.0%} unknown) at {3:.0f} words per second\n",
+        good / n, n, unknown / n, n / dt)
+}
+
+fun Testset(lines) {
+    let result = []
+    for line in lines {
+        if trim(line) == "" continue
+        let parts = string.split(line, ":")
+        let wrongs = trim(parts[1]) + " "
+        let start = 0
+        for i in 0..len(wrongs) {
+            if trim(wrongs[i]) == "" {
+                if i > start col.append(result, (parts[0], wrongs[start:i]))
+                start = i + 1
+            }
+        }
+    }
+    return result
+}
+
+if module.is_main {
+    println(unit_tests())
+    spelltest(Testset(string.split(read_text("words.txt"), "\n")))    
+}
+

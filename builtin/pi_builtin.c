@@ -94,6 +94,7 @@ BuiltinFunc builtin_functions[] = {
 
     // Object
     {"clone", pi_clone},
+    {"id", pi_id},
     {"values", pi_values},
     {"keys", pi_keys},
 };

@@ -2084,8 +2084,6 @@ OP_BINARY:
         }
     }
 
-
-
     switch (op)
     {
     case 0: // +
@@ -3573,7 +3571,7 @@ OP_GET_MEMBER:
                 MemberCache *cache = &function->body->member_caches[instr_pc];
                 cache->cached_class = instance->_class;
                 cache->name_index = (uint16_t)((code[instr_pc + 1] << 8) |
-                                                code[instr_pc + 2]);
+                                               code[instr_pc + 2]);
                 cache->slot = slot;
                 cache->valid = true;
                 code[instr_pc] = OP_GET_SLOT;
@@ -3659,8 +3657,8 @@ OP_GET_MEMBER:
                                       : NULL;
 
                 for (PiClass *current = OBJ_TYPE(container) == OBJ_CLASS
-                                             ? AS_CLASS(container)
-                                             : AS_INSTANCE(container)->_class;
+                                            ? AS_CLASS(container)
+                                            : AS_INSTANCE(container)->_class;
                      !owner_table && current != NULL; current = current->super)
                 {
                     if (current->members && ht_getHash(current->members, key, hash))
@@ -3999,7 +3997,7 @@ OP_SET_MEMBER:
                 MemberCache *cache = &function->body->member_caches[instr_pc];
                 cache->cached_class = instance->_class;
                 cache->name_index = (uint16_t)((code[instr_pc + 1] << 8) |
-                                                code[instr_pc + 2]);
+                                               code[instr_pc + 2]);
                 cache->slot = slot;
                 cache->valid = true;
                 code[instr_pc] = OP_SET_SLOT;

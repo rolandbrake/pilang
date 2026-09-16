@@ -1,23 +1,24 @@
 # 7. Objects and Classes
 
-Pilang uses maps as the foundation for object-oriented programming. A plain map
-can hold data, methods, a constructor, and a prototype parent. The `class` syntax
-is a structured way to create the same kind of prototype object.
+Pilang has two different kinds of structured values:
 
-Objects support:
+- **Maps** are primitive key-value collections for data.
+- **Classes** are runtime type definitions that create class instances.
+
+Class instances support:
 
 - fields with dot or bracket access
 - methods bound to `this`
 - constructors
 - callable instances through `call`
-- inheritance through prototype links
+- inheritance through class declarations
 - built-in object helpers on `Object`
 - magic methods for formatting, comparison, indexing, calls, and operators
 
 ## Sections
 
-- [7.1 Objects](7.1-objects.md)
-- [7.2 Maps as Objects](7.2-maps-as-objects.md)
+- [7.1 Objects and Instances](7.1-objects.md)
+- [7.2 Maps](7.2-maps-as-objects.md)
 - [7.3 Classes](7.3-classes.md)
 - [7.4 Constructors](7.4-constructors.md)
 - [7.5 Methods](7.5-methods.md)

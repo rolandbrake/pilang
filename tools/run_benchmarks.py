@@ -150,12 +150,11 @@ def geometric_mean(values: list[float]) -> float:
 def pilang_comparison(label: str, speedup: float, color: str) -> str:
     if speedup <= 0:
         text = "no comparable result"
-        return f"{label:<6}: {color}{text}{Color.RESET}"
-    if speedup >= 1:
-        text = f"Pilang is {speedup:.2f}x faster"
+    elif speedup >= 1:
+        text = f"{speedup:.2f}x faster"
     else:
-        text = f"Pilang is {(1 / speedup):.2f}x slower"
-    return f"{label:<6}: {color}{text}{Color.RESET}"
+        text = f"{(1 / speedup):.2f}x slower"
+    return f"  {('Pilang vs ' + label + ':'):<19}{color}{text}{Color.RESET}"
 
 
 def resolve_executable(command: str, option: str, label: str) -> str:
@@ -290,26 +289,18 @@ def main():
     python_color = speedup_color(overall_speedup)
     lua_color = speedup_color(lua_overall_speedup)
 
-    print(
-        f"{Color.BOLD}Pilang sum   : "
-        f"{pilang_total:.2f} ms{Color.RESET}"
-    )
+    print(f"{Color.BOLD}Total runtime:{Color.RESET}")
+    print(f"  Pilang: {pilang_total:.0f} ms")
+    print(f"  Python: {python_total:.0f} ms")
+    print(f"  Lua:    {lua_total:.0f} ms")
 
-    print(
-        f"{Color.BOLD}Python sum   : "
-        f"{python_total:.2f} ms{Color.RESET}"
-    )
+    print(f"\n{Color.BOLD}Total speed:{Color.RESET}")
+    for label, total in (("CPython", python_total), ("Lua", lua_total)):
+        speedup = total / pilang_total if pilang_total > 0 else 0.0
+        print(pilang_comparison(label, speedup, speedup_color(speedup)))
 
-    print(
-        f"{Color.BOLD}Lua sum      : "
-        f"{lua_total:.2f} ms{Color.RESET}"
-    )
-
-    print(
-        f"{Color.BOLD}Overall ratios use geometric mean "
-        f"of per-benchmark speedups.{Color.RESET}"
-    )
-    print(pilang_comparison("Python", overall_speedup, python_color))
+    print(f"\n{Color.BOLD}Geometric mean:{Color.RESET}")
+    print(pilang_comparison("CPython", overall_speedup, python_color))
     print(pilang_comparison("Lua", lua_overall_speedup, lua_color))
 
 

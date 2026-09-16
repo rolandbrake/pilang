@@ -1,0 +1,30 @@
+import sys
+
+let a = [1, 2]
+let b = a
+let c = [1, 2]
+let original = id(a)
+assert(is_str(original), "id returns a string")
+for digit in original {
+    assert(digit >= "0" && digit <= "9", "id contains only decimal digits")
+}
+assert(len(original) > 0, "id is not empty")
+assert(id(b) == original, "aliases share identity")
+assert(id(c) != original, "equal distinct lists have distinct identities")
+a[0] = 9
+assert(id(a) == original, "mutation preserves identity")
+sys.gc()
+assert(id(a) == original, "collection preserves a live object's identity")
+assert(id([1, 2]) != original, "new objects have distinct identities")
+
+let text = "hello"
+let mapping = {"x": 1}
+assert(id(text) == id(text), "strings have stable identity")
+assert(id(mapping) == id(mapping), "maps have stable identity")
+assert(id(println) == id(println), "functions have stable identity")
+
+class Item {}
+let first = Item()
+let second = Item()
+assert(id(Item) == id(Item), "classes have stable identity")
+assert(id(first) != id(second), "instances have distinct identities")

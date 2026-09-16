@@ -106,9 +106,10 @@ typedef enum
     OBJ_MODEL3D,
     OBJ_SOUND,
 
-    OBJ_CONTEXT, // drawing context
-    OBJ_CHART,   // chart context
-    OBJ_CHART3D, // 3D chart context
+    // GUI and event-related objects
+    OBJ_CONTEXT,
+    OBJ_CHART,  
+    OBJ_CHART3D,
     OBJ_EVENT,
 
 } o_type;

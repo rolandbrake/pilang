@@ -13,6 +13,7 @@ Value pi_hashCode(vm_t *vm, int argc, Value *argv);
 Value pi_extends(vm_t *vm, int argc, Value *argv);
 Value pi_equals(vm_t *vm, int argc, Value *argv);
 Value pi_ident(vm_t *vm, int argc, Value *argv);
+Value pi_id(vm_t *vm, int argc, Value *argv);
 Value pi_compare(vm_t *vm, int argc, Value *argv);
 Value pi_type(vm_t *vm, int argc, Value *argv);
 Value pi_name(vm_t *vm, int argc, Value *argv);

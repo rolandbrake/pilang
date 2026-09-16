@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -405,6 +406,19 @@ Value pi_equals(vm_t *vm, int argc, Value *argv)
 
     vm_error(vm, "[equals] expects either obj.equals(other) or Object.equals(left, right).");
     return NEW_NIL();
+}
+
+Value pi_id(vm_t *vm, int argc, Value *argv)
+{
+    if (argc != 1 || !IS_OBJ(argv[0]))
+    {
+        vm_error(vm, "[id] expects exactly one heap object; numbers, booleans, and nil have no object identity.");
+        return NEW_NIL();
+    }
+
+    char buffer[21]; // Maximum uint64_t decimal digits plus the terminator.
+    snprintf(buffer, sizeof(buffer), "%" PRIu64, AS_OBJ(argv[0])->id);
+    return NEW_OBJ(add_obj(vm, new_pistring(strdup(buffer))));
 }
 
 Value pi_ident(vm_t *vm, int argc, Value *argv)

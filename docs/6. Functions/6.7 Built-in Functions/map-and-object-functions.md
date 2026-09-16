@@ -8,6 +8,22 @@ behavior.
 - `keys(value)`: returns the keys from a map or object-like value
 - `values(value)`: returns the values from a map or object-like value
 - `clone(value)`: returns a copy of the value
+- `id(value)`: returns a heap object's runtime identity as a decimal string
+
+`id()` accepts exactly one heap object, including strings, lists, maps, functions,
+classes, and instances. Numbers, booleans, and `nil` have no heap-object identity
+and cause a runtime error. The string preserves the full 64-bit identifier without
+numeric rounding. It is an identifier, not a memory address or a persistent ID
+across program runs. Aliases share an ID; distinct objects have different IDs.
+Mutation and garbage collection do not change a surviving object's ID.
+
+```swift
+let a = [1, 2]
+let b = a
+let c = [1, 2]
+println(id(a) == id(b)) // true
+println(id(a) == id(c)) // false
+```
 
 ```swift
 let user = {

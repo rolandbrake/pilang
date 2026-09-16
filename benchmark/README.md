@@ -11,7 +11,7 @@ Each benchmark measures its own workload and prints elapsed milliseconds from in
 
 Each Pilang benchmark (`.pi`) has matching Python (`.py`) and Lua (`.lua`) implementations. The runner executes all three versions, reads the printed runtime from each script, and reports median workload times along with speedup ratios against Python and Lua.
 
-The final comparison uses the geometric mean of the per-benchmark speedup ratios. This gives each benchmark equal weight, so a long workload such as `binary_tree` does not dominate a short workload such as `call`.
+The summary reports total runtime, total speed based on summed runtimes, and the geometric mean of the per-benchmark speedup ratios. The geometric mean gives each benchmark equal weight, so a long workload such as `binary_tree` does not dominate a short workload such as `call`.
 
 The goal is to compare Pilang, Python, and Lua on identical workloads in the same environment. Results should not be interpreted as language-wide performance claims.
 
@@ -52,12 +52,18 @@ fib                         18.52       44.71       31.33       2.41x       1.69
 sum                         10.34       13.27        9.56       1.28x       0.92x
 sort                        95.43       87.12       74.21       0.91x       0.78x
 ------------------------------------------------------------------------------------
-Pilang sum   : 149.73 ms
-Python sum   : 217.62 ms
-Lua sum      : 162.92 ms
-Overall ratios use geometric mean of per-benchmark speedups.
-Python : Pilang is 1.45x faster
-Lua    : Pilang is 1.09x faster
+Total runtime:
+  Pilang: 150 ms
+  Python: 218 ms
+  Lua:    163 ms
+
+Total speed:
+  Pilang vs CPython: 1.45x faster
+  Pilang vs Lua:     1.09x faster
+
+Geometric mean:
+  Pilang vs CPython: 1.80x faster
+  Pilang vs Lua:     1.27x faster
 ```
 
 ## Color Coding
@@ -109,7 +115,7 @@ python tools/run_benchmarks.py --iterations 10 --warmup 3
 ## Notes
 
 * The runner reports median internal workload times printed by the benchmark scripts.
-* The final speedup summary is the geometric mean of individual benchmark speedups, not the ratio of summed times.
+* Total speed compares summed runtimes; the geometric mean summarizes individual benchmark speedups.
 * Every benchmark is executed multiple times to reduce noise.
 * Warm-up runs are excluded from reported results.
 * Pilang, Python, and Lua should perform the same benchmark workload.
