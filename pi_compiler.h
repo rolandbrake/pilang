@@ -51,6 +51,7 @@ typedef struct
 {
     list_t *code;      // PiList of bytecode instructions
     list_t *constants; // PiList of constant values
+    table_t *string_constants; // String contents -> constant pool index
 
     list_t *names;         // PiList of variable names
     GlobalCache global_cache; // resolved globals for the top-level code unit
@@ -103,6 +104,9 @@ compiler_t *init_compiler();
 
 // Stores a constant value in the compiler's constant pool
 int store_const(compiler_t *comp, Value value);
+// Borrows text; allocates a string object only for a new constant.
+int store_stringConst(compiler_t *comp, const char *text);
+int store_tokenConst(compiler_t *comp, token_t token);
 
 // Returns the index of a variable name in the compiler's name table
 int name_index(compiler_t *comp, char *name);

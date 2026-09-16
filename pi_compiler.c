@@ -236,6 +236,7 @@ compiler_t *init_compiler()
 
     comp->code = list_create(sizeof(uint8_t));
     comp->constants = list_create(sizeof(Value));
+    comp->string_constants = ht_create(sizeof(int));
 
     list_add(comp->constants, &NEW_NUM(NAN));
     list_add(comp->constants, &NEW_NUM(INFINITY));
@@ -785,7 +786,7 @@ void pop_function(compiler_t *comp, int params)
 
         free(context);
 
-        int n_index = store_const(comp, NEW_OBJ(new_pistring(name)));
+        int n_index = store_stringConst(comp, name);
 
         emit_16u(comp, OP_LOAD_CONST, name, n_index);
 
@@ -811,6 +812,18 @@ void pop_function(compiler_t *comp, int params)
 }
 int store_const(compiler_t *comp, Value value)
 {
+    if (IS_STR(value))
+    {
+        const char *text = AS_CSTRING(value);
+        int *existing = ht_get(comp->string_constants, text);
+        if (existing)
+            return *existing;
+        int index = comp->constants->size;
+        list_add(comp->constants, &value);
+        ht_put(comp->string_constants, text, &index);
+        return index;
+    }
+
     Value _value;
     for (int i = 0; i < comp->constants->size; i++)
     {
@@ -820,6 +833,25 @@ int store_const(compiler_t *comp, Value value)
     }
     list_add(comp->constants, &value);
     return comp->constants->size - 1;
+}
+
+int store_stringConst(compiler_t *comp, const char *text)
+{
+    int *existing = ht_get(comp->string_constants, text);
+    if (existing)
+        return *existing;
+    return store_const(comp, NEW_OBJ(new_pistring(strdup(text))));
+}
+
+int store_tokenConst(compiler_t *comp, token_t token)
+{
+    if (token.type != TK_STR && token.type != TK_ID)
+        return store_const(comp, new_value(token));
+
+    char *text = string_fromToken(token);
+    int index = store_stringConst(comp, text);
+    free(text);
+    return index;
 }
 
 static int _emit(compiler_t *comp, OpCode opcode, char *descr, int num_operands, int line, int column, ...)
@@ -1277,6 +1309,7 @@ void free_compiler(compiler_t *comp)
     list_free(comp->code);
 
     list_free(comp->constants);
+    ht_free(comp->string_constants);
 
     list_free(comp->names);
 
@@ -1308,6 +1341,7 @@ void free_compiler(compiler_t *comp)
 
 void reset_compiler(compiler_t *comp)
 {
+    // Keep string_constants alongside the retained constant pool for REPL reuse.
     list_free(comp->code);
     list_free(comp->names);
     if (comp->declared_globals)

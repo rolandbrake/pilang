@@ -790,6 +790,16 @@ int compare(Value left, Value right)
     }
 }
 
+char *string_fromToken(token_t token)
+{
+    char *raw = tk_string(token);
+    if (token.type != TK_STR)
+        return raw;
+    char *text = unescape_string(raw);
+    free(raw);
+    return text;
+}
+
 Value new_value(token_t token)
 {
     Value val;
@@ -802,16 +812,8 @@ Value new_value(token_t token)
         break;
 
     case TK_STR:
-    {
-        const char *raw = tk_string(token);
-        char *unescaped = unescape_string(raw);
-        val = NEW_OBJ(new_pistring(dup_cstring(unescaped)));
-        free(unescaped);
-        break;
-    }
-
     case TK_ID:
-        val = NEW_OBJ(new_pistring(tk_string(token)));
+        val = NEW_OBJ(new_pistring(string_fromToken(token)));
         break;
 
     case TK_TRUE:

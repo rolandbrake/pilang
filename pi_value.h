@@ -72,6 +72,8 @@ bool equals(Value left, Value right);
 int compare(Value left, Value right);
 
 Value new_value(token_t token);
+// Returns an owned string, decoding escapes for string literal tokens.
+char *string_fromToken(token_t token);
 UpValue new_upvalue(Value value, int index);
 
 double as_number(Value val);

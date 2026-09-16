@@ -1422,7 +1422,7 @@ static void emit_spreadMapLiteral(parser_t *parser)
         if (match_n(parser, 5, TK_STR, TK_ID, TK_NUM, TK_FALSE, TK_TRUE))
         {
             key = tk_string(previous(parser));
-            index = store_const(parser->comp, NEW_OBJ(new_pistring(key)));
+            index = store_stringConst(parser->comp, key);
         }
         else
             p_error("Unexpected key expression.", peek(parser).line, peek(parser).column);
@@ -1478,6 +1478,7 @@ static void emit_spreadMapLiteral(parser_t *parser)
         }
 
         emit_16u(parser->comp, OP_LOAD_CONST, key, index);
+        free(key);
         pending_entries++;
     } while (match(parser, TK_COMMA) && !check(parser, TK_RBRACE));
 
@@ -1511,7 +1512,7 @@ static void emit_classMap(parser_t *parser, const char *class_name, const char *
     {
         token_t key_tok = consume(parser, TK_ID, "Expect class member name.");
         char *key = token_value(key_tok);
-        int index = store_const(parser->comp, NEW_OBJ(new_pistring(key)));
+        int index = store_stringConst(parser->comp, key);
 
         if (match(parser, TK_LPAREN))
         {
@@ -1572,6 +1573,7 @@ static void emit_classMap(parser_t *parser, const char *class_name, const char *
         }
 
         emit_16u(parser->comp, OP_LOAD_CONST, key, index);
+        free(key);
         size++;
 
         bool had_comma = consume_ifExist(parser, 1, TK_COMMA);
@@ -1589,12 +1591,11 @@ static void emit_classMap(parser_t *parser, const char *class_name, const char *
     for (int i = 0; i < field_count; i++)
     {
         char *field_name = *(char **)list_getAt(parser->instance_fields, i);
-        int field_index = store_const(parser->comp,
-                                      NEW_OBJ(new_pistring(strdup(field_name))));
+        int field_index = store_stringConst(parser->comp, field_name);
         emit_16u(parser->comp, OP_LOAD_CONST, field_name, field_index);
     }
 
-    int name_index = store_const(parser->comp, NEW_OBJ(new_pistring(strdup(class_name))));
+    int name_index = store_stringConst(parser->comp, class_name);
     emit_16u(parser->comp, OP_LOAD_CONST, (char *)class_name, name_index);
     load_variable(parser->comp, (char *)parent_name);
     emit_16uX2(parser->comp, OP_PUSH_CLASS, "", size, field_count);
@@ -1731,15 +1732,16 @@ static char *import_joinParts(token_t *parts, int count)
 static void emit_importModule(parser_t *parser, token_t *parts, int count)
 {
     char *module_path = import_joinParts(parts, count);
-    int module_index = store_const(parser->comp, NEW_OBJ(new_pistring(module_path)));
+    int module_index = store_stringConst(parser->comp, module_path);
     emit_16u(parser->comp, OP_LOAD_CONST, module_path, module_index);
+    free(module_path);
     emit(parser->comp, OP_IMPORT);
 }
 
 static void emit_importBinding(parser_t *parser, token_t export_tok, token_t alias_tok)
 {
     char *alias_name = token_value(alias_tok);
-    int export_index = store_const(parser->comp, new_value(export_tok));
+    int export_index = store_tokenConst(parser->comp, export_tok);
 
     emit_16u(parser->comp, OP_LOAD_CONST, alias_name, export_index);
     emit(parser->comp, OP_GET_EXPORT);
@@ -1869,7 +1871,7 @@ static void import_item(parser_t *parser)
     // Plain module import: bind to export if same-name function exists, else module.
     emit_importModule(parser, parts, count);
     char *binding_name = token_value(parts[count - 1]);
-    int name_index = store_const(parser->comp, new_value(parts[count - 1]));
+    int name_index = store_tokenConst(parser->comp, parts[count - 1]);
     emit_16u(parser->comp, OP_LOAD_CONST, binding_name, name_index);
     emit(parser->comp, OP_IMPORT_DEFAULT);
     store_variable(parser->comp, binding_name);
@@ -3382,7 +3384,7 @@ static void member_expr(parser_t *parser)
                 token.type == TK_ID && strcmp(tk_string(token), "this") == 0)
                 register_instanceField(parser, member_name);
 
-            int index = store_const(parser->comp, new_value(name));
+            int index = store_tokenConst(parser->comp, name);
 
             if (assign)
                 emit_16u(parser->comp, OP_SET_MEMBER, token_value(name), index);
@@ -3441,7 +3443,7 @@ static void member_expr(parser_t *parser)
 
             if (token.type == TK_SUPER)
             {
-                int ctor_index = store_const(parser->comp, NEW_OBJ(new_pistring("constructor")));
+                int ctor_index = store_stringConst(parser->comp, "constructor");
                 emit_16u(parser->comp, OP_GET_MEMBER, "constructor", ctor_index);
             }
 
@@ -3504,8 +3506,9 @@ static void member_expr(parser_t *parser)
 
                         expr(parser); // parse value
 
-                        int index = store_const(parser->comp, NEW_OBJ(new_pistring(key)));
+                        int index = store_stringConst(parser->comp, key);
                         emit_16u(parser->comp, OP_LOAD_CONST, key, index);
+                        free(key);
                     }
                     else
                     {
@@ -3615,7 +3618,7 @@ static void primary(parser_t *parser)
             emit_16u(parser->comp, OP_LOAD_CONST, "INF", 0);
         else
         {
-            int index = store_const(parser->comp, new_value(token));
+            int index = store_tokenConst(parser->comp, token);
             emit_16u(parser->comp, OP_LOAD_CONST, token_value(token), index);
         }
     }
@@ -4009,7 +4012,7 @@ static void primary(parser_t *parser)
                     if (match_n(parser, 5, TK_STR, TK_ID, TK_NUM, TK_FALSE, TK_TRUE))
                     {
                         key = tk_string(previous(parser));
-                        index = store_const(parser->comp, NEW_OBJ(new_pistring(key)));
+                        index = store_stringConst(parser->comp, key);
                     }
                     else
                     {
@@ -4077,6 +4080,7 @@ static void primary(parser_t *parser)
                     }
 
                     emit_16u(parser->comp, OP_LOAD_CONST, key, index);
+                    free(key);
                     size++;
                 } while (match(parser, TK_COMMA) && !check(parser, TK_RBRACE));
 

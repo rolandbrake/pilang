@@ -1,0 +1,38 @@
+import sys
+
+let first = "shared"
+let second = 'shared'
+assert(id(first) == id(second), "equal literals share a constant")
+assert(id(first) == id("\shared"), "interning uses decoded contents")
+assert(id("") == id(''), "empty literals share a constant")
+assert(id("line\nnext") == id('line\nnext'), "escaped literals share a constant")
+assert("line\nnext" != "line\\nnext", "different decoded contents stay distinct")
+assert(id("shared") != id("different"), "different strings stay distinct")
+
+fun literal() {
+    return "shared"
+}
+assert(id(literal()) == id(first), "functions share their compiler's constants")
+
+let suffix = "ared"
+let runtime = "sh" + suffix
+assert(runtime == first, "runtime contents are unchanged")
+assert(id(runtime) != id(first), "runtime strings are not automatically interned")
+
+class Entry {
+    constructor(shared) {
+        this.shared = shared
+    }
+    read() {
+        return this.shared
+    }
+}
+let entry = Entry(shared = first)
+assert(entry.read() == first, "member and named-argument strings work")
+let mapping = {shared: first}
+let spread = {...mapping, shared: second}
+assert(mapping.shared == spread.shared, "map keys work with interned names")
+
+sys.gc()
+assert(id(literal()) == id(first), "interned constants survive collection")
+assert(entry.read() == first, "member names survive collection")
