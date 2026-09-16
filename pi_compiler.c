@@ -859,6 +859,79 @@ static int _emit(compiler_t *comp, OpCode opcode, char *descr, int num_operands,
     if (comp->code == NULL || comp->instrs == NULL || comp->is_lookUp)
         return -1;
 
+    /* Fold the bytecode shape produced for literal arithmetic, e.g.
+     * LOAD_CONST, LOAD_CONST, BINARY_OP into one LOAD_CONST.  Restrict this
+     * to immediate numeric/boolean values so dynamic object behavior and
+     * side effects are never evaluated during compilation. */
+    if (opcode == OP_BINARY && num_operands == 1 && comp->code->size >= 6)
+    {
+        uint8_t *code = (uint8_t *)comp->code->data;
+        int offset = comp->code->size - 6;
+        if (code[offset] == OP_LOAD_CONST &&
+            code[offset + 3] == OP_LOAD_CONST)
+        {
+            int left_index = ((int)code[offset + 1] << 8) | code[offset + 2];
+            int right_index = ((int)code[offset + 4] << 8) | code[offset + 5];
+            int op = (uint8_t)0;
+
+            va_list read;
+            va_start(read, column);
+            op = va_arg(read, int);
+            va_end(read);
+
+            if (left_index >= 0 && right_index >= 0 &&
+                left_index < comp->constants->size &&
+                right_index < comp->constants->size && op <= 7)
+            {
+                Value left = *(Value *)list_getAt(comp->constants, left_index);
+                Value right = *(Value *)list_getAt(comp->constants, right_index);
+                bool literals = (IS_NUM(left) || IS_BOOL(left)) &&
+                                (IS_NUM(right) || IS_BOOL(right));
+
+                if (literals)
+                {
+                    double l = IS_NUM(left) ? AS_NUM(left) : (AS_BOOL(left) ? 1.0 : 0.0);
+                    double r = IS_NUM(right) ? AS_NUM(right) : (AS_BOOL(right) ? 1.0 : 0.0);
+                    Value folded;
+
+                    switch (op)
+                    {
+                    case 0: folded = NEW_NUM(l + r); break;
+                    case 1: folded = NEW_NUM(l - r); break;
+                    case 2: folded = NEW_NUM(l * r); break;
+                    case 3: folded = NEW_NUM(r == 0.0 ? INFINITY : l / r); break;
+                    case 4: folded = ((int)r == 0) ? NEW_NAN() : NEW_NUM((int)l % (int)r); break;
+                    case 5: folded = NEW_BOOL(l && r); break;
+                    case 6: folded = NEW_BOOL(l || r); break;
+                    case 7: folded = NEW_NUM(pow(l, r)); break;
+                    default: folded = NEW_NIL(); break;
+                    }
+
+                    while (comp->current->instrs->size > 0 &&
+                           ((instr_t *)list_getAt(comp->current->instrs,
+                                                 comp->current->instrs->size - 1))->offset >= offset)
+                    {
+                        instr_t *last = (instr_t *)list_pop(comp->current->instrs);
+                        free_instr(last);
+                    }
+                    comp->code->size = offset;
+
+                    int folded_index = store_const(comp, folded);
+                    char folded_descr[64];
+                    if (IS_BOOL(folded))
+                        snprintf(folded_descr, sizeof(folded_descr), "%s",
+                                 AS_BOOL(folded) ? "true" : "false");
+                    else
+                        snprintf(folded_descr, sizeof(folded_descr), "%g",
+                                 AS_NUM(folded));
+
+                    return _emit(comp, OP_LOAD_CONST, folded_descr, 2, line, column,
+                                 (folded_index >> 8) & 0xff, folded_index & 0xff);
+                }
+            }
+        }
+    }
+
     int size = list_size(comp->code);
 
     uint8_t _opcode = (uint8_t)opcode;
