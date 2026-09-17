@@ -997,6 +997,46 @@ int emit_16uX2(compiler_t *comp, OpCode opcode, char *descr, int first, int seco
                  op1, op2, op3, op4);
 }
 
+bool last_constantCondition(compiler_t *comp, bool *value)
+{
+    if (!comp || !comp->code || comp->code->size < 3 || !value)
+        return false;
+
+    uint8_t *code = (uint8_t *)comp->code->data;
+    int offset = comp->code->size - 3;
+    if (code[offset] != OP_LOAD_CONST)
+        return false;
+
+    int index = ((int)code[offset + 1] << 8) | code[offset + 2];
+    if (index < 0 || index >= comp->constants->size)
+        return false;
+
+    Value constant = *(Value *)list_getAt(comp->constants, index);
+    if (!IS_BOOL(constant) && !IS_NIL(constant) && !IS_NUM(constant))
+        return false;
+
+    *value = as_bool(constant);
+    return true;
+}
+
+void discard_lastConstant(compiler_t *comp)
+{
+    if (!comp || !comp->code || !comp->current || !comp->current->instrs ||
+        comp->code->size < 3 || comp->current->instrs->size == 0)
+        return;
+
+    int offset = comp->code->size - 3;
+    uint8_t *code = (uint8_t *)comp->code->data;
+    instr_t *last = (instr_t *)list_getAt(comp->current->instrs,
+                                           comp->current->instrs->size - 1);
+    if (code[offset] != OP_LOAD_CONST || last->offset != offset)
+        return;
+
+    last = (instr_t *)list_pop(comp->current->instrs);
+    free_instr(last);
+    comp->code->size = offset;
+}
+
 int emit_pop(compiler_t *comp, int depth)
 {
     int size = get_localSize(comp, depth);

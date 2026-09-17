@@ -2045,6 +2045,54 @@ static void if_stmt(parser_t *parser)
     token_t start = peek(parser); // capture for accurate position
     condition(parser);
 
+    bool constant_condition;
+    if (last_constantCondition(parser->comp, &constant_condition))
+    {
+        discard_lastConstant(parser->comp);
+
+        if (constant_condition)
+        {
+            if (match(parser, TK_LBRACE))
+                block(parser);
+            else
+            {
+                statement(parser);
+                parser->is_return = false;
+            }
+
+            if (match(parser, TK_ELSE))
+            {
+                bool previous_lookup = look_up(parser->comp, true);
+                if (match(parser, TK_LBRACE))
+                    block(parser);
+                else
+                    statement(parser);
+                look_up(parser->comp, previous_lookup);
+                parser->is_return = false;
+            }
+        }
+        else
+        {
+            bool previous_lookup = look_up(parser->comp, true);
+            if (match(parser, TK_LBRACE))
+                block(parser);
+            else
+                statement(parser);
+            look_up(parser->comp, previous_lookup);
+            parser->is_return = false;
+
+            if (match(parser, TK_ELSE))
+            {
+                if (match(parser, TK_LBRACE))
+                    block(parser);
+                else
+                    statement(parser);
+                parser->is_return = false;
+            }
+        }
+        return;
+    }
+
     set_pos(parser, start);
     int then_jump = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
 

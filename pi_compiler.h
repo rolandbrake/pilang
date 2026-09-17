@@ -132,6 +132,8 @@ int emit(compiler_t *comp, OpCode opcode);
 int emit_8u(compiler_t *comp, OpCode opcode, char *descr, int operand);
 int emit_16u(compiler_t *comp, OpCode opcode, char *descr, int operand);
 int emit_16uX2(compiler_t *comp, OpCode opcode, char *descr, int first, int second);
+bool last_constantCondition(compiler_t *comp, bool *value);
+void discard_lastConstant(compiler_t *comp);
 
 // Emits a pop instruction to remove values from the stack
 int emit_pop(compiler_t *comp, int depth);
