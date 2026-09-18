@@ -86,10 +86,12 @@ static void vector_set(vm_t *vm, Value vector, int index, double new_value, cons
 
 static int tn_shapeFromArgs(vm_t *vm, int argc, Value *argv, int **out_shape)
 {
-    if (argc == 1 && IS_LIST(argv[0]))
+    if (argc == 1 && (IS_LIST(argv[0]) || IS_TUPLE(argv[0])))
     {
-        PiList *shape_list = AS_LIST(argv[0]);
-        int ndim = shape_list->items->size;
+        list_t *shape_items = IS_LIST(argv[0])
+                                   ? AS_LIST(argv[0])->items
+                                   : AS_TUPLE(argv[0])->items;
+        int ndim = shape_items->size;
         if (ndim <= 0)
             vm_error(vm, "tensor shape cannot be empty.");
 
@@ -99,7 +101,7 @@ static int tn_shapeFromArgs(vm_t *vm, int argc, Value *argv, int **out_shape)
 
         for (int i = 0; i < ndim; i++)
         {
-            Value dim = *(Value *)list_getAt(shape_list->items, i);
+            Value dim = *(Value *)list_getAt(shape_items, i);
             if (!IS_NUM(dim) || AS_NUM(dim) < 0 || floor(AS_NUM(dim)) != AS_NUM(dim) || AS_NUM(dim) > INT_MAX)
                 vm_error(vm, "tensor shape dimensions must be non-negative integer numbers.");
             shape[i] = (int)AS_NUM(dim);
@@ -279,9 +281,7 @@ Value tn_shape(vm_t *vm, int argc, Value *argv)
         list_add(items, &dim);
     }
 
-    PiList *shape = (PiList *)new_list(items);
-    shape->is_numeric = true;
-    return NEW_OBJ(add_obj(vm, (Object *)shape));
+    return NEW_OBJ(add_obj(vm, new_tuple(items)));
 }
 
 Value tn_ndim(vm_t *vm, int argc, Value *argv)

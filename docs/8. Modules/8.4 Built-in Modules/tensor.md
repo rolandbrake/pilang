@@ -9,11 +9,12 @@ import tensor:t
 
 ## `tensor.zeros(shape...)`
 
-Creates a tensor filled with zeros. Shape can be passed as numbers or a list.
+Creates a tensor filled with zeros. Shape can be passed as separate numbers or
+as a tuple. Lists are also accepted for compatibility.
 
 ```swift
 println(t.zeros(2, 3))
-println(t.zeros([2, 3]))
+println(t.zeros((2, 3)))
 ```
 
 ## `tensor.ones(shape...)`
@@ -53,7 +54,7 @@ println(t.randn(2, 2))
 Creates a tensor with random integer values.
 
 ```swift
-println(t.randint([2, 2], 0, 10))
+println(t.randint((2, 2), 0, 10))
 ```
 
 ## `tensor.from(value)`
@@ -70,16 +71,16 @@ println(m)
 Creates a tensor filled with one value.
 
 ```swift
-println(t.fill([2, 3], 7))
+println(t.fill((2, 3), 7))
 ```
 
 ## `tensor.shape(value)`
 
-Returns the tensor shape as a list.
+Returns the tensor shape as a tuple. This matches NumPy's shape convention.
 
 ```swift
 let m = t.ones(2, 3)
-println(t.shape(m)) // [2, 3]
+println(t.shape(m)) // (2, 3)
 ```
 
 ## `tensor.ndim(value)`
@@ -104,7 +105,7 @@ Returns a tensor with the same data and a new shape.
 
 ```swift
 let v = t.from([1, 2, 3, 4])
-println(t.reshape(v, [2, 2]))
+println(t.reshape(v, (2, 2)))
 ```
 
 ## `tensor.slice(value, ...)`
@@ -153,7 +154,7 @@ println(t.expand_dims(t.from([1, 2, 3]), 0))
 Removes dimensions of size `1`.
 
 ```swift
-println(t.squeeze(t.reshape(t.from([1, 2, 3]), [1, 3, 1])))
+println(t.squeeze(t.reshape(t.from([1, 2, 3]), (1, 3, 1))))
 ```
 
 ## Tensor arithmetic and broadcasting

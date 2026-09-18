@@ -6,7 +6,7 @@ module functions.
 ```swift
 import tensor
 
-let zeros = tensor.zeros([2, 3])
+let zeros = tensor.zeros((2, 3))
 println(tensor.shape(zeros))
 ```
 
@@ -23,10 +23,10 @@ println(tensor.shape(zeros))
 
 ## Shape Helpers
 
-- `tensor.shape(value)`: shape of a tensor
+- `tensor.shape(value)`: tuple containing the dimensions of a tensor
 - `tensor.ndim(value)`: number of dimensions
 - `tensor.size(value)`: total element count
-- `tensor.reshape(value, shape)`: reshape tensor data
+- `tensor.reshape(value, shape)`: reshape tensor data; `shape` may be a tuple or separate dimensions
 - `tensor.slice(value, ...)`: slice tensor data
 - `tensor.concat(a, b, axis = nil)`: concatenate tensors
 - `tensor.transpose(value)`: transpose dimensions
