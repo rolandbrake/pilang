@@ -1360,6 +1360,8 @@ static double tensor_applyBinary(int op, double left, double right)
         return left * right;
     case 3:
         return right == 0.0 ? INFINITY : left / right;
+    case 7:
+        return pow(left, right);
     default:
         return NAN;
     }
@@ -2466,6 +2468,22 @@ OP_BINARY:
         break;
     case 7:
     {
+        // TODO: Implement tensor power operation
+        if (IS_TENSOR(left))
+        {
+            if (IS_TENSOR(right))
+                push_stack(vm, tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 7));
+            else if (is_numeric(right))
+                push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 7, false));
+            else
+                vm_error(vm, "Unsupported right operand for tensor [**].");
+            break;
+        }
+        if (IS_TENSOR(right) && is_numeric(left))
+        {
+            push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 7, true));
+            break;
+        }
         Value _left = TO_PRIM(vm, left, false);
         Value _right = TO_PRIM(vm, right, false);
         push_stack(vm, NEW_NUM(pow(as_number(_left), as_number(_right))));

@@ -9,7 +9,7 @@ fun empty_cells(board) {
     for y in range(SIZE) {
         for x in range(SIZE) {
             if board[y][x] == 0
-                push(cells, (y, x))
+                push(cells, (y, x)) 
         }
     }
     return cells
@@ -119,16 +119,6 @@ fun contains_2048(board) {
     return false
 }
 
-fun same_board(left, right) {
-    for y in range(SIZE) {
-        for x in range(SIZE) {
-            if left[y][x] != right[y][x]
-                return false
-        }
-    }
-    return true
-}
-
 fun draw_board(board, score, moves) {
     printf(char(27) + "[2J" + char(27) + "[H")
     println()
@@ -188,7 +178,7 @@ fun play() {
         let before = copy(board)
         score += move(board, direction)
 
-        if !same_board(board, before) {
+        if board != before {
             moves++
             add_tile(board)
 

@@ -156,6 +156,46 @@ Removes dimensions of size `1`.
 println(t.squeeze(t.reshape(t.from([1, 2, 3]), [1, 3, 1])))
 ```
 
+## Tensor arithmetic and broadcasting
+
+Tensor arithmetic operators apply elementwise. A scalar is broadcast across
+every tensor element, and tensors can be combined when their dimensions are
+broadcast-compatible.
+
+Supported operators include `+`, `-`, `*`, `/`, and `**`.
+
+```swift
+let values = t.from([1, 2, 3, 4, 5])
+let result = 3 * values ** 2 - 4 * values + 5
+
+println(result) // [4, 9, 20, 37, 60]
+```
+
+Power is also supported with a scalar on the left:
+
+```swift
+println(2 ** t.from([1, 2, 3])) // [2, 4, 8]
+```
+
+## Tensor iteration
+
+Iterating over a one-dimensional tensor produces scalar numbers. Iterating
+over a multidimensional tensor produces one row at a time as a list.
+
+```swift
+let values = t.from([1, 2, 3, 4, 5])
+let polynomial = [3 * x ** 2 - 4 * x + 5 : x in values]
+
+println(polynomial) // [4, 9, 20, 37, 60]
+```
+
+For a matrix, iteration remains row-oriented:
+
+```swift
+let matrix = t.from([[1, 2], [3, 4]])
+println([row : row in matrix]) // [[1, 2], [3, 4]]
+```
+
 ## `tensor.is_tensor(value)`
 
 Returns whether a value is a tensor.

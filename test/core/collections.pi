@@ -7,6 +7,10 @@ assert(nums[1:3] == [2, 3], "list slicing should work")
 assert(word[0:2] == "pi", "string slicing should work")
 assert(info["lang"] == "pi", "map indexing should work")
 
+assert([1, 2, [3, 4]] == [1, 2, [3, 4]], "nested lists should compare structurally")
+assert([1, 2] != [1, 3], "lists with different elements should not compare equal")
+assert([1, 2] != [1, 2, 3], "lists with different lengths should not compare equal")
+
 info["stable"] = true
 assert(info["stable"] == true, "map set/get should work")
 

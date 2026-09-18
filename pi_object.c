@@ -782,6 +782,10 @@ Value iter_next(Object *col)
     case OBJ_TENSOR:
     {
         PiTensor *tensor = (PiTensor *)col;
+        if (tensor->ndim == 1)
+        {
+            return NEW_NUM(tensor_getFlat(tensor, tensor->current++));
+        }
         return NEW_OBJ(tensor_rowAsList(tensor, tensor->current++));
     }
     case OBJ_STRING:
