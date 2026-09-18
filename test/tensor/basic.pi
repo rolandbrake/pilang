@@ -1,4 +1,4 @@
-import tensor.{zeros, ones, from, shape, ndim, size, reshape, is_tensor};
+import tensor.{zeros, ones, from, shape, ndim, size, reshape, is_tensor, linspace, range};
 
 let a = zeros([2, 2]);
 assert(type(a) == "tensor", "matrix-shaped literals should parse as tensors");
@@ -31,3 +31,14 @@ assert(shape(reshape(d, tuple(4, 2))) == tuple(4, 2), "tensor reshape should pre
 
 assert(shape(a) == tuple(2, 2), "tensor views should accept rank-2 tensors");
 assert(shape(zeros(tuple(1, 3))) == tuple(1, 3), "tensor constructors should accept tuple shapes");
+
+let samples = linspace(0, 1, 5);
+assert(shape(samples) == tuple(5), "tensor.linspace should create a 1d tensor");
+assert(samples[2][0] == 0.5, "tensor.linspace should include both endpoints");
+
+let sequence = range(1, 6, 2);
+assert(shape(sequence) == tuple(3), "tensor.range should create a 1d tensor");
+assert(sequence[2][0] == 5, "tensor.range should exclude the stop value");
+
+let reverse = range(3, -1, -1);
+assert(reverse[0][0] == 3, "tensor.range should support negative steps");

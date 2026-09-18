@@ -13,6 +13,8 @@ Value tn_randn(vm_t *vm, int argc, Value *argv);
 Value tn_randint(vm_t *vm, int argc, Value *argv);
 Value tn_from(vm_t *vm, int argc, Value *argv);
 Value tn_fill(vm_t *vm, int argc, Value *argv);
+Value tn_linspace(vm_t *vm, int argc, Value *argv);
+Value tn_range(vm_t *vm, int argc, Value *argv);
 
 // Structure
 Value tn_shape(vm_t *vm, int argc, Value *argv);

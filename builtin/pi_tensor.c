@@ -89,8 +89,8 @@ static int tn_shapeFromArgs(vm_t *vm, int argc, Value *argv, int **out_shape)
     if (argc == 1 && (IS_LIST(argv[0]) || IS_TUPLE(argv[0])))
     {
         list_t *shape_items = IS_LIST(argv[0])
-                                   ? AS_LIST(argv[0])->items
-                                   : AS_TUPLE(argv[0])->items;
+                                  ? AS_LIST(argv[0])->items
+                                  : AS_TUPLE(argv[0])->items;
         int ndim = shape_items->size;
         if (ndim <= 0)
             vm_error(vm, "tensor shape cannot be empty.");
@@ -266,6 +266,71 @@ Value tn_fill(vm_t *vm, int argc, Value *argv)
 
     double fill = AS_NUM(argv[argc - 1]);
     return tn_makeFilled(vm, argc - 1, argv, fill, false);
+}
+
+Value tn_linspace(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 2 || argc > 3 || !is_numeric(argv[0]) || !is_numeric(argv[1]) ||
+        (argc == 3 && !is_numeric(argv[2])))
+        vm_error(vm, "tensor.linspace expects start, stop, and optional count.");
+
+    double start = as_number(argv[0]);
+    double stop = as_number(argv[1]);
+    double count_value = argc == 3 ? as_number(argv[2]) : 50.0;
+    if (!isfinite(count_value) || count_value < 0 || floor(count_value) != count_value || count_value > INT_MAX)
+        vm_error(vm, "tensor.linspace count must be a non-negative integer.");
+
+    int count = (int)count_value;
+    int shape = count;
+    PiTensor *result = (PiTensor *)add_obj(vm, new_tensorUninit(1, &shape, TN_FLOAT64));
+    if (count == 0)
+        return NEW_OBJ(result);
+
+    if (count == 1)
+    {
+        tensor_setFlat(result, 0, start);
+        return NEW_OBJ(result);
+    }
+
+    double step = (stop - start) / (count - 1);
+    for (int i = 0; i < count; i++)
+        tensor_setFlat(result, i, start + i * step);
+    tensor_setFlat(result, count - 1, stop);
+    return NEW_OBJ(result);
+}
+
+Value tn_range(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1 || argc > 3)
+        vm_error(vm, "tensor.range expects stop, or start, stop, and optional step.");
+    for (int i = 0; i < argc; i++)
+    {
+        if (!is_numeric(argv[i]))
+            vm_error(vm, "tensor.range arguments must be numbers.");
+    }
+
+    double start = argc == 1 ? 0.0 : as_number(argv[0]);
+    double stop = argc == 1 ? as_number(argv[0]) : as_number(argv[1]);
+    double step = argc == 3 ? as_number(argv[2]) : 1.0;
+
+    if (!isfinite(start) || !isfinite(stop) || !isfinite(step) || step == 0.0)
+        vm_error(vm, "tensor.range arguments must be finite and step cannot be zero.");
+
+    double distance = step > 0.0 ? stop - start : start - stop;
+    int count = 0;
+    if (distance > 0.0)
+    {
+        double count_value = ceil(distance / fabs(step));
+        if (count_value > INT_MAX)
+            vm_error(vm, "tensor.range result is too large.");
+        count = (int)count_value;
+    }
+
+    int shape = count;
+    PiTensor *result = (PiTensor *)add_obj(vm, new_tensorUninit(1, &shape, TN_FLOAT64));
+    for (int i = 0; i < count; i++)
+        tensor_setFlat(result, i, start + i * step);
+    return NEW_OBJ(result);
 }
 
 Value tn_shape(vm_t *vm, int argc, Value *argv)
@@ -1658,6 +1723,8 @@ static BuiltinFunc tensor_funcs[] = {
     {"randint", tn_randint},
     {"from", tn_from},
     {"fill", tn_fill},
+    {"linspace", tn_linspace},
+    {"range", tn_range},
     {"shape", tn_shape},
     {"ndim", tn_ndim},
     {"size", tn_size},

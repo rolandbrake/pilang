@@ -20,6 +20,8 @@ println(tensor.shape(zeros))
 - `tensor.randint(shape, min, max)`: random integers
 - `tensor.from(value)`: creates a tensor from a compatible value
 - `tensor.fill(shape, value)`: fills a tensor with a value
+- `tensor.linspace(start, stop, count = 50)`: creates evenly spaced values, including both endpoints
+- `tensor.range(stop)`, `tensor.range(start, stop, step = 1)`: creates values before the stop value
 
 ## Shape Helpers
 

@@ -74,6 +74,28 @@ Creates a tensor filled with one value.
 println(t.fill((2, 3), 7))
 ```
 
+## `tensor.linspace(start, stop, count = 50)`
+
+Creates a one-dimensional tensor containing evenly spaced values. Both
+endpoints are included. The default count is 50.
+
+```swift
+println(t.linspace(0, 1, 5)) // [0, 0.25, 0.5, 0.75, 1]
+```
+
+## `tensor.range(stop)`
+
+## `tensor.range(start, stop, step = 1)`
+
+Creates a one-dimensional tensor of values starting at `start`, advancing by
+`step`, and stopping before `stop`. Negative steps are supported.
+
+```swift
+println(t.range(5))       // [0, 1, 2, 3, 4]
+println(t.range(1, 6, 2)) // [1, 3, 5]
+println(t.range(3, -1, -1)) // [3, 2, 1, 0]
+```
+
 ## `tensor.shape(value)`
 
 Returns the tensor shape as a tuple. This matches NumPy's shape convention.
