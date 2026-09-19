@@ -1535,6 +1535,7 @@ void vm_run(vm_t *vm)
         [OP_SET_ITEM] = VM_TARGET(OP_SET_ITEM),
         [OP_SET_MEMBER] = VM_TARGET(OP_SET_MEMBER),
         [OP_SET_SLOT] = VM_TARGET(OP_SET_SLOT),
+        [OP_SWITCH_COMPARE] = VM_TARGET(OP_SWITCH_COMPARE),
         [OP_TENSOR_SET] = VM_TARGET(OP_TENSOR_SET),
         [OP_IMPORT] = VM_TARGET(OP_IMPORT),
         [OP_GET_EXPORT] = VM_TARGET(OP_GET_EXPORT),
@@ -1822,6 +1823,25 @@ OP_JUMP_IF_TRUE:
         pc += offset - 1;
     else
         pc += 2;
+    VM_DISPATCH_SAFE();
+}
+
+OP_SWITCH_COMPARE:
+{
+    int constant_index = (code[pc] << 8) | code[pc + 1];
+    int offset = (int16_t)((code[pc + 2] << 8) | code[pc + 3]);
+    Value subject = vm->stack[vm->sp - 1];
+    Value constant = constants_data[constant_index];
+
+    if (equals(subject, constant))
+    {
+        vm->sp--;
+        pc += 4;
+    }
+    else
+    {
+        pc += offset;
+    }
     VM_DISPATCH_SAFE();
 }
 

@@ -11,7 +11,8 @@
 #include "pi_string.h"
 
 char *comp_ops[] = {"==", "!=", ">", "<", ">=", "<=", "in"};
-char *bin_ops[] = {"+", "-", "*", "/", "%", "&&", "||", "**", "&", "|", "^", "<<", ">>", ">>>", ".", "is"};
+char *bin_ops[] = {"+", "-", "*", "/", "%", "&&", "||", "**", "&", "|", "^",
+                   "<<", ">>", ">>>", ".", "is"};
 char *unary_ops[] = {"+", "-", "!", "~", "#", "++", "--", "typeof"};
 
 static void program(parser_t *parser);
@@ -2243,13 +2244,77 @@ static int find_switchCaseColon(parser_t *parser)
     return -1;
 }
 
+static bool switch_literalEquality(parser_t *parser, int subject_start, int subject_end,
+                                   segment_t condition, int *constant_index)
+{
+    int condition_length = condition.end - condition.start;
+
+    /* A literal case implicitly compares against the switch subject. */
+    if (condition_length == 1)
+    {
+        token_t literal = parser->tokens[condition.start];
+        switch (literal.type)
+        {
+        case TK_NUM:
+        case TK_STR:
+        case TK_TRUE:
+        case TK_FALSE:
+        case TK_NIL:
+        case TK_INF:
+        case TK_NAN:
+            *constant_index = store_tokenConst(parser->comp, literal);
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    /* Preserve the explicit form: subject == literal. */
+    if (subject_end != subject_start + 1 || condition_length != 3)
+        return false;
+
+    token_t subject = parser->tokens[subject_start];
+    token_t left = parser->tokens[condition.start];
+    token_t op = parser->tokens[condition.start + 1];
+    token_t literal = parser->tokens[condition.start + 2];
+
+    if (subject.type != TK_ID || left.type != TK_ID || op.type != TK_EQUAL ||
+        subject.length != left.length ||
+        strncmp(subject.start, left.start, subject.length) != 0)
+        return false;
+
+    switch (literal.type)
+    {
+    case TK_NUM:
+    case TK_STR:
+    case TK_TRUE:
+    case TK_FALSE:
+    case TK_NIL:
+    case TK_INF:
+    case TK_NAN:
+        *constant_index = store_tokenConst(parser->comp, literal);
+        return true;
+    default:
+        return false;
+    }
+}
+
 static void switch_stmt(parser_t *parser)
 {
     token_t switch_tok = previous(parser);
+    bool condition_switch = check(parser, TK_LBRACE);
 
-    set_pos(parser, switch_tok);
-    expr(parser);
-    emit(parser->comp, OP_POP);
+    int subject_start = -1;
+    int subject_end = -1;
+    bool subject_on_stack = false;
+    if (!condition_switch)
+    {
+        set_pos(parser, switch_tok);
+        subject_start = parser->current;
+        expr(parser);
+        subject_end = parser->current;
+        subject_on_stack = true;
+    }
 
     consume(parser, TK_LBRACE, "Expect '{' before switch cases.");
 
@@ -2271,6 +2336,11 @@ static void switch_stmt(parser_t *parser)
             has_default = true;
             next(parser); // _
             consume(parser, TK_COLON, "Expect ':' after switch default case.");
+            if (subject_on_stack)
+            {
+                emit(parser->comp, OP_POP);
+                subject_on_stack = false;
+            }
             switch_branchBody(parser);
             break;
         }
@@ -2282,19 +2352,38 @@ static void switch_stmt(parser_t *parser)
 
         token_t case_tok = peek(parser);
         segment_t condition = {parser->current, colon_index};
-        compile_segmentExpr(parser, condition, "Invalid switch case condition.");
+        int constant_index = -1;
+        bool fast_equality = subject_on_stack &&
+                             switch_literalEquality(parser, subject_start, subject_end,
+                                                    condition, &constant_index);
+        if (!fast_equality)
+        {
+            if (subject_on_stack)
+            {
+                emit(parser->comp, OP_POP);
+                subject_on_stack = false;
+            }
+            compile_segmentExpr(parser, condition, "Invalid switch case condition.");
+        }
         parser->current = colon_index;
         consume(parser, TK_COLON, "Expect ':' after switch case condition.");
 
         set_pos(parser, case_tok);
-        int next_case_jump = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
+        int next_case_jump;
+        if (fast_equality)
+            next_case_jump = emit_16uX2(parser->comp, OP_SWITCH_COMPARE, "", constant_index, 0);
+        else
+            next_case_jump = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
 
         switch_branchBody(parser);
         if (jump_count >= 256)
             p_error("Too many switch cases.", case_tok.line, case_tok.column);
 
         end_jumps[jump_count++] = emit_16u(parser->comp, OP_JUMP, "", 0);
-        patch_jump(parser->comp, next_case_jump);
+        if (fast_equality)
+            patch_switchCompare(parser->comp, next_case_jump);
+        else
+            patch_jump(parser->comp, next_case_jump);
     }
 
     if (!has_case)
@@ -2302,6 +2391,9 @@ static void switch_stmt(parser_t *parser)
                 switch_tok.line, switch_tok.column);
 
     consume(parser, TK_RBRACE, "Expect '}' after switch cases.");
+
+    if (subject_on_stack)
+        emit(parser->comp, OP_POP);
 
     for (int i = 0; i < jump_count; i++)
         patch_jump(parser->comp, end_jumps[i]);

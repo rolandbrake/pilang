@@ -121,6 +121,7 @@ static const char *op_names[] = {
     [0x50] = "PUSH_CLASS",
     [0x51] = "GET_SLOT",
     [0x52] = "SET_SLOT",
+    [0x53] = "SWITCH_COMPARE",
 };
 
 static context_t *create_context(bool is_function, list_t *code, char *fun_name)
@@ -1083,6 +1084,30 @@ void patch_jump(compiler_t *comp, int address)
     patch_jumpWithFlags(comp, address, 0);
 }
 
+void patch_switchCompare(compiler_t *comp, int address)
+{
+    if (!comp || comp->is_lookUp)
+        return;
+
+    uint8_t *code = (uint8_t *)comp->code->data;
+    int operand_start = address - 3;
+    int offset = comp->code->size - operand_start;
+    uint16_t encoded = (uint16_t)offset;
+    code[address - 1] = (encoded >> 8) & 0xff;
+    code[address] = encoded & 0xff;
+
+    for (int i = list_size(comp->current->instrs) - 1; i >= 0; i--)
+    {
+        instr_t *instr = list_getAt(comp->current->instrs, i);
+        if (instr->offset == address - 4)
+        {
+            instr->operands[2] = (encoded >> 8) & 0xff;
+            instr->operands[3] = encoded & 0xff;
+            break;
+        }
+    }
+}
+
 int code_size(compiler_t *comp)
 {
     return comp->code->size;
@@ -1151,7 +1176,7 @@ void dis(compiler_t *comp)
             case OP_COMP_APPEND:
             case OP_MAP_EXTEND:
             case OP_LIST_EXTEND:
-                snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d",
+                snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d      ",
                          line++, op_names[opcode], operands[0]);
                 line++;
                 pc++;
@@ -1167,8 +1192,8 @@ void dis(compiler_t *comp)
                 int target = instr->offset + offset;
 
                 snprintf(line_buf, sizeof(line_buf),
-                         offset < 0 ? "%-4d: %-14s %-6d [<< %-3d]\n"
-                                    : "%-4d: %-14s %-6d [>> %-3d]\n",
+                         offset < 0 ? "%-4d: %-14s %-6d       [<< %-3d]\n"
+                                    : "%-4d: %-14s %-6d       [>> %-3d]\n",
                          line++, op_names[opcode], offset, target);
                 line += 2;
                 pc += 2;
@@ -1186,7 +1211,7 @@ void dis(compiler_t *comp)
             case OP_SET_MEMBER:
             case OP_GET_SLOT:
             case OP_SET_SLOT:
-                snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d",
+                snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d      ",
                          line++, op_names[opcode], (int16_t)((operands[0] << 8) | operands[1]));
                 line += 2;
                 pc += 2;
@@ -1201,13 +1226,25 @@ void dis(compiler_t *comp)
                 pc += 4;
                 break;
 
+            case OP_SWITCH_COMPARE:
+            {
+                int constant = (operands[0] << 8) | operands[1];
+                int offset = (int16_t)((operands[2] << 8) | operands[3]);
+                int target = instr->offset + 1 + offset;
+                snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d %-5d [>> %d]",
+                         line++, op_names[opcode], constant, offset, target);
+                line += 4;
+                pc += 4;
+                break;
+            }
+
             case OP_COMP_END:
                 snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s",
                          line++, op_names[opcode]);
                 break;
 
             case OP_PUSH_CLOSURE:
-                snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %d %3d",
+                snprintf(line_buf, sizeof(line_buf), "%-4d: %-15s %-5d %-5d",
                          line++, op_names[opcode], operands[0], operands[1]);
                 line += 2;
                 pc += 2;
@@ -1244,7 +1281,7 @@ void dis(compiler_t *comp)
                 snprintf(line_buf, sizeof(line_buf),
                          "\033[38;2;107;107;107m%-4d\033[0m: "
                          "\033[38;2;139;0;0m%-15s\033[0m "
-                         "\033[38;2;184;134;11m%-5d\033[0m",
+                         "\033[38;2;184;134;11m%-5d      \033[0m",
                          line++, op_names[opcode], operands[0]);
                 line++;
                 pc++;
@@ -1262,9 +1299,9 @@ void dis(compiler_t *comp)
                 snprintf(line_buf, sizeof(line_buf),
                          offset < 0
                              ? "\033[38;2;107;107;107m%-4d\033[0m: \033[38;2;139;0;0m%-14s\033[0m "
-                               "\033[38;2;184;134;11m%-6d\033[0m \033[38;2;34;139;34m[<< %-3d]\033[0m\n"
+                               "\033[38;2;184;134;11m%-6d       \033[0m\033[38;2;34;139;34m[<< %-3d]\033[0m\n"
                              : "\033[38;2;107;107;107m%-4d\033[0m: \033[38;2;139;0;0m%-14s\033[0m "
-                               "\033[38;2;184;134;11m%-6d\033[0m \033[38;2;34;139;34m[>> %-3d]\033[0m\n",
+                               "\033[38;2;184;134;11m%-6d       \033[0m\033[38;2;34;139;34m[>> %-3d]\033[0m\n",
                          line++, op_names[opcode], offset, target);
                 line += 2;
                 pc += 2;
@@ -1285,7 +1322,7 @@ void dis(compiler_t *comp)
                 snprintf(line_buf, sizeof(line_buf),
                          "\033[38;2;107;107;107m%-4d\033[0m: "
                          "\033[38;2;139;0;0m%-15s\033[0m "
-                         "\033[38;2;184;134;11m%-5d\033[0m",
+                         "\033[38;2;184;134;11m%-5d      \033[0m",
                          line++, op_names[opcode], (int16_t)((operands[0] << 8) | operands[1]));
                 line += 2;
                 pc += 2;
@@ -1303,6 +1340,21 @@ void dis(compiler_t *comp)
                 pc += 4;
                 break;
 
+            case OP_SWITCH_COMPARE:
+            {
+                int constant = (operands[0] << 8) | operands[1];
+                int offset = (int16_t)((operands[2] << 8) | operands[3]);
+                int target = instr->offset + 1 + offset;
+                snprintf(line_buf, sizeof(line_buf),
+                         "\033[38;2;107;107;107m%-4d\033[0m: "
+                         "\033[38;2;139;0;0m%-15s\033[0m "
+                         "\033[38;2;184;134;11m%-5d %-5d [>> %d]\033[0m",
+                         line++, op_names[opcode], constant, offset, target);
+                line += 4;
+                pc += 4;
+                break;
+            }
+
             case OP_COMP_END:
                 snprintf(line_buf, sizeof(line_buf),
                          "\033[38;2;107;107;107m%-4d\033[0m: "
@@ -1314,7 +1366,7 @@ void dis(compiler_t *comp)
                 snprintf(line_buf, sizeof(line_buf),
                          "\033[38;2;107;107;107m%-4d\033[0m: "
                          "\033[38;2;139;0;0m%-15s\033[0m "
-                         "\033[38;2;184;134;11m%d %3d\033[0m",
+                         "\033[38;2;184;134;11m%-5d %-5d\033[0m",
                          line++, op_names[opcode], operands[0], operands[1]);
                 line += 2;
                 pc += 2;

@@ -52,3 +52,53 @@ switch exp {
 
 assert(result == 9, "switch default case '_' should run when no condition matches")
 
+let kind = "b"
+result = 0
+switch kind {
+    kind == "a": result = 1
+    kind == "b": result = 2
+    _: result = 3
+}
+
+assert(result == 2, "switch literal equality should support strings")
+
+let shorthand_value = 2
+result = 0
+switch shorthand_value {
+    1: result = 10
+    2: result = 20
+    3: result = 30
+    _: result = 40
+}
+
+assert(result == 20, "literal switch cases should compare with the subject")
+
+let shorthand_kind = "b"
+switch shorthand_kind {
+    "a": result = 1
+    "b": result = 2
+    shorthand_kind == "c": result = 3
+    _: result = 4
+}
+
+assert(result == 2, "literal and explicit switch cases should work together")
+
+let condition_value = 20
+result = 0
+switch {
+    condition_value == 1: result = 1
+    condition_value == 20: result = 2
+    condition_value > 10: result = 3
+    _: result = 4
+}
+
+assert(result == 2, "condition switch should stop at the first true case")
+
+condition_value = 99
+switch {
+    condition_value < 0: result = 1
+    condition_value == 20: result = 2
+    _: result = 4
+}
+
+assert(result == 4, "condition switch should use the default case")

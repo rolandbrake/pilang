@@ -70,6 +70,7 @@ typedef enum
     OP_PUSH_CLASS = 0x50,
     OP_GET_SLOT = 0x51,
     OP_SET_SLOT = 0x52,
+    OP_SWITCH_COMPARE = 0x53,
 
 } OpCode;
 
@@ -115,6 +116,9 @@ static inline int operand_count(uint8_t op)
         return 2;
 
     case OP_PUSH_CLASS:
+        return 4;
+
+    case OP_SWITCH_COMPARE:
         return 4;
 
     case OP_STORE_GLOBAL:
