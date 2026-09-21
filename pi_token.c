@@ -32,6 +32,9 @@ keyword_t keywords[KW_NUM] = {
     {"import", TK_IMPORT},
     {"switch", TK_SWITCH},
     {"match", TK_MATCH},
+    {"and", TK_AND},
+    {"or", TK_OR},
+    {"not", TK_NOT},
 };
 
 const char *token_names[] = {

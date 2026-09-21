@@ -31,7 +31,7 @@ typedef struct ObjModule
     table_t *instrs;
     table_t *globals;
 
-} ObjModule; // pilang modules
+} ObjModule;
 
 Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin, bool is_main);
 BuiltinModule *new_builtinModule(const char *name, BuiltinFunc *functions, int func_count, BuiltinConst *consts, int const_count);

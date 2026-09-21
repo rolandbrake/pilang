@@ -1,0 +1,7 @@
+assert(true and true, "and should be accepted as logical AND")
+assert(true or false, "or should be accepted as logical OR")
+assert(not false, "not should be accepted as logical NOT")
+
+assert((true and false) == (true && false), "and should match &&")
+assert((false or true) == (false || true), "or should match ||")
+assert((not true) == (!true), "not should match !")

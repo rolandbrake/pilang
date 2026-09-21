@@ -40,6 +40,9 @@ export default class PiScanner {
       import: TokenType.IMPORT,
       switch: TokenType.SWITCH,
       match: TokenType.MATCH,
+      and: TokenType.AND,
+      or: TokenType.OR,
+      not: TokenType.NOT,
     };
   }
 

@@ -1,6 +1,8 @@
 # Pilang Syntax for VS Code
 
 This folder contains a small VS Code extension that adds syntax highlighting for `.pi` files.
+It recognizes symbolic and keyword logical operators (`&&`/`and`, `||`/`or`,
+`!`/`not`) and numeric separators such as `100_000_999`.
 
 ## Use it while developing
 
@@ -17,7 +19,7 @@ Then open any `.pi` file in the new VS Code window.
 Copy this folder to your VS Code extensions directory and restart VS Code:
 
 ```powershell
-Copy-Item -Recurse editors\vscode\pilang-syntax "$env:USERPROFILE\.vscode\extensions\pilang.pilang-syntax-0.1.0"
+Copy-Item -Recurse editors\vscode\pilang-syntax "$env:USERPROFILE\.vscode\extensions\pilang.pilang-syntax-0.1.1"
 ```
 
 After restart, `.pi` files should be detected as Pilang automatically.

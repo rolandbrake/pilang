@@ -25,7 +25,8 @@ export default class PiUnaryExpression extends PiExpression {
 
     let expr;
     if (this._prefix) {
-      expr = this._name + this._sub.format(0, comments, precedence);
+      const separator = /^[A-Za-z_]/.test(this._name) ? " " : "";
+      expr = this._name + separator + this._sub.format(0, comments, precedence);
     } else {
       expr = this._sub.format(0, comments, precedence) + this._name;
     }
@@ -42,8 +43,8 @@ export default class PiUnaryExpression extends PiExpression {
 
     let expr;
     if (this._prefix) {
-      // prefix form: -x, !y, etc.
-      expr = this._name + this._sub.minify(context, precedence);
+      const separator = /^[A-Za-z_]/.test(this._name) ? " " : "";
+      expr = this._name + separator + this._sub.minify(context, precedence);
     } else {
       // postfix form: x++, x--, etc.
       expr = this._sub.minify(context, precedence) + this._name;

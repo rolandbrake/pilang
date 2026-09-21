@@ -2,7 +2,7 @@
   "name": "pilang-syntax",
   "displayName": "Pilang Syntax",
   "description": "Syntax highlighting and editor basics for Pilang .pi files.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "pilang",
   "engines": {
     "vscode": "^1.80.0"

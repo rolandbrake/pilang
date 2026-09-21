@@ -13,8 +13,8 @@ let length = 2048;
 let memory = [0] * length;
 
 fun is_instruction(ch) {
-    return ch == ">" || ch == "<" || ch == "+" || ch == "-" ||
-           ch == "." || ch == "," || ch == "[" || ch == "]";
+    return ch == ">" or ch == "<" or ch == "+" or ch == "-" or
+           ch == "." or ch == "," or ch == "[" or ch == "]";
 }
 
 fun compile(code = "") {
@@ -115,7 +115,7 @@ fun interpret(code = "", stream_output = false) {
         elif (op == ".") {
             output.push(char(memory[ptr]));
 
-            if (stream_output || #output >= 4096)
+            if (stream_output or #output >= 4096)
                 flush_output(output);
         }
 

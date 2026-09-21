@@ -8,7 +8,7 @@
 // Function to convert a void pointer to an integer
 #define cast_int64(x) ((int64_t)x)
 
-#define KW_NUM 26
+#define KW_NUM 29
 
 /*
 ** Single-char tokens (terminal symbols) are represented by their own

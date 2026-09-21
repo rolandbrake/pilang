@@ -30,11 +30,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     fn->names = NULL;
     fn->instrs = NULL;
 
-    fn->is_native = false;
-    fn->is_method = false;
-
-    fn->need_args = true;
-    fn->need_kwargs = true;
+    fn->flags = FUNC_NEED_ARGS | FUNC_NEED_KWARGS;
 
     fn->global_valid = false;
     fn->glonal_index = -1;
@@ -92,11 +88,7 @@ Value *new_native(const char *name, native_func func)
     fn->instrs = NULL;
     fn->globals = NULL;
 
-    fn->is_native = true;
-    fn->is_method = false;
-
-    fn->need_args = false;
-    fn->need_kwargs = false;
+    fn->flags = FUNC_NATIVE;
 
     fn->global_valid = false;
     fn->glonal_index = -1;
@@ -122,7 +114,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
 {
 
     // Native fast path
-    if (function->is_native)
+    if (FUNC_HAS_FLAG(function, FUNC_NATIVE))
     {
         Object *prev_function = vm->function;
         Value prev_kwargs = vm->_kw_args;
@@ -131,7 +123,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         vm->_kw_args = kw_args;
 
         /* Bound native methods receive the instance as argv[0]. */
-        if (function->is_method && function->instance != NULL)
+        if (FUNC_HAS_FLAG(function, FUNC_METHOD) && function->instance != NULL)
         {
             /*
              * Methods such as list.push() are commonly called in tight loops.
@@ -210,7 +202,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     size_t param_offset = 0; /* skip slot 0 when `this` is a named param */
     Value instance = NEW_NIL();
 
-    if (function->is_method)
+    if (FUNC_HAS_FLAG(function, FUNC_METHOD))
     {
         if (function->instance != NULL)
             instance = NEW_OBJ(add_obj(vm, function->instance));
@@ -245,7 +237,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     }
 
     /* Overwrite slot 0 with instance when this is a named param. */
-    if (function->is_method && param_offset == 1 && param_count > 0)
+    if (FUNC_HAS_FLAG(function, FUNC_METHOD) && param_offset == 1 && param_count > 0)
         vm->stack[param_base] = instance;
 
     // Copy positional arguments
@@ -285,7 +277,8 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         }
     }
 
-    if (!function->need_args && !function->need_kwargs)
+    if (!FUNC_HAS_FLAG(function, FUNC_NEED_ARGS) &&
+        !FUNC_HAS_FLAG(function, FUNC_NEED_KWARGS))
     {
         vm->stack[aux_base] = NEW_NIL();
         vm->stack[aux_base + 1] = NEW_NIL();
@@ -294,10 +287,10 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     }
 
     // Implicit args and kwargs locals
-    if (function->need_args)
+    if (FUNC_HAS_FLAG(function, FUNC_NEED_ARGS))
     {
         list_t *_args = list_create(sizeof(Value));
-        if (function->is_method)
+        if (FUNC_HAS_FLAG(function, FUNC_METHOD))
             list_add(_args, &instance);
         for (size_t i = 0; i < argc; i++)
             list_add(_args, &argv[i]);
@@ -306,7 +299,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     else
         vm->stack[aux_base] = NEW_NIL();
 
-    vm->stack[aux_base + 1] = function->need_kwargs
+    vm->stack[aux_base + 1] = FUNC_HAS_FLAG(function, FUNC_NEED_KWARGS)
                                   ? ((IS_OBJ(kw_args) && OBJ_TYPE(kw_args) == OBJ_MAP)
                                          ? kw_args
                                          : NEW_OBJ(add_obj(vm, new_map(ht_create(sizeof(Value))))))

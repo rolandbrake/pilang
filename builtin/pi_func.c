@@ -56,10 +56,8 @@ static Value make_nativeWrapper(vm_t *vm, const char *name, native_func func, Ob
 {
     Object *obj = new_func((char *)name, NULL, NULL, NULL, state);
     Function *fn = (Function *)obj;
-    fn->is_native = true;
+    fn->flags = FUNC_NATIVE;
     fn->native = func;
-    fn->need_args = false;
-    fn->need_kwargs = false;
     add_obj(vm, obj);
     return NEW_OBJ(obj);
 }

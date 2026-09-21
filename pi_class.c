@@ -1,4 +1,4 @@
-#include "pi_object.h"
+#include "pi_class.h"
 
 #define CREATE_OBJ(obj, type) (obj *)alloc_object(sizeof(obj), type)
 

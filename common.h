@@ -37,6 +37,25 @@ typedef uint8_t byte;
 #define False 0
 #define True 1
 
+
+#define AND &&
+#define OR  ||
+#define NOT !
+
+#define EQ  ==
+#define NE  !=
+
+#define LT  <
+#define LE  <=
+#define GT  >
+#define GE  >=
+
+#define ADD +
+#define SUB -
+#define MUL *
+#define DIV /
+#define MOD %
+
 #define EPSILON 1e-5f
 
 #ifndef NIL_VAL
