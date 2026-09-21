@@ -115,6 +115,7 @@ BuiltinModule *builtin_modules[] = {
     &module_random,
     &module_lang,
 #ifndef __EMSCRIPTEN__
+    &module_netSocket,
     &module_os,
     &module_draw,
     &module_plot,

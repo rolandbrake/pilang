@@ -447,6 +447,10 @@ void free_object(Object *obj)
         break;
     }
 
+    case OBJ_SOCKET:
+        close_socket((PiSocket *)obj);
+        break;
+
 #ifndef __EMSCRIPTEN__
     case OBJ_IMAGE:
     {

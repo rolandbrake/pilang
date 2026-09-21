@@ -61,6 +61,7 @@ IMAGE_SRCS := \
 	builtin/image/pi_color.c
 
 NATIVE_EXTRA_SRCS := \
+	builtin/net/pi_socket.c \
 	builtin/pi_os.c \
 	builtin/pi_draw.c \
 	builtin/pi_plot.c \
@@ -96,7 +97,8 @@ NATIVE_LDLIBS ?= \
 	-lsetupapi \
 	-limm32 \
 	-lversion \
-	-lshlwapi
+	-lshlwapi \
+	-lws2_32
 
 DEBUG_LDLIBS ?= \
 	-lmingw32 \
@@ -106,7 +108,8 @@ DEBUG_LDLIBS ?= \
 	-lSDL2_ttf \
 	-lSDL2 \
 	-lwinpthread \
-	-lshlwapi
+	-lshlwapi \
+	-lws2_32
 else
 PKG_CONFIG ?= pkg-config
 SDL_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_image SDL2_ttf 2>/dev/null)

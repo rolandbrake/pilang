@@ -1,6 +1,13 @@
 #include <math.h>
 #include <string.h>
 #include <limits.h>
+#ifndef __EMSCRIPTEN__
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <unistd.h>
+#endif
+#endif
 #include "pi_object.h"
 #include "common.h"
 
@@ -461,6 +468,32 @@ Object *new_file(FILE *file, char *filename, char *mode)
     f->mode = mode;
     f->closed = false;
     return (Object *)f;
+}
+
+Object *new_socket(intptr_t handle, int family, int type, int protocol)
+{
+    PiSocket *socket = CREATE_OBJ(PiSocket, OBJ_SOCKET);
+    socket->handle = handle;
+    socket->family = family;
+    socket->type = type;
+    socket->protocol = protocol;
+    socket->closed = false;
+    return (Object *)socket;
+}
+
+void close_socket(PiSocket *socket)
+{
+    if (!socket || socket->closed)
+        return;
+
+#ifndef __EMSCRIPTEN__
+#ifdef _WIN32
+    closesocket((SOCKET)socket->handle);
+#else
+    close((int)socket->handle);
+#endif
+#endif
+    socket->closed = true;
 }
 
 Object *new_range(double start, double end, double step)

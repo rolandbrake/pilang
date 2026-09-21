@@ -1,0 +1,27 @@
+import net.socket
+
+assert(type(socket.connect) == "function", "socket should expose connect")
+assert(type(socket.send_all) == "function", "socket should expose send_all")
+assert(type(socket.receive) == "function", "socket should expose receive")
+assert(type(socket.close) == "function", "socket should expose close")
+assert(type(socket.Socket) == "function", "socket should expose Socket")
+assert(socket.AF_INET > 0, "socket should expose AF_INET")
+assert(socket.SOCK_STREAM > 0, "socket should expose SOCK_STREAM")
+
+client = socket.Socket(socket.AF_INET, socket.SOCK_STREAM)
+socket.close(client)
+
+// HTTP example:
+// client = net.socket.Socket(socket.AF_INET, socket.SOCK_STREAM)
+// socket.connect(client, "example.com", 80, {"timeout": 5000})
+// socket.send_all(client, "GET / HTTP/1.0\r\nHost: example.com\r\n\r\n")
+// response = socket.receive(client)
+// println(response.data)
+// net.socket.close(client)
+
+// Echo-server example:
+// client = socket.connect("127.0.0.1", 9000)
+// socket.send_all(client, "hello\n")
+// reply = socket.receive(client, 1024)
+// println(reply.data)
+// socket.close(client)

@@ -67,6 +67,7 @@ extern BuiltinModule module_plot;   // plot: 2D plotting (plot, scatter, bar, sh
 extern BuiltinModule module_plot3d; // plot3d: 3D plotting (surface, mesh, wireframe, …)
 extern BuiltinModule module_tensor; // tensor: Tensor operations (zeros, ones, shape, …)
 #ifndef __EMSCRIPTEN__
+extern BuiltinModule module_netSocket;
 extern BuiltinModule module_image;        // image: Image loading and manipulation
 extern BuiltinModule module_imageFilters; // image.filters: Convolution, blur, edge detection, …
 extern BuiltinModule module_imageColor;   // image.color: Color space and palette helpers

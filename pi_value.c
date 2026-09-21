@@ -913,6 +913,9 @@ char *as_stringWithFormat(vm_t *vm, Value val)
             return fmt_alloc(256, "<file %s>", f->filename ? f->filename : "<anonymous>");
         }
 
+        case OBJ_SOCKET:
+            return dup_Cstring("<socket>");
+
 #ifndef __EMSCRIPTEN__
         case OBJ_IMAGE:
         {
@@ -1212,6 +1215,7 @@ char *type_name(Value val)
         case OBJ_FUN:      return "function";
         case OBJ_CODE:     return "code";
         case OBJ_FILE:     return "file";
+        case OBJ_SOCKET:   return "socket";
         case OBJ_MODEL3D:  return "model3d";
         case OBJ_IMAGE:    return "image";
         case OBJ_CONTEXT:  return "context";

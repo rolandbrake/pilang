@@ -37,6 +37,7 @@ typedef struct SDL_Rect
 #define IS_SLICE(o) IS_OBJ_TYPE(o, OBJ_SLICE)
 #define IS_SET(o) IS_OBJ_TYPE(o, OBJ_SET)
 #define IS_TUPLE(o) IS_OBJ_TYPE(o, OBJ_TUPLE)
+#define IS_SOCKET(o) IS_OBJ_TYPE(o, OBJ_SOCKET)
 
 #define IS_CONTEXT(o) IS_OBJ_TYPE(o, OBJ_CONTEXT)
 #define IS_CHART(o) IS_OBJ_TYPE(o, OBJ_CHART)
@@ -64,6 +65,7 @@ typedef struct SDL_Rect
 #define AS_FUN(o) ((Function *)AS_OBJ(o))
 #define AS_CODE(o) ((ObjCode *)AS_OBJ(o))
 #define AS_FILE(o) ((ObjFile *)AS_OBJ(o))
+#define AS_SOCKET(o) ((PiSocket *)AS_OBJ(o))
 
 #define AS_CONTEXT(o) ((PiContext *)AS_OBJ(o))
 #define AS_CHART(o) ((PiChart *)AS_OBJ(o))
@@ -101,6 +103,7 @@ typedef enum
     OBJ_FUN,
     OBJ_CODE,
     OBJ_FILE,
+    OBJ_SOCKET,
     OBJ_IMAGE,
     OBJ_SPRITE,
     OBJ_MODEL3D,
@@ -362,6 +365,16 @@ typedef struct
     char *filename;
 } ObjFile;
 
+typedef struct
+{
+    Object object;
+    intptr_t handle;
+    int family;
+    int type;
+    int protocol;
+    bool closed;
+} PiSocket;
+
 #ifndef __EMSCRIPTEN__
 typedef struct
 {
@@ -504,6 +517,9 @@ void set_free(PiSet *set);  // Free memory
 Object *new_tuple(list_t *items);
 
 Object *new_file(FILE *file, char *filename, char *mode);
+
+Object *new_socket(intptr_t handle, int family, int type, int protocol);
+void close_socket(PiSocket *socket);
 
 Value map_get(PiMap *map, Value key);
 Value map_getValueByKey(PiMap *map, const char *key);

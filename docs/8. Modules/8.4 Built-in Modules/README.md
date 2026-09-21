@@ -20,6 +20,7 @@ import sys.{EXIT_SUCCESS}
 - [image.filters](image.filters.md): image filters, convolution kernels, and edge detection
 - [io](io.md): input, output, prompts, and formatting
 - [lang](lang.md): language and operator constants
+- [net.socket](net.socket.md): synchronous TCP client sockets
 - [math](math.md): math constants and numeric helpers
 - [os](os.md): operating-system helpers
 - [plot](plot.md): 2D charts, image display, heatmaps, vector fields, and subplots
