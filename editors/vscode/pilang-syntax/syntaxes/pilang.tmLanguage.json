@@ -163,7 +163,7 @@
         },
         {
           "name": "meta.variable.declaration.pilang",
-          "match": "\\b(let)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(let|var)\\s+([A-Za-z_][A-Za-z0-9_]*)",
           "captures": {
             "1": {
               "name": "storage.type.variable.pilang"

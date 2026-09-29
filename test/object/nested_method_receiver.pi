@@ -1,0 +1,21 @@
+class Receiver {
+    constructor(value) { this.value = value }
+    first(quote) {
+        while true {
+            if this.atEnd() {
+                break
+            }
+            let current = this.next()
+            if current == quote { break }
+        }
+        return this.value
+    }
+    atEnd() { return #this.value == 0 }
+    next() {
+        let current = this.value[0]
+        this.value = this.value[1:]
+        return current
+    }
+}
+
+assert(Receiver("abc'").first("'") == "", "break must preserve a method receiver")

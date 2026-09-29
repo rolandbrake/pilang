@@ -68,9 +68,6 @@ assert(1 == 1, "This should NOT fail")
 // Uncomment to test failure:
 // sys.assert(1 == 2, "This SHOULD fail")
 
-// --- error ---
-println("\n[error]")
-error("This is a test error message")
 
 // --- exit ---
 println("\n[exit]")

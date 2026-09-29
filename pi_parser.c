@@ -67,15 +67,7 @@ static void emit_nilReturn(compiler_t *comp)
 
 static void emit_defaultReturn(compiler_t *comp)
 {
-    if (is_constructor(comp))
-    {
-        emit_8u(comp, OP_LOAD_LOCAL, "this", 0);
-        emit(comp, OP_RETURN);
-    }
-    else
-    {
-        emit_nilReturn(comp);
-    }
+    emit_nilReturn(comp);
 }
 
 static void emit_listComprehension(parser_t *parser);
@@ -1869,7 +1861,7 @@ static void import_item(parser_t *parser)
         return;
     }
 
-    // Plain module import: bind to export if same-name function exists, else module.
+    // Plain module import: bind to a same-name export, else the module.
     emit_importModule(parser, parts, count);
     char *binding_name = token_value(parts[count - 1]);
     int name_index = store_tokenConst(parser->comp, parts[count - 1]);
@@ -2506,7 +2498,7 @@ static void break_stmt(parser_t *parser)
     if (is_forLoop(parser->comp))
         emit(parser->comp, OP_POP_ITER);
 
-    emit_pop(parser->comp, loop_depth(parser->comp));
+    emit_pop(parser->comp, loop_depth(parser->comp) + 1);
     push_break(parser->comp, emit_jump(parser->comp, 0));
 
     // Mark this point as a return-like exit to check for unreachable code
@@ -2525,7 +2517,7 @@ static void continue_stmt(parser_t *parser)
         p_errorf(tok.line, tok.column, "'continue' used outside of a loop");
 
     int address = get_continue(parser->comp);
-    emit_pop(parser->comp, loop_depth(parser->comp));
+    emit_pop(parser->comp, loop_depth(parser->comp) + 1);
     emit_jump(parser->comp, address - code_size(parser->comp));
 
     parser->is_return = true;
@@ -2540,23 +2532,13 @@ static void return_stmt(parser_t *parser)
     set_pos(parser, tok);
     bool emitted_return = false;
 
-    if (is_constructor(parser->comp))
+    if (match(parser, TK_SEMICOLON) || is_lineBreak(parser))
     {
-        if (!check(parser, TK_SEMICOLON) && !is_lineBreak(parser))
-            p_error("Constructors cannot return a value.", peek(parser).line, peek(parser).column);
-
-        emit_8u(parser->comp, OP_LOAD_LOCAL, "this", 0);
+        emit_nilReturn(parser->comp);
+        emitted_return = true;
     }
     else
-    {
-        if (match(parser, TK_SEMICOLON) || is_lineBreak(parser))
-        {
-            emit_nilReturn(parser->comp);
-            emitted_return = true;
-        }
-        else
-            expr(parser); // return with value
-    }
+        expr(parser); // return with value
 
     if (!emitted_return)
         emit(parser->comp, OP_RETURN);

@@ -35,7 +35,8 @@ CORE_SRCS := \
 	pi_func.c \
 	pi_frame.c \
 	gc.c \
-	pi_module.c
+	pi_module.c \
+	pi_build.c
 
 COMMON_BUILTIN_SRCS := \
 	builtin/pi_math.c \

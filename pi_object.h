@@ -327,6 +327,7 @@ typedef struct GlobalCache
     Value *slots[UINT8_MAX + 1];
     table_t *globals;
     list_t *names;
+    uint64_t globals_version;
 } GlobalCache;
 
 typedef struct

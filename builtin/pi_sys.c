@@ -22,15 +22,17 @@
 #include "../common.h"
 #include "../gc.h"
 
+
 Value pi_error(vm_t *vm, int argc, Value *argv)
 {
-    if (argc == 0)
-        vm_error(vm, "[error] expects at least one argument.");
+    if (argc < 1) 
+        vm_error(vm, "[error] expects at least one argument.");            
 
-    const char *str = as_string(argv[0]);
-    printf("Error: %s\n", str);
-    free((void *)str);
-    return NEW_NIL();
+    const char *str = as_string(argv[0]);    
+    
+    fprintf(stderr, "\033[31mError: %s\033[0m\n", str);
+
+    exit(EXIT_FAILURE);
 }
 
 Value pi_assert(vm_t *vm, int argc, Value *argv)

@@ -26,10 +26,13 @@ typedef struct ObjModule
     bool is_main;
     ModuleState state;
     PiMap *exports;
+    list_t *code;
     list_t *constants;
     list_t *names;
     table_t *instrs;
     table_t *globals;
+    size_t source_size;
+    uint64_t source_hash;
 
 } ObjModule;
 
@@ -37,5 +40,6 @@ Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin, b
 BuiltinModule *new_builtinModule(const char *name, BuiltinFunc *functions, int func_count, BuiltinConst *consts, int const_count);
 Value load_module(vm_t *vm, const char *name);
 char *module_resolvePath(vm_t *vm, const char *name);
+char *module_resolvePathFrom(const char *base, const char *name);
 
 #endif // PI_MODULE_H

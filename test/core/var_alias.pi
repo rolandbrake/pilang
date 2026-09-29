@@ -1,0 +1,10 @@
+var total = 1
+total += 1
+
+fun value() {
+    var local = 3
+    return local
+}
+
+assert(total == 2, "var should create a mutable binding")
+assert(value() == 3, "var should work in local scopes")

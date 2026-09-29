@@ -36,7 +36,7 @@
 *.log
 *.tmp
 
-
+ 
 #log files
 *.log
 
@@ -45,7 +45,7 @@ build/
 bin/
 emsdk/
 release/
-# docs/
+utils/
 # micrograd/
 # editors/
 website/

@@ -21,3 +21,4 @@ A Pilang file moves through these stages:
 - [12.3 Embedding Pilang](12.3-embedding-pilang.md)
 - [12.4 Performance Tips](12.4-performance-tips.md)
 - [12.5 Packaging System](12.5-packaging-system.md)
+- [12.6 PX Project Build Format](12.6-px-file-format.md)

@@ -1,8 +1,8 @@
-## pilang JS Formatter + Minifier
+## Pilang Formatter + Minifier
 
-This project provides a JavaScript implementation of a formatter and minifier for the pilang programming language. It includes a scanner, parser, AST nodes, and formatting/minification utilities.
+This project provides a native Pilang formatter and minifier. It includes a scanner, parser, AST nodes, and formatting/minification utilities compiled into `bin/PiForminator.px`.
 
-If you want a quick way to see it in action, the native Pilang CLI calls `PiCli.js`, which reads a `.pi` file and writes formatted or minified output back to that file.
+The native Pilang CLI runs the PX tool directly, so `fmt` and `min` do not require Node.js.
 
 ## Features
 
@@ -13,7 +13,7 @@ If you want a quick way to see it in action, the native Pilang CLI calls `PiCli.
 
 ## Requirements
 
-- Node.js (ESM modules enabled)
+- Pilang with `bin/PiForminator.px` present (rebuild it with `pilang build utils\PiForminator.pi` if needed)
 
 ## Quick Start
 
@@ -24,51 +24,33 @@ pilang fmt path\to\script.pi
 pilang min path\to\script.pi
 ```
 
-You can also call the utility wrapper directly:
+You can run the compiled tool directly:
 
-```bash
-node utils/PiCli.js fmt path\to\script.pi
-node utils/PiCli.js min path\to\script.pi
+```powershell
+pilang run bin\PiForminator.px fmt path\to\script.pi
+pilang run bin\PiForminator.px min path\to\script.pi
 ```
 
 ## Programmatic Usage
 
 ### Formatter
 
-```js
-import PiFormatter from "./PiFormatter.js";
+```pi
+import PiFormatter.{formatSource}
 
-const source = `let x=1+2;`;
-const result = PiFormatter.format(source);
-
-if (result.success) {
-  console.log(result.code);
-} else {
-  console.error(result.error);
-}
+const result = formatSource("let x=1+2")
+println(result.code)
 ```
 
 ### Minifier
 
 Minification is driven by AST nodes and a `PiContext` (which can mangle identifiers). Use the scanner + parser, then call `minify` on the statements.
 
-```js
-import PiScanner from "./PiScanner.js";
-import PiParser from "./PiParser.js";
-import PiContext from "./PiContext.js";
+```pi
+import PiMinifier.{minifySource}
 
-const source = `let counter = 1 + 2;`;
-const scanner = new PiScanner(source);
-const tokens = scanner.scanTokens();
-
-const parser = new PiParser();
-const statements = parser.parse(tokens);
-
-const builtins = ["print", "println"]; // add pilang built-ins you want to preserve
-const ctx = new PiContext(builtins, true); // true = enable mangling
-
-const minified = statements.minify(ctx);
-console.log(minified);
+const result = minifySource("let counter = 1 + 2")
+println(result.code)
 ```
 
 ## Notes
@@ -79,7 +61,8 @@ console.log(minified);
 
 ## Files of Interest
 
-- `PiFormatter.js` - formatting entry point
-- `PiMangler.js` - name mangling for minification
-- `PiContext.js` - scope handling for minification
-- `PiCli.js` - CLI-style runner used by `pilang fmt` and `pilang min`
+- `PiForminator.pi` - native CLI entry point
+- `PiForminator.px` - compiled PX package copied to `bin/`
+- `PI/PiFormatter.pi` - formatting entry point
+- `PI/PiMinifier.pi` - minification entry point
+- `PI/PiContext.pi` - scope handling for minification

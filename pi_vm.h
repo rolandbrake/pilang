@@ -169,6 +169,7 @@ typedef struct vm_t
     int obj_count;
 
     table_t *modules;      // Hash table to store loaded modules by name
+    struct px_project_build *project_build; // Optional validated .px project build
     char *current_path;    // Current working directory for resolving relative imports
     PiClass *object_class; // Root class for the class/instance model
 

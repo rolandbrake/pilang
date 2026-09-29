@@ -1,0 +1,865 @@
+// =============================================================================
+// The 23 Gang of Four Design Patterns — implemented in Pilang
+// =============================================================================
+//
+// Organised in the three classic groups:
+//   I.   Creational  (5 patterns)
+//   II.  Structural  (7 patterns)
+//   III. Behavioural (11 patterns)
+//
+// Each pattern block is self-contained and runnable.
+// =============================================================================
+
+
+// =============================================================================
+// I. CREATIONAL PATTERNS
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 1. Singleton
+//    Ensure a class has only one instance and provide a global access point.
+// -----------------------------------------------------------------------------
+
+class Singleton {
+    constructor() {
+        if Singleton._instance != nil {
+            return Singleton._instance
+        }
+        this.value = 0
+        Singleton._instance = this
+    }
+
+    increment() {
+        this.value += 1
+    }
+
+    get() {
+        return this.value
+    }
+}
+
+Singleton._instance = nil
+
+let s1 = Singleton()
+let s2 = Singleton()
+s1.increment()
+s1.increment()
+println("[Singleton] same instance?", s1 == s2, "value via s2:", s2.get())
+
+
+// -----------------------------------------------------------------------------
+// 2. Factory Method
+//    Define an interface for creating an object, but let subclasses decide
+//    which class to instantiate.
+// -----------------------------------------------------------------------------
+
+class Animal {
+    speak() { return "..." }
+}
+
+class Dog : Animal {
+    speak() { return "Woof" }
+}
+
+class Cat : Animal {
+    speak() { return "Meow" }
+}
+
+fun animal_factory(kind) {
+    switch kind {
+        kind == "dog": return Dog()
+        kind == "cat": return Cat()
+        _: return Animal()
+    }
+}
+
+let dog = animal_factory("dog")
+let cat = animal_factory("cat")
+println("[Factory Method]", dog.speak(), cat.speak())
+
+
+// -----------------------------------------------------------------------------
+// 3. Abstract Factory
+//    Provide an interface for creating families of related objects without
+//    specifying their concrete classes.
+// -----------------------------------------------------------------------------
+
+class LightButton {
+    render() { return "LightButton" }
+}
+class LightCheckbox {
+    render() { return "LightCheckbox" }
+}
+class DarkButton {
+    render() { return "DarkButton" }
+}
+class DarkCheckbox {
+    render() { return "DarkCheckbox" }
+}
+
+class LightThemeFactory {
+    create_button()   { return LightButton() }
+    create_checkbox() { return LightCheckbox() }
+}
+class DarkThemeFactory {
+    create_button()   { return DarkButton() }
+    create_checkbox() { return DarkCheckbox() }
+}
+
+fun build_ui(factory) {
+    let btn = factory.create_button()
+    let chk = factory.create_checkbox()
+    return btn.render() + " + " + chk.render()
+}
+
+println("[Abstract Factory]", build_ui(LightThemeFactory()), "/", build_ui(DarkThemeFactory()))
+
+
+// -----------------------------------------------------------------------------
+// 4. Builder
+//    Separate the construction of a complex object from its representation.
+// -----------------------------------------------------------------------------
+
+class QueryBuilder {
+    constructor() {
+        this._table  = ""
+        this._wheres = []
+        this._limit  = nil
+    }
+
+    from(table) {
+        this._table = table
+        return this
+    }
+
+    where(condition) {
+        push(this._wheres, condition)
+        return this
+    }
+
+    limit(n) {
+        this._limit = n
+        return this
+    }
+
+    build() {
+        let q = "SELECT * FROM " + this._table
+        if #this._wheres > 0 {
+            q += " WHERE " + join(this._wheres, " AND ")
+        }
+        if this._limit != nil {
+            q += " LIMIT " + this._limit
+        }
+        return q
+    }
+}
+
+
+let query = QueryBuilder().
+            from("users").
+            where("age > 18").
+            where("active = true").
+            limit(10).build()
+
+println("[Builder]", query)
+
+
+// -----------------------------------------------------------------------------
+// 5. Prototype
+//    Specify the kinds of objects to create using a prototypical instance,
+//    and create new objects by copying it.
+// -----------------------------------------------------------------------------
+
+class Prototype {
+    constructor(data) {
+        this.data = data
+    }
+
+    clone() {
+        return Prototype(copy(this.data))
+    }
+}
+
+let original = Prototype([1, 2, 3])
+let cloned   = original.clone()
+push(cloned.data, 99)
+println("[Prototype] original:", original.data, "cloned:", cloned.data)
+
+
+// =============================================================================
+// II. STRUCTURAL PATTERNS
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 6. Adapter
+//    Convert the interface of a class into another interface clients expect.
+// -----------------------------------------------------------------------------
+
+class EuropeanPlug {
+    connect_220v() { return "220V connected" }
+}
+
+class USASocketAdapter {
+    constructor(euro_plug) {
+        this._plug = euro_plug
+    }
+
+    connect_110v() {
+        // Adapt: internally use 220V device
+        return "Adapted -> " + this._plug.connect_220v()
+    }
+}
+
+let euro = EuropeanPlug()
+let adapter = USASocketAdapter(euro)
+println("[Adapter]", adapter.connect_110v())
+
+
+// -----------------------------------------------------------------------------
+// 7. Bridge
+//    Decouple an abstraction from its implementation so that the two can
+//    vary independently.
+// -----------------------------------------------------------------------------
+
+// Implementation side
+class ConsoleLogger {
+    Write(msg) { return "[console] " + msg }
+}
+class FileLogger {
+    Write(msg) { return "[file]    " + msg }
+}
+
+// Abstraction side
+class App {
+    constructor(logger) {
+        this._logger = logger
+    }
+
+    Run(task) {
+        return this._logger.Write("Running: " + task)
+    }
+}
+
+let console_app = App(ConsoleLogger())
+let file_app    = App(FileLogger())
+println("[Bridge]", console_app.Run("job_a"), "|", file_app.Run("job_b"))
+
+
+// -----------------------------------------------------------------------------
+// 8. Composite
+//    Compose objects into tree structures to represent part-whole hierarchies.
+// -----------------------------------------------------------------------------
+
+class File {
+    constructor(name, size) {
+        this.name = name
+        this.size = size
+    }
+    total_size() { return this.size }
+    display(indent) { println(indent + "File: " + this.name + " (" + this.size + "B)") }
+}
+
+class Folder {
+    constructor(name) {
+        this.name     = name
+        this.children = []
+    }
+
+    add(child) {
+        push(this.children, child)
+        return this
+    }
+
+    total_size() {
+        return reduce(this.children, (acc, c) -> acc + c.total_size(), 0)
+    }
+
+    display(indent) {
+        println(indent + "Folder: " + this.name)
+        for child in this.children {
+            child.display(indent + "  ")
+        }
+    }
+}
+
+let root = Folder("root")
+let src  = Folder("src")
+src.add(File("main.pi", 200)).add(File("utils.pi", 150))
+root.add(src).add(File("README.md", 50))
+
+println("[Composite] tree:")
+root.display("  ")
+println("[Composite] total size:", root.total_size(), "B")
+
+
+// -----------------------------------------------------------------------------
+// 9. Decorator
+//    Attach additional responsibilities to an object dynamically.
+// -----------------------------------------------------------------------------
+
+class PlainText {
+    constructor(text) { this._text = text }
+    render() { return this._text }
+}
+
+class BoldDecorator {
+    constructor(component) { this._c = component }
+    render() { return "**" + this._c.render() + "**" }
+}
+
+class ItalicDecorator {
+    constructor(component) { this._c = component }
+    render() { return "_" + this._c.render() + "_" }
+}
+
+let text     = PlainText("hello")
+let bolded   = BoldDecorator(text)
+let both     = ItalicDecorator(bolded)
+println("[Decorator]", text.render(), "->", bolded.render(), "->", both.render())
+
+
+// -----------------------------------------------------------------------------
+// 10. Facade
+//     Provide a simplified interface to a complex subsystem.
+// -----------------------------------------------------------------------------
+
+class CPU   { boot()  { return "CPU boot"  } }
+class RAM   { load()  { return "RAM load"  } }
+class Disk  { spin()  { return "Disk spin" } }
+
+class ComputerFacade {
+    constructor() {
+        this._cpu  = CPU()
+        this._ram  = RAM()
+        this._disk = Disk()
+    }
+
+    start() {
+        return join([this._cpu.boot(), this._ram.load(), this._disk.spin()], " | ")
+    }
+}
+
+let pc = ComputerFacade()
+println("[Facade]", pc.start())
+
+
+// -----------------------------------------------------------------------------
+// 11. Flyweight
+//     Use sharing to efficiently support large numbers of fine-grained objects.
+// -----------------------------------------------------------------------------
+
+class GlyphFactory {
+    constructor() {
+        this._cache = {}
+    }
+
+    get(char) {
+        if !(char in this._cache) {
+            this._cache[char] = { char: char, font: "Arial", size: 12 }
+        }
+        return this._cache[char]
+    }
+
+    pool_size() { return #keys(this._cache) }
+}
+
+let glyph_factory = GlyphFactory()
+let chars = ["H", "e", "l", "l", "o"]
+let glyphs = [glyph_factory.get(c) : c in chars]
+println("[Flyweight] rendered:", join([g.char : g in glyphs], ""), "| pool size:", glyph_factory.pool_size())
+
+
+// -----------------------------------------------------------------------------
+// 12. Proxy
+//     Provide a surrogate or placeholder for another object to control access.
+// -----------------------------------------------------------------------------
+
+class RealImage {
+    constructor(filename) {
+        this.filename = filename
+        println("[Proxy] Loading image from disk:", filename)
+    }
+
+    display() { return "Displaying: " + this.filename }
+}
+
+class ImageProxy {
+    constructor(filename) {
+        this.filename  = filename
+        this._real     = nil
+    }
+
+    display() {
+        if this._real == nil {
+            this._real = RealImage(this.filename)
+        }
+        return this._real.display()
+    }
+}
+
+let img = ImageProxy("photo.png")
+println("[Proxy] Before display — no load yet")
+println("[Proxy]", img.display())
+println("[Proxy]", img.display())   // second call: no reload
+
+
+// =============================================================================
+// III. BEHAVIOURAL PATTERNS
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 13. Chain of Responsibility
+//     Pass a request along a chain of handlers until one handles it.
+// -----------------------------------------------------------------------------
+
+class Handler {
+    constructor(name, next_handler = nil) {
+        this.name    = name
+        this._next   = next_handler
+    }
+
+    handle(request) {
+        if this._next != nil {
+            return this._next.handle(request)
+        }
+        return "Unhandled: " + request
+    }
+}
+
+class AuthHandler : Handler {
+    handle(request) {
+        if request == "auth" {
+            return this.name + " handled auth"
+        }
+        return super.handle(request)
+    }
+}
+
+class LogHandler : Handler {
+    handle(request) {
+        if request == "log" {
+            return this.name + " handled log"
+        }
+        return super.handle(request)
+    }
+}
+
+let fallback = Handler("Fallback")
+let log_h    = LogHandler("LogHandler", fallback)
+let auth_h   = AuthHandler("AuthHandler", log_h)
+
+println("[Chain]", auth_h.handle("auth"))
+println("[Chain]", auth_h.handle("log"))
+println("[Chain]", auth_h.handle("other"))
+
+
+// -----------------------------------------------------------------------------
+// 14. Command
+//     Encapsulate a request as an object, allowing undo/redo.
+// -----------------------------------------------------------------------------
+
+class TextEditor {
+    constructor() { this.text = "" }
+    insert(s)     { this.text += s }
+    delete_last(n) {
+        this.text = this.text[:max(0, len(this.text) - n)]
+    }
+}
+
+class InsertCommand {
+    constructor(editor, text) {
+        this._editor = editor
+        this._text   = text
+    }
+    execute() { this._editor.insert(this._text) }
+    undo()    { this._editor.delete_last(len(this._text)) }
+}
+
+class CommandHistory {
+    constructor() { this._stack = [] }
+    execute(cmd)  {
+        cmd.execute()
+        push(this._stack, cmd)
+    }
+    undo() {
+        if #this._stack > 0 {
+            let cmd = pop(this._stack)
+            cmd.undo()
+        }
+    }
+}
+
+let editor  = TextEditor()
+let history = CommandHistory()
+
+history.execute(InsertCommand(editor, "Hello"))
+history.execute(InsertCommand(editor, ", World"))
+println("[Command] after inserts:", editor.text)
+history.undo()
+println("[Command] after undo:", editor.text)
+
+
+// -----------------------------------------------------------------------------
+// 15. Interpreter
+//     Given a language, define a representation for its grammar and an
+//     interpreter that uses the representation.
+// -----------------------------------------------------------------------------
+
+// Mini arithmetic expression interpreter: handles number literals, +, *.
+
+class NumberExpr {
+    constructor(value) { this.value = value }
+    interpret()       { return this.value }
+}
+
+class AddExpr {
+    constructor(left, right) {
+        this.left  = left
+        this.right = right
+    }
+    interpret() { return this.left.interpret() + this.right.interpret() }
+}
+
+class MulExpr {
+    constructor(left, right) {
+        this.left  = left
+        this.right = right
+    }
+    interpret() { return this.left.interpret() * this.right.interpret() }
+}
+
+// Represents: (2 + 3) * 4
+let expr = MulExpr(AddExpr(NumberExpr(2), NumberExpr(3)), NumberExpr(4))
+println("[Interpreter] (2 + 3) * 4 =", expr.interpret())
+
+
+// -----------------------------------------------------------------------------
+// 16. Iterator
+//     Provide a way to sequentially access elements of a collection without
+//     exposing its underlying representation.
+// -----------------------------------------------------------------------------
+
+class RangeIterator {
+    constructor(start, stop, step = 1) {
+        this._current = start
+        this._stop    = stop
+        this._step    = step
+    }
+
+    has_next() { return this._current < this._stop }
+
+    next() {
+        let val = this._current
+        this._current += this._step
+        return val
+    }
+}
+
+let it = RangeIterator(0, 10, 3)
+let collected = []
+while it.has_next() {
+    push(collected, it.next())
+}
+println("[Iterator]", collected)
+
+
+// -----------------------------------------------------------------------------
+// 17. Mediator
+//     Define an object that encapsulates how a set of objects interact,
+//     promoting loose coupling.
+// -----------------------------------------------------------------------------
+
+class ChatRoom {
+    constructor() {
+        this._users = {}
+        this._log   = []
+    }
+
+    register(user) {
+        this._users[user.name] = user
+        user.room = this
+    }
+
+    send(from_name, msg) {
+        let entry = from_name + ": " + msg
+        push(this._log, entry)
+        for name in keys(this._users) {
+            if name != from_name {
+                this._users[name].receive(entry)
+            }
+        }
+    }
+}
+
+class ChatUser {
+    constructor(name) {
+        this.name     = name
+        this.inbox    = []
+        this.room     = nil
+    }
+
+    send(msg)       { this.room.send(this.name, msg) }
+    receive(msg)    { push(this.inbox, msg) }
+}
+
+let room  = ChatRoom()
+let alice = ChatUser("Alice")
+let bob   = ChatUser("Bob")
+let carol = ChatUser("Carol")
+room.register(alice)
+room.register(bob)
+room.register(carol)
+
+alice.send("Hi everyone!")
+bob.send("Hey Alice!")
+println("[Mediator] Bob inbox:", bob.inbox)
+println("[Mediator] Carol inbox:", carol.inbox)
+
+
+// -----------------------------------------------------------------------------
+// 18. Memento
+//     Capture and externalise an object's internal state so it can be restored.
+// -----------------------------------------------------------------------------
+
+class Memento {
+    constructor(state) { this._state = state }
+    get_state()        { return copy(this._state) }
+}
+
+class Document {
+    constructor()    { this.content = "" }
+    write(text)      { this.content += text }
+    save()           { return Memento(this.content) }
+    restore(memento) { this.content = memento.get_state() }
+}
+
+class DocHistory {
+    constructor()    { this._mementos = [] }
+    push_state(m)    { push(this._mementos, m) }
+    pop_state() {
+        if #this._mementos > 0 {
+            return pop(this._mementos)
+        }
+        return nil
+    }
+}
+
+let doc     = Document()
+let doc_h   = DocHistory()
+
+doc.write("Hello")
+doc_h.push_state(doc.save())
+doc.write(", World")
+doc_h.push_state(doc.save())
+doc.write("!!!")
+
+println("[Memento] current:", doc.content)
+doc.restore(doc_h.pop_state())
+println("[Memento] after undo:", doc.content)
+doc.restore(doc_h.pop_state())
+println("[Memento] after undo:", doc.content)
+
+
+// -----------------------------------------------------------------------------
+// 19. Observer
+//     Define a one-to-many dependency so when one object changes state,
+//     all its dependents are notified automatically.
+// -----------------------------------------------------------------------------
+
+class EventEmitter {
+    constructor() {
+        this._listeners = {}
+    }
+
+    on(event, handler) {
+        if !(event in this._listeners) {
+            this._listeners[event] = []
+        }
+        push(this._listeners[event], handler)
+    }
+
+    emit(event, data) {
+        if event in this._listeners {
+            for handler in this._listeners[event] {
+                handler(data)
+            }
+        }
+    }
+}
+
+class Store : EventEmitter {
+    constructor(initial) {
+        super()
+        this._state = initial
+    }
+
+    set(key, value) {
+        this._state[key] = value
+        this.emit("change", { key: key, value: value })
+    }
+
+    get(key) { return this._state[key] }
+}
+
+let store    = Store({ count: 0 })
+let observer_log = []
+store.on("change", d -> push(observer_log, "changed " + d.key + " to " + d.value))
+store.set("count", 1)
+store.set("count", 2)
+println("[Observer] log:", observer_log)
+
+
+// -----------------------------------------------------------------------------
+// 20. State
+//     Allow an object to alter its behaviour when its internal state changes.
+// -----------------------------------------------------------------------------
+
+class TrafficLight {
+    constructor() {
+        this._states = ["red", "green", "yellow"]
+        this._index  = 0
+    }
+
+    current() {
+        return this._states[this._index]
+    }
+
+    next() {
+        this._index = (this._index + 1) % #this._states
+        return this.current()
+    }
+}
+
+let light = TrafficLight()
+let cycle = []
+for _ in 0..6 {
+    push(cycle, light.current())
+    light.next()
+}
+println("[State] traffic cycle:", cycle)
+
+
+// -----------------------------------------------------------------------------
+// 21. Strategy
+//     Define a family of algorithms, encapsulate each one, and make them
+//     interchangeable at runtime.
+// -----------------------------------------------------------------------------
+
+class Sorter {
+    constructor(strategy) {
+        this._strategy = strategy
+    }
+
+    set_strategy(s) { this._strategy = s }
+
+    sort(data) {
+        let d = copy(data)
+        return this._strategy(d)
+    }
+}
+
+fun bubble_sort(arr) {
+    let n = #arr
+    for i in 0..n {
+        for j in 0..(n - i - 1) {
+            if arr[j] > arr[j + 1] {
+                let tmp  = arr[j]
+                arr[j]   = arr[j + 1]
+                arr[j + 1] = tmp
+            }
+        }
+    }
+    return arr
+}
+
+import col:c
+let quick_strategy = arr -> { c.sort(arr); return arr }
+
+let sorter = Sorter(bubble_sort)
+let data   = [5, 2, 8, 1, 9]
+println("[Strategy] bubble:", sorter.sort(data))
+sorter.set_strategy(quick_strategy)
+println("[Strategy] quick: ", sorter.sort(data))
+
+
+// -----------------------------------------------------------------------------
+// 22. Template Method
+//     Define the skeleton of an algorithm in a base class, deferring some
+//     steps to subclasses.
+// -----------------------------------------------------------------------------
+import string.{split}
+
+class DataProcessor {
+    // Template method
+    process(raw) {
+        let loaded    = this.load(raw)
+        let validated = this.validate(loaded)
+        let result    = this.transform(validated)
+        return this.output(result)
+    }
+
+    load(raw)           { return raw }
+    validate(data)      { return data }
+    transform(data)     { return data }
+    output(data)        { return data }
+}
+
+class CSVProcessor : DataProcessor {
+    load(raw) {
+        return [split(row, ",") : row in split(raw, "\n")]
+    }
+
+    validate(rows) {
+        return [r : r in rows : #r > 0]
+    }
+
+    transform(rows) {
+        return [join(r, " | ") : r in rows]
+    }
+
+    output(lines) {
+        return join(lines, "\n")
+    }
+}
+
+let csv_data   = "name,age\nAlice,30\nBob,25"
+let processor  = CSVProcessor()
+println("[Template Method] CSV:\n" + processor.process(csv_data))
+
+
+// -----------------------------------------------------------------------------
+// 23. Visitor
+//     Represent an operation to be performed on elements of an object structure
+//     without changing the classes on which it operates.
+// -----------------------------------------------------------------------------
+
+class Circle {
+    constructor(radius) { this.radius = radius }
+    accept(visitor)     { return visitor.visit_circle(this) }
+}
+
+class Square {
+    constructor(side) { this.side = side }
+    accept(visitor)   { return visitor.visit_square(this) }
+}
+
+class AreaVisitor {
+    visit_circle(c) { return 3.14159 * c.radius * c.radius }
+    visit_square(s) { return s.side * s.side }
+}
+
+class PerimeterVisitor {
+    visit_circle(c) { return 2 * 3.14159 * c.radius }
+    visit_square(s) { return 4 * s.side }
+}
+
+let shapes   = [Circle(5), Square(4), Circle(3)]
+let area_v   = AreaVisitor()
+let perim_v  = PerimeterVisitor()
+
+let areas      = [s.accept(area_v)   : s in shapes]
+let perimeters = [s.accept(perim_v)  : s in shapes]
+println("[Visitor] areas:      ", areas)
+println("[Visitor] perimeters: ", perimeters)
+
+

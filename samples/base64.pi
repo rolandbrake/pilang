@@ -1,72 +1,72 @@
-let BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
 fun base64_encode(text = "") {
-    let out = "";
-    let i = 0;
+    let out = ""
+    let i = 0
 
     while (i < #text) {
-        let a = ord(text[i]);
-        let b = i + 1 < #text ? ord(text[i + 1]) : 0;
-        let c = i + 2 < #text ? ord(text[i + 2]) : 0;
+        let a = ord(text[i])
+        let b = i + 1 < #text ? ord(text[i + 1]) : 0
+        let c = i + 2 < #text ? ord(text[i + 2]) : 0
 
-        let v1 = a >> 2;
-        let v2 = ((a & 3) << 4) | (b >> 4);
-        let v3 = ((b & 15) << 2) | (c >> 6);
-        let v4 = c & 63;
+        let v1 = a >> 2
+        let v2 = ((a & 3) << 4) | (b >> 4)
+        let v3 = ((b & 15) << 2) | (c >> 6)
+        let v4 = c & 63
 
-        out += BASE64[v1];
-        out += BASE64[v2];
+        out += BASE64[v1]
+        out += BASE64[v2]
 
         if (i + 1 < #text)
-            out += BASE64[v3];
+            out += BASE64[v3]
         else
-            out += "=";
+            out += "="
 
         if (i + 2 < #text)
-            out += BASE64[v4];
+            out += BASE64[v4]
         else
-            out += "=";
+            out += "="
 
-        i += 3;
+        i += 3
     }
 
-    return out;
+    return out
 }
 
 fun base64_decode(text = "") {
-    let out = "";
-    let i = 0;
+    let out = ""
+    let i = 0
 
     while (i < #text) {
         if (text[i] == '=')
-            break;
+            break
 
-        let a = index(BASE64, text[i]);
-        let b = i + 1 < #text && text[i + 1] != '=' ? index(BASE64, text[i + 1]) : 0;
-        let c = i + 2 < #text && text[i + 2] != '=' ? index(BASE64, text[i + 2]) : 0;
-        let d = i + 3 < #text && text[i + 3] != '=' ? index(BASE64, text[i + 3]) : 0;
+        let a = index(BASE64, text[i])
+        let b = i + 1 < #text && text[i + 1] != '=' ? index(BASE64, text[i + 1]) : 0
+        let c = i + 2 < #text && text[i + 2] != '=' ? index(BASE64, text[i + 2]) : 0
+        let d = i + 3 < #text && text[i + 3] != '=' ? index(BASE64, text[i + 3]) : 0
 
-        let byte1 = (a << 2) | (b >> 4);
-        let byte2 = ((b & 15) << 4) | (c >> 2);
-        let byte3 = ((c & 3) << 6) | d;
+        let byte1 = (a << 2) | (b >> 4)
+        let byte2 = ((b & 15) << 4) | (c >> 2)
+        let byte3 = ((c & 3) << 6) | d
 
-        out += char(byte1);
+        out += char(byte1)
         if (text[i + 2] != '=')
-            out += char(byte2);
+            out += char(byte2)
         if (text[i + 3] != '=')
-            out += char(byte3);
+            out += char(byte3)
 
-        i += 4;
+        i += 4
     }
 
-    return out;
+    return out
 }
 
-let message = "Pilang rocks!";
-let encoded = base64_encode(message);
-let decoded = base64_decode(encoded);
+message = "Pilang rocks!"
+encoded = base64_encode(message)
+decoded = base64_decode(encoded)
 
-println("message: " + message);
-println("encoded: " + encoded);
-println("decoded: " + decoded);
-assert(decoded == message, "Base64 round trip failed");
+println("message: " + message)
+println("encoded: " + encoded)
+println("decoded: " + decoded)
+assert(decoded == message, "Base64 round trip failed")

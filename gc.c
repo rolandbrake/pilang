@@ -508,6 +508,8 @@ void free_object(Object *obj)
         ObjModule *module = (ObjModule *)obj;
         free(module->name);
         free(module->path);
+        if (module->code)
+            list_free(module->code);
         if (module->constants)
             list_free(module->constants);
         if (module->names)

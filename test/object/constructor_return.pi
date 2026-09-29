@@ -1,0 +1,18 @@
+class Replacement {
+    constructor() {
+        return { kind: "replacement" }
+    }
+}
+
+class PrimitiveReturn {
+    constructor() {
+        this.value = 1
+        return "ignored"
+    }
+}
+
+let replacement = Replacement()
+let primitive = PrimitiveReturn()
+
+assert(replacement.kind == "replacement", "object constructor returns should replace the instance")
+assert(primitive.value == 1, "primitive constructor returns should keep the instance")

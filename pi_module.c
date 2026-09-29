@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "pi_module.h"
+#include "pi_build.h"
 #include "pi_lex.h"
 #include "pi_parser.h"
 #include "pi_compiler.h"
@@ -342,10 +343,13 @@ Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin, b
     module->builtin = builtin;
     module->is_main = is_main;
     module->state = MODULE_LOADING;
+    module->code = NULL;
     module->constants = NULL;
     module->names = NULL;
     module->instrs = NULL;
     module->globals = NULL;
+    module->source_size = 0;
+    module->source_hash = 0;
     Object *exports_obj = add_obj(vm, new_map(ht_create(sizeof(Value))));
     module->exports = (PiMap *)exports_obj;
     return add_obj(vm, (Object *)module);
@@ -401,14 +405,12 @@ static table_t *collect_definedGlobals(compiler_t *comp)
 }
 
 // Resolution order: current module directory -> local file -> libs/ directory.
-char *module_resolvePath(vm_t *vm, const char *name)
+char *module_resolvePathFrom(const char *base, const char *name)
 {
     if (!name || !*name)
         return NULL;
 
     char cwd[4096];
-    const char *base = vm->current_path;
-
     if (!base)
     {
         if (!getcwd(cwd, sizeof(cwd)))
@@ -460,10 +462,21 @@ char *module_resolvePath(vm_t *vm, const char *name)
     return NULL;
 }
 
+char *module_resolvePath(vm_t *vm, const char *name)
+{
+    return module_resolvePathFrom(vm ? vm->current_path : NULL, name);
+}
+
 // Modules are cached before execution to support recursive/cyclic imports.
 Value load_module(vm_t *vm, const char *name)
 {
     char *resolved = module_resolvePath(vm, name);
+    if (!resolved)
+    {
+        px_built_module_t *built_module = px_findBuiltModuleByName(vm->project_build, name);
+        if (built_module)
+            resolved = strdup(built_module->path);
+    }
     if (!resolved)
         return load_builtinNamed(vm, name);
 
@@ -480,22 +493,42 @@ Value load_module(vm_t *vm, const char *name)
     Value module_val = NEW_OBJ(module_obj);
     ht_put(vm->modules, resolved, &module_val);
 
-    char *source = file_readText(resolved);
-    if (!source)
-        vm_errorf(vm, "Cannot read module '%s' (%s).", resolved, strerror(errno));
+    ObjModule *module = AS_MODULE(module_val);
+    char *source = NULL;
+    parser_t *parser = NULL;
+    compiler_t *comp = NULL;
+    px_built_module_t *built_module = px_findBuiltModule(vm->project_build, resolved);
+    if (built_module && built_module->compiler)
+    {
+        comp = built_module->compiler;
+        built_module->compiler = NULL;
+        module->source_size = built_module->source_size;
+        module->source_hash = built_module->source_hash;
+        comp->source_name = strdup(resolved);
+    }
+    else
+    {
+        source = file_readText(resolved);
+        if (!source)
+            vm_errorf(vm, "Cannot read module '%s' (%s).", resolved, strerror(errno));
 
-    init_scanner(source);
-    token_t *tokens = scan();
-    compiler_t *comp = init_compiler();
-    comp->source_name = strdup(resolved);
-    parser_t *parser = init_parser(comp, tokens, MODE_FILE);
-    parse(parser);
+        module->source_size = strlen(source);
+        module->source_hash = string_hash(source, module->source_size);
+
+        init_scanner(source);
+        token_t *tokens = scan();
+        comp = init_compiler();
+        comp->source_name = strdup(resolved);
+        parser = init_parser(comp, tokens, MODE_FILE);
+        parse(parser);
+    }
 
     vm_t *module_vm = init_vm(comp, NULL, false);
 
     // Share the parent VM's module cache with the module VM to allow caching of nested imports.
     ht_free(module_vm->modules);
     module_vm->modules = vm->modules;
+    module_vm->project_build = vm->project_build;
 
     // Set the module VM's current path to the directory of the resolved module to
     // allow relative imports within the module.
@@ -509,7 +542,6 @@ Value load_module(vm_t *vm, const char *name)
     while (module_vm->running)
         vm_run(module_vm);
 
-    ObjModule *module = AS_MODULE(module_val);
     PiMap *exports = module->exports;
     table_t *defined_globals = collect_definedGlobals(comp);
 
@@ -531,16 +563,19 @@ Value load_module(vm_t *vm, const char *name)
     ht_free(defined_globals);
     module->state = MODULE_LOADED;
 
-    // Preserve module constants/names for functions created in this module.
+    // Preserve compiled module data for later function calls and .px caching.
+    module->code = comp->code;
     module->constants = comp->constants;
     module->names = comp->names;
     module->instrs = comp->instrs;
     
+    comp->code = NULL;
     comp->constants = NULL;
     comp->names = NULL;
     comp->instrs = NULL;
 
-    free_parser(parser);
+    if (parser)
+        free_parser(parser);
     free_compiler(comp);
 
     // Preserve the module VM global table for later calls to functions defined in this module.
@@ -549,6 +584,7 @@ Value load_module(vm_t *vm, const char *name)
 
     // Detach shared module cache so free_vm(module_vm) doesn't free parent cache.
     module_vm->modules = NULL;
+    module_vm->project_build = NULL;
     free_vm(module_vm);
 
     free(source);

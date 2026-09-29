@@ -245,11 +245,11 @@ static BuiltinConst socket_consts[] = {
 };
 
 static BuiltinFunc socket_funcs[] = {
-    {"Socket", skt_Socket},
-    {"connect", skt_connect},
-    {"send_all", skt_sendAll},
-    {"receive", skt_receive},
-    {"close", skt_close},
+    {"Socket", socket_Socket},
+    {"connect", socket_connect},
+    {"send_all", socket_sendAll},
+    {"receive", socket_receive},
+    {"close", socket_close},
 };
 
 DEFINE_BUILTIN_MODULE(module_netSocket, "net.socket", socket_funcs, socket_consts);

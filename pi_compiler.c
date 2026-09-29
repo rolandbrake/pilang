@@ -325,13 +325,6 @@ bool is_object(compiler_t *comp)
     return !stack_isEmpty(comp->objects);
 }
 
-bool is_constructor(compiler_t *comp)
-{
-    if (is_object(comp) && comp->current->is_function)
-        return strcmp(comp->current->fun_name, "constructor") == 0;
-
-    return false;
-}
 bool is_lookUp(compiler_t *comp)
 {
     return comp->is_lookUp;

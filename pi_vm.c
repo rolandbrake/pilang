@@ -9,6 +9,7 @@
 #endif
 
 #include "pi_vm.h"
+#include "pi_build.h"
 #include "pi_class.h"
 
 #include "pi_opcode.h"
@@ -27,7 +28,7 @@
 volatile interrupt_flag_t interrupt_requested = 0;
 
 static void add_objectClassMembers(PiClass *klass);
-static Object *construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Value kw_args);
+static Value construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Value kw_args);
 
 static Value bind(vm_t *vm, Function *function, Object *instance);
 static Value bind_callable(vm_t *vm, PiInstance *instance);
@@ -417,6 +418,7 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     vm->gc_stack = NULL;
 
     vm->modules = ht_create(sizeof(Value));
+    vm->project_build = NULL;
     vm->current_path = getcwd(NULL, 0);
     vm->object_class = NULL;
 
@@ -752,18 +754,20 @@ static inline Value peek_stack(vm_t *vm)
     return vm->stack[vm->sp - 1];
 }
 
-/* table_t stores values separately, so cached Value* entries survive rehashes. */
+/* Hash-table growth relocates inline values, so cached slots track its version. */
 static inline Value *global_slot(vm_t *vm, uint8_t index, const char *name)
 {
     GlobalCache *cache = vm->global_cache;
     if (!cache)
         vm_error(vm, "Missing global cache for active code unit.");
 
-    if (cache->globals != vm->globals || cache->names != vm->names)
+    if (cache->globals != vm->globals || cache->names != vm->names ||
+        cache->globals_version != vm->globals->version)
     {
         memset(cache->slots, 0, sizeof(cache->slots));
         cache->globals = vm->globals;
         cache->names = vm->names;
+        cache->globals_version = vm->globals->version;
     }
 
     Value *slot = cache->slots[index];
@@ -925,7 +929,7 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
     }
     else if (IS_CLASS(callee))
     {
-        result = NEW_OBJ(construct(vm, AS_CLASS(callee), num_args, args, kw_args));
+        result = construct(vm, AS_CLASS(callee), num_args, args, kw_args);
     }
     else
     {
@@ -1063,13 +1067,13 @@ static inline Value op_binaryNum(int op, double l, double r)
     case 7:
         return NEW_NUM(pow(l, r));
     case 8:
-        return NEW_NUM((int)l & (int)r);
+        return NEW_NUM((uint32_t)l & (uint32_t)r);
     case 9:
-        return NEW_NUM((int)l | (int)r);
+        return NEW_NUM((uint32_t)l | (uint32_t)r);
     case 10:
-        return NEW_NUM((int)l ^ (int)r);
+        return NEW_NUM((uint32_t)l ^ (uint32_t)r);
     case 11:
-        return NEW_NUM((int)l << (int)r);
+        return NEW_NUM((uint32_t)l << (uint32_t)r);
     case 12:
         return NEW_NUM((int)l >> (int)r);
     case 13:
@@ -1334,7 +1338,7 @@ static Value to_primitive(vm_t *vm, Value value, bool pref_string)
     return value;
 }
 
-static Object *construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Value kw_args)
+static Value construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Value kw_args)
 {
     if (!_class)
         vm_error(vm, "Cannot construct a null class.");
@@ -1345,10 +1349,14 @@ static Object *construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Va
     {
         Value bound = bind(vm, AS_FUN(constructor), instance);
         push_stack(vm, NEW_OBJ(instance));
-        (void)call_func(vm, AS_FUN(bound), argc, argv, kw_args);
+        Value result = call_func(vm, AS_FUN(bound), argc, argv, kw_args);
         pop_stack(vm);
+
+        /* Match JavaScript: object returns replace the instance; primitives do not. */
+        if (IS_OBJ(result) && OBJ_TYPE(result) != OBJ_STRING)
+            return result;
     }
-    return instance;
+    return NEW_OBJ(instance);
 }
 
 static double tensor_applyBinary(int op, double left, double right)
@@ -2555,16 +2563,16 @@ OP_BINARY:
                     switch (op)
                     {
                     case 8:
-                        result = (int)l & (int)r;
+                        result = (uint32_t)l & (uint32_t)r;
                         break;
                     case 9:
-                        result = (int)l | (int)r;
+                        result = (uint32_t)l | (uint32_t)r;
                         break;
                     case 10:
-                        result = (int)l ^ (int)r;
+                        result = (uint32_t)l ^ (uint32_t)r;
                         break;
                     case 11:
-                        result = (int)l << (int)r;
+                        result = (uint32_t)l << (uint32_t)r;
                         break;
                     case 12:
                         result = (int)l >> (int)r;
@@ -2717,6 +2725,12 @@ OP_UNARY:
             case OBJ_LIST:
                 vm->stack[vm->sp - 1] = NEW_NUM(list_size(AS_LIST(operand)->items));
                 break;
+            case OBJ_TUPLE:
+                vm->stack[vm->sp - 1] = NEW_NUM(list_size(AS_TUPLE(operand)->items));
+                break;
+            case OBJ_SET:
+                vm->stack[vm->sp - 1] = NEW_NUM(set_size(AS_SET(operand)));
+                break;
             case OBJ_TENSOR:
                 vm->stack[vm->sp - 1] = NEW_NUM(AS_TENSOR(operand)->ndim == 0 ? 0 : AS_TENSOR(operand)->shape[0]);
                 break;
@@ -2747,7 +2761,7 @@ OP_UNARY:
                 vm->stack[vm->sp - 1] = NEW_BOOL(n == 0.0);
                 break;
             case 3:
-                vm->stack[vm->sp - 1] = NEW_NUM(~(int)n);
+                vm->stack[vm->sp - 1] = NEW_NUM(~(uint32_t)n);
                 break;
             case 5:
                 vm->stack[vm->sp - 1] = NEW_NUM(n + 1.0);
@@ -2790,7 +2804,7 @@ OP_UNARY:
                 vm->stack[vm->sp - 1] = NEW_NUM(-n);
                 break;
             case 3:
-                vm->stack[vm->sp - 1] = NEW_NUM(~(int)n);
+                vm->stack[vm->sp - 1] = NEW_NUM(~(uint32_t)n);
                 break;
             case 5:
                 vm->stack[vm->sp - 1] = NEW_NUM(n + 1.0);
@@ -2947,7 +2961,7 @@ OP_CALL_FUNCTION:
         }
         else if (IS_CLASS(callee))
         {
-            Value result = NEW_OBJ(construct(vm, AS_CLASS(callee), num_args, args, NEW_NIL()));
+            Value result = construct(vm, AS_CLASS(callee), num_args, args, NEW_NIL());
             PUSH(result);
         }
         else if (IS_MAP(callee))
@@ -3012,7 +3026,7 @@ OP_CALL_FUNCTION_KW:
         }
         else if (IS_CLASS(callee))
         {
-            result = NEW_OBJ(construct(vm, AS_CLASS(callee), num_args, args, kw_args));
+            result = construct(vm, AS_CLASS(callee), num_args, args, kw_args);
         }
         else if (IS_MAP(callee))
         {
@@ -4441,7 +4455,7 @@ OP_IMPORT_DEFAULT:
         PiMap *_module = (OBJ_TYPE(module) == OBJ_MODULE) ? AS_MODULE(module)->exports : AS_MAP(module);
 
         Value value = map_get(_module, name);
-        push_stack(vm, IS_FUN(value) ? value : module);
+        push_stack(vm, map_has(_module, name) ? value : module);
 
         VM_DISPATCH_SAFE();
     }
@@ -4494,6 +4508,8 @@ void free_vm(vm_t *vm)
         ht_free(vm->globals);
     if (vm->modules)
         ht_free(vm->modules);
+    if (vm->project_build)
+        px_freeProjectBuild(vm->project_build);
 
     if (vm->current_path)
         free(vm->current_path);

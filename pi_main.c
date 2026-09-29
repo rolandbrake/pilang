@@ -13,6 +13,8 @@
 #include "pi_parser.h"
 #include "pi_stack.h"
 #include "pi_compiler.h"
+#include "pi_build.h"
+#include "pi_module.h"
 #include "pi_vm.h"
 
 #ifndef TARGET_FPS
@@ -266,10 +268,15 @@ int main(int argc, char *argv[])
 #include <string.h>
 #include <time.h>
 #include <signal.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "pi_lex.h"
 #include "pi_parser.h"
 #include "pi_stack.h"
 #include "pi_compiler.h"
+#include "pi_build.h"
+#include "pi_module.h"
 #include "pi_vm.h"
 #include "common.h"
 
@@ -284,14 +291,16 @@ int main(int argc, char *argv[])
 
 static void print_usage(const char *program)
 {
-    printf("Pilangv0.1.2\n");
+    printf("Pilangv0.1.3\n");
     printf("Usage:\n");
-    printf("  %s run <file> [args...]       Run the specified Pilang file\n", program);
+    printf("  %s                            Start the interactive prompt\n", program);
+    printf("  %s run [file] [args...]       Run main.pi or the specified Pilang file\n", program);
     printf("  %s <file> [args...]           Shorthand for 'run <file>'\n", program);
     printf("  %s dis <file>                 Print bytecode for the specified Pilang file\n", program);
     printf("  %s dis -o <output> <file>     Write bytecode to a file\n", program);
-    printf("  %s fmt <file>                 Format a file in place using utils/PiCli.js\n", program);
-    printf("  %s min <file>                 Minimize a file in place using utils/PiCli.js\n", program);
+    printf("  %s build [file]               Build main.pi or the specified project\n", program);
+    printf("  %s fmt <file>                 Format a file in place\n", program);
+    printf("  %s min <file>                 Minimize a file in place\n", program);
     printf("  %s help                       Display this help message\n", program);
 }
 
@@ -352,22 +361,15 @@ char *read_file(const char *filename)
     return buffer;
 }
 
-static int run_source(const char *source, ParserMode mode, const char *entry_name, bool is_main)
+static int run_compiler(compiler_t *comp, parser_t *parser, const char *entry_name,
+                        bool is_main, px_project_build_t *project_build)
 {
-    init_scanner((char *)source);
-    token_t *tokens = scan();
-
-    compiler_t *comp = init_compiler();
-    comp->source_name = strdup((entry_name && entry_name[0] != '\0')
-                                   ? entry_name
-                                   : (mode == MODE_REPL ? "<repl>" : "<source>"));
-    parser_t *parser = init_parser(comp, tokens, mode);
-    parse(parser);
 #ifdef DEBUG_BUILD
     dis(comp);
 #endif
 
     vm_t *vm = init_vm(comp, entry_name, is_main);
+    vm->project_build = project_build;
 
     clock_t start = clock();
     while (vm->running && !interrupt_requested)
@@ -381,26 +383,293 @@ static int run_source(const char *source, ParserMode mode, const char *entry_nam
     }
 
     clock_t end = clock();
-
     double time_taken = ((double)(end - start)) * 1000.0 / CLOCKS_PER_SEC;
     printf("Execution Time: %.4f ms\n", time_taken);
 
-    // Cleanup
-    free_parser(parser);
+    if (parser)
+        free_parser(parser);
     free_vm(vm);
     free_compiler(comp);
-
     return interrupted ? 130 : 0;
 }
 
+static int run_source(const char *source, ParserMode mode, const char *entry_name,
+                      bool is_main)
+{
+    init_scanner((char *)source);
+    token_t *tokens = scan();
+
+    compiler_t *comp = init_compiler();
+    comp->source_name = strdup((entry_name && entry_name[0] != '\0')
+                                   ? entry_name
+                                   : (mode == MODE_REPL ? "<repl>" : "<source>"));
+    parser_t *parser = init_parser(comp, tokens, mode);
+    parse(parser);
+    return run_compiler(comp, parser, entry_name, is_main, NULL);
+}
+
+static char *build_pathFor(const char *filename)
+{
+    size_t length = strlen(filename);
+    bool has_pi_extension = length >= 3 && strcmp(filename + length - 3, ".pi") == 0;
+    size_t base_length = has_pi_extension ? length - 3 : length;
+    char *path = malloc(base_length + 4);
+    if (!path)
+        return NULL;
+    memcpy(path, filename, base_length);
+    memcpy(path + base_length, ".px", 4);
+    return path;
+}
+
+static bool has_extension(const char *path, const char *extension);
+static int run_executableFile(const char *filename);
+
 static int run_file(const char *filename)
 {
+    if (has_extension(filename, ".px"))
+        return run_executableFile(filename);
+
     char *source = read_file(filename);
     if (!source)
         return 1;
 
-    int status = run_source(source, MODE_FILE, filename, true);
+    int status;
+    char *build_path = build_pathFor(filename);
+    px_project_build_t *build = calloc(1, sizeof(*build));
+    if (build_path && build && px_readProjectBuild(build_path, filename, source, build))
+    {
+        px_built_module_t *entry = NULL;
+        for (uint32_t i = 0; i < build->module_count; i++)
+            if (build->modules[i].is_entry)
+                entry = &build->modules[i];
+
+        if (entry && entry->compiler)
+        {
+            compiler_t *comp = entry->compiler;
+            entry->compiler = NULL;
+            comp->source_name = strdup(filename);
+            status = run_compiler(comp, NULL, filename, true, build);
+            build = NULL; // run_compiler transfers ownership to the VM.
+        }
+        else
+        {
+            px_freeProjectBuild(build);
+            status = run_source(source, MODE_FILE, filename, true);
+        }
+    }
+    else
+    {
+        if (build)
+            px_freeProjectBuild(build);
+        status = run_source(source, MODE_FILE, filename, true);
+    }
+
+    free(build_path);
+    free(build);
     free(source);
+    return status;
+}
+
+static char *source_dirName(const char *path)
+{
+    const char *slash = strrchr(path, '/');
+    const char *backslash = strrchr(path, '\\');
+    const char *end = slash;
+    if (!end || (backslash && backslash > end))
+        end = backslash;
+    if (!end)
+        return strdup(".");
+    size_t length = (size_t)(end - path);
+    if (length == 2 && path[1] == ':')
+        length++;
+    char *directory = malloc(length + 1);
+    if (!directory)
+        return NULL;
+    memcpy(directory, path, length);
+    directory[length] = '\0';
+    return directory;
+}
+
+static bool build_hasModule(const px_project_build_t *build, const char *path)
+{
+    return px_findBuiltModule((px_project_build_t *)build, path) != NULL;
+}
+
+static bool build_addModule(px_project_build_t *build, const char *name,
+                            char *path, compiler_t *compiler, const char *source)
+{
+    uint32_t count = build->module_count;
+    px_built_module_t *modules = realloc(build->modules, (size_t)(count + 1) * sizeof(*modules));
+    if (!modules)
+        return false;
+    build->modules = modules;
+    build->modules[count] = (px_built_module_t){
+        .name = strdup(name),
+        .path = path,
+        .compiler = compiler,
+        .source_size = strlen(source),
+        .source_hash = px_hashBytes(source, strlen(source)),
+    };
+    if (!build->modules[count].name)
+        return false;
+    build->module_count++;
+    return true;
+}
+
+static bool build_compileImports(px_project_build_t *build, compiler_t *compiler,
+                                 const char *base_path);
+
+static bool build_compileImportsInCode(px_project_build_t *build, compiler_t *compiler,
+                                       list_t *code, const char *base_path)
+{
+    uint8_t *bytes = code->data;
+    for (int pc = 0; pc < code->size;)
+    {
+        OpCode op = (OpCode)bytes[pc++];
+        if (op == OP_LOAD_CONST && pc + 1 < code->size &&
+            bytes[pc + 2] == OP_IMPORT)
+        {
+            int index = (bytes[pc] << 8) | bytes[pc + 1];
+            if (index >= 0 && index < compiler->constants->size)
+            {
+                Value value = LIST_AT(compiler->constants, index);
+                if (IS_STRING(value))
+                {
+                    char *path = module_resolvePathFrom(base_path, AS_CSTRING(value));
+                    if (path && !build_hasModule(build, path))
+                    {
+                        char *source = read_file(path);
+                        if (!source)
+                        {
+                            free(path);
+                            return false;
+                        }
+                        compiler_t *module_compiler = init_compiler();
+                        module_compiler->source_name = strdup(path);
+                        init_scanner(source);
+                        parser_t *parser = init_parser(module_compiler, scan(), MODE_FILE);
+                        parse(parser);
+                        bool valid = !parser->had_error;
+                        free_parser(parser);
+                        if (!valid || !build_addModule(build, AS_CSTRING(value), path,
+                                                       module_compiler, source))
+                        {
+                            free(path);
+                            free(source);
+                            free_compiler(module_compiler);
+                            return false;
+                        }
+                        free(source);
+                        char *module_base = source_dirName(path);
+                        if (!module_base || !build_compileImports(build, module_compiler, module_base))
+                        {
+                            free(module_base);
+                            return false;
+                        }
+                        free(module_base);
+                        path = NULL; // The project build owns the resolved path.
+                    }
+                    free(path);
+                }
+            }
+        }
+        pc += operand_count(op);
+    }
+
+    return true;
+}
+
+static bool build_compileImports(px_project_build_t *build, compiler_t *compiler,
+                                 const char *base_path)
+{
+    if (!build_compileImportsInCode(build, compiler, compiler->code, base_path))
+        return false;
+
+    /* Function and method bodies share the module constant table. Scan each
+       body once, rather than recursing through that shared table. */
+    for (int i = 0; i < compiler->constants->size; i++)
+    {
+        Value value = LIST_AT(compiler->constants, i);
+        if (IS_OBJ_TYPE(value, OBJ_CODE) &&
+            !build_compileImportsInCode(build, compiler, AS_CODE(value)->data, base_path))
+            return false;
+    }
+    return true;
+}
+
+static int build_file(const char *filename)
+{
+    char *source = read_file(filename);
+    char *build_path = build_pathFor(filename);
+    if (!source || !build_path)
+    {
+        free(source);
+        free(build_path);
+        return 1;
+    }
+
+    compiler_t *compiler = init_compiler();
+    compiler->source_name = strdup(filename);
+    init_scanner(source);
+    parser_t *parser = init_parser(compiler, scan(), MODE_FILE);
+    parse(parser);
+    bool valid = !parser->had_error;
+    free_parser(parser);
+
+    px_project_build_t modules = {0};
+    char *base_path = source_dirName(filename);
+    if (valid && base_path)
+        valid = build_compileImports(&modules, compiler, base_path);
+
+    bool written = valid && px_writeProjectBuild(build_path, filename, source, compiler, &modules);
+    if (written)
+        printf("Build completed: %s\n", build_path);
+    else
+        fprintf(stderr, "Could not write build '%s'.\n", build_path);
+
+    free(base_path);
+    px_freeProjectBuild(&modules);
+    free_compiler(compiler);
+    free(build_path);
+    free(source);
+    return written ? 0 : 1;
+}
+
+static bool has_extension(const char *path, const char *extension)
+{
+    size_t path_length = strlen(path);
+    size_t extension_length = strlen(extension);
+    return path_length >= extension_length &&
+           strcmp(path + path_length - extension_length, extension) == 0;
+}
+
+static int run_executableFile(const char *filename)
+{
+    px_project_build_t *build = calloc(1, sizeof(*build));
+    if (!build || !px_readExecutableBuild(filename, build))
+    {
+        free(build);
+        fprintf(stderr, "Could not load executable '%s'.\n", filename);
+        return 1;
+    }
+
+    px_built_module_t *entry = NULL;
+    for (uint32_t i = 0; i < build->module_count; i++)
+        if (build->modules[i].is_entry)
+            entry = &build->modules[i];
+
+    if (!entry || !entry->compiler)
+    {
+        px_freeProjectBuild(build);
+        free(build);
+        fprintf(stderr, "Executable '%s' has no entry module.\n", filename);
+        return 1;
+    }
+
+    compiler_t *comp = entry->compiler;
+    entry->compiler = NULL;
+    comp->source_name = strdup(entry->path);
+    int status = run_compiler(comp, NULL, entry->path, true, build);
     return status;
 }
 
@@ -481,50 +750,51 @@ static char *quote_arg(const char *arg)
     return quoted;
 }
 
+static char *utils_tool_path(void)
+{
+#ifdef _WIN32
+    char executable[MAX_PATH];
+    DWORD length = GetModuleFileNameA(NULL, executable, sizeof(executable));
+    if (length == 0 || length >= sizeof(executable))
+        return NULL;
+
+    char *separator = strrchr(executable, '\\');
+    char *alternate_separator = strrchr(executable, '/');
+    if (!separator || (alternate_separator && alternate_separator > separator))
+        separator = alternate_separator;
+    if (!separator)
+        return NULL;
+
+    const char *tool_name = "PiForminator.px";
+    size_t directory_length = (size_t)(separator - executable) + 1;
+    char *tool = malloc(directory_length + strlen(tool_name) + 1);
+    if (!tool)
+        return NULL;
+
+    memcpy(tool, executable, directory_length);
+    strcpy(tool + directory_length, tool_name);
+    return tool;
+#else
+    return strdup("bin/PiForminator.px");
+#endif
+}
+
 static int run_utilsTool(const char *mode, const char *filename)
 {
-    const char *tool = "utils/PiCli.js";
-    if (!file_exists(tool))
+    char *tool = utils_tool_path();
+    if (!tool || !file_exists(tool))
     {
-        fprintf(stderr, "Missing %s. Cannot run '%s'.\n", tool, mode);
+        fprintf(stderr, "Missing PiForminator.px beside the pilang executable. Build utils/PiForminator.pi first.\n");
+        free(tool);
         return 1;
     }
 
-    char *quoted_tool = quote_arg(tool);
-    char *quoted_mode = quote_arg(mode);
-    char *quoted_file = quote_arg(filename);
-
-    if (!quoted_tool || !quoted_mode || !quoted_file)
-    {
-        fprintf(stderr, "Out of memory while preparing %s command.\n", mode);
-        free(quoted_tool);
-        free(quoted_mode);
-        free(quoted_file);
-        return 1;
-    }
-
-    size_t command_len = strlen("node ") + strlen(quoted_tool) + 1 + strlen(quoted_mode) + 1 + strlen(quoted_file) + 1;
-    char *command = malloc(command_len);
-    if (!command)
-    {
-        fprintf(stderr, "Out of memory while preparing %s command.\n", mode);
-        free(quoted_tool);
-        free(quoted_mode);
-        free(quoted_file);
-        return 1;
-    }
-
-    snprintf(command, command_len, "node %s %s %s", quoted_tool, quoted_mode, quoted_file);
-    int status = system(command);
-
-    free(command);
-    free(quoted_tool);
-    free(quoted_mode);
-    free(quoted_file);
-
-    if (status != 0)
-        fprintf(stderr, "Command '%s' failed. Make sure Node.js and the utils formatter/minifier modules are available.\n", mode);
-    return status == 0 ? 0 : 1;
+    char *tool_argv[] = {tool, (char *)mode, (char *)filename};
+    pi_cli_argc = 3;
+    pi_cli_argv = tool_argv;
+    int result = run_executableFile(tool);
+    free(tool);
+    return result;
 }
 
 /* Returns the brace depth of a buffer: > 0 means input is incomplete. */
@@ -572,7 +842,7 @@ static int run_repl(void)
 #define C_CYAN "\033[36m"
 
     printf(
-        C_CYAN C_BOLD "Pilang v0.1.2" C_RESET
+        C_CYAN C_BOLD "Pilang v0.1.3" C_RESET
                       "  " C_YELLOW "(type 'exit' or press ^C to quit)" C_RESET "\n");
 
     compiler_t *comp = init_compiler();
@@ -770,6 +1040,7 @@ static int run_repl(void)
 
 int main(int argc, char *argv[])
 {
+    static char *main_argv[] = {"main.pi"};
     pi_cli_argc = 0;
     pi_cli_argv = NULL;
 
@@ -781,7 +1052,7 @@ int main(int argc, char *argv[])
 
     signal(SIGINT, handle_sigint);
 
-    /* No arguments -> drop into the interactive REPL */
+    /* No arguments -> drop into the interactive REPL. */
     if (argc < 2)
         return run_repl();
 
@@ -795,16 +1066,41 @@ int main(int argc, char *argv[])
 
     if (strcmp(command, "--version") == 0 || strcmp(command, "-v") == 0)
     {
-        printf("Pilangv0.1.2\n");
+        printf("Pilang: 0.1.3\n");
         return 0;
+    }
+
+    if (strcmp(command, "build") == 0)
+    {
+        const char *input = argc == 2 ? "main.pi" : argc == 3 ? argv[2]
+                                                              : NULL;
+        if (!input)
+        {
+            fprintf(stderr, "Usage: %s build [file]\n", argv[0]);
+            return 1;
+        }
+        if (argc == 2 && !file_exists(input))
+        {
+            fprintf(stderr, "Could not find main.pi in the current directory.\n");
+            return 1;
+        }
+        pi_cli_argc = 1;
+        pi_cli_argv = argc == 2 ? main_argv : &argv[2];
+        return build_file(input);
     }
 
     if (strcmp(command, "run") == 0)
     {
-        if (argc < 3)
+        if (argc == 2)
         {
-            fprintf(stderr, "Usage: %s run <file> [args...]\n", argv[0]);
-            return 1;
+            if (!file_exists("main.pi"))
+            {
+                fprintf(stderr, "Could not find main.pi in the current directory.\n");
+                return 1;
+            }
+            pi_cli_argc = 1;
+            pi_cli_argv = main_argv;
+            return run_file("main.pi");
         }
         pi_cli_argc = argc - 2;
         pi_cli_argv = &argv[2];

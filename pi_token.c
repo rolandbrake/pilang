@@ -13,6 +13,7 @@ keyword_t keywords[KW_NUM] = {
     {"while", TK_WHILE},
     {"fun", TK_FUN},
     {"let", TK_LET},
+    {"var", TK_LET},
     {"const", TK_CONST},
     {"INF", TK_INF},
     {"NAN", TK_NAN},

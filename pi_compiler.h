@@ -121,7 +121,6 @@ bool is_localScope(compiler_t *comp);
 void push_object(compiler_t *comp);
 void pop_object(compiler_t *comp);
 bool is_object(compiler_t *comp);
-bool is_constructor(compiler_t *comp);
 
 // Functions related to variable lookup and resolution
 bool is_lookUp(compiler_t *comp);

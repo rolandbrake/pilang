@@ -1,0 +1,6 @@
+import test.module.default_value
+import test.module.default_nil
+
+assert(is_map(default_value), "a same-named map export should be imported directly")
+assert(default_value.kind == "default", "the default map export should retain its value")
+assert(default_nil == nil, "a same-named nil export should be imported directly")

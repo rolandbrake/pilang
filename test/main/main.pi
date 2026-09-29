@@ -1,0 +1,2 @@
+assert(module.is_main, "main.pi should remain the main module")
+println("project entry")
