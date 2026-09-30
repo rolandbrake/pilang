@@ -28,7 +28,7 @@
 
 # web files
 *.js
-!utils/*.js
+!utils/js/*.js
 *.html
 
 
