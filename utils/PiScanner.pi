@@ -1,0 +1,590 @@
+import Token
+import TokenType
+
+const _NUL = char(0)
+const _DIGITS = "0123456789"
+const _HEX = "0123456789ABCDEFabcdef"
+const _OCT = "01234567"
+const _BIN = "01"
+const _ALPHA = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
+
+class PiScanner {
+    constructor(source = "") {
+        this.source = source
+        this.length = #source
+        this.tokens = []
+        this.start = 0
+        this.current = 0
+        this.line = 1
+        this.column = 1
+        this.pendingComments = [] // Comments waiting to be attached to a token
+
+        // Keys are quoted because most of them are Pilang keywords.
+        this.keywords = {
+            "false": TokenType.FALSE,
+            "true": TokenType.TRUE,
+            "for": TokenType.FOR,
+            "in": TokenType.IN,
+            "while": TokenType.WHILE,
+            "fun": TokenType.FUN,
+            "let": TokenType.LET,
+            "var": TokenType.LET,
+            "const": TokenType.CONST,
+            "INF": TokenType["INF"],
+            "NAN": TokenType["NAN"],
+            "break": TokenType.BREAK,
+            "continue": TokenType.CONTINUE,
+            "goto": TokenType.GOTO,
+            "if": TokenType.IF,
+            "else": TokenType.ELSE,
+            "elif": TokenType.ELIF,
+            "nil": TokenType.NIL,
+            "is": TokenType.IS,
+            "return": TokenType.RETURN,
+            "class": TokenType.CLASS,
+            "super": TokenType.SUPER,
+            "assert": TokenType.ASSERT,
+            "typeof": TokenType.TYPEOF,
+            "debug": TokenType.DEBUG,
+            "import": TokenType.IMPORT,
+            "switch": TokenType.SWITCH,
+            "match": TokenType.MATCH,
+            "and": TokenType.AND,
+            "or": TokenType.OR,
+            "not": TokenType.NOT
+        }
+
+        // Tokens that are always a single character.
+        this.singles = {
+            "[": TokenType.LBRACKET,
+            "]": TokenType.RBRACKET,
+            "{": TokenType.LBRACE,
+            "}": TokenType.RBRACE,
+            "(": TokenType.LPAREN,
+            ")": TokenType.RPAREN,
+            ";": TokenType.SEMICOLON,
+            ":": TokenType.COLON,
+            ",": TokenType.COMMA,
+            "?": TokenType.QUESTION,
+            "#": TokenType.HASH,
+            "~": TokenType.BITNEG
+        }
+    }
+
+    scanTokens() {
+        while !this.isAtEnd() {
+            this.start = this.current
+            this.scanToken()
+        }
+
+        // Comments on the same line as the last token trail it.
+        if len(this.pendingComments) > 0 {
+            let lastToken = nil
+            if len(this.tokens) > 0 {
+                lastToken = this.tokens[-1]
+            }
+            if lastToken != nil {
+                let remaining = []
+                for comment in this.pendingComments {
+                    if comment.line == lastToken.line {
+                        lastToken.addTrailingComment(comment)
+                    } else {
+                        remaining.push(comment)
+                    }
+                }
+                this.pendingComments = remaining
+            }
+        }
+
+        // Anything left becomes a leading comment of the EOF token.
+        const eofToken = Token(TokenType.EOF, nil, this.line, this.column)
+        for comment in this.pendingComments {
+            eofToken.addLeadingComment(comment)
+        }
+        this.pendingComments = []
+        this.tokens.push(eofToken)
+        return this.tokens
+    }
+
+    scanToken() {
+        const c = this.next()
+
+        if c == " " || c == "\t" || c == "\r" {
+            return
+        }
+        if c == "\n" {
+            this.line += 1
+            this.column = 1
+            this.start = this.current
+            return
+        }
+        if c == "/" {
+            this.scanSlash()
+            return
+        }
+        if c in this.singles {
+            this.addToken(this.singles[c])
+            return
+        }
+        if c == '"' || c == "'" {
+            this.scanString(c)
+            return
+        }
+        if c == "." {
+            this.scanDot()
+            return
+        }
+        if this.isDigit(c) {
+            this.scanNumber(c)
+            return
+        }
+        if this.isAlpha(c) {
+            this.scanIdentifier()
+            return
+        }
+        this.scanOperator(c)
+    }
+
+    // Handles "//" and "/* */" comments, "/=" and "/".
+    scanSlash() {
+        if this.accept("/") {
+            const line = this.line
+            const column = this.column - 1
+            const begin = this.current
+            while !this.isAtEnd() && this.peek() != "\n" {
+                this.next()
+            }
+            this.pushComment(this.substring(begin, this.current), "line", line, column)
+        } elif this.accept("*") {
+            const line = this.line
+            const column = this.column - 1
+            const begin = this.current
+            let textEnd = this.current
+            let closed = false
+
+            while !this.isAtEnd() {
+                if this.peek() == "*" && this.peek(1) == "/" {
+                    textEnd = this.current
+                    this.next()
+                    this.next()
+                    closed = true
+                    break
+                }
+                if this.peek() == "\n" {
+                    this.line += 1
+                    this.column = 1
+                }
+                this.next()
+            }
+
+            if !closed {
+                this.error("Unclosed Comment")
+            }
+            this.pushComment(this.substring(begin, textEnd), "block", line, column)
+        } elif this.accept("=") {
+            this.addToken(TokenType.DIV_ASSIGN)
+        } else {
+            this.addToken(TokenType.DIV)
+        }
+    }
+
+    pushComment(text, kind, line, column) {
+        this.pendingComments.push({text: text.trim(), kind: kind, line: line, column: column})
+    }
+
+    scanString(quote) {
+        while true {
+            if this.isAtEnd() {
+                this.error("Unterminated String")
+            }
+            let c = this.next()
+            if c == quote {
+                break
+            }
+            if c == "\\" {
+                if this.isAtEnd() {
+                    this.error("Unterminated String")
+                }
+                c = this.next()
+            }
+            if c == "\n" {
+                this.line += 1
+                this.column = 1
+            }
+        }
+        this.addToken(TokenType.STR, this.substring(this.start, this.current))
+    }
+
+    // Handles ".", "..", "..." and numbers such as ".5".
+    scanDot() {
+        const prev = this.previous()
+        const d = this.next()
+        if this.isDigit(d) && prev != "]" && !this.isAlpha(prev) {
+            this.decimal()
+            this.addToken(TokenType.NUM, num(this.substring(this.start, this.current)))
+        } elif d == "." {
+            const e = this.next()
+            if e == "." {
+                this.addToken(TokenType.ELLIPSIS)
+            } else {
+                this.current -= 1
+                this.addToken(TokenType.DBDOTS)
+            }
+        } else {
+            this.current -= 1
+            this.addToken(TokenType.DOT)
+        }
+    }
+
+    scanNumber(c) {
+        if c == "0" {
+            if this.accept("xX") {
+                while true {
+                    if !this.isHexDigit(this.peek()) {
+                        this.error("invalid hexadecimal literal")
+                    }
+                    this.next()
+                    while this.isHexDigit(this.peek()) {
+                        this.next()
+                    }
+                    if !this.accept("_") {
+                        break
+                    }
+                }
+                this.addToken(TokenType.NUM, this.substring(this.start, this.current))
+            } elif this.accept("oO") {
+                while true {
+                    if !this.isOctDigit(this.peek()) {
+                        this.error("invalid octal literal")
+                    }
+                    this.next()
+                    if !(this.accept(".") || this.isDigit(this.peek())) {
+                        break
+                    }
+                }
+                this.addToken(TokenType.NUM, this.parseOct(this.substring(this.start, this.current)))
+            } elif this.accept("bB") {
+                while true {
+                    if !this.isBinDigit(this.peek()) {
+                        this.error("invalid binary literal")
+                    }
+                    this.next()
+                    if !(this.accept(".") || this.isDigit(this.peek())) {
+                        break
+                    }
+                }
+                this.addToken(TokenType.NUM, this.parseBin(this.substring(this.start, this.current)))
+            } elif this.peek() == "." && this.peek(1) != "." {
+                this.next()
+                if this.isDigit(this.peek()) {
+                    this.decimal()
+                }
+                this.addToken(TokenType.NUM, num(this.substring(this.start, this.current)))
+            } elif this.isDigit(this.peek()) {
+                this.error("leading zeros in decimal integer literals are not permitted")
+            } else {
+                this.addToken(TokenType.NUM, 0)
+            }
+        } else {
+            while this.isDigit(this.peek()) {
+                this.next()
+            }
+            if this.peek() == "." && this.peek(1) != "." {
+                this.next()
+                if this.isDigit(this.peek()) {
+                    this.decimal()
+                }
+            }
+            this.addToken(TokenType.NUM, num(this.substring(this.start, this.current)))
+        }
+    }
+
+    scanIdentifier() {
+        while this.isValidIdentifier(this.peek()) {
+            this.next()
+        }
+        const name = this.substring(this.start, this.current)
+        if name in this.keywords {
+            this.addToken(this.keywords[name])
+        } else {
+            this.addToken(TokenType.ID)
+        }
+    }
+
+    // Operators that may combine with following characters.
+    // Characters that match nothing are ignored, as in the JS scanner.
+    scanOperator(c) {
+        if c == "=" {
+            if this.accept(">") {
+                this.addToken(TokenType.PIPELINE)
+            } elif this.accept("=") {
+                this.addToken(TokenType.EQUAL)
+            } else {
+                this.addToken(TokenType.ASSIGN)
+            }
+        } elif c == "*" {
+            if this.accept("*") {
+                this.addToken(TokenType.POWER)
+            } elif this.accept("=") {
+                this.addToken(TokenType.MULT_ASSIGN)
+            } elif this.accept(".") {
+                this.addToken(TokenType.DOT_PROD)
+            } else {
+                this.addToken(TokenType.MULT)
+            }
+        } elif c == "@" {
+            this.addToken(this.accept("=") ? TokenType.DOT_PROD_ASSIGN : TokenType.DOT_PROD)
+        } elif c == "+" {
+            if this.accept("=") {
+                this.addToken(TokenType.PLUS_ASSIGN)
+            } elif this.accept("+") {
+                this.addToken(TokenType.INCR)
+            } else {
+                this.addToken(TokenType.PLUS)
+            }
+        } elif c == "-" {
+            if this.accept("=") {
+                this.addToken(TokenType.MINUS_ASSIGN)
+            } elif this.accept("-") {
+                this.addToken(TokenType.DECR)
+            } elif this.accept(">") {
+                this.addToken(TokenType.RARROW)
+            } else {
+                this.addToken(TokenType.MINUS)
+            }
+        } elif c == "%" {
+            this.addToken(this.accept("=") ? TokenType.MOD_ASSIGN : TokenType.MOD)
+        } elif c == "|" {
+            if this.accept("=") {
+                this.addToken(TokenType.BITOR_ASSIGN)
+            } elif this.accept("|") {
+                this.addToken(TokenType.OR)
+            } else {
+                this.addToken(TokenType.BITOR)
+            }
+        } elif c == "&" {
+            if this.accept("=") {
+                this.addToken(TokenType.BITAND_ASSIGN)
+            } elif this.accept("&") {
+                this.addToken(TokenType.AND)
+            } else {
+                this.addToken(TokenType.BITAND)
+            }
+        } elif c == "^" {
+            this.addToken(this.accept("=") ? TokenType.XOR_ASSIGN : TokenType.XOR)
+        } elif c == "!" {
+            this.addToken(this.accept("=") ? TokenType.NOT_EQUAL : TokenType.NOT)
+        } elif c == "<" {
+            if this.accept("=") {
+                this.addToken(TokenType.LESS_EQUAL)
+            } elif this.accept("<") {
+                this.addToken(TokenType.LSHIFT)
+            } elif this.accept("-") {
+                this.addToken(TokenType.LARROW)
+            } else {
+                this.addToken(TokenType.LESS)
+            }
+        } elif c == ">" {
+            if this.accept("=") {
+                this.addToken(TokenType.GREATER_EQUAL)
+            } elif this.accept(">") {
+                if this.accept(">") {
+                    if this.accept("=") {
+                        this.addToken(TokenType.URSHIFT_ASSIGN)
+                    } else {
+                        this.addToken(TokenType.URSHIFT)
+                    }
+                } else {
+                    this.addToken(TokenType.RSHIFT)
+                }
+            } else {
+                this.addToken(TokenType.GREATER)
+            }
+        }
+    }
+
+    isAtEnd() {
+        return this.current >= this.length
+    }
+
+    // Source character at index i, or "" when out of range.
+    charAt(i) {
+        if i < 0 || i >= this.length {
+            return ""
+        }
+        return this.source[i]
+    }
+
+    substring(from, to) {
+        return this.source[from:to]
+    }
+
+    next() {
+        this.current += 1
+        this.column += 1
+        return this.charAt(this.current - 1)
+    }
+
+    // Consumes the next character if it is any character of `expected`.
+    // (Named accept because `match` is a Pilang keyword.)
+    accept(expected) {
+        if this.isAtEnd() {
+            return false
+        }
+        if this.source[this.current] in expected {
+            this.current += 1
+            this.column += 1
+            return true
+        }
+        return false
+    }
+
+    peek(offset = 0) {
+        if this.current + offset >= this.length {
+            return _NUL
+        }
+        return this.source[this.current + offset]
+    }
+
+    addToken(type, value = nil) {
+        if value == nil {
+            value = this.substring(this.start, this.current)
+        }
+        const newToken = Token(type, value, this.line, this.column)
+
+        if len(this.pendingComments) > 0 {
+            // A comma takes same-line "//" comments as trailing comments.
+            if newToken.type == TokenType.COMMA {
+                let remaining = []
+                for comment in this.pendingComments {
+                    if comment.kind == "line" && comment.line == newToken.line {
+                        newToken.addTrailingComment(comment)
+                    } else {
+                        remaining.push(comment)
+                    }
+                }
+                this.pendingComments = remaining
+            }
+
+            const lastToken = len(this.tokens) > 0 ? this.tokens[-1] : nil
+            let leadingComments = []   // for the new token
+            let trailingComments = []  // for the previous token
+
+            for comment in this.pendingComments {
+                if lastToken == nil {
+                    // No previous token.
+                    leadingComments.push(comment)
+                } elif comment.line > lastToken.line {
+                    // The comment is on a new line.
+                    leadingComments.push(comment)
+                } elif newToken.line > lastToken.line {
+                    // Same line as the last token, new token is on a later line.
+                    trailingComments.push(comment)
+                } elif newToken.type == TokenType.SEMICOLON {
+                    // `token /*c*/ ;` -> trailing for token.
+                    trailingComments.push(comment)
+                } else {
+                    // `T1 /*c*/ T2` -> leading for T2.
+                    leadingComments.push(comment)
+                }
+            }
+
+            if lastToken != nil {
+                for comment in trailingComments {
+                    lastToken.addTrailingComment(comment)
+                }
+            }
+            for comment in leadingComments {
+                newToken.addLeadingComment(comment)
+            }
+            this.pendingComments = []
+        }
+
+        this.tokens.push(newToken)
+    }
+
+    isDigit(ch) {
+        return ch != "" && ch in _DIGITS
+    }
+
+    isHexDigit(ch) {
+        return ch != "" && ch in _HEX
+    }
+
+    isOctDigit(ch) {
+        return ch != "" && ch in _OCT
+    }
+
+    isBinDigit(ch) {
+        return ch != "" && ch in _BIN
+    }
+
+    parseOct(text) {
+        if text[1] == "O" || text[1] == "o" {
+            text = text[2:]
+        } else {
+            text = text[1:]
+        }
+        let val = 0
+        let n = #text
+        for i in 0..n {
+            if text[i] != "_" {
+                val = 8 * val + (ord(text[i]) - 48)
+            }
+        }
+        return val
+    }
+
+    parseBin(text) {
+        let val = 0
+        let n = #text
+        for i in 2..n {
+            val = 2 * val + (text[i] == "1" ? 1 : 0)
+        }
+        return val
+    }
+
+    // Rest of a decimal literal after the first digit or ".": digits, exponent.
+    decimal() {
+        while this.isDigit(this.peek()) {
+            this.next()
+        }
+        if this.accept("eE") {
+            this.accept("+-")
+            if !this.isDigit(this.peek()) {
+                this.error("invalid decimal literal")
+            }
+            while this.isDigit(this.peek()) {
+                this.next()
+            }
+        }
+    }
+
+    isAlpha(ch) {
+        return ch != "" && ch in _ALPHA
+    }
+
+    isValidIdentifier(ch) {
+        return this.isAlpha(ch) || this.isDigit(ch)
+    }
+
+    error(message) {
+        error("Syntax Error: " + message + " at line " + str(this.line) + ", column " + str(this.column))
+    }
+
+    // Previous non-blank character before the one just consumed.
+    previous() {
+        let i = this.current - 2
+        while i >= 0 {
+            if !this.isSpace(this.source[i]) {
+                return this.source[i]
+            }
+            i -= 1
+        }
+        return _NUL
+    }
+
+    isSpace(ch) {
+        return ch == " " || ch == "\t" || ch == "\r"
+    }
+}

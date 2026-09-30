@@ -1,0 +1,11 @@
+class PiException {
+    constructor(message, line = nil, col = nil) {
+        this.message = message
+        this.line = line
+        this.col = col
+    }
+
+    toString() {
+        return "[line: " + str(this.line) + ", column: " + str(this.col) + "] " + this.message
+    }
+}

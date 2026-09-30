@@ -1,0 +1,63 @@
+import PiStatement
+
+class PiVarDeclarations : PiStatement {
+    // declarationToken: the "let"/"const" token; declarations: list of PiVarDeclaration.
+    constructor(declarationToken, declarations, semicolonToken = nil) {
+        super(declarationToken, semicolonToken != nil ? semicolonToken : declarationToken)
+        this._declarationToken = declarationToken
+        this._declarations = declarations
+        this._semicolon = semicolonToken
+    }
+
+    format(indent = 0) {
+        let result = ""
+        const leadingComments = this.formatComments(this._declarationToken, indent, "leading")
+        if #leadingComments > 0 {
+            result += leadingComments
+        }
+        if #result == 0 {
+            result += this.indent(indent)
+        } elif result[-1] == "\n" {
+            result += this.indent(indent)
+        }
+
+        result += this._declarationToken.value
+        result += this.formatComments(this._declarationToken, indent, "trailing")
+        result += " "
+
+        for i in 0..len(this._declarations) {
+            if i > 0 {
+                result += ", "
+            }
+            result += this._declarations[i].format(indent)
+        }
+
+        if this._semicolon != nil {
+            result += this.formatComments(this._semicolon, indent, "leading")
+            result += ";"
+            result += this.formatComments(this._semicolon, indent, "trailing")
+        }
+
+        return result
+    }
+
+    minify(context = nil) {
+        let s = this._declarationToken.value + " "
+        const count = len(this._declarations)
+        for i in 0..count {
+            const d = this._declarations[i]
+
+            // Register the declared variable in the current scope.
+            const mangled = context.setValue(d.getName())
+
+            s += mangled
+            if d.getInit() != nil {
+                s += "=" + d.getInit().minify(context)
+            }
+            s += i < count - 1 ? "," : ""
+        }
+
+        s += ";"
+        return s
+    }
+}

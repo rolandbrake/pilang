@@ -1,0 +1,34 @@
+import PiExpression
+
+class PiNamedArgument : PiExpression {
+    constructor(nameToken, eqToken, value) {
+        super(nameToken, value.getLastToken())
+
+        this._nameToken = nameToken
+        this._eqToken = eqToken
+        this._value = value
+    }
+
+    format(indent = 0) {
+        return (
+            this.indent(indent) +
+            this.formatComments(this._nameToken, indent, "leading") +
+            this._nameToken.value +
+            this.formatComments(this._nameToken, indent, "trailing") +
+            " " +
+            this.formatComments(this._eqToken, indent, "leading") +
+            "=" +
+            this.formatComments(this._eqToken, indent, "trailing") +
+            " " +
+            this._value.format(0)
+        )
+    }
+
+    minify(context = nil) {
+        return (
+            this._nameToken.value +
+            "=" +
+            this._value.minify(context)
+        )
+    }
+}

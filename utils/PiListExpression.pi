@@ -1,0 +1,174 @@
+import PiExpression
+
+fun _startsWith(s, prefix) {
+    const n = #prefix
+    return #s >= n && s[0:n] == prefix
+}
+
+fun _trimEnd(s) {
+    let n = #s
+    while n > 0 && s[n - 1] in " \t\n\r" {
+        n -= 1
+    }
+    return s[0:n]
+}
+
+class PiListExpression : PiExpression {
+    // start: the "[" token; exprs: element expressions;
+    // commas: the "," tokens; end: the "]" token.
+    constructor(start, exprs, commas, end) {
+        super(start, end)
+        this.start = start
+        this._exprs = exprs
+        this.commas = commas
+        this.end = end
+    }
+
+    hashSource() {
+        let parts = []
+        for expr in this._exprs {
+            parts.push(str(expr.hashCode()))
+        }
+        return "list:" + parts.join(",")
+    }
+
+    getSize() {
+        return len(this._exprs)
+    }
+
+    // Each element as a single-line string, using its compact form if it has one.
+    formatItems() {
+        if len(this._exprs) == 0 {
+            return []
+        }
+
+        const first = this._exprs[0]
+        const firstCompact = first.compactFormat()
+        let formatted = [firstCompact != nil ? firstCompact : first.format(0).trim()]
+        for i in 1..len(this._exprs) {
+            const expr = this._exprs[i]
+            const compact = expr.compactFormat()
+            formatted.push(compact != nil ? compact : expr.format(0).trim())
+        }
+        return formatted
+    }
+
+    compactFormat() {
+        if len(this._exprs) == 0 {
+            return "[]"
+        }
+        return "[" + this.formatItems().join(", ") + "]"
+    }
+
+    format(indent = 0, comments = nil, parentPrecedence = INF) {
+        if len(this._exprs) == 0 {
+            let empty = this.indent(indent)
+            empty += this.formatComments(this.start, indent, "leading")
+            empty += "[]"
+            return empty
+        }
+
+        const maxLineLength = 80
+        const innerIndent = indent + 2
+        const innerIndentStr = this.indent(innerIndent)
+        const formattedItems = this.formatItems()
+        const count = len(formattedItems)
+
+        let hasComments = false
+        for token in [this.start, this.end, ...this.commas] {
+            if token != nil && (len(token.leadingComments) > 0 || len(token.trailingComments) > 0) {
+                hasComments = true
+                break
+            }
+        }
+
+        let hasNestedOrMultiline = false
+        let hasNestedItems = false
+        for item in formattedItems {
+            if "\n" in item {
+                hasNestedOrMultiline = true
+            }
+            if _startsWith(item, "[") || _startsWith(item, "{") {
+                hasNestedItems = true
+            }
+        }
+
+        const singleLine = "[" + formattedItems.join(", ") + "]"
+
+        let result = this.indent(indent)
+        result += this.formatComments(this.start, indent, "leading")
+
+        if !hasComments && !hasNestedOrMultiline && indent + #singleLine <= maxLineLength {
+            return result + singleLine
+        }
+
+        result += "["
+        const startTrailing = this.formatComments(this.start, indent, "trailing")
+        if #(startTrailing.trim()) > 0 {
+            result += startTrailing
+        }
+        result += "\n"
+
+        if !hasComments && hasNestedItems {
+            // One item per line.
+            for index in 0..count {
+                result += innerIndentStr + formattedItems[index]
+                if index < count - 1 {
+                    result += ",\n"
+                }
+            }
+        } elif !hasComments && !hasNestedOrMultiline {
+            // Fill lines up to the maximum length.
+            let lines = []
+            let line = ""
+            for index in 0..count {
+                const part = formattedItems[index] + (index < count - 1 ? "," : "")
+                const candidate = #line == 0 ? part : line + " " + part
+                if #line > 0 && innerIndent + #candidate > maxLineLength {
+                    lines.push(innerIndentStr + line)
+                    line = part
+                } else {
+                    line = candidate
+                }
+            }
+            if #line > 0 {
+                lines.push(innerIndentStr + line)
+            }
+            result += lines.join("\n")
+        } else {
+            // Comments present: format each element on its own line.
+            for index in 0..count {
+                const item = _trimEnd(this._exprs[index].format(innerIndent))
+                result += _startsWith(item, innerIndentStr) ? item : innerIndentStr + item
+
+                if index < count - 1 {
+                    const commaToken = index < len(this.commas) ? this.commas[index] : nil
+                    result += commaToken != nil ? this.formatComments(commaToken, 0, "leading") : ""
+                    result += ","
+                    result += commaToken != nil ? this.formatComments(commaToken, 0, "trailing") : ""
+                    result += "\n"
+                }
+            }
+        }
+
+        result += "\n" + this.indent(indent)
+        result += this.formatComments(this.end, indent, "leading")
+        result += "]"
+        return result
+    }
+
+    minify(context = nil, parentPrecedence = INF) {
+        if len(this._exprs) == 0 {
+            return "[]"
+        }
+        let s = "["
+        const count = len(this._exprs)
+        for i in 0..count {
+            s += this._exprs[i].minify(context)
+            if i < count - 1 {
+                s += ","
+            }
+        }
+        return s + "]"
+    }
+}

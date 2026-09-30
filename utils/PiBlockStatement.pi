@@ -1,0 +1,70 @@
+import PiStatement
+
+class PiBlockStatement : PiStatement {
+    constructor(startToken, compoundStatement, endToken) {
+        super(startToken, endToken)
+
+        this._compoundStatement = compoundStatement
+        this.isBlock = true
+    }
+
+    format(indent = 0, isStatement = false) {
+        let result = isStatement
+            ? " "
+            : this.indent(indent)
+
+        result +=
+            this.formatComments(
+                this.getStartToken(),
+                indent,
+                "leading"
+            ) +
+            "{" +
+            this.formatComments(
+                this.getStartToken(),
+                indent,
+                "trailing"
+            )
+
+        if (
+            this._compoundStatement != nil &&
+            this._compoundStatement.size() > 0
+        ) {
+            result +=
+                "\n" +
+                this._compoundStatement.format(indent + 2) +
+                "\n"
+        } else {
+            result += "\n"
+        }
+
+        result +=
+            this.formatComments(
+                this.getLastToken(),
+                indent,
+                "leading"
+            ) +
+            this.indent(indent) +
+            "}"
+
+        return result
+    }
+
+    minify(context = nil) {
+        let result = "{"
+
+        context.pushScope()
+
+        if (this._compoundStatement != nil) {
+            for i in 0..this._compoundStatement.size() {                
+              result += this._compoundStatement.
+                        get(i).
+                        minify(context)
+            }
+        }
+
+        context.popScope()
+
+        return result + "}"
+    }
+}

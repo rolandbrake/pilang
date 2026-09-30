@@ -1,0 +1,27 @@
+import PiStatement
+
+class PiDebugStatement : PiStatement {
+    constructor(token, value, semicolon = nil) {
+        super(token, semicolon != nil ? semicolon : value.getLastToken())
+        this._token = token
+        this._value = value
+        this._semicolon = semicolon
+    }
+
+    format(indent = 0) {
+        return (
+            this.indent(indent) +
+            this.formatComments(this._token, indent, "leading") +
+            "debug " +
+            this._value.format(0) +
+            ";" +
+            (this._semicolon != nil
+                ? this.formatComments(this._semicolon, indent, "trailing")
+                : "")
+        )
+    }
+
+    minify(context = nil) {
+        return "debug " + this._value.minify(context) + ";"
+    }
+}

@@ -1,0 +1,66 @@
+import PiExpression
+
+const _ALPHA = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
+
+// True if the operator starts with a letter or "_" (like typeof), so it
+// needs a space before its operand.
+fun _isWordOperator(name) {
+    return #name > 0 && name[0] in _ALPHA
+}
+
+class PiUnaryExpression : PiExpression {
+    // op: the operator token; sub: the operand; prefix: true for "-x", false for "x++".
+    constructor(op, sub, prefix = true, access = false) {
+        super(prefix ? op : sub.getStartToken(), prefix ? sub.getLastToken() : op)
+        this._type = op.type
+        this._name = op.value
+        this._sub = sub
+        this._prefix = prefix
+        this._access = access
+    }
+
+    hashSource() {
+        return "unary:" + str(this._name) + ":" + str(this._prefix) + ":" + str(this._sub.hashCode())
+    }
+
+    format(indent = 0, comments = nil, parentPrecedence = INF) {
+        // Lower numbers bind more tightly; this matches PiBinaryExpression.
+        const precedence = 3
+
+        let expr = ""
+        if this._prefix {
+            const separator = _isWordOperator(this._name) ? " " : ""
+            expr = this._name + separator + this._sub.format(0, comments, precedence)
+        } else {
+            expr = this._sub.format(0, comments, precedence) + this._name
+        }
+
+        // Wrap only when this expression binds weaker than its parent.
+        if precedence > parentPrecedence {
+            expr = "(" + expr + ")"
+        }
+
+        // Indent only at statement level.
+        return indent > 0 ? this.indent(indent) + expr : expr
+    }
+
+    minify(context = nil, parentPrecedence = INF) {
+        const precedence = 3
+
+        let expr = ""
+        if this._prefix {
+            const separator = _isWordOperator(this._name) ? " " : ""
+            expr = this._name + separator + this._sub.minify(context, precedence)
+        } else {
+            // Postfix form: x++, x--
+            expr = this._sub.minify(context, precedence) + this._name
+        }
+
+        // Only wrap when this expression binds weaker than its parent.
+        if precedence > parentPrecedence {
+            expr = "(" + expr + ")"
+        }
+
+        return expr
+    }
+}

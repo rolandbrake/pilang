@@ -1,0 +1,70 @@
+import TokenType
+
+// Precedence levels: lower numbers bind more tightly.
+//  1 member access      2 postfix          3 unary            4 exponentiation
+//  5 * / % dot-product  6 + -              7 shifts           8 comparison
+//  9 &                 10 ^               11 |               12 &&
+// 13 ||                14 ternary         15 pipeline        16 assignment
+const _LEVELS = [
+    [1, [TokenType.DOT]],
+    [2, [TokenType.INCR, TokenType.DECR, TokenType.TICK, TokenType.DBQUOTE, TokenType.QUOTE, TokenType.HASH]],
+    [3, [TokenType.NOT, TokenType.BITNEG]],
+    [4, [TokenType.POWER]],
+    [5, [TokenType.MULT, TokenType.DIV, TokenType.MOD, TokenType.DOT_PROD]],
+    [6, [TokenType.PLUS, TokenType.MINUS]],
+    [7, [TokenType.LSHIFT, TokenType.RSHIFT, TokenType.URSHIFT]],
+    [8, [
+        TokenType.LESS,
+        TokenType.GREATER,
+        TokenType.EQUAL,
+        TokenType.NOT_EQUAL,
+        TokenType.LESS_EQUAL,
+        TokenType.GREATER_EQUAL,
+        TokenType.IS,
+        TokenType.IN,
+        TokenType.DBDOTS
+    ]],
+    [9, [TokenType.BITAND]],
+    [10, [TokenType.XOR]],
+    [11, [TokenType.BITOR]],
+    [12, [TokenType.AND]],
+    [13, [TokenType.OR]],
+    [14, [TokenType.QUESTION]],
+    [15, [TokenType.PIPELINE]],
+    [16, [
+        TokenType.ASSIGN,
+        TokenType.PLUS_ASSIGN,
+        TokenType.MINUS_ASSIGN,
+        TokenType.MULT_ASSIGN,
+        TokenType.DIV_ASSIGN,
+        TokenType.MOD_ASSIGN,
+        TokenType.BITAND_ASSIGN,
+        TokenType.BITOR_ASSIGN,
+        TokenType.XOR_ASSIGN,
+        TokenType.LSHIFT_ASSIGN,
+        TokenType.RSHIFT_ASSIGN,
+        TokenType.URSHIFT_ASSIGN,
+        TokenType.POWER_ASSIGN,
+        TokenType.DOT_PROD_ASSIGN,
+        TokenType.AND_ASSIGN,
+        TokenType.OR_ASSIGN,
+        TokenType.LARROW,
+        TokenType.RARROW
+    ]]
+]
+
+// token type -> level
+let _PRECEDENCE = {}
+for level in _LEVELS {
+    for t in level[1] {
+        _PRECEDENCE[t] = level[0]
+    }
+}
+
+// Returns the precedence of a token type (100 if it has none).
+fun getPrecedence(tokenType) {
+    if tokenType in _PRECEDENCE {
+        return _PRECEDENCE[tokenType]
+    }
+    return 100
+}

@@ -1,0 +1,42 @@
+import PiExpression
+
+class PiSetExpression : PiExpression {
+    constructor(startToken, elements, commas, endToken) {
+        super(startToken, endToken)
+
+        this._startToken = startToken
+        this._elements = elements
+        this._commas = commas
+        this._endToken = endToken
+    }
+
+    format(indent = 0) {
+        let parts = []
+
+        for expr in this._elements {
+            parts.push(expr.format(0).trim())
+        }
+
+        return (
+            this.indent(indent) +
+            this.formatComments(
+                this._startToken,
+                indent,
+                "leading"
+            ) +
+            "{" +
+            parts.join(", ") +
+            "}"
+        )
+    }
+
+    minify(context = nil) {
+        let parts = []
+
+        for expr in this._elements {
+            parts.push(expr.minify(context))
+        }
+
+        return "{" + parts.join(",") + "}"
+    }
+}

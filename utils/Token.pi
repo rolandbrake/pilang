@@ -1,0 +1,43 @@
+import TokenType
+
+class Token {
+    constructor(type, value, line, column) {
+        this.type = type
+        this.value = value
+        this.line = line
+        this.column = column
+        this.leadingComments = []  // Comments before this token
+        this.trailingComments = [] // Comments after this token, on the same line
+    }
+
+    addLeadingComment(comment) {
+        this.leadingComments.push(comment)
+    }
+
+    addTrailingComment(comment) {
+        this.trailingComments.push(comment)
+    }
+
+    getType() {
+        return this.type
+    }
+
+    getValue() {
+        return this.value
+    }
+
+    getLine() {
+        return this.line
+    }
+
+    getColumn() {
+        return this.column
+    }
+    
+    format() {
+        if this.type == TokenType.COMMENT {
+            return "<COMMENT, '" + this.value.text + "'>"
+        }
+        return "<" + str(this.type) + ", " + str(this.value) + ">"
+    }
+}

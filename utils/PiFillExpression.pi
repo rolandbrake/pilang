@@ -1,0 +1,23 @@
+import PiExpression
+
+class PiFillExpression : PiExpression {
+    constructor(token, endpoint) {
+        super(token, endpoint.getLastToken())
+
+        this._ellipsisToken = token
+        this._endpoint = endpoint
+    }
+
+    format(indent = 0) {
+        return (
+            this.indent(indent) +
+            this.formatComments(this._ellipsisToken, indent, "leading") +
+            "..., " +
+            this._endpoint.format(0)
+        )
+    }
+
+    minify(context = nil) {
+        return "...," + this._endpoint.minify(context)
+    }
+}

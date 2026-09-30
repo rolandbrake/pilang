@@ -1,0 +1,12 @@
+import PiStatement
+
+class PiComment : PiStatement {
+    constructor(token) {
+        super(token, token)
+        this._text = token.value // The actual comment string
+    }
+
+    format(indent = 0) {
+        return this.indent(indent) + this._text
+    }
+}

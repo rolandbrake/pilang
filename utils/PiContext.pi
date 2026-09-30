@@ -1,0 +1,90 @@
+import PiMangler
+import PiScopeStack
+import PiScope
+
+class PiContext {
+    constructor(builtins = nil, mangle = true) {
+        if builtins == nil {
+            builtins = []
+        }
+        this.scopeStack = PiScopeStack()
+        this.mangler = mangle ? PiMangler() : nil
+        this.builtins = set(builtins)
+
+        // Global scope with the builtins preloaded as identity mappings.
+        const global = PiScope()
+        for name in builtins {
+            global.setValue(name, name)
+        }
+        this.scopeStack.push(global)
+    }
+
+    pushScope() {
+        this.scopeStack.push(PiScope())
+    }
+
+    popScope() {
+        this.scopeStack.pop()
+    }
+
+    /*
+     * Declares a variable in the current scope (let, function params, for-loop vars, ...).
+     *  - Already mapped in the current scope: keep the mapping, except that a global
+     *    redeclaration of a preloaded builtin gets a new mangled name.
+     *  - Otherwise: create a new mangled mapping in the current scope.
+     * Returns the mangled name.
+     */
+    setValue(name) {
+        const current = this.scopeStack.peek()
+
+        // Mangling disabled: identity mapping.
+        if this.mangler == nil {
+            current.setValue(name, name)
+            return name
+        }
+
+        if current.hasValue(name) {
+            const existing = current.getValue(name)
+            // Global scope + the builtin's own identity mapping: the user is
+            // redeclaring a builtin, so override it with a mangled name.
+            if this.scopeStack.isGlobalScope() && existing == name && name in this.builtins {
+                const mangled = this.mangler.getName(name)
+                current.setValue(name, mangled)
+                return mangled
+            }
+            return existing
+        }
+
+        // Not declared in the current scope: new mapping (may shadow an outer one).
+        const mangled = this.mangler.getName(name)
+        current.setValue(name, mangled)
+        return mangled
+    }
+
+    /*
+     * Resolves a variable reference.
+     *  - Declared in any scope: its mapping.
+     *  - An unshadowed builtin: its own name.
+     *  - Otherwise an implicit global: a new mangled entry in the global scope.
+     */
+    getValue(name) {
+        // Mangling disabled: always the original name.
+        if this.mangler == nil {
+            return name
+        }
+
+        const found = this.scopeStack.getValue(name)
+        if found != nil {
+            return found
+        }
+
+        if name in this.builtins {
+            return name
+        }
+
+        const global = this.scopeStack.peekFirst()
+        const mangled = this.mangler.getName(name)
+        global.setValue(name, mangled)
+        return mangled
+    }
+}

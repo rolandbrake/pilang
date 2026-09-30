@@ -1,0 +1,32 @@
+class PiMangler {
+    constructor() {
+        this.counter = 0
+        this.map = {}     // original -> minified
+        this.reverse = {} // minified -> original
+    }
+
+    // Next name in the sequence a, b, ..., z, ba, bb, ...
+    nextName() {
+        let name = ""
+        let n = this.counter
+        this.counter += 1
+        while true {
+            name = char(97 + n % 26) + name // a-z
+            n = (n - n % 26) / 26
+            if n <= 0 {
+                break
+            }
+        }
+        return name
+    }
+
+    // Returns the minified name for an original name, creating one on first use.
+    getName(original) {
+        if !(original in this.map) {
+            const newName = this.nextName()
+            this.map[original] = newName
+            this.reverse[newName] = original
+        }
+        return this.map[original]
+    }
+}

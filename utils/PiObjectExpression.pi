@@ -1,0 +1,100 @@
+import PiExpression
+import TokenType
+
+class PiObjectExpression : PiExpression {
+    constructor(startToken, properties, endToken) {
+        super(startToken, endToken)
+
+        this._startToken = startToken
+        this._properties = properties
+        this._endToken = endToken
+    }
+
+    key(token) {
+        return token.type == TokenType.STR
+            ? token.value
+            : token.value
+    }
+
+    property(prop, context = nil) {
+        if prop.spread != nil {
+            return context != nil
+                ? prop.spread.minify(context)
+                : prop.spread.format(0)
+        }
+
+        const value =
+            context != nil
+                ? prop.value.minify(context)
+                : prop.value.format(0)
+
+        return (
+            this.key(prop.keyToken) +
+            (
+                prop.colonToken != nil
+                    ? (context != nil ? ":" : ": ")
+                    : ""
+            ) +
+            value
+        )
+    }
+
+    format(indent = 0) {
+        if len(this._properties) == 0 {
+            return (
+                this.indent(indent) +
+                this.formatComments(
+                    this._startToken,
+                    indent,
+                    "leading"
+                ) +
+                "{}" +
+                this.formatComments(
+                    this._endToken,
+                    indent,
+                    "trailing"
+                )
+            )
+        }
+
+        let parts = []
+
+        for prop in this._properties {
+            parts.push(this.property(prop))
+        }
+
+        return (
+            this.indent(indent) +
+            this.formatComments(
+                this._startToken,
+                indent,
+                "leading"
+            ) +
+            "{ " +
+            parts.join(", ") +
+            " " +
+            this.formatComments(
+                this._endToken,
+                indent,
+                "leading"
+            ) +
+            "}" +
+            this.formatComments(
+                this._endToken,
+                indent,
+                "trailing"
+            )
+        )
+    }
+
+    minify(context = nil) {
+        let result = "{"
+        for i in 0..len(this._properties) {
+            if i > 0 {
+                result += ","
+            }
+            result += this.property(this._properties[i], context)
+        }
+        return result + "}"
+    }
+}

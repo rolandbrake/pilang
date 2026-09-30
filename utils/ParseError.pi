@@ -1,0 +1,31 @@
+import Token
+
+/*
+ * Parse error with an optional source location.
+ *   ParseError(message, line, column)
+ *   ParseError(token)   // location taken from the token
+ *   ParseError(message)
+ * Pilang has no throw, so raise it with: ParseError(...).raise()
+ */
+class ParseError {
+    constructor(message, line = nil, column = nil) {
+        if line != nil && column != nil {
+            this.message = "[line: " + str(line) + ", column: " + str(column) + "] " + str(message)
+        } elif message is Token {
+            const token = message
+            this.message = "[line: " + str(token.line) + ", column: " + str(token.column) + "] " + str(token.value)
+        } else {
+            this.message = message
+        }
+    }
+
+    // Used by print/println/str.
+    format() {
+        return this.message
+    }
+
+    // Stops execution with this error's message.
+    raise() {
+        error(this.message)
+    }
+}

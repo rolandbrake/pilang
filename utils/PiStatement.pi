@@ -1,0 +1,79 @@
+/*
+ * PiStatement: base class for all statement nodes in the formatter.
+ * Subclasses override format(), minify() and gen().
+ */
+class PiStatement {
+    constructor(token, lastToken = nil) {
+        this._token = token
+        this._lastToken = (lastToken == nil) ? token : lastToken
+        this._line = (token != nil) ? token.line : 1
+        this._col = (token != nil) ? token.column : 1
+        this.isBlock = false
+    }
+
+    getStartToken() {
+        return this._token
+    }
+
+    getLastToken() {
+        return this._lastToken
+    }
+
+    setLineCol(context) {
+        context.setLineCol(this._line, this._col)
+    }
+
+    indent(indent) {
+        return indent > 0 ? " " * indent : ""
+    }
+
+    /*
+     * Formats the comments attached to a token.
+     *   token:     token to format comments for (may be nil)
+     *   indent:    indentation level for comments on their own line
+     *   placement: "leading" or "trailing"
+     * Returns the formatted comments as a string.
+     */
+    formatComments(token, indent, placement) {
+        if token == nil {
+            return ""
+        }
+        let result = ""
+        const indentStr = this.indent(indent)
+        let comments = (placement == "leading") ? token.leadingComments : token.trailingComments
+        if comments == nil {
+            comments = []
+        }
+
+        for c in comments {
+            let comment = (c.kind == "line") ? ("// " + c.text) : ("/* " + c.text + " */")
+            if c.line == token.line {
+                // Comment on the same line as the token.
+                if placement == "leading" {
+                    // /*C*/ token -> "/*C*/ "
+                    result += comment + " "
+                } else {
+                    // token // C -> " // C"
+                    result += " " + comment
+                }
+            } else {
+                // Comment on its own line.
+                result += indentStr + comment + "\n"
+            }
+        }
+        return result
+    }
+
+    format(indent = 0) {
+        error("Abstract method format must be implemented")
+    }
+
+    minify(context = nil) {
+        error("Abstract method minify must be implemented")
+    }
+
+    // for future use
+    gen(compiler) {
+        error("Unimplemented method")
+    }
+}

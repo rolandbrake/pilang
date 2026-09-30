@@ -1,0 +1,1337 @@
+import Token
+import TokenType
+import ParseError
+import PiCompoundStatement
+import PiVarDeclarations
+import PiVarDeclaration
+import PiFuncDeclStatement
+import PiFuncDeclExpression
+import PiExpressionStatement
+import PiObjectExpression
+import PiBlockStatement
+import PiIfStatement
+import PiConditionalExpression
+import PiWhileStatement
+import PiForStatement
+import PiReturnStatement
+import PiAssertStatement
+import PiDebugStatement
+import PiBreakStatement
+import PiContinueStatement
+import PiUnaryExpression
+import PiBinaryExpression
+import PiLiteralExpression
+import PiFunctionExpression
+import PiListExpression
+import PiRangeExpression
+import PiSliceExpression
+import PiVariable
+import PiSpreadExpression
+import PiNamedArgument
+import PiTupleExpression
+import PiSetExpression
+import PiSequenceExpression
+import PiFillExpression
+import PiImportStatement
+import PiClassStatement
+import PiSwitchStatement
+
+// Token type groups. accept()/check() take a single type or a list of types.
+const _ASSIGN_OPS = [
+    TokenType.ASSIGN,
+    TokenType.PLUS_ASSIGN,
+    TokenType.MINUS_ASSIGN,
+    TokenType.DIV_ASSIGN,
+    TokenType.MULT_ASSIGN,
+    TokenType.MOD_ASSIGN,
+    TokenType.BITOR_ASSIGN,
+    TokenType.XOR_ASSIGN,
+    TokenType.BITAND_ASSIGN,
+    TokenType.LSHIFT_ASSIGN,
+    TokenType.RSHIFT_ASSIGN,
+    TokenType.URSHIFT_ASSIGN,
+    TokenType.POWER_ASSIGN,
+    TokenType.DOT_PROD_ASSIGN,
+    TokenType.AND_ASSIGN,
+    TokenType.OR_ASSIGN
+]
+const _KEY_TYPES = [TokenType.STR, TokenType.ID, TokenType.NUM, TokenType.FALSE, TokenType.TRUE]
+const _COMPARE_OPS = [TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESS, TokenType.LESS_EQUAL]
+const _UNARY_OPS = [
+    TokenType.PLUS,
+    TokenType.MINUS,
+    TokenType.NOT,
+    TokenType.BITNEG,
+    TokenType.HASH,
+    TokenType.INCR,
+    TokenType.DECR,
+    TokenType.TYPEOF
+]
+const _LITERAL_TYPES = [
+    TokenType.NUM,
+    TokenType.STR,
+    TokenType.TRUE,
+    TokenType.FALSE,
+    TokenType.NIL,
+    TokenType["INF"],
+    TokenType["NAN"],
+    TokenType.SUPER
+]
+
+class PiParser {
+    constructor() {
+        this.tokens = []
+        this.current = 0
+        this.loopDepth = 0
+    }
+
+    parse(tokens) {
+        this.tokens = tokens
+        this.current = 0
+        this.access = false
+        this.isStore = false
+        this.isReturn = false
+        this.loopDepth = 0
+        this.statements = PiCompoundStatement(nil, true)
+        this.key = nil
+        this.last = nil
+        return this.Program()
+    }
+
+    // Parses the whole source into one compound statement.
+    Program() {
+        while !this.isAtEnd() {
+            this.statements.add(this.Declaration())
+        }
+        this.statements.eofToken = this.peek()
+        return this.statements
+    }
+
+    Declaration() {
+        if this.accept([TokenType.LET, TokenType.CONST]) {
+            return this.VarDeclaration(this.previous())
+        }
+        if this.accept(TokenType.FUN) {
+            return this.FunctionDeclaration()
+        }
+        if this.accept(TokenType.CLASS) {
+            return this.ClassDeclaration()
+        }
+        return this.Statement()
+    }
+
+    VarDeclaration(token) {
+        const declarations = this.Variables()
+        return PiVarDeclarations(token, declarations, this.optionalSemicolon())
+    }
+
+    Variables() {
+        const first = this.Variable()
+        if !this.accept(TokenType.COMMA) {
+            return [first]
+        }
+
+        let declarations = [first]
+        while true {
+            declarations.push(this.Variable())
+            if !this.accept(TokenType.COMMA) {
+                break
+            }
+        }
+        return declarations
+    }
+
+    Variable() {
+        const name = this.consume(TokenType.ID, "Expect variable name")
+        let eqToken = nil
+        let initializer = nil
+        if this.accept(TokenType.ASSIGN) {
+            eqToken = this.previous()
+            initializer = this.AssignmentExpression()
+        }
+        return PiVarDeclaration(name, eqToken, initializer)
+    }
+
+    // Returns a list of {nameToken, defaultValue, commaToken} maps.
+    ParameterList() {
+        let parameters = []
+        if !this.check(TokenType.RPAREN) {
+            while true {
+                if len(parameters) >= 32 {
+                    this.fail("Can't have more than 32 parameters.", this.peek().line, this.peek().column)
+                }
+                const nameToken = this.consume(TokenType.ID, "Expect parameter name.")
+                let defaultValue = nil
+                if this.accept(TokenType.ASSIGN) {
+                    defaultValue = this.Expression()
+                }
+                parameters.push({nameToken: nameToken, defaultValue: defaultValue, commaToken: nil})
+
+                if this.accept(TokenType.COMMA) {
+                    // The comma belongs to the parameter just added.
+                    parameters[-1].commaToken = this.previous()
+                    if this.check(TokenType.RPAREN) {
+                        break
+                    }
+                } else {
+                    break
+                }
+            }
+        }
+        return parameters
+    }
+
+    FunctionDeclaration() {
+        const funToken = this.previous()
+
+        // "fun (" starts a function expression, not a declaration.
+        if this.check(TokenType.LPAREN) {
+            this.current -= 1
+            return this.ExpressionStatement()
+        }
+
+        const name = PiVariable(this.consume(TokenType.ID, "Expect variable name"))
+        const lparen = this.consume(TokenType.LPAREN, "Expect '(' after function name")
+        const params = this.ParameterList()
+        const rparen = this.consume(TokenType.RPAREN, "Expect ')' after parameters.")
+        this.consume(TokenType.LBRACE, "Expect '{' before function body.")
+        const body = this.Block()
+        return PiFuncDeclStatement(funToken, name, lparen, params, rparen, body)
+    }
+
+    ClassDeclaration() {
+        const classToken = this.previous()
+        const nameToken = this.consume(TokenType.ID, "Expect class name.")
+        let parentToken = nil
+        if this.accept(TokenType.COLON) {
+            parentToken = this.consume(TokenType.ID, "Expect parent class name after ':'.")
+        }
+        this.consume(TokenType.LBRACE, "Expect '{' before class body.")
+
+        let members = []
+        while !this.check(TokenType.RBRACE) && !this.isAtEnd() {
+            const memberName = this.consume(TokenType.ID, "Expect class member name.")
+            if this.accept(TokenType.LPAREN) {
+                const params = this.ParameterList()
+                this.consume(TokenType.RPAREN, "Expect ')' after method parameters.")
+                this.consume(TokenType.LBRACE, "Expect '{' before method body.")
+                const body = this.Block()
+                members.push({kind: "method", name: memberName, params: params, body: body, value: nil, semicolon: nil})
+                this.optionalSemicolon()
+            } else {
+                this.consume(TokenType.ASSIGN, "Expect '=' after class field name.")
+                const value = this.Expression()
+                members.push({kind: "field", name: memberName, params: nil, body: nil, value: value, semicolon: this.optionalSemicolon()})
+            }
+        }
+        const endToken = this.consume(TokenType.RBRACE, "Expect '}' after class body.")
+        return PiClassStatement(classToken, nameToken, parentToken, members, endToken)
+    }
+
+    ImportStatement() {
+        const importToken = this.previous()
+        const first = this.ImportItem()
+        if !this.accept(TokenType.COMMA) {
+            return PiImportStatement(importToken, [first], this.optionalSemicolon())
+        }
+
+        let items = [first]
+        while true {
+            items.push(this.ImportItem())
+            if !this.accept(TokenType.COMMA) {
+                break
+            }
+        }
+        return PiImportStatement(importToken, items, this.optionalSemicolon())
+    }
+
+    // Parses "{ name, other:alias }" starting at the "{" (not yet consumed).
+    importBraceList() {
+        this.next()
+        let bindings = []
+        if !this.check(TokenType.RBRACE) {
+            while true {
+                if this.check(TokenType.RBRACE) {
+                    break
+                }
+                const name = this.consume(TokenType.ID, "Expect export name inside import list.")
+                let alias = nil
+                if this.accept(TokenType.COLON) {
+                    alias = this.consume(TokenType.ID, "Expect alias name after ':'.")
+                }
+                bindings.push({name: name, alias: alias})
+                if !this.accept(TokenType.COMMA) {
+                    break
+                }
+            }
+        }
+        const rbrace = this.consume(TokenType.RBRACE, "Expect '}' after import list.")
+        return {bindings: bindings, rbrace: rbrace}
+    }
+
+    ImportItem() {
+        let pathParts = [this.consume(TokenType.ID, "Expect module name after 'import'.")]
+        let tail = nil
+
+        while this.accept(TokenType.DOT) {
+            if this.accept(TokenType.MULT) {
+                tail = {kind: "wildcard", lastToken: this.previous(), bindings: nil, alias: nil, selector: nil}
+                break
+            }
+            if this.check(TokenType.LBRACE) {
+                const braced = this.importBraceList()
+                tail = {kind: "braced", bindings: braced.bindings, lastToken: braced.rbrace, alias: nil, selector: nil}
+                break
+            }
+            pathParts.push(this.consume(TokenType.ID, "Expect identifier after '.'."))
+        }
+
+        if tail == nil && this.accept(TokenType.COLON) {
+            const alias = this.consume(TokenType.ID, "Expect alias name after ':'.")
+            tail = {kind: "alias", alias: alias, lastToken: alias, bindings: nil, selector: nil}
+
+            if this.accept(TokenType.DOT) {
+                if this.accept(TokenType.MULT) {
+                    tail.selector = {kind: "wildcard", lastToken: this.previous(), bindings: nil}
+                    tail.lastToken = tail.selector.lastToken
+                } elif this.check(TokenType.LBRACE) {
+                    const braced = this.importBraceList()
+                    tail.selector = {kind: "braced", bindings: braced.bindings, lastToken: braced.rbrace}
+                    tail.lastToken = braced.rbrace
+                } else {
+                    this.fail("Expect '*' or '{' after aliased import selector.", this.peek().line, this.peek().column)
+                }
+            }
+        }
+
+        let lastToken = pathParts[-1]
+        if tail != nil {
+            lastToken = tail.lastToken
+        }
+        return {pathParts: pathParts, tail: tail, lastToken: lastToken}
+    }
+
+    Statement() {
+        if this.accept(TokenType.LBRACE) {
+            // Look ahead: "{ key: ..." is an object literal, anything else a block.
+            const saved = this.current
+            if this.accept(_KEY_TYPES) && this.accept(TokenType.COLON) {
+                this.current = saved - 1
+                return this.ExpressionStatement()
+            }
+            this.current = saved
+            return this.Block()
+        }
+        if this.accept(TokenType.IF) {
+            return this.IfStatement()
+        }
+        if this.accept(TokenType.SWITCH) {
+            return this.SwitchStatement()
+        }
+        if this.accept(TokenType.WHILE) {
+            return this.WhileStatement()
+        }
+        if this.accept(TokenType.FOR) {
+            return this.ForStatement()
+        }
+        if this.accept(TokenType.BREAK) {
+            return this.BreakStatement()
+        }
+        if this.accept(TokenType.CONTINUE) {
+            return this.ContinueStatement()
+        }
+        if this.accept(TokenType.RETURN) {
+            return this.ReturnStatement()
+        }
+        if this.accept(TokenType.ASSERT) {
+            return this.AssertStatement()
+        }
+        if this.accept(TokenType.DEBUG) {
+            return this.DebugStatement()
+        }
+        if this.accept(TokenType.IMPORT) {
+            return this.ImportStatement()
+        }
+        return this.ExpressionStatement()
+    }
+
+    // Called with the "{" already consumed.
+    Block() {
+        const lbrace = this.previous()
+        let statements = PiCompoundStatement(lbrace)
+        while !this.check(TokenType.RBRACE) && !this.isAtEnd() {
+            statements.add(this.Declaration())
+        }
+        const rbrace = this.consume(TokenType.RBRACE, "Expect '}' after block.")
+        return PiBlockStatement(lbrace, statements, rbrace)
+    }
+
+    // A "{ ... }" block if one follows, otherwise a single statement.
+    blockOrStatement() {
+        if this.accept(TokenType.LBRACE) {
+            return this.Block()
+        }
+        return this.Statement()
+    }
+
+    AssertStatement() {
+        const token = this.previous()
+        const value = this.Expression()
+        return PiAssertStatement(token, value, this.optionalSemicolon())
+    }
+
+    DebugStatement() {
+        const token = this.previous()
+        const value = this.Expression()
+        return PiDebugStatement(token, value, this.optionalSemicolon())
+    }
+
+    IfStatement() {
+        const ifToken = this.previous()
+        const conditionStart = this.current
+        let lparen = this.accept(TokenType.LPAREN) ? this.previous() : nil
+        let cond = this.Expression()
+        let rparen = nil
+        if lparen != nil {
+            rparen = this.consume(TokenType.RPAREN, "Expect ')' after condition.")
+            if this.check(TokenType.AND) || this.check(TokenType.OR) {
+                this.current = conditionStart
+                lparen = nil
+                rparen = nil
+                cond = this.Expression()
+            }
+        }
+
+        const thenStmt = this.blockOrStatement()
+
+        let elseToken = nil
+        let elseStmt = nil
+        if this.accept(TokenType.ELIF) {
+            elseToken = this.previous()
+            elseStmt = this.IfStatement()
+        } elif this.accept(TokenType.ELSE) {
+            elseToken = this.previous()
+            elseStmt = this.Statement()
+        }
+
+        return PiIfStatement(ifToken, lparen, cond, rparen, thenStmt, elseToken, elseStmt)
+    }
+
+    SwitchStatement() {
+        const switchToken = this.previous()
+        const value = this.Expression()
+        this.consume(TokenType.LBRACE, "Expect '{' before switch cases.")
+
+        let cases = []
+        let sawDefault = false
+
+        while !this.check(TokenType.RBRACE) && !this.isAtEnd() {
+            if sawDefault {
+                this.fail("Default switch case '_' must be the last case.", this.peek().line, this.peek().column)
+            }
+
+            let label = nil
+            let defaultToken = nil
+            if this.check(TokenType.ID) && this.peek().value == "_" && this.checkNext(TokenType.COLON) {
+                defaultToken = this.next()
+                sawDefault = true
+            } else {
+                label = this.SwitchCaseExpression()
+            }
+
+            const colon = this.consume(TokenType.COLON, "Expect ':' after switch case.")
+            const body = this.blockOrStatement()
+            cases.push({label: label, defaultToken: defaultToken, colon: colon, body: body})
+        }
+
+        const endToken = this.consume(TokenType.RBRACE, "Expect '}' after switch cases.")
+        return PiSwitchStatement(switchToken, value, cases, endToken)
+    }
+
+    // Parses a case condition by making its ":" look like EOF while parsing.
+    SwitchCaseExpression() {
+        const colonIndex = this.findSwitchCaseColon()
+        if colonIndex < 0 {
+            this.fail("Expect ':' after switch case condition.", this.peek().line, this.peek().column)
+        }
+
+        const savedType = this.tokens[colonIndex].type
+        this.tokens[colonIndex].type = TokenType.EOF
+        const expression = this.Expression()
+        this.tokens[colonIndex].type = savedType
+
+        if this.current != colonIndex {
+            this.fail("Invalid switch case condition.", this.peek().line, this.peek().column)
+        }
+        return expression
+    }
+
+    // Index of the ":" that ends the current case condition, or -1.
+    findSwitchCaseColon() {
+        let index = this.current
+        let parenDepth = 0
+        let bracketDepth = 0
+        let braceDepth = 0
+        let ternaryDepth = 0
+
+        while this.tokens[index].type != TokenType.EOF {
+            const t = this.tokens[index].type
+            if t == TokenType.LPAREN {
+                parenDepth += 1
+            } elif t == TokenType.RPAREN {
+                if parenDepth > 0 {
+                    parenDepth -= 1
+                }
+            } elif t == TokenType.LBRACKET {
+                bracketDepth += 1
+            } elif t == TokenType.RBRACKET {
+                if bracketDepth > 0 {
+                    bracketDepth -= 1
+                }
+            } elif t == TokenType.LBRACE {
+                braceDepth += 1
+            } elif t == TokenType.RBRACE {
+                if braceDepth > 0 {
+                    braceDepth -= 1
+                } else {
+                    return -1
+                }
+            } elif t == TokenType.QUESTION {
+                if parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 {
+                    ternaryDepth += 1
+                }
+            } elif t == TokenType.COLON {
+                if parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 {
+                    if ternaryDepth > 0 {
+                        ternaryDepth -= 1
+                    } else {
+                        return index
+                    }
+                }
+            }
+            index += 1
+        }
+        return -1
+    }
+
+    WhileStatement() {
+        const token = this.previous()
+        const lparen = this.accept(TokenType.LPAREN) ? this.previous() : nil
+        const cond = this.Expression()
+        let rparen = nil
+        if lparen != nil {
+            rparen = this.consume(TokenType.RPAREN, "Expect ')' after condition.")
+        }
+
+        this.pushLoop()
+        const body = this.blockOrStatement()
+        this.popLoop()
+        return PiWhileStatement(token, lparen, cond, rparen, body)
+    }
+
+    ForStatement() {
+        const forToken = this.previous()
+        const lparen = this.accept(TokenType.LPAREN) ? this.previous() : nil
+
+        let loopVar = nil
+        let commaToken = nil
+        let valueVar = nil
+        if this.accept(TokenType.ID) {
+            loopVar = PiVariable(this.previous())
+        } else {
+            this.fail("Invalid for-loop left-hand side. Expect identifier.", this.peek().line, this.peek().column)
+        }
+        if this.accept(TokenType.COMMA) {
+            commaToken = this.previous()
+            if this.accept(TokenType.ID) {
+                valueVar = PiVariable(this.previous())
+            } else {
+                this.fail("Expect identifier after ',' in for-loop left-hand side.", this.peek().line, this.peek().column)
+            }
+        }
+
+        const inToken = this.consume(TokenType.IN, "Expect 'in' keyword after loop variable.")
+        const expr = this.Expression()
+
+        let rparen = nil
+        if lparen != nil {
+            rparen = this.consume(TokenType.RPAREN, "Expect ')' after iterable expression.")
+        }
+
+        this.pushLoop()
+        const body = this.blockOrStatement()
+        this.popLoop()
+
+        return PiForStatement(forToken, lparen, loopVar, commaToken, valueVar, inToken, expr, rparen, body)
+    }
+
+    BreakStatement() {
+        const token = this.previous()
+        if !this.inLoop() {
+            this.fail("'break' used outside of a loop", token.line, token.column)
+        }
+        return PiBreakStatement(token, this.optionalSemicolon())
+    }
+
+    ContinueStatement() {
+        const token = this.previous()
+        if !this.inLoop() {
+            this.fail("'continue' used outside of a loop", token.line, token.column)
+        }
+        return PiContinueStatement(token, this.optionalSemicolon())
+    }
+
+    ReturnStatement() {
+        const token = this.previous()
+        let value = nil
+        if !this.check(TokenType.SEMICOLON) && !this.check(TokenType.RBRACE) && this.peek().line == token.line {
+            value = this.Expression()
+        }
+        return PiReturnStatement(token, value, this.optionalSemicolon())
+    }
+
+    ExpressionStatement() {
+        const expression = this.Expression()
+        const semicolon = this.optionalSemicolon()
+        this.consumeIfExist(TokenType.NEWLINE)
+        return PiExpressionStatement(expression, semicolon)
+    }
+
+    Expression() {
+        return this.AssignmentExpression()
+    }
+
+    AssignmentExpression() {
+        const expression = this.PipelineExpression()
+
+        if this.accept(_ASSIGN_OPS) {
+            const operator = this.previous()
+            const right = this.AssignmentExpression()
+
+            if expression is PiVariable {
+                return PiBinaryExpression(expression, operator, right)
+            }
+            this.fail("Invalid assignment target", expression.getLine(), expression.getColumn())
+        }
+        return expression
+    }
+
+    PipelineExpression() {
+        let expression = this.ConditionalExpression()
+        while this.accept(TokenType.PIPELINE) {
+            const operator = this.previous()
+            const right = this.ConditionalExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+        }
+        return expression
+    }
+
+    ConditionalExpression() {
+        let expression = this.LogicalOrExpression()
+        if this.accept(TokenType.QUESTION) {
+            const questionToken = this.previous()
+            const thenExpr = this.Expression()
+            this.consume(TokenType.COLON, "Expect ':' after '?'")
+            const elseExpr = this.ConditionalExpression()
+            expression = PiConditionalExpression(questionToken, expression, thenExpr, elseExpr)
+        }
+        return expression
+    }
+
+    LogicalOrExpression() {
+        let expression = this.LogicalAndExpression()
+        while this.accept(TokenType.OR) {
+            const operator = this.previous()
+            const right = this.LogicalAndExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+        }
+        return expression
+    }
+
+    LogicalAndExpression() {
+        let expression = this.IncludeExpression()
+        while this.accept(TokenType.AND) {
+            const operator = this.previous()
+            const right = this.IncludeExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+        }
+        return expression
+    }
+
+    IncludeExpression() {
+        let expression = this.RangeExpression()
+        while this.accept(TokenType.IN) {
+            const operator = this.previous()
+            const right = this.RangeExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+        }
+        return expression
+    }
+
+    RangeExpression() {
+        const expression = this.BitwiseOrExpression()
+        if this.accept(TokenType.DBDOTS) {
+            const operator = this.previous()
+            const right = this.BitwiseOrExpression()
+            if this.accept(TokenType.COLON) {
+                const step = this.Expression()
+                return PiRangeExpression(operator, expression, right, step)
+            }
+            return PiRangeExpression(operator, expression, right)
+        }
+        return expression
+    }
+
+    BitwiseOrExpression() {
+        let expression = this.BitwiseXorExpression()
+        while this.accept(TokenType.BITOR) {
+            const operator = this.previous()
+            const right = this.BitwiseXorExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+        }
+        return expression
+    }
+
+    BitwiseXorExpression() {
+        let expression = this.BitwiseAndExpression()
+        while this.accept(TokenType.XOR) {
+            const operator = this.previous()
+            const right = this.BitwiseAndExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+        }
+        return expression
+    }
+
+    BitwiseAndExpression() {
+        let expression = this.ShiftExpression()
+        while this.accept(TokenType.BITAND) {
+            const operator = this.previous()
+            const right = this.ShiftExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+        }
+        return expression
+    }
+
+    ShiftExpression() {
+        let expression = this.EqualityExpression()
+        while this.accept([TokenType.LSHIFT, TokenType.RSHIFT, TokenType.URSHIFT]) {
+            const operator = this.previous()
+            const right = this.ShiftExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+        }
+        return expression
+    }
+
+    EqualityExpression() {
+        let expression = this.ComparisonExpression()
+        while this.accept([TokenType.NOT_EQUAL, TokenType.EQUAL, TokenType.IS]) {
+            const operator = this.previous()
+            const right = this.ComparisonExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+        }
+        return expression
+    }
+
+    // Chained comparisons: a < b < c  ->  (a < b) && (b < c)
+    ComparisonExpression() {
+        let expression = this.AdditionExpression()
+
+        while this.accept(_COMPARE_OPS) {
+            const operator = this.previous()
+            let right = this.AdditionExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+
+            while this.accept(_COMPARE_OPS) {
+                let leftOperand = right
+                const nextOperator = this.previous()
+                right = this.AdditionExpression()
+                leftOperand = PiBinaryExpression(leftOperand, nextOperator, right)
+
+                const andToken = Token(TokenType.AND, "&&", nextOperator.line, nextOperator.column)
+                expression = PiBinaryExpression(expression, andToken, leftOperand)
+            }
+        }
+        return expression
+    }
+
+    AdditionExpression() {
+        let expression = this.DotProductExpression()
+        while this.accept([TokenType.MINUS, TokenType.PLUS]) {
+            const operator = this.previous()
+            const right = this.DotProductExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+        }
+        return expression
+    }
+
+    DotProductExpression() {
+        let expression = this.MultiplicationExpression()
+        while this.accept(TokenType.DOT_PROD) {
+            const operator = this.previous()
+            const right = this.MultiplicationExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+        }
+        return expression
+    }
+
+    MultiplicationExpression() {
+        let expression = this.ExponentiationExpression()
+        while this.accept([TokenType.DIV, TokenType.MULT, TokenType.MOD]) {
+            const operator = this.previous()
+            const right = this.ExponentiationExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+        }
+        return expression
+    }
+
+    ExponentiationExpression() {
+        let expression = this.UnaryExpression()
+        while this.accept(TokenType.POWER) {
+            const operator = this.previous()
+            const right = this.ExponentiationExpression()
+            expression = PiBinaryExpression(expression, operator, right)
+        }
+        return expression
+    }
+
+    UnaryExpression() {
+        if this.accept(_UNARY_OPS) {
+            const operator = this.previous()
+
+            // "-5" becomes a single negative literal.
+            if operator.type == TokenType.MINUS && this.accept(TokenType.NUM) {
+                const number = this.previous()
+                // Hex literals keep their source text as the value, so keep the sign as text.
+                const negated = is_num(number.value) ? -1 * number.value : "-" + number.value
+                return PiLiteralExpression(Token(TokenType.NUM, negated, number.line, number.column))
+            }
+
+            const expression = this.MemberExpression()
+            if ((operator.type == TokenType.INCR || operator.type == TokenType.DECR) && (expression is PiFunctionExpression || expression is PiLiteralExpression)) {
+                this.fail("Increment/Decrement operations cannot be applied to calls or literals.", this.last.line, this.last.column)
+            }
+            return PiUnaryExpression(operator, expression, true, this.access)
+        }
+
+        const expression = this.MemberExpression()
+        if this.accept([TokenType.INCR, TokenType.DECR]) {
+            if expression is PiFunctionExpression || expression is PiLiteralExpression {
+                this.fail("Unary increment/decrement operators cannot be applied to function calls or literals", this.last.line, this.last.column)
+            }
+            const operator = this.previous()
+            return PiUnaryExpression(operator, expression, false, this.access)
+        }
+        return expression
+    }
+
+    // Postfix chain: .name  [index]  (args)
+    MemberExpression() {
+        let expression = this.PrimaryExpression()
+
+        while true {
+            if this.accept(TokenType.DOT) {
+                const dot = this.previous()
+                const name = PiLiteralExpression(this.next())
+                expression = PiBinaryExpression(expression, dot, name)
+
+                if this.accept(_ASSIGN_OPS) {
+                    const operator = this.previous()
+                    const right = this.AssignmentExpression()
+                    return PiBinaryExpression(expression, operator, right)
+                }
+                this.access = true
+            } elif this.accept(TokenType.LBRACKET) {
+                const bracket = this.previous()
+                const index = this.SliceExpression()
+                const rbracket = this.consume(TokenType.RBRACKET, "Expect ']' after list index expression")
+                expression = PiBinaryExpression(expression, bracket, index, rbracket)
+
+                if this.accept(_ASSIGN_OPS) {
+                    const operator = this.previous()
+                    const right = this.AssignmentExpression()
+                    return PiBinaryExpression(expression, operator, right)
+                }
+                this.access = true
+            } elif this.accept(TokenType.LPAREN) {
+                const callStart = this.current - 1
+                const start = this.previous()
+                let _args = []
+                if !this.check(TokenType.RPAREN) {
+                    _args = this.ArgumentList()
+                }
+                const end = this.consume(TokenType.RPAREN, "Expect ')' after function call")
+                // "(...) ->" starts a lambda, not a call: rewind to the "(".
+                if this.check(TokenType.RARROW) {
+                    this.current = callStart
+                    break
+                }
+                expression = PiFunctionExpression(start, end, expression, _args)
+            } else {
+                break
+            }
+        }
+        return expression
+    }
+
+    ArgumentList() {
+        if this.check(TokenType.RPAREN) {
+            return []
+        }
+
+        const first = this.Argument()
+        if !this.accept(TokenType.COMMA) {
+            return [first]
+        }
+
+        let arguments = [first]
+        while true {
+            if this.check(TokenType.RPAREN) {
+                break
+            }
+            arguments = [...arguments, this.Argument()]
+            if !this.accept(TokenType.COMMA) {
+                break
+            }
+        }
+        return arguments
+    }
+
+    Argument() {
+        if this.accept(TokenType.ELLIPSIS) {
+            return PiSpreadExpression(this.previous(), this.AssignmentExpression())
+        }
+        if this.check(TokenType.ID) && this.checkNext(TokenType.ASSIGN) {
+            const name = this.next()
+            const eqToken = this.consume(TokenType.ASSIGN)
+            return PiNamedArgument(name, eqToken, this.AssignmentExpression())
+        }
+        return this.AssignmentExpression()
+    }
+
+    // Rest of a comma-separated index list after the first element.
+    sequenceFrom(first) {
+        let expressions = [first]
+        while true {
+            if this.check(TokenType.RBRACKET) {
+                break
+            }
+            expressions.push(this.SliceExpression())
+            if !this.accept(TokenType.COMMA) {
+                break
+            }
+        }
+        return PiSequenceExpression(expressions)
+    }
+
+    SliceExpression() {
+        let start = nil
+        let end = nil
+        let step = nil
+        const startToken = this.peek()
+
+        if !this.check(TokenType.COLON) && !this.check(TokenType.COMMA) {
+            start = this.ConditionalExpression()
+        }
+
+        let lastToken = start != nil ? start.getLastToken() : startToken
+
+        if this.accept(TokenType.COLON) {
+            lastToken = this.previous()
+            if !this.check(TokenType.RBRACKET) && !this.check(TokenType.COLON) {
+                end = this.ConditionalExpression()
+                lastToken = end.getLastToken()
+            }
+            if this.accept(TokenType.COLON) {
+                lastToken = this.previous()
+                if !this.check(TokenType.RBRACKET) {
+                    step = this.ConditionalExpression()
+                    lastToken = step.getLastToken()
+                }
+            }
+        } else {
+            if this.accept(TokenType.COMMA) {
+                return this.sequenceFrom(start)
+            }
+            return start
+        }
+
+        const sliceExpr = PiSliceExpression(startToken, lastToken, start, end, step)
+        if this.accept(TokenType.COMMA) {
+            return this.sequenceFrom(sliceExpr)
+        }
+        return sliceExpr
+    }
+
+    // True if the "(" just consumed starts "(params) ->". Looks for the
+    // matching ")" and checks for "->" after it.
+    isArrowFunctionAhead() {
+        let depth = 1
+        let i = this.current
+        while this.tokens[i].type != TokenType.EOF {
+            const t = this.tokens[i].type
+            if t == TokenType.LPAREN {
+                depth += 1
+            } elif t == TokenType.RPAREN {
+                depth -= 1
+                if depth == 0 {
+                    return this.tokens[i + 1].type == TokenType.RARROW
+                }
+            }
+            i += 1
+        }
+        return false
+    }
+
+    // Wraps an expression body as { return expr }.
+    arrowBody(returnExpr) {
+        let body = PiCompoundStatement(returnExpr.getStartToken())
+        body.add(PiReturnStatement(returnExpr.getStartToken(), returnExpr, nil, true))
+        return body
+    }
+
+    PrimaryExpression() {
+        if this.accept(_LITERAL_TYPES) {
+            return PiLiteralExpression(this.previous())
+        }
+
+        if this.accept(TokenType.LPAREN) {
+            const lparen = this.previous()
+
+            if this.isArrowFunctionAhead() {
+                const params = this.ParameterList()
+                this.consume(TokenType.RPAREN, "Expect ')' after parameters.")
+                this.consume(TokenType.RARROW, "Expect '->' after parameters.")
+                let body = nil
+                if this.accept(TokenType.LBRACE) {
+                    body = this.Block()
+                } else {
+                    body = this.arrowBody(this.Expression())
+                }
+                return PiFuncDeclExpression(lparen, params, body, nil, true)
+            }
+
+            if this.accept(TokenType.RPAREN) {
+                return PiTupleExpression(lparen, [], [], this.previous())
+            }
+
+            let elements = [this.Expression()]
+            let commas = []
+            while this.accept(TokenType.COMMA) {
+                commas.push(this.previous())
+                if this.check(TokenType.RPAREN) {
+                    break
+                }
+                if this.accept(TokenType.ELLIPSIS) {
+                    const ellipsis = this.previous()
+                    this.consume(TokenType.COMMA, "Expect ',' after '...' in tuple fill expansion.")
+                    elements.push(PiFillExpression(ellipsis, this.Expression()))
+                    continue
+                }
+                elements.push(this.Expression())
+            }
+            const rparen = this.consume(TokenType.RPAREN, "Expect ')' after expression or tuple literal.")
+            if len(commas) > 0 {
+                return PiTupleExpression(lparen, elements, commas, rparen)
+            }
+            return elements[0]
+        }
+
+        if this.accept(TokenType.ID) {
+            const token = this.previous()
+            // Single-parameter lambda: x -> x * 2
+            if this.accept(TokenType.RARROW) {
+                const params = [{nameToken: token, defaultValue: nil, commaToken: nil}]
+                const body = this.arrowBody(this.Expression())
+                return PiFuncDeclExpression(token, params, body, nil, true)
+            }
+            return PiVariable(token)
+        }
+
+        if this.accept(TokenType.LBRACKET) {
+            return this.ListLiteral()
+        }
+
+        if this.accept(TokenType.LBRACE) {
+            return this.BraceLiteral()
+        }
+
+        if this.accept(TokenType.FUN) {
+            const funToken = this.previous()
+            const lparen = this.consume(TokenType.LPAREN, "Expect '(' after function name")
+            const params = this.ParameterList()
+            const rparen = this.consume(TokenType.RPAREN, "Expect ')' after parameters.")
+            this.consume(TokenType.LBRACE, "Expect '{' before function body.")
+            const body = this.Block()
+            return PiFuncDeclExpression(funToken, params, body)
+        }
+
+        this.fail("Expect expression.", this.peek().line, this.peek().column)
+    }
+
+    // List literal, "[" already consumed.
+    ListLiteral() {
+        const startToken = this.previous()
+        if this.check(TokenType.RBRACKET) {
+            const endToken = this.consume(TokenType.RBRACKET, "Expect ']' at the end of list literal.")
+            return PiListExpression(startToken, [], [], endToken)
+        }
+
+        const first = this.ListItem(false)
+        if !this.accept(TokenType.COMMA) {
+            const endToken = this.consume(TokenType.RBRACKET, "Expect ']' at the end of list literal.")
+            return PiListExpression(startToken, [first], [], endToken)
+        }
+
+        let elements = [first]
+        let commas = [this.previous()]
+        while !this.check(TokenType.RBRACKET) && !this.isAtEnd() {
+            elements = [...elements, this.ListItem(true)]
+            if !this.accept(TokenType.COMMA) {
+                break
+            }
+            commas = [...commas, this.previous()]
+        }
+        const endToken = this.consume(TokenType.RBRACKET, "Expect ']' at the end of list literal.")
+        return PiListExpression(startToken, elements, commas, endToken)
+    }
+
+    ListItem(allowFill) {
+        if allowFill && this.check(TokenType.ELLIPSIS) && this.checkNext(TokenType.COMMA) {
+            const ellipsis = this.next()
+            this.consume(TokenType.COMMA, "Expect ',' after '...' in list fill expansion.")
+            return PiFillExpression(ellipsis, this.Expression())
+        }
+        if this.accept(TokenType.ELLIPSIS) {
+            return PiSpreadExpression(this.previous(), this.Expression())
+        }
+        return this.Expression()
+    }
+
+    // Map or set literal, "{" already consumed.
+    BraceLiteral() {
+        const startToken = this.previous()
+        let properties = []
+
+        if !this.check(TokenType.RBRACE) {
+            if !this.isMapLiteralAhead() {
+                return this.SetLiteral(startToken)
+            }
+
+            while true {
+                // Dangling comma
+                if this.check(TokenType.RBRACE) {
+                    break
+                }
+
+                if this.accept(TokenType.ELLIPSIS) {
+                    const spread = PiSpreadExpression(this.previous(), this.Expression())
+                    let spreadComma = nil
+                    if this.accept(TokenType.COMMA) {
+                        spreadComma = this.previous()
+                    }
+                    properties.push({spread: spread, commaToken: spreadComma, keyToken: nil, colonToken: nil, value: nil})
+                    if spreadComma == nil || this.isAtEnd() {
+                        break
+                    }
+                    continue
+                }
+
+                let keyToken = nil
+                if this.accept(_KEY_TYPES) {
+                    keyToken = this.previous()
+                    let key = str(keyToken.value)
+                    let n = #key
+                    if n > 2 && key[n - 2:n] == ".0" {
+                        key = key[0:n - 2]
+                        keyToken = Token(TokenType.NUM, num(key), keyToken.line, keyToken.column)
+                    }
+                } else {
+                    this.fail("Expect key in object literal (identifier, string, or number).", this.peek().line, this.peek().column)
+                }
+
+                let value = nil
+                let colonToken = nil
+
+                if this.accept(TokenType.LPAREN) {
+                    // Method shorthand: key(params) { body }
+                    const params = this.ParameterList()
+                    this.consume(TokenType.RPAREN, "Expect ')' after parameters.")
+                    const lbrace = this.consume(TokenType.LBRACE, "Expect '{' before function body.")
+                    let statements = PiCompoundStatement(lbrace)
+                    while !this.check(TokenType.RBRACE) && !this.isAtEnd() {
+                        statements.add(this.Declaration())
+                    }
+                    const rbrace = this.consume(TokenType.RBRACE, "Expect '}' after function body.")
+                    const body = PiBlockStatement(lbrace, statements, rbrace)
+                    value = PiFuncDeclExpression(keyToken, params, body, this.key, false, true)
+                } else {
+                    colonToken = this.consume(TokenType.COLON, "Expect ':' after key in object literal.")
+                    value = this.Expression()
+                }
+
+                let commaToken = nil
+                if this.accept(TokenType.COMMA) {
+                    commaToken = this.previous()
+                }
+                properties.push({spread: nil, keyToken: keyToken, colonToken: colonToken, value: value, commaToken: commaToken})
+
+                if commaToken == nil || this.isAtEnd() {
+                    break
+                }
+            }
+        }
+
+        const endToken = this.consume(TokenType.RBRACE, "Expect '}' at the end of object literal.")
+        this.key = nil
+        return PiObjectExpression(startToken, properties, endToken)
+    }
+
+    SetLiteral(startToken) {
+        let elements = []
+        let commas = []
+        while true {
+            if this.check(TokenType.RBRACE) {
+                break
+            }
+            elements.push(this.Expression())
+            if !this.accept(TokenType.COMMA) {
+                break
+            }
+            commas.push(this.previous())
+            if this.check(TokenType.RBRACE) {
+                break
+            }
+            if this.accept(TokenType.ELLIPSIS) {
+                const ellipsis = this.previous()
+                this.consume(TokenType.COMMA, "Expect ',' after '...' in set fill expansion.")
+                elements.push(PiFillExpression(ellipsis, this.Expression()))
+                if !this.accept(TokenType.COMMA) {
+                    break
+                }
+                commas.push(this.previous())
+            }
+            if this.isAtEnd() {
+                break
+            }
+        }
+        const endToken = this.consume(TokenType.RBRACE, "Expect '}' at the end of set literal.")
+        return PiSetExpression(startToken, elements, commas, endToken)
+    }
+
+    isMapLiteralAhead() {
+        if this.check(TokenType.ELLIPSIS) {
+            return true
+        }
+        if this.check(_KEY_TYPES) {
+            if this.current + 1 >= len(this.tokens) {
+                return false
+            }
+            const nextType = this.tokens[this.current + 1].type
+            return nextType == TokenType.COLON || nextType == TokenType.LPAREN
+        }
+        return false
+    }
+
+    // ---- token helpers ----
+
+    // Consumes the next token if it has the given type (or any type in a list).
+    // (Named accept because `match` is a Pilang keyword.)
+    accept(types) {
+        if this.check(types) {
+            this.next()
+            return true
+        }
+        return false
+    }
+
+    check(types) {
+        if this.isAtEnd() {
+            return false
+        }
+        const t = this.peek().type
+        if is_list(types) {
+            return t in types
+        }
+        return t == types
+    }
+
+    checkNext(type) {
+        if this.current + 1 >= len(this.tokens) {
+            return false
+        }
+        return this.tokens[this.current + 1].type == type
+    }
+
+    isDelimiter(token) {
+        return token.type == TokenType.SEMICOLON || token.type == TokenType.NEWLINE
+    }
+
+    optionalSemicolon() {
+        return this.accept(TokenType.SEMICOLON) ? this.previous() : nil
+    }
+
+    peek() {
+        return this.tokens[this.current]
+    }
+
+    isAtEnd() {
+        return this.peek().type == TokenType.EOF
+    }
+
+    next() {
+        if !this.isAtEnd() {
+            this.current += 1
+            if !this.isDelimiter(this.peek()) {
+                this.last = this.peek()
+            }
+        }
+        return this.previous()
+    }
+
+    previous() {
+        return this.tokens[this.current - 1]
+    }
+
+    consume(expected, message = nil) {
+        if this.check(expected) {
+            return this.next()
+        }
+        const token = this.peek()
+        if message != nil {
+            this.fail(message, token.line, token.column)
+        }
+        this.fail("Unexpected token", token.line, token.column)
+    }
+
+    advance() {
+        if !this.isAtEnd() {
+            this.current += 1
+        }
+    }
+
+    consumeIfExist(types) {
+        let consumed = false
+        while this.check(types) {
+            this.advance()
+            consumed = true
+        }
+        return consumed
+    }
+
+    // Stops parsing with a located ParseError.
+    fail(message, line, column) {
+        ParseError(message, line, column).raise()
+    }
+
+    pushLoop() {
+        this.loopDepth += 1
+    }
+
+    popLoop() {
+        this.loopDepth -= 1
+    }
+
+    inLoop() {
+        return this.loopDepth > 0
+    }
+}

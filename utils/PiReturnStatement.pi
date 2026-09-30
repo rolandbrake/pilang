@@ -1,0 +1,87 @@
+import PiStatement
+
+class PiReturnStatement : PiStatement {
+    constructor(
+        token,
+        value,
+        semicolon = nil,
+        isImplicit = false
+    ) {
+        super(
+            token,
+            semicolon != nil
+                ? semicolon
+                : (value != nil ? value.getLastToken() : token)
+        )
+
+        this._ret = value
+        this._semicolon = semicolon
+        this._isImplicit = isImplicit
+    }
+
+    format(indent = 0) {
+        if this._isImplicit {
+            return this._ret != nil
+                ? this._ret.format(indent)
+                : ""
+        }
+
+        let result =
+            this.formatComments(
+                this.getStartToken(),
+                indent,
+                "leading"
+            ) +
+            this.indent(indent) +
+            "return" +
+            this.formatComments(
+                this.getStartToken(),
+                indent,
+                "trailing"
+            )
+
+        if this._ret != nil {
+            let value = this._ret.format(indent)
+            const valueIndent = this.indent(indent)
+            if #valueIndent > 0 && value[0:#valueIndent] == valueIndent {
+                value = value[#valueIndent:]
+            }
+            result += " " + value
+        }
+
+        if this._semicolon != nil {
+            return (
+                result +
+                this.formatComments(
+                    this._semicolon,
+                    indent,
+                    "leading"
+                ) +
+                ";" +
+                this.formatComments(
+                    this._semicolon,
+                    indent,
+                    "trailing"
+                )
+            )
+        }
+
+        return result + ";"
+    }
+
+    minify(context = nil) {
+        return this._isImplicit
+            ? (
+                this._ret != nil
+                    ? this._ret.minify(context)
+                    : ""
+            )
+            : "return " +
+              (
+                  this._ret != nil
+                      ? this._ret.minify(context)
+                      : ""
+              ) +
+              ";"
+    }
+}

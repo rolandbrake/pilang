@@ -1,0 +1,83 @@
+import PiStatement
+
+class PiSwitchStatement : PiStatement {
+    constructor(token, value, cases, endToken) {
+        super(token, endToken)
+
+        this._switchToken = token
+        this._value = value
+        this._cases = cases
+        this._endToken = endToken
+    }
+
+    format(indent = 0) {
+        let result =
+            this.formatComments(
+                this._switchToken,
+                indent,
+                "leading"
+            ) +
+            this.indent(indent) +
+            "switch " +
+            this._value.format(0) +
+            " {" +
+            this.formatComments(
+                this._switchToken,
+                indent,
+                "trailing"
+            )
+
+        for entry in this._cases {
+            result +=
+                "\n" +
+                this.indent(indent + 2) +
+                (
+                    entry.defaultToken != nil
+                        ? "_"
+                        : entry.label.format(0)
+                ) +
+                ":" +
+                this.formatComments(
+                    entry.colon,
+                    indent + 2,
+                    "trailing"
+                )
+
+            result +=
+                entry.body.isBlock
+                    ? entry.body.format(indent + 2, true)
+                    : " " + entry.body.format(0).trim()
+        }
+
+        return (
+            result +
+            "\n" +
+            this.indent(indent) +
+            "}" +
+            this.formatComments(
+                this._endToken,
+                indent,
+                "trailing"
+            )
+        )
+    }
+
+    minify(context = nil) {
+        let result =
+            "switch " +
+            this._value.minify(context) +
+            "{"
+
+        for entry in this._cases {
+            result +=
+                (
+                    entry.defaultToken != nil
+                        ? "_:"
+                        : entry.label.minify(context) + ":"
+                ) +
+                entry.body.minify(context)
+        }
+
+        return result + "}"
+    }
+}

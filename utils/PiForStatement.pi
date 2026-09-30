@@ -1,0 +1,85 @@
+import PiStatement
+
+class PiForStatement : PiStatement {
+    constructor(
+        token,
+        lparen,
+        init,
+        commaToken,
+        valueInit,
+        inToken,
+        expr,
+        rparen,
+        body
+    ) {
+        super(token, body.getLastToken())
+
+        this._forToken = token
+        this._lparen = lparen
+        this._init = init
+        this._commaToken = commaToken
+        this._valueInit = valueInit
+        this._inToken = inToken
+        this._expr = expr
+        this._rparen = rparen
+        this._body = body
+    }
+
+    format(indent = 0) {
+        let result =
+            this.formatComments(this._forToken, indent, "leading") +
+            this.indent(indent) +
+            "for" +
+            this.formatComments(this._forToken, indent, "trailing") +
+            " " +
+            this.formatComments(this._lparen, indent, "leading") +
+            "(" +
+            this.formatComments(this._lparen, indent, "trailing") +
+            this._init.format(0)
+
+        if (this._valueInit != nil) {
+            result +=
+                this.formatComments(this._commaToken, indent, "leading") +
+                ", " +
+                this.formatComments(this._commaToken, indent, "trailing") +
+                this._valueInit.format(0)
+        }
+
+        result +=
+            " " +
+            this.formatComments(this._inToken, indent, "leading") +
+            "in" +
+            this.formatComments(this._inToken, indent, "trailing") +
+            " " +
+            this._expr.format(0) +
+            this.formatComments(this._rparen, indent, "leading") +
+            ")" +
+            this.formatComments(this._rparen, indent, "trailing")
+
+        return (
+            result +
+            (
+                this._body.isBlock
+                    ? this._body.format(indent, true)
+                    : "\n" + this._body.format(indent + 2)
+            )
+        )
+    }
+
+    minify(context = nil) {
+        let names = context.setValue(this._init._name)
+
+        if (this._valueInit != nil) {
+            names += "," + context.setValue(this._valueInit._name)
+        }
+
+        return (
+            "for(" +
+            names +
+            " in " +
+            this._expr.minify(context) +
+            ")" +
+            this._body.minify(context)
+        )
+    }
+}

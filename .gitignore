@@ -45,7 +45,7 @@ build/
 bin/
 emsdk/
 release/
-utils/
+# utils/
 # micrograd/
 # editors/
 website/
@@ -81,7 +81,7 @@ Thumbs.db
 
 vids/
 
-test.pi
+# test.pi
 dt_vm.c
 
 # Ignore Python bytecode and cache recursively

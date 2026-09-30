@@ -1,0 +1,17 @@
+fun main() {
+	const greetings = [
+		"Hello, world!",		
+		"Γειά σου Κόσμε!",
+        "שלום עולם!",
+        "¡Hola Mundo!",
+        "こんにちは世界！",
+		"Привіт, світе!",		
+        "أهلاً بالعالم!",        
+	]
+
+    // saying hello, world in multiple languages.
+	for greeting in greetings 
+		println(greeting)
+}
+
+main()

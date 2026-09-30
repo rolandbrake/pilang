@@ -1,0 +1,112 @@
+import PiStatement
+
+class PiClassStatement : PiStatement {
+    constructor(classToken, nameToken, parentToken, members, endToken) {
+        super(classToken, endToken)
+
+        this._classToken = classToken
+        this._nameToken = nameToken
+        this._parentToken = parentToken
+        this._members = members
+    }
+
+    format(indent = 0) {
+        let result =
+            this.indent(indent) +
+            "class " +
+            this._nameToken.value +
+            (this._parentToken != nil
+                ? ":" + this._parentToken.value
+                : "") +
+            " {\n"
+
+        for i in 0..len(this._members) {
+            const member = this._members[i]
+
+            result += this.indent(indent + 2)
+
+            if member.kind == "field" {
+                result +=
+                    member.name.value +
+                    " = " +
+                    member.value.format(0) +
+                    ";"
+            } else {
+                let params = []
+
+                for param in member.params {
+                    params.push(
+                        param.nameToken.value +
+                        (param.defaultValue != nil
+                            ? " = " + param.defaultValue.format(0)
+                            : "")
+                    )
+                }
+
+                result +=
+                    member.name.value +
+                    "(" +
+                    params.join(", ") +
+                    ")" +
+                    member.body.format(indent + 2, true)
+            }
+
+            if i < len(this._members) - 1 {
+                result += "\n"
+            }
+        }
+
+        return result + "\n" + this.indent(indent) + "}"
+    }
+
+    minify(context = nil) {
+        let result =
+            "class " +
+            context.setValue(this._nameToken.value) +
+            (this._parentToken != nil
+                ? ":" + context.getValue(this._parentToken.value)
+                : "") +
+            "{"
+
+        context.pushScope()
+
+        for member in this._members {
+            if member.kind == "field" {
+                result +=
+                    member.name.value +
+                    "=" +
+                    member.value.minify(context) +
+                    ";"
+            } else {
+                context.pushScope()
+
+                let params = []
+
+                for param in member.params {
+                    let name = context.setValue(param.nameToken.value)
+
+                    params.push(
+                        name +
+                        (param.defaultValue != nil
+                            ? "=" + param.defaultValue.minify(context)
+                            : "")
+                    )
+                }
+
+                result +=
+                    member.name.value +
+                    "(" +
+                    params.join(",") +
+                    ")" +
+                    member.body.minify(context) +
+                    ";"
+
+                context.popScope()
+            }
+        }
+
+        context.popScope()
+
+        return result + "}"
+    }
+}

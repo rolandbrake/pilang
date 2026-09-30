@@ -1,0 +1,21 @@
+class PiScope {
+    constructor() {
+        this.names = {} // original -> minified
+    }
+
+    hasValue(name) {
+        return name in this.names
+    }
+
+    setValue(original, mangled) {
+        this.names[original] = mangled
+    }
+
+    // Returns the mangled name, or nil if the name is not in this scope.
+    getValue(name) {
+        if name in this.names {
+            return this.names[name]
+        }
+        return nil
+    }
+}

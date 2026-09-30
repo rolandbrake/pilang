@@ -1,0 +1,55 @@
+import PiStatement
+
+class PiAssertStatement : PiStatement {
+    constructor(token, value, semicolon = nil) {
+        super(
+            token,
+            semicolon != nil
+                ? semicolon
+                : value.getLastToken()
+        )
+
+        this._assertToken = token
+        this._value = value
+        this._semicolon = semicolon
+    }
+
+    format(indent = 0) {
+        let result =
+            this.indent(indent) +
+            this.formatComments(
+                this._assertToken,
+                indent,
+                "leading"
+            ) +
+            "assert" +
+            this.formatComments(
+                this._assertToken,
+                indent,
+                "trailing"
+            ) +
+            " " +
+            this._value.format(0)
+
+        if (this._semicolon != nil) {
+            result +=
+                this.formatComments(
+                    this._semicolon,
+                    indent,
+                    "leading"
+                ) +
+                ";" +
+                this.formatComments(
+                    this._semicolon,
+                    indent,
+                    "trailing"
+                )
+        }
+
+        return result
+    }
+
+    minify(context = nil) {
+        return "assert " + this._value.minify(context) + ";"
+    }
+}

@@ -1,0 +1,41 @@
+import PiExpression
+
+class PiSliceExpression : PiExpression {
+    constructor(startToken, lastToken, start, end, step) {
+        super(startToken, lastToken)
+
+        this._start = start
+        this._end = end
+        this._step = step
+    }
+
+    format(indent = 0, comments = nil) {
+        return (
+            (this._start != nil
+                ? this._start.format(0, comments)
+                : "") +
+            ":" +
+            (this._end != nil
+                ? this._end.format(0, comments)
+                : "") +
+            (this._step != nil
+                ? ":" + this._step.format(0, comments)
+                : "")
+        )
+    }
+
+    minify(context = nil) {
+        return (
+            (this._start != nil
+                ? this._start.minify(context)
+                : "") +
+            ":" +
+            (this._end != nil
+                ? this._end.minify(context)
+                : "") +
+            (this._step != nil
+                ? ":" + this._step.minify(context)
+                : "")
+        )
+    }
+}

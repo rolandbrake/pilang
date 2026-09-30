@@ -1,0 +1,32 @@
+import PiExpression
+
+class PiLiteralExpression : PiExpression {
+    constructor(token) {
+        super(token, token)
+        this._value = token.value
+        this._type = token.type
+    }
+
+    hashSource() {
+        return "literal:" + str(this._type) + ":" + str(this._value) + ":" + str(this._line) + ":" + str(this._col)
+    }
+
+    format(indent = 0, comments = nil, parentPrecedence = INF) {
+        let out = ""
+
+        // Comments before the literal
+        out += this.formatComments(this._token, indent, "leading")
+
+        // The literal itself
+        out += this.indent(indent) + str(this._value)
+
+        // Trailing comments on the same line
+        out += this.formatComments(this._token, indent, "trailing")
+
+        return out
+    }
+
+    minify(context = nil, parentPrecedence = INF) {
+        return str(this._value)
+    }
+}

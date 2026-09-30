@@ -1,0 +1,32 @@
+import PiExpression
+
+class PiIdentifier : PiExpression {
+    // token: the identifier token
+    constructor(token) {
+        super(token, token)
+        this._name = token.getValue()
+    }
+
+    getName() {
+        return this._name
+    }
+
+    hashSource() {
+        return "identifier:" + str(this._name) + ":" + str(this._line) + ":" + str(this._col)
+    }
+
+    // Pretty-prints the identifier with its leading comments.
+    // Trailing comments are handled by the statement.
+    format(indent = 0, comments = nil, parentPrecedence = INF) {
+        let result = ""
+
+        result += this.formatComments(this._token, indent, "leading")
+        result += this.indent(indent) + this._name
+
+        return result
+    }
+
+    minify(context = nil, parentPrecedence = INF) {
+        return context.getValue(this._name)
+    }
+}

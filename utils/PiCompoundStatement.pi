@@ -1,0 +1,76 @@
+import PiStatement
+
+class PiCompoundStatement : PiStatement {
+    constructor(token, isProgram = false) {
+        super(token, token)
+        this._v = []
+        this.isProgram = isProgram
+        this.eofToken = nil
+    }
+
+    add(s) {
+        if s != nil {
+            this._v.push(s)
+            this._lastToken = s.getLastToken()
+        }
+    }
+
+    addFirst(s) {
+        this._v = [s, ...this._v]
+        if len(this._v) == 1 {
+            this._lastToken = s.getLastToken()
+        }
+    }
+
+    get(i) {
+        return this._v[i]
+    }
+
+    lastElement() {
+        return len(this._v) != 0 ? this._v[-1] : nil
+    }
+
+    size() {
+        return len(this._v)
+    }
+
+    format(indent = 0) {
+        let result = ""
+        const count = len(this._v)
+        let previousWasMultiline = false
+        for i in 0..count {
+            const formatted = this._v[i].format(indent)
+            const isMultiline = "\n" in formatted
+
+            if i > 0 {
+                result += "\n"
+                if previousWasMultiline || isMultiline {
+                    result += "\n"
+                }
+            }
+
+            result += formatted
+            previousWasMultiline = isMultiline
+        }
+        if this.isProgram {
+            result += "\n"
+            if this.eofToken != nil {
+                // Comments attached to the EOF token, typically at the very end of the file.
+                result += this.formatComments(this.eofToken, indent, "leading")
+            }
+        }
+        return result
+    }
+
+    // Concatenates the minified statements, skipping empty ones.
+    minify(context) {
+        let out = ""
+        for stmt in this._v {
+            const part = stmt.minify(context)
+            if part != nil && part != "" {
+                out += part
+            }
+        }
+        return out
+    }
+}

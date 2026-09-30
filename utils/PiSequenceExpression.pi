@@ -1,0 +1,32 @@
+import PiExpression
+
+class PiSequenceExpression : PiExpression {
+    constructor(expressions) {
+        super(
+            expressions[0].getStartToken(),
+            expressions[-1].getLastToken()
+        )
+
+        this._expressions = expressions
+    }
+
+    format(indent = 0) {
+        let parts = []
+
+        for expr in this._expressions {
+            parts.push(expr.format(0).trim())
+        }
+
+        return this.indent(indent) + parts.join(", ")
+    }
+
+    minify(context = nil) {
+        let parts = []
+
+        for expr in this._expressions {
+            parts.push(expr.minify(context))
+        }
+
+        return parts.join(",")
+    }
+}

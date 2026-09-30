@@ -1,0 +1,103 @@
+/*
+ * PiExpression: base class for all AST nodes in the formatter.
+ * Subclasses override format(), minify() and gen().
+ */
+class PiExpression {
+    constructor(token, lastToken = nil) {
+        this._token = token
+        this._line = token.line
+        this._col = token.column
+        this._lastToken = (lastToken == nil) ? token : lastToken
+    }
+
+    getStartToken() {
+        return this._token
+    }
+
+    getLastToken() {
+        return this._lastToken
+    }
+
+    getLine() {
+        return this._line
+    }
+
+    getColumn() {
+        return this._col
+    }
+
+    indent(indent) {
+        return indent > 0 ? " " * indent : ""
+    }
+
+    // Text the hash is computed from. JSON.stringify(this) has no Pilang
+    // equivalent, so subclasses should override this to include their children.
+    hashSource() {
+        return str(this._line) + ":" + str(this._col)
+    }
+
+    hashCode() {
+        let s = this.hashSource()
+        let hash = 0
+        for i in 0..#s {
+            // Same result as (hash << 5) - hash + code, wrapped to unsigned 32-bit.
+            hash = (hash * 31 + ord(s[i])) % 4294967296
+        }
+        return hash
+    }
+
+    // Every expression node takes the same format/minify arguments, because parents
+    // pass them down without knowing the child type. Subclasses must implement them;
+    // the defaults let println/str call format() with no arguments.
+    format(indent = 0, comments = nil, parentPrecedence = INF) {
+        error("Abstract method format() must be implemented")
+    }
+
+    /*
+     * Formats the comments attached to a token.
+     *   token:     token to format comments for
+     *   indent:    indentation level for comments on their own line
+     *   placement: "leading" or "trailing"
+     * Returns the formatted comments as a string.
+     */
+    formatComments(token, indent, placement) {
+        let result = ""
+        const indentStr = this.indent(indent)
+        let comments = (placement == "leading") ? token.leadingComments : token.trailingComments
+        if comments == nil {
+            comments = []
+        }
+
+        for c in comments {
+            let comment = (c.kind == "line") ? ("// " + c.text) : ("/* " + c.text + " */")
+            if c.line == token.line {
+                // Comment on the same line as the token.
+                if placement == "leading" {
+                    // /*C*/ token -> "/*C*/ "
+                    result += comment + " "
+                } else {
+                    // token // C -> " // C"
+                    result += " " + comment
+                }
+            } else {
+                // Comment on its own line.
+                result += indentStr + comment + "\n"
+            }
+        }
+        return result
+    }
+
+    minify(context = nil, parentPrecedence = INF) {
+        error("Abstract method minify() must be implemented")
+    }
+
+    // Single-line form for containers (lists, maps, ...). nil means "no compact form".
+    compactFormat() {
+        return nil
+    }
+
+    // for future use
+    gen(compiler) {
+        error("Unimplemented method")
+    }
+}

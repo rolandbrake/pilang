@@ -1,0 +1,56 @@
+import PiScope
+
+class PiScopeStack {
+    constructor() {
+        this.stack = []
+    }
+
+    // Pushes the given scope, or a new one if none is given.
+    push(scope = nil) {
+        if scope == nil {
+            scope = PiScope()
+        }
+        this.stack.push(scope)
+    }
+
+    pop() {
+        // The global scope cannot be popped.
+        if len(this.stack) > 1 {
+            this.stack.pop()
+        }
+    }
+
+    peek() {
+        if len(this.stack) == 0 {
+            return nil
+        }
+        return this.stack[-1]
+    }
+
+    depth() {
+        return len(this.stack)
+    }
+
+    isGlobalScope() {
+        return len(this.stack) == 1
+    }
+
+    peekFirst() {
+        if len(this.stack) == 0 {
+            return nil
+        }
+        return this.stack[0]
+    }
+
+    // Looks up a name from the innermost scope to the outermost.
+    // Returns the mangled name, or nil if not found.
+    getValue(name) {
+        for scope in this.stack[::-1] {
+            const val = scope.getValue(name)
+            if val != nil {
+                return val
+            }
+        }
+        return nil
+    }
+}

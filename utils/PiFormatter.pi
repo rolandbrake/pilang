@@ -1,0 +1,13 @@
+import PiParser
+import PiScanner
+
+// Formats Pilang source. Pilang has no try/catch, so a scan or parse error
+// stops execution with its message instead of returning {success: false}.
+// Usage: import PiFormatter.{formatSource}
+fun formatSource(source) {
+    const scanner = PiScanner(source)
+    const tokens = scanner.scanTokens()
+    const parser = PiParser()
+    const statements = parser.parse(tokens)
+    return {success: true, code: statements.format(0)}
+}

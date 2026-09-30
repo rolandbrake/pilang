@@ -1,0 +1,5 @@
+class PiReturnException {
+    constructor(value) {
+        this.retVal = value
+    }
+}

@@ -2,7 +2,7 @@ import random
 import io
 
 const WIDTH = 30
-const HEIGHT = 20
+const HEIGHT = 10
 
 fun make_board() {
     let board = []

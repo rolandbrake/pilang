@@ -1,0 +1,42 @@
+import PiExpression
+
+class PiConditionalExpression : PiExpression {
+    constructor(token, cond, thenExpr, elseExpr) {
+        super(cond.getStartToken(), elseExpr.getLastToken())
+        this._cond = cond
+        this._then = thenExpr
+        this._else = elseExpr
+    }
+
+    format(indent = 0, comments = nil, parentPrecedence = INF) {
+        const precedence = 14
+
+        let result =
+            this._cond.format(0, comments, precedence) +
+            " ? " +
+            this._then.format(0, comments, precedence) +
+            " : " +
+            this._else.format(0, comments, precedence)
+
+        if (precedence > parentPrecedence) {
+            result = "(" + result + ")"
+        }
+
+        return this.indent(indent) + result
+    }
+
+    minify(context = nil, parentPrecedence = INF) {
+        const precedence = 14
+
+        let result =
+            this._cond.minify(context, precedence) +
+            "?" +
+            this._then.minify(context, precedence) +
+            ":" +
+            this._else.minify(context, precedence)
+
+        return precedence > parentPrecedence
+            ? "(" + result + ")"
+            : result
+    }
+}

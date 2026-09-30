@@ -1,0 +1,7 @@
+import PiException
+
+class PiAssertException : PiException {
+    constructor(message, line = nil, col = nil) {
+        super(message, line, col)
+    }
+}

@@ -1,0 +1,79 @@
+import PiStatement
+
+class PiFuncDeclStatement : PiStatement {
+    constructor(token, id, lparen, params, rparen, body) {
+        super(token, body.getLastToken())
+
+        this._funToken = token
+        this._id = id
+        this._lparen = lparen
+        this._params = params
+        this._rparen = rparen
+        this._body = body
+    }
+
+    format(indent = 0) {
+        let result =
+            this.indent(indent) +
+            this.formatComments(this._funToken, indent, "leading") +
+            "fun" +
+            this.formatComments(this._funToken, indent, "trailing") +
+            " " +
+            this._id.format(0) +
+            this.formatComments(this._lparen, indent, "leading") +
+            "(" +
+            this.formatComments(this._lparen, indent, "trailing")
+
+        for i in 0..len(this._params) {
+            const param = this._params[i]
+
+            if i > 0 {
+                result += ", "
+            }
+
+            result +=
+                this.formatComments(param.nameToken, indent, "leading") +
+                param.nameToken.value +
+                this.formatComments(param.nameToken, indent, "trailing")
+
+            if param.defaultValue != nil {
+                result += " = " + param.defaultValue.format(0)
+            }
+        }
+
+        result +=
+            this.formatComments(this._rparen, indent, "leading") +
+            ")" +
+            this.formatComments(this._rparen, indent, "trailing")
+
+        if (this._body.isBlock) {
+        return result + this._body.format(indent, true)
+        }
+
+        return result + " " + this._body.format(0)
+    }
+
+    minify(context = nil) {
+        const name = context.setValue(this._id.getName())
+
+        context.pushScope()
+        let result = "fun " + name + "("
+
+        for i in 0..len(this._params) {
+            const param = this._params[i]
+            if i > 0 {
+                result += ","
+            }
+            result += context.setValue(param.nameToken.value)
+            if param.defaultValue != nil {
+                result += "=" + param.defaultValue.minify(context)
+            }
+        }
+
+        result += ")" + this._body.minify(context)
+
+        context.popScope()
+
+        return result
+    }
+}

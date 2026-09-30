@@ -1,0 +1,52 @@
+import PiExpression
+
+class PiFunctionExpression : PiExpression {
+    // start: the "(" token; end: the ")" token;
+    // name: the callee expression; args: list of argument expressions.
+    constructor(start, end, name, argumentList) {
+        super(name.getStartToken(), end)
+        this._name = name
+        this._args = argumentList
+        this._start = start
+        this._end = end
+    }
+
+    hashSource() {
+        let parts = []
+        for arg in this._args {
+            parts.push(str(arg.hashCode()))
+        }
+        return "call:" + str(this._name.hashCode()) + ":" + parts.join(",")
+    }
+
+    format(indent = 0, comments = nil, parentPrecedence = INF) {
+        const length = len(this._args)
+        let s = this._name.format(indent) + "("
+
+        for i in 0..length {
+            s += this._args[i].format(0, comments)
+            if i < length - 1 {
+                if length > 4 {
+                    s += ",\n " + this.indent(this._start.column - 4)
+                } else {
+                    s += ", "
+                }
+            }
+        }
+
+        s += ")"
+        return s
+    }
+
+    minify(context = nil, parentPrecedence = INF) {
+        const fnName = this._name.minify(context)
+        let result = fnName + "("
+        for i in 0..len(this._args) {
+            if i > 0 {
+                result += ","
+            }
+            result += this._args[i].minify(context)
+        }
+        return result + ")"
+    }
+}

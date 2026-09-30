@@ -1,0 +1,83 @@
+import PiExpression
+
+class PiFuncDeclExpression : PiExpression {
+    constructor(
+        token,
+        params,
+        body,
+        name = nil,
+        isArrow = false,
+        isMethod = false
+    ) {
+        super(token, body.getLastToken())
+
+        this._params = params
+        this._body = body
+        this._name = name
+        this._isArrow = isArrow
+        this._isMethod = isMethod
+    }
+
+    setName(name) {
+        this._name = name
+    }
+
+    format(indent = 0) {
+        let result = "("
+
+        if !this._isArrow && !this._isMethod {
+            result = "fun("
+        }
+
+        for i in 0..len(this._params) {
+            const param = this._params[i]
+
+            if i > 0 {
+                result += ", "
+            }
+
+            result +=
+                this.formatComments(param.nameToken, indent, "leading") +
+                param.nameToken.value +
+                this.formatComments(param.nameToken, indent, "trailing")
+
+            if param.defaultValue != nil {
+                result += " = " + param.defaultValue.format(indent)
+            }
+        }
+
+        result += ")" + (this._isArrow ? " ->" : "")
+
+        if this._body.isBlock {
+            return result + this._body.format(indent, true)
+        }
+
+        return result + " " + this._body.format(indent)
+    }
+
+    minify(context = nil) {
+        let result = "("
+        if !this._isArrow && !this._isMethod {
+            result = "fun " + (this._name != nil ? this._name : "") + "("
+        }
+
+        context.pushScope()
+
+        for i in 0..len(this._params) {
+            const param = this._params[i]
+            if i > 0 {
+                result += ","
+            }
+            result += context.setValue(param.nameToken.value)
+            if param.defaultValue != nil {
+                result += "=" + param.defaultValue.minify(context)
+            }
+        }
+
+        result += ")" + (this._isArrow ? "->" : "") + this._body.minify(context)
+
+        context.popScope()
+
+        return result
+    }
+}

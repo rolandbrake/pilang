@@ -1,0 +1,39 @@
+import PiStatement
+
+class PiWhileStatement : PiStatement {
+    constructor(token, lparen, cond, rparen, body) {
+        super(token, body.getLastToken());
+
+        this._whileToken = token;
+        this._lparen = lparen;
+        this._cond = cond;
+        this._rparen = rparen;
+        this._body = body;
+    }
+
+    format(indent = 0) {
+        let result =
+            this.formatComments(this._whileToken, indent, "leading") +
+            this.indent(indent) +
+            "while" +
+            this.formatComments(this._whileToken, indent, "trailing") +
+            " " +
+            this.formatComments(this._lparen, indent, "leading") +
+            "(" +
+            this.formatComments(this._lparen, indent, "trailing") +
+            this._cond.format(0) +
+            this.formatComments(this._rparen, indent, "leading") +
+            ")" +
+            this.formatComments(this._rparen, indent, "trailing");
+
+        return result + (
+            this._body.isBlock
+                ? this._body.format(indent, true)
+                : "\n" + this._body.format(indent + 2)
+        );
+    }
+
+    minify(context = nil) {
+        return "while(" + this._cond.minify(context) + ")" + this._body.minify(context);
+    }
+}

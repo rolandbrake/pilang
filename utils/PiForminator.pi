@@ -1,0 +1,235 @@
+import sys
+import fs
+import PiScanner
+import PiParser
+import PiContext
+
+const _RED = char(27) + "[31m"
+const _RESET = char(27) + "[0m"
+
+// Position of the script path in sys.argv; adjust to how sys.argv is laid out.
+const _SCRIPT_ARG = 1
+
+const BUILTINS = [
+      "this",
+      // Audio Processing Functions
+      "audio",
+      "sound",
+      "play",
+      "stop",
+      "sfx",
+
+      // Collection Manipulation Functions
+      "pop",
+      "push",
+      "peek",
+      "empty",
+      "sort",
+      "insert",
+      "remove",
+      "unshift",
+      "append",
+      "find",
+      "contains",
+      "index_of",
+      "len",
+      "list",
+      "range",
+
+      // Map/Object Manipulation Functions
+      "keys",
+      "vals",
+
+      // Functional Programming Functions
+      "map",
+      "reduce",
+      "fill",
+      "join",
+      "reverse",
+      "slice",
+      "filter",
+      "clone",
+      "cont",
+
+      // Input/Output Functions
+      "println",
+      "print",
+      "printf",
+      "text",
+      "key",
+      "input",
+
+      // Matrix Manipulation Functions
+      "zeros",
+      "ones",
+      "eye",
+      "mult",
+      "dot",
+      "cross",
+      "rand_m",
+      "is_mat",
+      "size",
+
+      // Mathematical Functions
+      "floor",
+      "ceil",
+      "round",
+      "rand",
+      "rand_n",
+      "rand_i",
+      "sqrt",
+      "sin",
+      "cos",
+      "tan",
+      "asin",
+      "acos",
+      "atan",
+      "deg",
+      "rad",
+      "sum",
+      "exp",
+      "log2",
+      "log10",
+      "pow",
+      "abs",
+      "mean",
+      "avg",
+      "var",
+      "dev",
+      "median",
+      "std",
+      "mode",
+      "max",
+      "min",
+
+      // Screen Rendering Functions
+      "pixel",
+      "line",
+      "draw",
+      "clear",
+      "circ",
+      "rect",
+      "poly",
+      "sprite",
+      "color",
+
+      // String Manipulation Functions
+      "char",
+      "ord",
+      "trim",
+      "upper",
+      "lower",
+      "replace",
+      "split",
+      "join",
+      "is_upper",
+      "is_lower",
+      "is_digit",
+      "is_numeric",
+      "is_alpha",
+      "is_alnum",
+
+      // Time Functions
+      "sleep",
+      "time",
+
+      // Type Functions
+      "type",
+      "is_list",
+      "is_map",
+      "is_num",
+      "is_str",
+      "is_bool",
+      "is_inf",
+      "as_list",
+      "as_num",
+      "as_str",
+      "as_bool",
+
+      // System Functions
+      "fps",
+      "error",
+      "cursor",
+      "mouse",
+
+      // File Handling
+      "open",
+      "read",
+      "write",
+      "seek",
+      "close",
+
+      // 3D Graphics Rendering
+      "load3d",
+      "proj3d",
+      "rot3d",
+      "scale3d",
+      "tran3d",
+
+      // Image Manipulation
+      "image",
+      "crop",
+      "resize",
+      "flip",
+      "rend2d",
+      "scale2d",
+      "tran2d",
+      "rot2d",
+      "copy2d",
+
+      // Builtin Constants
+      "PI",
+      "E",
+      "WIDTH",
+      "HEIGHT",
+      "KEYS",
+    ];
+
+fun transform(source, mode) {
+    const scanner = PiScanner(source)
+    const tokens = scanner.scanTokens()
+    const parser = PiParser()
+    const statements = parser.parse(tokens)
+
+    if mode == "fmt" {
+        return statements.format(0)
+    }
+    return statements.minify(PiContext(BUILTINS))
+}
+
+fun transformFile(mode, filePath) {
+    if !fs.exists(filePath) {
+        println(_RED + "Error: File not found at " + filePath + _RESET)
+        sys.exit(1)
+    }
+    const file = fs.open(filePath)
+    const source = fs.read(file)
+    fs.close(file)
+
+    let output = transform(source, mode)
+    if len(output) > 0 {
+        if output[-1] != "\n" {
+            output += "\n"
+        }
+    } else {
+        output = "\n"
+    }
+
+    const destination = fs.open(filePath, "w")
+    fs.write(destination, output)
+    fs.close(destination)
+}
+
+const _args = sys.argv()
+if len(_args) < 3 {
+    println("Usage: PiForminator.px <fmt|min> <file.pi>")
+    sys.exit(1)
+}
+
+const mode = _args[1]
+if mode != "fmt" && mode != "min" {
+    println("Usage: PiForminator.px <fmt|min> <file.pi>")
+    sys.exit(1)
+}
+
+transformFile(mode, _args[2])

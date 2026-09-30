@@ -1,0 +1,114 @@
+import PiStatement
+
+class PiImportStatement : PiStatement {
+    constructor(token, items, semicolon = nil) {
+        super(
+            token,
+            semicolon != nil ? semicolon : items[-1].lastToken
+        )
+
+        this._importToken = token
+        this._items = items
+        this._semicolon = semicolon
+    }
+
+    tail(tail, context = nil) {
+        if tail.kind == "wildcard" {
+            return ".*"
+        }
+
+        if tail.kind == "braced" {
+            let bindings = []
+
+            for binding in tail.bindings {
+                if context == nil {
+                    bindings.push(
+                        binding.alias != nil
+                            ? binding.name.value + ":" + binding.alias.value
+                            : binding.name.value
+                    )
+                } else {
+                    const local =
+                        binding.alias != nil
+                            ? binding.alias
+                            : binding.name
+
+                    bindings.push(
+                        binding.name.value +
+                        ":" +
+                        context.setValue(local.value)
+                    )
+                }
+            }
+
+            return (
+                ".{" +
+                bindings.join(context != nil ? "," : ", ") +
+                "}"
+            )
+        }
+
+        return ""
+    }
+
+    item(item, context = nil) {
+        let parts = []
+
+        for part in item.pathParts {
+            parts.push(part.value)
+        }
+
+        let result = parts.join(".")
+
+        if item.tail != nil {
+            if item.tail.kind == "alias" {
+                const alias =
+                    context != nil
+                        ? context.setValue(item.tail.alias.value)
+                        : item.tail.alias.value
+
+                result +=
+                    ":" +
+                    alias +
+                    (
+                        item.tail.selector != nil
+                            ? this.tail(item.tail.selector, context)
+                            : ""
+                    )
+            } else {
+                result += this.tail(item.tail, context)
+            }
+        } elif context != nil {
+            const local = item.pathParts[-1].value
+            const mangled = context.setValue(local)
+
+            if local != mangled {
+                result += ":" + mangled
+            }
+        }
+
+        return result
+    }
+
+    format(indent = 0) {
+        let result = this.indent(indent) + this.formatComments(this._importToken, indent, "leading") + "import "
+        for i in 0..len(this._items) {
+            if i > 0 {
+                result += ", "
+            }
+            result += this.item(this._items[i])
+        }
+        return result + ";"
+    }
+
+    minify(context = nil) {
+        let result = "import "
+        for i in 0..len(this._items) {
+            if i > 0 {
+                result += ","
+            }
+            result += this.item(this._items[i], context)
+        }
+        return result + ";"
+    }
+}

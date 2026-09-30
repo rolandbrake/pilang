@@ -1,0 +1,32 @@
+import PiStatement
+
+class PiExpressionStatement : PiStatement {
+    constructor(expr, semicolon = nil) {
+        super(
+            expr.getStartToken(),
+            semicolon != nil ? semicolon : expr.getLastToken()
+        )
+
+        this._expr = expr
+        this._semicolon = semicolon
+    }
+
+    format(indent = 0) {
+        let result = this._expr.format(indent)
+
+        if (this._semicolon != nil) {
+            return (
+                result +
+                this.formatComments(this._semicolon, indent, "leading") +
+                ";" +
+                this.formatComments(this._semicolon, indent, "trailing")
+            )
+        }
+
+        return result
+    }
+
+    minify(context = nil) {
+        return this._expr.minify(context) + ";"
+    }
+}

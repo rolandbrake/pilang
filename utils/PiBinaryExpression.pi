@@ -1,0 +1,145 @@
+import TokenType
+import PiExpression
+import PiPrecedence.{getPrecedence}
+
+fun _startsWith(s, prefix) {
+    const n = #prefix
+    return #s >= n && s[0:n] == prefix
+}
+
+class PiBinaryExpression : PiExpression {
+    // left, right: operand expressions; op: the operator token;
+    // endToken: optional closing token (the "]" of an index expression).
+    constructor(left, op, right, endToken = nil) {
+        super(left.getStartToken(), endToken != nil ? endToken : right.getLastToken())
+        this.type = op.type
+        this.name = op.value
+        this.left = left
+        this.right = right
+        this._endToken = endToken
+    }
+
+    hashSource() {
+        return "binary:" + str(this.type) + ":" + str(this.name) + ":" + str(this.left.hashCode()) + ":" + str(this.right.hashCode())
+    }
+
+    // Formats the expression. parentPrecedence is the precedence of the parent
+    // expression, used to decide when parentheses are needed.
+    format(indent = 0, comments = nil, parentPrecedence = INF) {
+        const precedence = getPrecedence(this.type)
+        const maxLineLength = 80
+
+        if this.type == TokenType.PIPELINE {
+            const stages = this.flattenPipeline()
+            const first = stages[0].format(indent, comments, precedence)
+            let rest = []
+            for stage in stages[1:] {
+                rest.push(this.indent(indent + 2) + stage.format(0, comments, precedence))
+            }
+            const restText = rest.join(" =>\n")
+            return restText != "" ? first + " =>\n" + restText : first
+        }
+
+        let op = ""
+        if this.type == TokenType.DOT {
+            op = "."
+        } elif this.type == TokenType.LBRACKET {
+            op = "["
+        } else {
+            op = " " + this.name + " "
+        }
+
+        // First format on a single line to check the length.
+        const leftSingle = this.left.format(0, [], precedence)
+        const rightSingle = this.right.format(0, [], precedence)
+        const singleLineLength = indent + #leftSingle + #op + #rightSingle
+
+        const shouldBreak = (this.type == TokenType.AND || this.type == TokenType.OR || this.type == TokenType.PIPELINE) && (singleLineLength > maxLineLength || "\n" in leftSingle || "\n" in rightSingle || this.type == TokenType.PIPELINE)
+
+        let result = ""
+        if shouldBreak {
+            const multiLineOp = " " + this.name + "\n"
+            // Format the left side with the indent and indent the right side by hand.
+            const leftMulti = this.left.format(indent, comments, precedence)
+            const rightMulti = this.right.format(0, comments, precedence) // unindented
+            result = leftMulti + multiLineOp + this.indent(indent) + rightMulti
+        } else {
+            // Single line: the right side has no indent because it follows the operator.
+            const left = this.left.format(indent, comments, precedence)
+            const right = this.right.format(0, comments, precedence)
+            result = left + op + right
+        }
+
+        if this.name == "[" {
+            result += "]"
+        }
+
+        if precedence >= parentPrecedence && this.name != "[" && this.type != TokenType.DOT {
+            result = "(" + result + ")"
+        }
+
+        return result
+    }
+
+    minify(context = nil, parentPrecedence = INF) {
+        const precedence = getPrecedence(this.type)
+
+        if this.type == TokenType.PIPELINE {
+            const stages = this.flattenPipeline()
+            let parts = []
+            for stage in stages {
+                parts.push(stage.minify(context, precedence))
+            }
+            const joined = parts.join("=>")
+            return precedence >= parentPrecedence ? "(" + joined + ")" : joined
+        }
+
+        // Minify the children first.
+        const left = this.left.minify(context, precedence)
+        const right = this.right.minify(context, precedence)
+
+        if this.name == "[" {
+            return left + "[" + right + "]"
+        }
+        const op = this.name
+
+        if this.type == TokenType.IN || this.type == TokenType.IS || this.type == TokenType.PIPELINE {
+            return left + " " + op + " " + right
+        }
+
+        // Keep "<" and a following "-" apart so they don't read as "<-".
+        const needsSpace = op == "<" && _startsWith(right, "-")
+
+        let result = left + op + (needsSpace ? " " : "") + right
+
+        if precedence >= parentPrecedence && this.name != "[" && this.type != TokenType.DOT {
+            result = "(" + result + ")"
+        }
+
+        return result
+    }
+
+    getLeft() {
+        return this.left
+    }
+
+    getRight() {
+        return this.right
+    }
+
+    // Flattens nested pipelines (a => b => c) into a list of stages.
+    flattenPipeline() {
+        let stages = []
+        this.collectStages(this, stages)
+        return stages
+    }
+
+    collectStages(expr, stages) {
+        if expr is PiBinaryExpression && expr.type == TokenType.PIPELINE {
+            this.collectStages(expr.left, stages)
+            this.collectStages(expr.right, stages)
+        } else {
+            stages.push(expr)
+        }
+    }
+}

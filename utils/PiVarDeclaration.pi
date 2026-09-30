@@ -1,0 +1,52 @@
+import PiStatement
+
+class PiVarDeclaration : PiStatement {
+    constructor(nameToken, eqToken = nil, initExpr = nil) {
+        super(nameToken, initExpr != nil ? initExpr.getLastToken() : nameToken)
+        this._nameToken = nameToken
+        this._name = nameToken.value
+        this._eqToken = eqToken
+        this._init = initExpr
+    }
+
+    getName() {
+        return this._name
+    }
+
+    getInit() {
+        return this._init
+    }
+
+    format(indent = 0) {
+        let result = ""
+
+        result += this.formatComments(this._nameToken, indent, "leading")
+        result += this._name
+        result += this.formatComments(this._nameToken, indent, "trailing")
+
+        if this._init != nil {
+            result += " "
+            if this._eqToken != nil {
+                result += this.formatComments(this._eqToken, indent, "leading")
+                result += "="
+                result += this.formatComments(this._eqToken, indent, "trailing")
+            }
+            let value = this._init.format(indent)
+            const valueIndent = this.indent(indent)
+            if #valueIndent > 0 && value[0:#valueIndent] == valueIndent {
+                value = value[#valueIndent:]
+            }
+            result += " " + value
+        }
+
+        return result
+    }
+
+    minify(context = nil) {
+        const mangled = context.setValue(this._name)
+        if this._init != nil {
+            return mangled + "=" + this._init.minify(context)
+        }
+        return mangled
+    }
+}

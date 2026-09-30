@@ -1,0 +1,50 @@
+import PiStatement
+
+class PiBreakStatement : PiStatement {
+    constructor(token, semicolon = nil) {
+        super(token, semicolon != nil ? semicolon : token)
+        this._semicolon = semicolon
+    }
+
+    format(indent = 0) {
+        let result =
+            this.formatComments(
+                this.getStartToken(),
+                indent,
+                "leading"
+            ) +
+            this.indent(indent) +
+            "break"
+
+        const trailing =
+            this.formatComments(
+                this.getStartToken(),
+                indent,
+                "trailing"
+            )
+
+        if this._semicolon != nil {
+            return (
+                result +
+                trailing +
+                this.formatComments(
+                    this._semicolon,
+                    indent,
+                    "leading"
+                ) +
+                ";" +
+                this.formatComments(
+                    this._semicolon,
+                    indent,
+                    "trailing"
+                )
+            )
+        }
+
+        return result + ";" + trailing
+    }
+
+    minify(context = nil) {
+        return "break;"
+    }
+}
