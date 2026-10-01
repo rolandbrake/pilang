@@ -133,6 +133,15 @@ Waits for an event.
 draw.wait()
 ```
 
+## `draw.key(canvas, key_code)`
+
+Returns whether a key is currently held. Use a `draw.KEY_*` constant.
+
+```swift
+if draw.key(ctx, draw.KEY_A)
+    println("A is held")
+```
+
 ## `draw.text(text, x, y, ...)`
 
 Draws text.

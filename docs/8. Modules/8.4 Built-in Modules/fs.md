@@ -38,6 +38,14 @@ println(fs.readlines(f))
 fs.close(f)
 ```
 
+## `fs.read_bytes(path)`
+
+Reads a binary file into a list of byte values from `0` through `255`.
+
+```swift
+let rom = fs.read_bytes("game.c8")
+```
+
 ## `fs.seek(handle, position)`
 
 Moves the file cursor to a byte position from the beginning of the file.

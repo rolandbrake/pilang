@@ -66,6 +66,41 @@ Value fs_read(vm_t *vm, int argc, Value *argv)
     return result;
 }
 
+Value fs_readBytes(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1 || !IS_STRING(argv[0]))
+        vm_error(vm, "[read_bytes] expects a file path.");
+
+    FILE *file = fopen(AS_CSTRING(argv[0]), "rb");
+    if (!file)
+        vm_errorf(vm, "[read_bytes] Failed to open file: %s", AS_CSTRING(argv[0]));
+
+    list_t *bytes = list_create(sizeof(Value));
+    if (!bytes)
+    {
+        fclose(file);
+        vm_error(vm, "[read_bytes] Out of memory.");
+    }
+
+    unsigned char buffer[BUFFER_SIZE];
+    size_t count;
+    while ((count = fread(buffer, 1, sizeof(buffer), file)) > 0)
+        for (size_t i = 0; i < count; i++)
+        {
+            Value byte = NEW_NUM((double)buffer[i]);
+            list_add(bytes, &byte);
+        }
+
+    if (ferror(file))
+    {
+        fclose(file);
+        vm_errorf(vm, "[read_bytes] Failed to read file: %s", AS_CSTRING(argv[0]));
+    }
+
+    fclose(file);
+    return NEW_OBJ(add_obj(vm, new_list(bytes)));
+}
+
 Value fs_readlines(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
@@ -587,6 +622,7 @@ static BuiltinConst fs_consts[] = {
 
 static BuiltinFunc fs_functions[] = {
     {"read", fs_read},
+    {"read_bytes", fs_readBytes},
     {"readlines", fs_readlines},
     {"read_lines", fs_readLinesLimit},
     {"open", fs_open},

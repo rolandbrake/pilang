@@ -3,6 +3,10 @@
 #include "pi_func.h"
 #include "pi_module.h"
 
+#ifndef __EMSCRIPTEN__
+#include "builtin/pi_draw.h"
+#endif
+
 
 #ifdef _WIN32
 #include <windows.h>
@@ -537,7 +541,9 @@ void free_object(Object *obj)
     }
 
     case OBJ_CONTEXT:
-        // SDL resources must be released explicitly before the context is collected.
+#ifndef __EMSCRIPTEN__
+        dw_cleanupContext((PiContext *)obj);
+#endif
         break;
 
     case OBJ_CHART:

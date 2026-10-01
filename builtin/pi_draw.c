@@ -40,7 +40,9 @@ static PiContext *_get_ctx(Value v)
 {
     if (!IS_CONTEXT(v))
         return NULL;
-    return AS_CONTEXT(v);
+
+    PiContext *ctx = AS_CONTEXT(v);
+    return ctx->renderer ? ctx : NULL;
 }
 
 static bool _try_setWindowIcon(SDL_Window *window, const char *path)
@@ -131,8 +133,8 @@ static Value _map_get(PiMap *map, char *key)
 
 // Helper function to parse options from a table
 static void _parse_drawOptions(Value opts, int *color, char **font_path, int *font_size,
-                              char **align, bool *bold, bool *italic, float *img_alpha,
-                              int *img_w, int *img_h)
+                               char **align, bool *bold, bool *italic, float *img_alpha,
+                               int *img_w, int *img_h)
 {
     if (!IS_MAP(opts))
         return;
@@ -375,6 +377,36 @@ static void _cleanup_events(PiContext *ctx)
     }
 }
 
+void dw_cleanupContext(PiContext *ctx)
+{
+    if (ctx == NULL)
+        return;
+
+    ctx->running = false;
+    ctx->frame_callback = NEW_NIL();
+    ctx->active_plot3d = NULL;
+
+    while (ctx->_transform_stack != NULL)
+    {
+        _transformState *state = (_transformState *)ctx->_transform_stack;
+        ctx->_transform_stack = state->next;
+        free(state);
+    }
+
+    _cleanup_events(ctx);
+
+    if (ctx->renderer != NULL)
+    {
+        SDL_DestroyRenderer((SDL_Renderer *)ctx->renderer);
+        ctx->renderer = NULL;
+    }
+    if (ctx->window != NULL)
+    {
+        SDL_DestroyWindow((SDL_Window *)ctx->window);
+        ctx->window = NULL;
+    }
+}
+
 static Value _event_toValue(vm_t *vm, PiEvent *event)
 {
     return NEW_OBJ(add_obj(vm, (Object *)event));
@@ -544,7 +576,7 @@ Value dw_canvas(vm_t *vm, int argc, Value *argv)
     ctx->sy = 1.0f;
     _init_eventSystem(ctx);
 
-    return NEW_OBJ(ctx);
+    return NEW_OBJ(add_obj(vm, (Object *)ctx));
 }
 
 // Update dw_run to call the callback each frame
@@ -558,6 +590,8 @@ Value dw_run(vm_t *vm, int argc, Value *argv)
     while (ctx->running)
     {
         _pump_events(vm, ctx);
+        if (!ctx->running)
+            break;
 
         // Call the frame callback if it exists
         if (!IS_NIL(ctx->frame_callback))
@@ -566,6 +600,8 @@ Value dw_run(vm_t *vm, int argc, Value *argv)
             Function *func = AS_FUN(ctx->frame_callback);
             call_func(vm, func, 1, args, NEW_NIL());
         }
+        if (!ctx->running)
+            break;
 
         pt3d_redraw_context(ctx);
 
@@ -576,10 +612,7 @@ Value dw_run(vm_t *vm, int argc, Value *argv)
         SDL_Delay(16);
     }
 
-    SDL_DestroyRenderer(ctx->renderer);
-    SDL_DestroyWindow(ctx->window);
-    _cleanup_events(ctx);
-    free(ctx);
+    dw_cleanupContext(ctx);
 
     return NEW_NIL();
 }
@@ -1279,10 +1312,19 @@ Value dw_mouse(vm_t *vm, int argc, Value *argv)
 
 Value dw_key(vm_t *vm, int argc, Value *argv)
 {
-    const Uint8 *state = SDL_GetKeyboardState(NULL);
+    if (argc < 2 || !IS_NUM(argv[1]))
+        vm_error(vm, "key() takes a canvas and a key code");
 
-    int key = as_number(argv[1]);
-    return NEW_BOOL(state[key]);
+    const Uint8 *state = SDL_GetKeyboardState(NULL);
+    SDL_Keycode keycode = (SDL_Keycode)as_number(argv[1]);
+    SDL_Scancode scancode = SDL_GetScancodeFromKey(keycode);
+
+    // Keep the previous raw-scancode API working for existing programs.
+    if (scancode == SDL_SCANCODE_UNKNOWN &&
+        keycode >= 0 && keycode < SDL_NUM_SCANCODES)
+        scancode = (SDL_Scancode)keycode;
+
+    return NEW_BOOL(scancode != SDL_SCANCODE_UNKNOWN && state[scancode]);
 }
 
 Value dw_size(vm_t *vm, int argc, Value *argv)
@@ -1491,24 +1533,23 @@ static BuiltinConst draw_const[] = {
     {"COLOR_WHITE", NEW_NUM(0xFFFFFF)},
 
     // Primary vivid colors
-    {"COLOR_RED", NEW_NUM(0xFF1744)},        // vivid red
-    {"COLOR_GREEN", NEW_NUM(0x00E676)},      // vivid green
-    {"COLOR_BLUE", NEW_NUM(0x2979FF)},       // vivid blue
+    {"COLOR_RED", NEW_NUM(0xFF1744)},
+    {"COLOR_GREEN", NEW_NUM(0x00E676)},
+    {"COLOR_BLUE", NEW_NUM(0x2979FF)},
 
     // Secondary vivid colors
-    {"COLOR_YELLOW", NEW_NUM(0xFFEA00)},     // bright yellow
-    {"COLOR_MAGENTA", NEW_NUM(0xFF00FF)},    // full magenta
-    {"COLOR_CYAN", NEW_NUM(0x00E5FF)},       // electric cyan
+    {"COLOR_YELLOW", NEW_NUM(0xFFEA00)},
+    {"COLOR_MAGENTA", NEW_NUM(0xFF00FF)},
+    {"COLOR_CYAN", NEW_NUM(0x00E5FF)},
 
     // Accent colors
-    {"COLOR_ORANGE", NEW_NUM(0xFF6D00)},     // vivid orange
-    {"COLOR_PURPLE", NEW_NUM(0xAA00FF)},     // electric purple
-    {"COLOR_PINK", NEW_NUM(0xFF4081)},       // hot pink
-    {"COLOR_LIME", NEW_NUM(0xC6FF00)},       // neon lime
-    {"COLOR_TEAL", NEW_NUM(0x1DE9B6)},       // bright teal
-    {"COLOR_INDIGO", NEW_NUM(0x536DFE)},     // vivid indigo
+    {"COLOR_ORANGE", NEW_NUM(0xFF6D00)},
+    {"COLOR_PURPLE", NEW_NUM(0xAA00FF)},
+    {"COLOR_PINK", NEW_NUM(0xFF4081)},
+    {"COLOR_LIME", NEW_NUM(0xC6FF00)},
+    {"COLOR_TEAL", NEW_NUM(0x1DE9B6)},
+    {"COLOR_INDIGO", NEW_NUM(0x536DFE)},
 
-    // Browns are naturally less saturated, but this is richer
     {"COLOR_BROWN", NEW_NUM(0xBF360C)},
 
     // Neutral grays
@@ -1518,7 +1559,7 @@ static BuiltinConst draw_const[] = {
 
     {"COLOR_TRANSPARENT", NEW_NUM(0x00000000)},
 
-    // font styles
+    // Font styles
     {"FONT_NORMAL", NEW_NUM(0)},
     {"FONT_BOLD", NEW_NUM(1)},
     {"FONT_ITALIC", NEW_NUM(2)},
@@ -1526,6 +1567,90 @@ static BuiltinConst draw_const[] = {
     {"FONT_ALIGN_LEFT", NEW_NUM(0)},
     {"FONT_ALIGN_CENTER", NEW_NUM(1)},
     {"FONT_ALIGN_RIGHT", NEW_NUM(2)},
+
+    // Keyboard
+    {"KEY_UNKNOWN", NEW_NUM(SDLK_UNKNOWN)},
+    {"KEY_RETURN", NEW_NUM(SDLK_RETURN)},
+    {"KEY_ESCAPE", NEW_NUM(SDLK_ESCAPE)},
+    {"KEY_BACKSPACE", NEW_NUM(SDLK_BACKSPACE)},
+    {"KEY_TAB", NEW_NUM(SDLK_TAB)},
+    {"KEY_SPACE", NEW_NUM(SDLK_SPACE)},
+
+    // Arrows
+    {"KEY_LEFT", NEW_NUM(SDLK_LEFT)},
+    {"KEY_RIGHT", NEW_NUM(SDLK_RIGHT)},
+    {"KEY_UP", NEW_NUM(SDLK_UP)},
+    {"KEY_DOWN", NEW_NUM(SDLK_DOWN)},
+
+    // Navigation
+    {"KEY_INSERT", NEW_NUM(SDLK_INSERT)},
+    {"KEY_DELETE", NEW_NUM(SDLK_DELETE)},
+    {"KEY_HOME", NEW_NUM(SDLK_HOME)},
+    {"KEY_END", NEW_NUM(SDLK_END)},
+    {"KEY_PAGEUP", NEW_NUM(SDLK_PAGEUP)},
+    {"KEY_PAGEDOWN", NEW_NUM(SDLK_PAGEDOWN)},
+
+    // Function keys
+    {"KEY_F1", NEW_NUM(SDLK_F1)},
+    {"KEY_F2", NEW_NUM(SDLK_F2)},
+    {"KEY_F3", NEW_NUM(SDLK_F3)},
+    {"KEY_F4", NEW_NUM(SDLK_F4)},
+    {"KEY_F5", NEW_NUM(SDLK_F5)},
+    {"KEY_F6", NEW_NUM(SDLK_F6)},
+    {"KEY_F7", NEW_NUM(SDLK_F7)},
+    {"KEY_F8", NEW_NUM(SDLK_F8)},
+    {"KEY_F9", NEW_NUM(SDLK_F9)},
+    {"KEY_F10", NEW_NUM(SDLK_F10)},
+    {"KEY_F11", NEW_NUM(SDLK_F11)},
+    {"KEY_F12", NEW_NUM(SDLK_F12)},
+
+    // Modifiers
+    {"KEY_LSHIFT", NEW_NUM(SDLK_LSHIFT)},
+    {"KEY_RSHIFT", NEW_NUM(SDLK_RSHIFT)},
+    {"KEY_LCTRL", NEW_NUM(SDLK_LCTRL)},
+    {"KEY_RCTRL", NEW_NUM(SDLK_RCTRL)},
+    {"KEY_LALT", NEW_NUM(SDLK_LALT)},
+    {"KEY_RALT", NEW_NUM(SDLK_RALT)},
+
+    // Numbers
+    {"KEY_0", NEW_NUM(SDLK_0)},
+    {"KEY_1", NEW_NUM(SDLK_1)},
+    {"KEY_2", NEW_NUM(SDLK_2)},
+    {"KEY_3", NEW_NUM(SDLK_3)},
+    {"KEY_4", NEW_NUM(SDLK_4)},
+    {"KEY_5", NEW_NUM(SDLK_5)},
+    {"KEY_6", NEW_NUM(SDLK_6)},
+    {"KEY_7", NEW_NUM(SDLK_7)},
+    {"KEY_8", NEW_NUM(SDLK_8)},
+    {"KEY_9", NEW_NUM(SDLK_9)},
+
+    // Letters
+    {"KEY_A", NEW_NUM(SDLK_a)},
+    {"KEY_B", NEW_NUM(SDLK_b)},
+    {"KEY_C", NEW_NUM(SDLK_c)},
+    {"KEY_D", NEW_NUM(SDLK_d)},
+    {"KEY_E", NEW_NUM(SDLK_e)},
+    {"KEY_F", NEW_NUM(SDLK_f)},
+    {"KEY_G", NEW_NUM(SDLK_g)},
+    {"KEY_H", NEW_NUM(SDLK_h)},
+    {"KEY_I", NEW_NUM(SDLK_i)},
+    {"KEY_J", NEW_NUM(SDLK_j)},
+    {"KEY_K", NEW_NUM(SDLK_k)},
+    {"KEY_L", NEW_NUM(SDLK_l)},
+    {"KEY_M", NEW_NUM(SDLK_m)},
+    {"KEY_N", NEW_NUM(SDLK_n)},
+    {"KEY_O", NEW_NUM(SDLK_o)},
+    {"KEY_P", NEW_NUM(SDLK_p)},
+    {"KEY_Q", NEW_NUM(SDLK_q)},
+    {"KEY_R", NEW_NUM(SDLK_r)},
+    {"KEY_S", NEW_NUM(SDLK_s)},
+    {"KEY_T", NEW_NUM(SDLK_t)},
+    {"KEY_U", NEW_NUM(SDLK_u)},
+    {"KEY_V", NEW_NUM(SDLK_v)},
+    {"KEY_W", NEW_NUM(SDLK_w)},
+    {"KEY_X", NEW_NUM(SDLK_x)},
+    {"KEY_Y", NEW_NUM(SDLK_y)},
+    {"KEY_Z", NEW_NUM(SDLK_z)},
 };
 
 static BuiltinFunc draw_funcs[] = {
@@ -1544,6 +1669,7 @@ static BuiltinFunc draw_funcs[] = {
     {"off", dw_off},
     {"poll", dw_poll},
     {"wait", dw_wait},
+    {"key", dw_key},
     {"text", dw_text},
     {"image", dw_image},
     {"is_running", dw_isRunning},

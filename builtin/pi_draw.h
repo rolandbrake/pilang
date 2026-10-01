@@ -101,4 +101,7 @@ Value dw_size(vm_t *vm, int argc, Value *argv);
 // Get the current frames-per-second value.
 Value dw_fps(vm_t *vm, int argc, Value *argv);
 
+// Release native drawing resources owned by a canvas. Safe to call repeatedly.
+void dw_cleanupContext(PiContext *ctx);
+
 #endif // PI_DRAW_H

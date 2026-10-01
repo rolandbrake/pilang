@@ -1,0 +1,348 @@
+
+import draw
+import fs
+import random
+import sys
+
+WIDTH = 64
+HEIGHT = 32
+
+SCALE = 12
+ROM_START = 0x200
+FONT_START = 0x50
+
+// CHIP-8 keypad: 1-4, Q-R, A-F, Z-V.
+KEY_CODES = [
+    draw.KEY_1, draw.KEY_2, draw.KEY_3, draw.KEY_4,
+    draw.KEY_Q, draw.KEY_W, draw.KEY_E, draw.KEY_R,
+    draw.KEY_A, draw.KEY_S, draw.KEY_D, draw.KEY_F,
+    draw.KEY_Z, draw.KEY_X, draw.KEY_C, draw.KEY_V
+]
+
+ARROW_LEFT = draw.KEY_LEFT
+ARROW_RIGHT = draw.KEY_RIGHT
+ARROW_UP = draw.KEY_UP
+ARROW_DOWN = draw.KEY_DOWN
+
+memory = []
+registers = []
+stack = []
+pixels = []
+
+pc = ROM_START
+address_register = 0
+sp = 0
+delay_timer = 0
+sound_timer = 0
+ctx = nil
+
+fun zeros(count) {
+    let values = []
+
+    for _ in 0..count
+        values.push(0)
+
+    return values
+}
+
+fun install_font() {
+    let font = [
+        0xF0, 0x90, 0x90, 0x90, 0xF0,
+        0x20, 0x60, 0x20, 0x20, 0x70,
+        0xF0, 0x10, 0xF0, 0x80, 0xF0,
+        0xF0, 0x10, 0xF0, 0x10, 0xF0,
+        0x90, 0x90, 0xF0, 0x10, 0x10,
+        0xF0, 0x80, 0xF0, 0x10, 0xF0,
+        0xF0, 0x80, 0xF0, 0x90, 0xF0,
+        0xF0, 0x10, 0x20, 0x40, 0x40,
+        0xF0, 0x90, 0xF0, 0x90, 0xF0,
+        0xF0, 0x90, 0xF0, 0x10, 0xF0,
+        0xF0, 0x90, 0xF0, 0x90, 0x90,
+        0xE0, 0x90, 0xE0, 0x90, 0xE0,
+        0xF0, 0x80, 0x80, 0x80, 0xF0,
+        0xE0, 0x90, 0x90, 0x90, 0xE0,
+        0xF0, 0x80, 0xF0, 0x80, 0xF0,
+        0xF0, 0x80, 0xF0, 0x80, 0x80
+    ]
+
+    for i in 0..#font
+        memory[FONT_START + i] = font[i]
+}
+
+fun load_rom(path) {
+    let rom = fs.read_bytes(path)
+
+    if (#rom > 4096 - ROM_START)
+        error("CHIP-8 ROM is too large: " + path)
+
+    for i in 0..#rom
+        memory[ROM_START + i] = rom[i]
+}
+
+fun pressed_key() {
+    for key in 0..16
+        if (key_down(key))
+            return key
+
+    return -1
+}
+
+fun key_down(key) {
+    if (draw.key(ctx, KEY_CODES[key]))
+        return true
+
+    // Arrow aliases make game controls usable without changing CHIP-8 keys.
+    if (key == 7) return draw.key(ctx, ARROW_LEFT)
+    if (key == 9) return draw.key(ctx, ARROW_RIGHT)
+    if (key == 5) return draw.key(ctx, ARROW_UP)
+    if (key == 8) return draw.key(ctx, ARROW_DOWN)
+
+    return false
+}
+
+fun xor_sprite(x, y, rows) {
+    registers[15] = 0
+
+    for row in 0..rows {
+        let sprite = memory[address_register + row]
+
+        for bit in 0..8 {
+            if ((sprite & (0x80 >> bit)) != 0) {
+                let px = (x + bit) % WIDTH
+                let py = (y + row) % HEIGHT
+                let screen_index = py * WIDTH + px
+
+                if (pixels[screen_index] == 1)
+                    registers[15] = 1
+
+                pixels[screen_index] = pixels[screen_index] ^ 1
+            }
+        }
+    }
+}
+
+fun execute() {
+    let opcode = (memory[pc] << 8) | memory[pc + 1]
+
+    pc += 2
+
+    let group = (opcode >> 12) & 15
+    let x = (opcode >> 8) & 15
+    let y = (opcode >> 4) & 15
+    let nibble = opcode & 15
+    let byte = opcode & 255
+    let address = opcode & 0x0FFF
+
+    if (group == 0) {
+        if (opcode == 0x00E0) {
+            pixels = zeros(WIDTH * HEIGHT)
+        } elif (opcode == 0x00EE) {
+            sp--
+            pc = stack[sp]
+        }
+    } elif (group == 1) {
+        pc = address
+
+    } elif (group == 2) {
+        stack[sp] = pc
+        sp++
+        pc = address
+
+    } elif (group == 3) {
+        if (registers[x] == byte)
+            pc += 2
+
+    } elif (group == 4) {
+        if (registers[x] != byte)
+            pc += 2
+
+    } elif (group == 5) {
+        if (nibble == 0 && registers[x] == registers[y])
+            pc += 2
+
+    } elif (group == 6) {
+        registers[x] = byte
+
+    } elif (group == 7) {
+        registers[x] = (registers[x] + byte) & 255
+
+    } elif (group == 8) {
+        if (nibble == 0) {
+            registers[x] = registers[y]
+
+        } elif (nibble == 1) {
+            registers[x] = registers[x] | registers[y]
+
+        } elif (nibble == 2) {
+            registers[x] = registers[x] & registers[y]
+
+        } elif (nibble == 3) {
+            registers[x] = registers[x] ^ registers[y]
+
+        } elif (nibble == 4) {
+            let sum = registers[x] + registers[y]
+
+            registers[15] = sum > 255 ? 1 : 0
+            registers[x] = sum & 255
+
+        } elif (nibble == 5) {
+            registers[15] = registers[x] >= registers[y] ? 1 : 0
+            registers[x] = (registers[x] - registers[y]) & 255
+
+        } elif (nibble == 6) {
+            registers[15] = registers[x] & 1
+            registers[x] = registers[x] >> 1
+
+        } elif (nibble == 7) {
+            registers[15] = registers[y] >= registers[x] ? 1 : 0
+            registers[x] = (registers[y] - registers[x]) & 255
+
+        } elif (nibble == 0xE) {
+            registers[15] = (registers[x] >> 7) & 1
+            registers[x] = (registers[x] << 1) & 255
+        }
+
+    } elif (group == 9) {
+        if (nibble == 0 && registers[x] != registers[y])
+            pc += 2
+
+    } elif (group == 0xA) {
+        address_register = address
+
+    } elif (group == 0xB) {
+        pc = address + registers[0]
+
+    } elif (group == 0xC) {
+        registers[x] = random.randint(0, 255) & byte
+
+    } elif (group == 0xD) {
+        xor_sprite(registers[x], registers[y], nibble)
+        // Original CHIP-8 waits for vblank after a sprite draw.
+        return true
+
+    } elif (group == 0xE) {
+        let key = registers[x]
+        let down = key < 16 && key_down(key)
+
+        if (byte == 0x9E && down)
+            pc += 2
+
+        if (byte == 0xA1 && !down)
+            pc += 2
+
+    } elif (group == 0xF) {
+        if (byte == 0x07) {
+            registers[x] = delay_timer
+
+        } elif (byte == 0x0A) {
+            let key = pressed_key()
+
+            if (key < 0)
+                pc -= 2
+            else
+                registers[x] = key
+
+        } elif (byte == 0x15) {
+            delay_timer = registers[x]
+
+        } elif (byte == 0x18) {
+            sound_timer = registers[x]
+
+        } elif (byte == 0x1E) {
+            address_register =
+                (address_register + registers[x]) & 0x0FFF
+
+        } elif (byte == 0x29) {
+            address_register =
+                FONT_START + registers[x] * 5
+
+        } elif (byte == 0x33) {
+            memory[address_register] =
+                registers[x] / 100
+
+            memory[address_register + 1] =
+                (registers[x] / 10) % 10
+
+            memory[address_register + 2] =
+                registers[x] % 10
+
+        } elif (byte == 0x55) {
+            for i in 0..(x + 1)
+                memory[address_register + i] = registers[i]
+
+        } elif (byte == 0x65) {
+            for i in 0..(x + 1)
+                registers[i] = memory[address_register + i]
+        }
+    }
+
+    return false
+}
+
+fun render(canvas) {
+    for _ in 0..20 {
+        // A display update consumes the rest of this video frame.
+        if (execute())
+            break
+    }
+
+    if (delay_timer > 0)
+        delay_timer--
+
+    if (sound_timer > 0)
+        sound_timer--
+
+    draw.clear(canvas, draw.COLOR_BLACK)
+
+    for y in 0..HEIGHT {
+        for x in 0..WIDTH {
+            if (pixels[y * WIDTH + x] == 1) {
+                draw.rect(
+                    canvas,
+                    x * SCALE,
+                    y * SCALE,
+                    SCALE,
+                    SCALE,
+                    draw.COLOR_LIME,
+                    true
+                )
+            }
+        }
+    }
+}
+
+fun main() {
+    let cli = sys.argv()
+
+    if (#cli < 2) {
+        println("Usage: pilang run chip8.pi <rom.ch8>")
+        return
+    }
+
+    memory = zeros(4096)
+    registers = zeros(16)
+    stack = zeros(16)
+    pixels = zeros(WIDTH * HEIGHT)
+
+    pc = ROM_START
+    address_register = 0
+    sp = 0
+    delay_timer = 0
+    sound_timer = 0
+
+    random.seed(1)
+
+    install_font()
+    load_rom(cli[1])
+
+    ctx = draw.canvas(
+        WIDTH * SCALE,
+        HEIGHT * SCALE,
+        "PiLang CHIP-8"
+    )
+
+    draw.on_frame(ctx, render)
+    draw.run(ctx)
+}
+
+main()
