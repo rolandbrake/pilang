@@ -858,6 +858,11 @@ Value pt_line(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "line() takes a chart as first argument");
         return NIL_VAL;
     }
+
+    // A function is sampled for every x value, matching plot.func().
+    if (argc >= 3 && IS_LIST(argv[1]) && IS_FUN(argv[2]))
+        return pt_func(vm, argc, argv);
+
     if (argc < 3 || !IS_LIST(argv[1]) || !IS_LIST(argv[2]))
         return NIL_VAL;
     PiChart *chart = AS_CHART(argv[0]);

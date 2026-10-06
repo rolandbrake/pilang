@@ -46,13 +46,17 @@ draw.run(ctx)
 
 ## Series
 
-### `plot.line(chart, x, y, color = auto)`
+### `plot.line(chart, x, y_or_function, color = auto)`
 
-Adds a line series. `x` and `y` must be lists of numbers. `color` is an optional
-integer RGB value, for example `0xff0000`.
+Adds a line series. `x` and `y` can be lists of numbers. Alternatively, pass a
+single-argument function as `y_or_function`; it is evaluated for every x value.
+`color` is an optional integer RGB value, for example `0xff0000`.
 
 ```swift
 plot.line(chart, [0, 1, 2], [1, 3, 2], 0x3366cc)
+
+let xs = math.arange(-5, 5, 0.25)
+plot.line(chart, xs, x -> x * x)
 ```
 
 ### `plot.scatter(chart, x, y, color = auto, shape = "circle")`
@@ -93,7 +97,8 @@ plot.step(chart, [0, 1, 2, 3], [4, 4, 2, 5])
 ### `plot.func(chart, x_values, fun, color = auto)`
 
 Evaluates a Pilang function for every value in `x_values` and plots the result
-as a line series.
+as a line series. This is an alias for `plot.line(chart, x_values, fun, color)`;
+prefer `plot.line` for new code.
 
 ```swift
 plot.func(chart, [-2, -1, 0, 1, 2], x -> x * x)

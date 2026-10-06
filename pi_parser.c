@@ -1367,8 +1367,19 @@ static list_t *param_list(parser_t *parser)
             name = consume(parser, TK_ID, "Expect parameter name.");
             list_add(params, new_string(token_value(name)));
 
+            // TODO: Handle default values check in the future
             if (match(parser, TK_ASSIGN))
+            {
+                /*
+                 * Compile defaults as zero-argument functions. Function
+                 * declarations are hoisted, so evaluating the expression here
+                 * would run it before preceding imports and initializers.
+                 */
+                push_function(parser->comp, "<default>");
                 expr(parser);
+                emit(parser->comp, OP_RETURN);
+                pop_function(parser->comp, 0);
+            }
             else
                 emit(parser->comp, OP_PUSH_NIL);
 

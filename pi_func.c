@@ -223,22 +223,19 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     // set up stack frame
     size_t param_base = vm->bp + arg_offset;
     size_t aux_base = param_base + param_count;
+    bool provided[256] = {false};
 
-    /*
-     * Defaults are only needed for parameters not supplied positionally.
-     * Recursive numeric functions commonly pass every parameter, so avoid
-     * rewriting those slots on the hot path.
-     */
-    if (argc < param_count)
-    {
-        Value *defaults = (Value *)function->params->data;
-        for (size_t i = argc + param_offset; i < param_count; i++)
-            vm->stack[param_base + i] = defaults[i];
-    }
+    /* Reserve this frame before a deferred default makes a nested call. */
+    vm->stack[aux_base] = NEW_NIL();
+    vm->stack[aux_base + 1] = NEW_NIL();
+    vm->sp = aux_base + 2;
 
     /* Overwrite slot 0 with instance when this is a named param. */
     if (FUNC_HAS_FLAG(function, FUNC_METHOD) && param_offset == 1 && param_count > 0)
+    {
         vm->stack[param_base] = instance;
+        provided[0] = true;
+    }
 
     // Copy positional arguments
     if (argc > 0)
@@ -248,7 +245,10 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
         {
             size_t slot = i + param_offset;
             if (slot < param_count)
+            {
                 vm->stack[param_base + slot] = argv[i];
+                provided[slot] = true;
+            }
         }
     }
 
@@ -274,7 +274,25 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
                 vm_error(vm, "Function argument got multiple values.");
 
             vm->stack[param_base + slot] = *kw_value;
+            provided[slot] = true;
         }
+    }
+
+    /*
+     * Defaults are compiled as zero-argument functions so their expressions
+     * run only when an argument is omitted, rather than when the declaration
+     * is hoisted. A nil entry denotes a parameter without an explicit default.
+     */
+    Value *defaults = (Value *)function->params->data;
+    for (size_t i = param_offset; i < param_count; i++)
+    {
+        if (provided[i])
+            continue;
+
+        Value default_value = defaults[i];
+        vm->stack[param_base + i] = IS_FUN(default_value)
+                                          ? call_func(vm, AS_FUN(default_value), 0, NULL, NEW_NIL())
+                                          : NEW_NIL();
     }
 
     if (!FUNC_HAS_FLAG(function, FUNC_NEED_ARGS) &&

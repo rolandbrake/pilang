@@ -1,0 +1,38 @@
+import math
+import draw
+
+fun circle_area(radius = math.PI) {
+    return radius
+}
+
+assert(circle_area() == math.PI,
+       "default expressions should be evaluated after imports are initialized")
+assert(circle_area(2) == 2, "an explicit argument should override its default")
+
+fun default_color(color = draw.COLOR_RED) {
+    return color
+}
+assert(default_color() == draw.COLOR_RED,
+       "a default expression should resolve imported module constants")
+
+fun keeps_arguments(value, color = draw.COLOR_RED) {
+    return value
+}
+assert(keeps_arguments(7) == 7,
+       "evaluating a default should not overwrite earlier arguments")
+
+let default_calls = 0
+fun next_default() {
+    default_calls++
+    return 1
+}
+fun uses_default(value = next_default()) {
+    return value
+}
+
+assert(uses_default(2) == 2, "an explicit argument should be returned")
+assert(default_calls == 0, "an explicit argument should not evaluate its default")
+assert(uses_default(value = 3) == 3, "a keyword argument should be returned")
+assert(default_calls == 0, "a keyword argument should not evaluate its default")
+assert(uses_default() == 1, "an omitted argument should evaluate its default")
+assert(default_calls == 1, "a default expression should run once per omitted argument")
