@@ -101,6 +101,38 @@ Value fs_readBytes(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, new_list(bytes)));
 }
 
+Value fs_writeBytes(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 2 || !IS_STRING(argv[0]) || !IS_LIST(argv[1]))
+        vm_error(vm, "[write_bytes] expects a file path and a list of byte values.");
+
+    FILE *file = fopen(AS_CSTRING(argv[0]), "wb");
+    if (!file)
+        vm_errorf(vm, "[write_bytes] Failed to open file: %s", AS_CSTRING(argv[0]));
+
+    PiList *bytes = AS_LIST(argv[1]);
+    for (int i = 0; i < bytes->items->size; i++)
+    {
+        Value value = LIST_AT(bytes->items, i);
+        if (!IS_NUM(value) || AS_NUM(value) < 0 || AS_NUM(value) > 255 || AS_NUM(value) != (int)AS_NUM(value))
+        {
+            fclose(file);
+            vm_error(vm, "[write_bytes] byte values must be integers from 0 through 255.");
+        }
+
+        if (fputc((unsigned char)AS_NUM(value), file) == EOF)
+        {
+            fclose(file);
+            vm_errorf(vm, "[write_bytes] Failed to write file: %s", AS_CSTRING(argv[0]));
+        }
+    }
+
+    if (fclose(file) != 0)
+        vm_errorf(vm, "[write_bytes] Failed to close file: %s", AS_CSTRING(argv[0]));
+
+    return NEW_BOOL(true);
+}
+
 Value fs_readlines(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
@@ -623,6 +655,7 @@ static BuiltinConst fs_consts[] = {
 static BuiltinFunc fs_functions[] = {
     {"read", fs_read},
     {"read_bytes", fs_readBytes},
+    {"write_bytes", fs_writeBytes},
     {"readlines", fs_readlines},
     {"read_lines", fs_readLinesLimit},
     {"open", fs_open},

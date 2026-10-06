@@ -276,17 +276,30 @@ void scan_token()
     case '"':
     case '\'':
         _ch = scanner->ch;
-        while (!match(_ch))
+        while (!is_AtEnd())
         {
-            next();
-            if (match('\n'))
+            char ch = next();
+
+            /* A quoted delimiter is part of the string, not its terminator. */
+            if (ch == '\\' && !is_AtEnd())
+            {
+                next();
+                continue;
+            }
+
+            if (ch == _ch)
+                break;
+
+            if (ch == '\n')
             {
                 scanner->line++;
                 scanner->column = 1;
             }
-            else if (is_AtEnd())
-                l_error("Unterminated String");
         }
+
+        if (is_AtEnd() && scanner->source[scanner->current - 1] != _ch)
+            l_error("Unterminated String");
+
         add_token(TK_STR);
         break;
     case '.':

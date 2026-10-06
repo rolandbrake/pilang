@@ -1,0 +1,50 @@
+import time.{clock}
+
+class Obj {
+    constructor(value) {
+        this.value = value
+    }
+}
+
+let obj = Obj(13)
+obj.child = Obj(13)
+let sum = 0
+
+start = clock()
+for i in 0..100_000_000
+    sum += obj.value
+
+elapsed_ms = (clock() - start) * 1000
+println("objects execution time:", elapsed_ms, "ms")
+
+sum = 0
+
+let lst = [8, 9, 13]
+
+start = clock()
+for i in 0..100_000_000
+    sum += lst[2]
+
+elapsed_ms = (clock() - start) * 1000
+println("lists execution time:", elapsed_ms, "ms")
+
+sum = 0
+
+let value = 13
+
+start = clock()
+for i in 0..100_000_000
+    sum += value
+
+elapsed_ms = (clock() - start) * 1000
+println("variables execution time:", elapsed_ms, "ms")
+
+sum = 0
+
+start = clock()
+for i in 0..100_000_000
+    sum += obj.child.value
+
+elapsed_ms = (clock() - start) * 1000
+println("chained object execution time:", elapsed_ms, "ms")
+

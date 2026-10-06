@@ -130,7 +130,7 @@ static context_t *create_context(bool is_function, list_t *code, char *fun_name)
     context_t *context = malloc(sizeof(context_t));
 
     context->upvalues = list_create(sizeof(upvalue_t));
-    context->locals = stack_create(sizeof(local_t));
+    context->locals = stack_create(sizeof(local_t *));
     context->instrs = list_create(sizeof(instr_t));
     context->param_names = NULL;
 
@@ -343,7 +343,7 @@ void print_locals(compiler_t *comp)
 {
     printf("Locals stack (top to bottom):\n");
 
-    local_t *local = (local_t *)stack_peek(comp->current->locals);
+    local_t *local = *(local_t **)stack_peek(comp->current->locals);
     printf("Local: name = %s, depth = %d, is_captured = %s\n",
            local->name,
            local->depth,
@@ -359,7 +359,7 @@ void add_localConst(compiler_t *comp, char *name, bool is_const)
     // Check for name conflict ONLY in current block
     for (int i = stack_size(locals) - 1; i >= 0; i--)
     {
-        local_t *local = (local_t *)stack_getAt(locals, i);
+        local_t *local = *(local_t **)stack_getAt(locals, i);
 
         if (local->depth < comp->current->depth)
             break;
@@ -377,7 +377,7 @@ void add_localConst(compiler_t *comp, char *name, bool is_const)
     local->is_captured = false;
     local->is_const = is_const;
 
-    stack_push(locals, local);
+    stack_push(locals, &local);
 }
 
 void add_local(compiler_t *comp, char *name)
@@ -411,7 +411,7 @@ int get_localSize(compiler_t *comp, int depth)
 
     for (int i = l_size - 1; i >= 0; i--)
     {
-        local_t *local = (local_t *)stack_getAt(locals, i);
+        local_t *local = *(local_t **)stack_getAt(locals, i);
         if (local->depth >= depth)
             size++;
         else
@@ -427,7 +427,7 @@ int resolve_local(compiler_t *comp, int depth, char *name)
     context_t *context = context_at(comp, depth);
     for (int i = stack_size(context->locals) - 1; i >= 0; i--)
     {
-        local = (local_t *)stack_getAt(context->locals, i);
+        local = *(local_t **)stack_getAt(context->locals, i);
         if (strcmp(local->name, name) == 0)
         {
             index = i;
@@ -497,7 +497,7 @@ static bool local_isConstAt(compiler_t *comp, int depth, int index)
     if (!context || index < 0 || index >= stack_size(context->locals))
         return false;
 
-    local_t *local = (local_t *)stack_getAt(context->locals, index);
+    local_t *local = *(local_t **)stack_getAt(context->locals, index);
     return local && local->is_const;
 }
 
@@ -509,7 +509,7 @@ static bool resolved_upvalueIsConst(compiler_t *comp, const char *name)
         context_t *context = context_at(comp, d);
         for (int i = stack_size(context->locals) - 1; i >= 0; i--)
         {
-            local_t *local = (local_t *)stack_getAt(context->locals, i);
+            local_t *local = *(local_t **)stack_getAt(context->locals, i);
             if (strcmp(local->name, name) == 0)
                 return local->is_const;
         }
