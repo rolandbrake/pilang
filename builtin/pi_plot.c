@@ -85,6 +85,24 @@ static PiChart *chart_from(vm_t *vm, Value v0)
     return NULL;
 }
 
+/* The renderer stores line data as lists; accept 1D tensors at the API edge. */
+static Value plot_numericList(vm_t *vm, Value value)
+{
+    if (IS_LIST(value))
+        return value;
+    if (!IS_TENSOR(value) || AS_TENSOR(value)->ndim != 1)
+        return NEW_NIL();
+
+    PiTensor *tensor = AS_TENSOR(value);
+    list_t *items = list_create(VALUE_SIZE);
+    for (int i = 0; i < tensor->size; i++)
+    {
+        Value item = NEW_NUM(tensor_getFlat(tensor, i));
+        list_add(items, &item);
+    }
+    return NEW_OBJ(add_obj(vm, new_list(items)));
+}
+
 static double list_min(list_t *lst)
 {
     double m = INFINITY;
@@ -146,10 +164,10 @@ static Value make_kindSeries(vm_t *vm, PiChart *chart, const char *kind, list_t 
 
 enum TextFlags
 {
-    TEXT_NONE = 0,
+    TEXT_NONE     =      0,
     TEXT_CENTER_X = 1 << 0,
     TEXT_CENTER_Y = 1 << 1,
-    TEXT_BOLD = 1 << 2,
+    TEXT_BOLD     = 1 << 2,
     TEXT_VERTICAL = 1 << 3
 };
 
@@ -768,11 +786,14 @@ Value pt_func(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "func() takes a chart as first argument");
         return NIL_VAL;
     }
-    if (argc < 3 || !IS_LIST(argv[1]) || !IS_FUN(argv[2]))
+    if (argc < 3 || !IS_FUN(argv[2]))
+        return NIL_VAL;
+    Value x_values = plot_numericList(vm, argv[1]);
+    if (IS_NIL(x_values))
         return NIL_VAL;
     PiChart *chart = AS_CHART(argv[0]);
 
-    PiList *x_list = AS_LIST(argv[1]);
+    PiList *x_list = AS_LIST(x_values);
     int num_points = LIST_SIZE(x_list->items);
 
     if (num_points < 1)
@@ -806,7 +827,7 @@ Value pt_func(vm_t *vm, int argc, Value *argv)
     Value vy_list = NEW_OBJ(y_obj);
 
     list_t *tail = list_create(VALUE_SIZE);
-    list_add(tail, &argv[1]);
+    list_add(tail, &x_values);
     list_add(tail, &vy_list);
 
     if (argc > 3 && IS_NUM(argv[3]))
@@ -860,15 +881,19 @@ Value pt_line(vm_t *vm, int argc, Value *argv)
     }
 
     // A function is sampled for every x value, matching plot.func().
-    if (argc >= 3 && IS_LIST(argv[1]) && IS_FUN(argv[2]))
+    if (argc >= 3 && IS_FUN(argv[2]))
         return pt_func(vm, argc, argv);
 
-    if (argc < 3 || !IS_LIST(argv[1]) || !IS_LIST(argv[2]))
+    if (argc < 3)
+        return NIL_VAL;
+    Value x_values = plot_numericList(vm, argv[1]);
+    Value y_values = plot_numericList(vm, argv[2]);
+    if (IS_NIL(x_values) || IS_NIL(y_values))
         return NIL_VAL;
     PiChart *chart = AS_CHART(argv[0]);
     list_t *tail = list_create(VALUE_SIZE);
-    list_add(tail, &argv[1]);
-    list_add(tail, &argv[2]);
+    list_add(tail, &x_values);
+    list_add(tail, &y_values);
     if (argc > 3 && IS_NUM(argv[3]))
     {
         Value vcolor = argv[3];

@@ -48,15 +48,20 @@ draw.run(ctx)
 
 ### `plot.line(chart, x, y_or_function, color = auto)`
 
-Adds a line series. `x` and `y` can be lists of numbers. Alternatively, pass a
-single-argument function as `y_or_function`; it is evaluated for every x value.
-`color` is an optional integer RGB value, for example `0xff0000`.
+Adds a line series. `x` and `y` can be lists of numbers or one-dimensional
+tensors. Alternatively, pass a single-argument function as `y_or_function`; it
+is evaluated for every x value. `color` is an optional integer RGB value, for
+example `0xff0000`.
 
 ```swift
 plot.line(chart, [0, 1, 2], [1, 3, 2], 0x3366cc)
 
 let xs = math.arange(-5, 5, 0.25)
 plot.line(chart, xs, x -> x * x)
+
+import tensor
+let tensor_xs = tensor.linspace(-5, 5, 20)
+plot.line(chart, tensor_xs, tensor_xs * tensor_xs)
 ```
 
 ### `plot.scatter(chart, x, y, color = auto, shape = "circle")`
