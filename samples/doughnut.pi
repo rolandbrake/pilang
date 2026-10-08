@@ -1,0 +1,89 @@
+// A PiLang port of Andy Sloane's classic ASCII doughnut renderer.
+// Run with: .\bin\pilang.exe samples\doughnut.pi
+
+import math
+
+const WIDTH = 80
+const HEIGHT = 22
+const DOT = "."
+const STAR = "*"
+const HIGHLIGHT = "#"
+const MAX_BRIGHTNESS = 11
+const COLORS = ["blue", "cyan", "green", "yellow", "red", "magenta", "white"]
+let PIXELS = []
+
+for shade in 0..(MAX_BRIGHTNESS + 1) {
+    let color = COLORS[math.floor(shade * (#COLORS - 1) / MAX_BRIGHTNESS)]
+    let pixel = shade == MAX_BRIGHTNESS ? HIGHLIGHT : (shade >= 9 ? STAR : DOT)
+    PIXELS.push(format("{0:fg:" + color + "}", pixel))
+}
+
+fun render(a, b) {
+    let pixels = [" "] * (WIDTH * HEIGHT)
+    let depth = [0] * (WIDTH * HEIGHT)
+    let sin_a = math.sin(a)
+    let cos_a = math.cos(a)
+    let sin_b = math.sin(b)
+    let cos_b = math.cos(b)
+
+    // theta: angle around the tube's cross-section
+    let theta = 0
+    while theta < math.TAU {
+        let sin_theta = math.sin(theta)
+        let cos_theta = math.cos(theta)
+        let circle_x = cos_theta + 2      // tube radius 1, centered 2 from the axis
+
+        // phi: angle sweeping the circle around the donut's axis
+        let phi = 0
+        while phi < math.TAU {
+            let sin_phi = math.sin(phi)
+            let cos_phi = math.cos(phi)
+
+            let reciprocal_depth = 1 / (sin_phi * circle_x * sin_a + sin_theta * cos_a + 5)
+            let t = sin_phi * circle_x * cos_a - sin_theta * sin_a
+
+            let x = math.floor(WIDTH / 2 + 30 * reciprocal_depth *
+                (cos_phi * circle_x * cos_b - t * sin_b))
+            let y = math.floor(HEIGHT / 2 + 15 * reciprocal_depth *
+                (cos_phi * circle_x * sin_b + t * cos_b))
+
+            if x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT {
+                let offset = x + WIDTH * y
+
+                if reciprocal_depth > depth[offset] {
+                    let brightness = math.floor(8 * (
+                        (sin_theta * sin_a - sin_phi * cos_a) * cos_b
+                        - sin_phi * cos_theta * sin_a
+                        - sin_theta * cos_a
+                        - cos_phi * cos_theta * sin_b))
+                    let shade = max(0, min(brightness, MAX_BRIGHTNESS))
+
+                    depth[offset] = reciprocal_depth
+                    pixels[offset] = PIXELS[shade]
+                }
+            }
+
+            phi += 0.02
+        }
+
+        theta += 0.07
+    }
+
+    for y in 0..HEIGHT {
+        let start = y * WIDTH
+        print(pixels[start:start + WIDTH].join(""))
+    }
+}
+
+let a = 0
+let b = 0
+let escape = char(27)
+
+print(escape + "[2J")
+while true {
+    print(escape + "[H")
+    render(a, b)
+    a += 0.04
+    b += 0.02
+    // sleep(30)
+}

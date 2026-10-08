@@ -7,7 +7,7 @@
 <h1 align="center">Pilang</h1>
 
 <p align="center">
-  A lightweight, embeddable, general-purpose programming language written in C.
+  A compact language for turning data, math, and ideas into visible experiments.
 </p>
 
 <p align="center">
@@ -20,15 +20,18 @@
 
 ## Overview
 
+Pilang is for the moment when an idea is still small enough to explore: shape
+some data, transform it, run the math, and draw the result without assembling a
+stack of packages first. It is a C-powered scripting language with tensors,
+image processing, 2D charts, and interactive 3D plots in its core modules.
 
-Pilang is a lightweight programming language designed for machine learning, numerical computing, data processing, and visualization. It combines the readability of Python with the flexibility of JavaScript while remaining small enough to embed directly into applications.
+Its syntax keeps expressive operations close to the data. Build ranges and
+comprehensions, slice in either direction, use `#` for length, spread values
+with `...`, and send a value through a pipeline with `=>`. The result is a
+language that reads naturally while staying playful and direct for numerical
+work, simulations, and visual experiments.
 
-Built around a compact C implementation and a bytecode virtual machine, Pilang provides native support for tensors, plotting, data transformation, object-oriented programming, and modular application development. The language is intended for experimentation, scientific computing, educational tools, simulation projects, machine-learning workflows, and interactive visualization.
-
-Unlike many scripting languages that rely on large external ecosystems for numerical work, Pilang treats data-oriented programming as a first-class concern. Tensor operations, statistics, plotting, 3D visualization, and machine-learning experiments are part of the core experience, making it easy to move from data processing to visual exploration with minimal setup.
-
-The language syntax draws inspiration from Python and JavaScript, combining familiar scripting-language ergonomics with features such as comprehensions, closures, classes, operator overloading, ranges, slices, sets, tuples, and callable objects.
-here is two examples show case the capability of the language with data visualization:
+Here are two examples of what Pilang can put on screen:
 
 <p align="center">
   <img src="imgs/loss.png" alt="Pilang training loss plot" height="264">
@@ -36,7 +39,7 @@ here is two examples show case the capability of the language with data visualiz
   <img src="imgs/mesh.png" alt="Pilang 3D mesh plot" height="264">
 </p>
 
-and here is some examples for image processing and applying filtering and manipulating the chroma of images:
+It also includes image processing tools for filters and chroma manipulation:
 
 <p align="center">
   <img src="imgs/lenna.png" alt="edige detection plot" height="264">
@@ -45,15 +48,49 @@ and here is some examples for image processing and applying filtering and manipu
 </p>
 
 
-## Why Pilang
+## The Pilang Feel
 
-- **Readable scripts with sharp edges where they help**: `let`, `const`, `fun`, `class`, ranges, slices, `#` length, `in`, ternaries, spread syntax, destructuring, and comprehensions.
-- **Collections are first-class**: lists, maps, tuples, and sets have literal syntax and work naturally with loops, membership checks, copying, slicing, and collection helpers.
-- **Functions are flexible**: named functions, anonymous functions, arrow functions, closures, recursion, defaults, named arguments, and higher-order helpers are all part of the language.
-- **Objects are dynamic but structured**: classes, constructors, inheritance, methods, callable objects, bracket access, static behavior, and operator/magic methods let you choose between plain maps and richer objects.
-- **Numerical work is built in**: tensor constructors, indexing, _transforms, reductions, broadcasting-style helpers, statistics, and linear algebra functions live in the standard modules.
-- **Made to travel**: the same language can run as a native executable or as a WebAssembly/browser build.
-- **Small enough to study**: the compiler, VM, object model, module system, and garbage collector live in C source files that are approachable for language/runtime hacking.
+### A pipeline, not plumbing
+
+Turn a collection into an answer as a readable sequence of operations. `=>`
+passes the expression on its left into the next call; arrow functions and list
+comprehensions make transformations compact without hiding the work.
+
+```swift
+let total = [n : n in 0..20] =>
+    filter(n -> n % 2 == 0) =>
+    map(n -> n ** 2) =>
+    reduce((sum, n) -> sum + n, 0)
+
+let highlighted = [n * n : n in 0..20 : n % 3 == 0]
+```
+
+### Collections with a visual vocabulary
+
+Negative indexes, reverse slices, ranges, `#` length, destructuring, and spread
+syntax are built into everyday expressions—not bolted on as library calls.
+
+```swift
+let trail = [2, 3, 5, 7, 11]
+[first, second] = trail // first = 2, second = 3
+let reversed = trail[::-1]
+let extended = [0, ...trail, 13]
+
+println(#extended) // 7
+println(3 in trail) // true
+```
+
+### Math that reaches the screen
+
+Tensors, statistics, drawing, plots, 3D visualization, and image operations
+are available as native modules. Move from a matrix to a chart or surface plot
+without first building an ecosystem around your script.
+
+### Let domain objects speak the language
+
+Objects can define `format`, `call`, indexing behavior, and `compute` hooks for
+operators. A vector, unit, color, or symbolic value can participate in normal
+Pilang expressions instead of living behind verbose method calls.
 
 ## Quick Taste
 
@@ -247,6 +284,23 @@ You can also use the shorthand form:
 ```powershell
 pilang test.pi
 ```
+
+### Build a `.px` project
+
+Turn an entry script and its imported Pilang modules into a portable compiled
+project file:
+
+```powershell
+pilang build app.pi
+pilang app.px
+```
+
+This creates `app.px` beside `app.pi`. A `.px` contains Pilang bytecode and is
+run by the Pilang runtime; it is not a standalone Windows `.exe`. When an
+adjacent `.px` is valid, normal source execution uses it automatically and
+rebuilds it when a source module changes. See the
+[PX project format](docs/12.%20Advanced%20Topics/12.6-px-file-format.md) for
+details.
 
 Show available commands:
 

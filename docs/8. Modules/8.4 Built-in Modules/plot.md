@@ -4,7 +4,11 @@ The `plot` module is Pilang's SDL-backed 2D plotting layer. It works with a
 `draw` canvas and stores plot state in chart objects, so several charts can share
 one window through subplots.
 
-![Pilang subplot example](subplot.png)
+<!-- ![Pilang subplot example](subplot.png) -->
+
+<p align="center">  
+    <img src="subplot.png" alt="Pilang logo" width="400">  
+</p>
 
 ```swift
 import draw
@@ -138,7 +142,11 @@ plot.heatmap(chart, z)
 Draws contour lines over a 2D tensor. `levels` controls how many value bands are
 sampled.
 
-![Pilang contour plot](contour.png)
+<!-- ![Pilang contour plot](contour.png) -->
+
+<p align="center">  
+    <img src="contour.png" alt="Pilang logo" width="300">  
+</p>
 
 ```swift
 plot.contour(chart, z, 12, 0x222222)
