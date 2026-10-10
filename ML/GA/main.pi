@@ -18,10 +18,7 @@
  *
  */
 class Individual {
-	/**
-	 * Initializes individual with specific chromosome/chromosome length
-	 * 
-	 */
+
 	constructor(chromosome, chromosomeLength) {
 		 this.fitness = -1
 
@@ -34,64 +31,33 @@ class Individual {
         }
 	}
 
-	/**
-	 * Gets individual's chromosome
-	 * 	 
-	 */
 	get_chromesome() {
 		return this.chromosome
 	}
 
-	/**
-	 * Gets individual's chromosome length
-	 * 	 
-	 */
 	get_chromosomeLength() {
 		return #this.chromosome
 	}
 
-	/**
-	 * Set gene at offset
-	 * 
-	 */
 	set_gene(offset, gene) {
 		this.chromosome[offset] = gene
 	}
 
-	/**
-	 * Get gene at offset
-	 * 
-	 * @param offset
-	 * @return gene
-	 */
+
 	get_gene(offset) {
 		return this.chromosome[offset]
 	}
 
-	/**
-	 * Store individual's fitness
-	 * 
-	 * @param fitness
-	 *            The individuals fitness
-	 */
 	setFitness(fitness) {
 		this.fitness = fitness
 	}
 
-	/**
-	 * Gets individual's fitness
-	 * 
-	 * @return The individual's fitness
-	 */
+
 	getFitness() {
 		return this.fitness
 	}
 	
-	
-	/**
-	 * Display the chromosome as a string.
-	 * 	 
-	 */
+
 	format() {
 		return this.chromosome
 	}

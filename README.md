@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://pi-lang.netlify.app/">
-    <img src="imgs/pi.gif" alt="Pilang logo" width="220">
+    <img src="imgs/pi.png" alt="Pilang logo" width="180">
   </a>
 </p>
 
@@ -31,20 +31,20 @@ with `...`, and send a value through a pipeline with `=>`. The result is a
 language that reads naturally while staying playful and direct for numerical
 work, simulations, and visual experiments.
 
-Here are two examples of what Pilang can put on screen:
+## Math Plotting
+
+Create mathematical plots and visualize data directly.
 
 <p align="center">
-  <img src="imgs/loss.png" alt="Pilang training loss plot" height="264">
-  &nbsp;&nbsp;
-  <img src="imgs/mesh.png" alt="Pilang 3D mesh plot" height="264">
+  <img src="imgs/math_plot.png" alt="Pilang mathematical plot" height="264">
 </p>
 
-It also includes image processing tools for filters and chroma manipulation:
+## Image Processing
+
+Apply image-processing operations such as edge detection and grayscale conversion.
 
 <p align="center">
-  <img src="imgs/lenna.png" alt="edige detection plot" height="264">
-  &nbsp;&nbsp;
-  <img src="imgs/baboon.png" alt="grayscale plot" height="264">
+  <img src="imgs/img_process.png" alt="Pilang image processing" height="264">
 </p>
 
 
