@@ -43,6 +43,9 @@ those SDL_image backends.
 let img = image.load("imgs/lenna.png")
 ```
 
+Relative paths are resolved from the directory containing the executing `.pi`
+file. Absolute paths are used unchanged.
+
 ### `image.save(img, path)`
 
 Saves an image to disk. The current implementation saves through SDL's BMP path,

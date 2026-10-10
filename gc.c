@@ -449,6 +449,11 @@ static void mark_references(Object *obj)
     case OBJ_CONTEXT:
     {
         PiContext *ctx = (PiContext *)obj;
+        mark_value(ctx->frame_callback);
+        for (int i = 0; i < EVENT_COUNT; i++)
+            for (int j = 0; j < ctx->handlers[i].count; j++)
+                if (ctx->handlers[i].fns[j])
+                    mark_value(*ctx->handlers[i].fns[j]);
         if (ctx->active_plot3d)
             mark_object((Object *)ctx->active_plot3d);
         break;

@@ -36,7 +36,9 @@ work, simulations, and visual experiments.
 Create mathematical plots and visualize data directly.
 
 <p align="center">
-  <img src="imgs/math_plot.png" alt="Pilang mathematical plot" height="264">
+    <a href="./samples/surface.pi">
+        <img src="imgs/math_plot.png" alt="Pilang mathematical plot" height="400">
+    </a>
 </p>
 
 ## Image Processing
@@ -44,7 +46,9 @@ Create mathematical plots and visualize data directly.
 Apply image-processing operations such as edge detection and grayscale conversion.
 
 <p align="center">
-  <img src="imgs/img_process.png" alt="Pilang image processing" height="264">
+ <a href="./samples/imshow.pi">
+    <img src="imgs/img_process.png" alt="Pilang image processing" height="400">
+  </a>
 </p>
 
 
@@ -391,13 +395,17 @@ The language website and playground are available at:
 
 Use it to read docs, browse examples, and try Pilang in the browser.
 
-## License
-
-This project is licensed under the terms in [LICENSE](LICENSE).
-
 
 <p align="center">
     <a href="./samples/model3d.pi">
     <img src="imgs/model3d.gif" alt="linux 3d model" height="150">
     </a>
 </p>
+
+
+
+## License
+
+This project is licensed under the terms in [LICENSE](LICENSE).
+
+
