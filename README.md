@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://pi-lang.netlify.app/">
-    <img src="imgs/pi.png" alt="Pilang logo" width="180">
+    <img src="imgs/pi.png" alt="Pilang logo" width="150">
   </a>
 </p>
 
@@ -49,6 +49,7 @@ Apply image-processing operations such as edge detection and grayscale conversio
 
 
 ## The Pilang Feel
+
 
 ### A pipeline, not plumbing
 
@@ -393,3 +394,10 @@ Use it to read docs, browse examples, and try Pilang in the browser.
 ## License
 
 This project is licensed under the terms in [LICENSE](LICENSE).
+
+
+<p align="center">
+    <a href="./samples/model3d.pi">
+    <img src="imgs/model3d.gif" alt="linux 3d model" height="150">
+    </a>
+</p>
