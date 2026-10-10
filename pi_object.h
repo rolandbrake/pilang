@@ -156,6 +156,10 @@ struct Object
 
     GCColor gc_color;
 
+    // Estimated bytes owned by this object and its backing storage. Updated
+    // whenever the collector measures the live heap.
+    size_t gc_bytes;
+
     struct Object *next;
 };
 

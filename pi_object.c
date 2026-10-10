@@ -41,6 +41,7 @@ Object *alloc_object(size_t size, o_type type)
     obj->is_marked = false;
     obj->in_gcList = false;
     obj->gc_color = GC_WHITE;
+    obj->gc_bytes = 0;
     obj->next = NULL;
     return obj;
 }

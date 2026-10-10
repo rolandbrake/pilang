@@ -23,8 +23,10 @@ typedef int interrupt_flag_t;
 
 #define RUN_STEPS 1024 // max number of instructions to run
 
-// Initial GC threshold (number of newly allocated VM objects).
-#define NEXT_GC (1024 * 1024 * 2)
+
+#define GC_INITIAL_BYTES (16 * 1024 * 1024)
+#define GC_MIN_ALLOCATION_BYTES (16 * 1024 * 1024)
+#define GC_MAX_ALLOCATION_BYTES (64 * 1024 * 1024)
 
 // Macros for computed-goto opcode dispatch.
 // Requires GCC/Clang labels-as-values support.
@@ -87,10 +89,6 @@ typedef int interrupt_flag_t;
 
 #define BEGIN_VM_LOOP() VM_DISPATCH_SLOW()
 #define END_INSTR() goto L_VM_AFTER_INSTR
-
-#define GC_MIN_THRESHOLD (1024 * 64)
-#define GC_MAX_THRESHOLD (1024 * 1024)
-#define GC_RECLAIM_THRESHOLD (4096 * 4)
 
 #define BROWSER_YIELD_STEPS 50000
 #define INTERRUPT_CHECK_STEPS 4096
@@ -156,14 +154,13 @@ typedef struct vm_t
     Object *function;
     Value _kw_args; // Keyword arguments visible to the currently running native function.
 
-    int counter;       // Allocation debt since the previous collection.
-    int gc_count;      // the Reclaim debt is the number of Object references overwritten since the previous collection.
+    size_t gc_bytes;      // Estimated bytes currently owned by tracked objects.
+    size_t next_gc_bytes; // Heap size at which the next collection is requested.
     bool gc_requested; // A safe-point collection is pending.
 
     table_t *instrs;        // PiList of instruction metadata
     instr_t *current_instr; // Source metadata for the opcode currently executing.
 
-    int next_gc; // Next garbage collection threshold
     list_t *gc_stack;
 
     int obj_count;

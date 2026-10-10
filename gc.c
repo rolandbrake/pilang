@@ -91,6 +91,128 @@ void *reallocate(void *ptr, size_t o_size, size_t n_size)
     return result;
 }
 
+static size_t gc_listBytes(const list_t *list)
+{
+    return list ? sizeof(*list) + (size_t)list->capacity * (size_t)list->i_size : 0;
+}
+
+static size_t gc_tableBytes(const table_t *table)
+{
+    if (!table)
+        return 0;
+
+    return sizeof(*table) +
+           (size_t)table->capacity * table->item_stride +
+           (size_t)table->keys_cap +
+           (size_t)table->order_cap * sizeof(uint32_t);
+}
+
+static size_t gc_tensorElementSize(TN_TYPE type)
+{
+    switch (type)
+    {
+    case TN_FLOAT32: return sizeof(float);
+    case TN_FLOAT64: return sizeof(double);
+    case TN_INT32: return sizeof(int32_t);
+    case TN_INT64: return sizeof(int64_t);
+    }
+    return sizeof(double);
+}
+
+size_t gc_objectBytes(Object *obj)
+{
+    if (!obj)
+        return 0;
+
+    switch (obj->type)
+    {
+    case OBJ_STRING:
+    {
+        PiString *string = (PiString *)obj;
+        return sizeof(*string) + string->length + 1;
+    }
+    case OBJ_LIST:
+    {
+        PiList *list = (PiList *)obj;
+        return sizeof(*list) + gc_listBytes(list->items);
+    }
+    case OBJ_TUPLE:
+    {
+        PiTuple *tuple = (PiTuple *)obj;
+        return sizeof(*tuple) + gc_listBytes(tuple->items);
+    }
+    case OBJ_TENSOR:
+    {
+        PiTensor *tensor = (PiTensor *)obj;
+        return sizeof(*tensor) +
+               (size_t)tensor->ndim * sizeof(int) * 2 +
+               (size_t)tensor->size * gc_tensorElementSize(tensor->type);
+    }
+    case OBJ_MAP:
+    {
+        PiMap *map = (PiMap *)obj;
+        return sizeof(*map) + gc_tableBytes(map->table);
+    }
+    case OBJ_CLASS:
+    {
+        PiClass *klass = (PiClass *)obj;
+        return sizeof(*klass) +
+               (klass->name ? strlen(klass->name) + 1 : 0) +
+               gc_tableBytes(klass->members) + gc_tableBytes(klass->field_names);
+    }
+    case OBJ_INSTANCE:
+    {
+        PiInstance *instance = (PiInstance *)obj;
+        return sizeof(*instance) + gc_tableBytes(instance->fields) +
+               (instance->_class ? (size_t)instance->_class->slot_count * sizeof(Value) : 0);
+    }
+    case OBJ_FUN:
+    {
+        Function *function = (Function *)obj;
+        return sizeof(*function) +
+               (function->name ? strlen(function->name) + 1 : 0) +
+               gc_listBytes(function->params) +
+               (size_t)function->upvalue_count * sizeof(UpValue *);
+    }
+    case OBJ_CODE:
+    {
+        ObjCode *code = (ObjCode *)obj;
+        return sizeof(*code) + gc_listBytes(code->data) + gc_listBytes(code->param_names) +
+               (size_t)code->member_cache_count * sizeof(MemberCache);
+    }
+    case OBJ_MODULE:
+    {
+        ObjModule *module = (ObjModule *)obj;
+        return sizeof(*module) +
+               (module->name ? strlen(module->name) + 1 : 0) +
+               (module->path ? strlen(module->path) + 1 : 0) +
+               gc_listBytes(module->code) + gc_listBytes(module->constants) + gc_listBytes(module->names) +
+               gc_tableBytes(module->instrs) + gc_tableBytes(module->globals);
+    }
+    case OBJ_RANGE: return sizeof(PiRange);
+    case OBJ_SLICE: return sizeof(PiSlice);
+    case OBJ_SET: return sizeof(PiSet);
+    case OBJ_FILE: return sizeof(ObjFile);
+    case OBJ_SOCKET: return sizeof(PiSocket);
+    case OBJ_CONTEXT: return sizeof(PiContext);
+    case OBJ_CHART: return sizeof(PiChart);
+    case OBJ_CHART3D: return sizeof(PiChart3D);
+    case OBJ_EVENT: return sizeof(PiEvent);
+    default: return sizeof(Object);
+    }
+}
+
+size_t gc_recountBytes(vm_t *vm)
+{
+    size_t total = 0;
+    for (Object *obj = vm->objects; obj; obj = obj->next)
+    {
+        obj->gc_bytes = gc_objectBytes(obj);
+        total += obj->gc_bytes;
+    }
+    return total;
+}
+
 void mark_globals(vm_t *vm)
 {
     ht_iter it = ht_iterator(vm->globals);

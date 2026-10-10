@@ -20,5 +20,7 @@ void free_value(Value *val);
 
 void run_gc(vm_t *vm);
 void gc_trimHeap(void);
+size_t gc_objectBytes(Object *obj);
+size_t gc_recountBytes(vm_t *vm);
 
 #endif // GC_H

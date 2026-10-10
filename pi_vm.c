@@ -403,8 +403,8 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
 
     mark_constants(vm);
 
-    vm->counter = 0;
-    vm->gc_count = 0;
+    vm->gc_bytes = 0;
+    vm->next_gc_bytes = GC_INITIAL_BYTES;
     vm->gc_requested = false;
 
     vm->openUpvalues = NULL;
@@ -412,7 +412,6 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     vm->function = NULL;
     vm->_kw_args = NEW_NIL();
 
-    vm->next_gc = NEXT_GC;
     vm->obj_count = 0;
 
     vm->gc_stack = NULL;
@@ -481,10 +480,9 @@ void vm_reset(vm_t *vm, compiler_t *comp)
 
     vm->running = true;
 
-    vm->counter = 0;
-    vm->gc_count = 0;
+    vm->gc_bytes = gc_recountBytes(vm);
+    vm->next_gc_bytes = vm->gc_bytes + GC_INITIAL_BYTES;
     vm->gc_requested = false;
-    vm->next_gc = NEXT_GC;
 
     vm->openUpvalues = NULL;
     vm->function = NULL;
@@ -505,71 +503,34 @@ inline Object *add_obj(vm_t *vm, Object *obj)
     vm->objects = obj;
     vm->obj_count++;
 
-    int gc_cost = 1;
-    switch (obj->type)
-    {
-    case OBJ_MAP:
-        gc_cost = 8;
-        break;
-    case OBJ_FUN:
-        gc_cost = 4;
-        break;
-    case OBJ_LIST:
-    case OBJ_TUPLE:
-    case OBJ_SET:
-        gc_cost = 2;
-        break;
-    case OBJ_TENSOR:
-    {
-        PiTensor *tensor = (PiTensor *)obj;
-        size_t data_bytes = (size_t)tensor->size * sizeof(double);
-        gc_cost += (int)(data_bytes / (32 * 1024));
-        break;
-    }
-    default:
-        break;
-    }
-    vm->counter += gc_cost;
-    if (vm->counter >= vm->next_gc)
+    obj->gc_bytes = gc_objectBytes(obj);
+    vm->gc_bytes += obj->gc_bytes;
+    if (vm->gc_bytes >= vm->next_gc_bytes)
         vm->gc_requested = true;
 
     return obj;
 }
 
-static inline void gc_trackReferenceDrop(vm_t *vm, Value old_value, Value new_value)
-{
-    if (IS_OBJ(old_value) && (!IS_OBJ(new_value) || AS_OBJ(old_value) != AS_OBJ(new_value)))
-    {
-        vm->gc_count++;
-        if (vm->gc_count >= GC_RECLAIM_THRESHOLD)
-            vm->gc_requested = true;
-    }
-}
-
 static void gc_collect(vm_t *vm)
 {
-    int before = vm->obj_count;
+    size_t before = vm->gc_bytes;
     run_gc(vm);
-    int after = vm->obj_count;
-    int collected = before - after;
+    size_t after = gc_recountBytes(vm);
+    size_t collected = before > after ? before - after : 0;
+    size_t allocation_budget = after / 2;
 
-    vm->counter = 0;
-    vm->gc_count = 0;
+    if (allocation_budget < GC_MIN_ALLOCATION_BYTES)
+        allocation_budget = GC_MIN_ALLOCATION_BYTES;
+    else if (allocation_budget > GC_MAX_ALLOCATION_BYTES)
+        allocation_budget = GC_MAX_ALLOCATION_BYTES;
+
+    vm->gc_bytes = after;
+    vm->next_gc_bytes = after + allocation_budget;
     vm->gc_requested = false;
 
-    if (collected <= 0)
-        vm->next_gc += vm->next_gc / 4;
-    else
-        vm->next_gc = after + (after / 2);
-
-    if (vm->next_gc < GC_MIN_THRESHOLD)
-        vm->next_gc = GC_MIN_THRESHOLD;
-    else if (vm->next_gc > GC_MAX_THRESHOLD)
-        vm->next_gc = GC_MAX_THRESHOLD;
-
 #ifdef DEBUG
-    printf("[GC] Before: %d, After: %d, Collected: %d, Next threshold: %d\n",
-           before, after, collected, vm->next_gc);
+    printf("[GC] Before: %zu bytes, After: %zu bytes, Collected: %zu bytes, Next threshold: %zu bytes\n",
+           before, after, collected, vm->next_gc_bytes);
 #endif
 }
 
