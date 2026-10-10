@@ -3791,7 +3791,8 @@ OP_GET_MEMBER:
              OBJ_TYPE(container) == OBJ_STRING))
         {
             PiSlice *s = AS_SLICE(index);
-            vm->stack[vm->sp - 1] = get_slice(AS_OBJ(container), s->start, s->stop, s->step);
+            Value slice = get_slice(AS_OBJ(container), s->start, s->stop, s->step);
+            vm->stack[vm->sp - 1] = NEW_OBJ(add_obj(vm, AS_OBJ(slice)));
             VM_DISPATCH_SAFE();
         }
 
