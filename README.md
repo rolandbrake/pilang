@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://pi-lang.netlify.app/">
-    <img src="imgs/_pi.png" alt="Pilang logo" width="150">
+    <img src="imgs/pi.png" alt="Pilang logo" width="150">
   </a>
 </p>
 
@@ -417,8 +417,8 @@ The language website and playground are available at:
 Use it to read docs, browse examples, and try Pilang in the browser.
 
 <p align="center">
-    <a href="./samples/graphics/model3d.pi">
-        <img src="imgs/model3d.gif" alt="Pilang rotating 3D wireframe model" width="220" height="220">
+    <a href="./samples/graphics/monkey_3d.pi">
+        <img src="imgs/monkey.gif" alt="Pilang rotating OBJ monkey model" width="220" height="220">
     </a>
 </p>
 
