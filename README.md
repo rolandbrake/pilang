@@ -58,19 +58,19 @@ tunnels, loaded OBJ models, procedural terrain, and wireframe models.
 
 <p align="center">
   <a href="./samples/graphics/monkey_3d.pi">
-    <img src="imgs/monkey.gif" alt="Pilang rotating OBJ monkey model" width="280" height="280">
+    <img src="imgs/monkey.gif" alt="Pilang rotating OBJ monkey model" width="220" height="220">
   </a>
   <a href="./samples/graphics/tunnel_3d.pi">
-    <img src="imgs/tunnel.gif" alt="Pilang animated 3D tunnel" width="280" height="280">
+    <img src="imgs/tunnel.gif" alt="Pilang animated 3D tunnel" width="220" height="220">
   </a>
 </p>
 
 <p align="center">
   <a href="./samples/graphics/terrain_3d.pi">
-    <img src="imgs/terrain.gif" alt="Pilang interactive 3D terrain" width="280" height="280">
+    <img src="imgs/terrain.gif" alt="Pilang interactive 3D terrain" width="220" height="220">
   </a>
   <a href="./samples/model3d.pi">
-    <img src="imgs/model3d.gif" alt="Pilang rotating 3D wireframe model" width="280" height="280">
+    <img src="imgs/model3d.gif" alt="Pilang rotating 3D wireframe model" width="220" height="220">
   </a>
 </p>
 
