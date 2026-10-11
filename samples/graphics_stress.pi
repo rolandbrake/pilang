@@ -1,0 +1,87 @@
+// CPU wireframe stress test for the current SDL draw API.
+// Up/Down changes the number of rotating cubes. Escape or the window close button exits.
+
+import draw
+import math.{sin, cos}
+import time.{clock}
+
+WIDTH = 1000
+HEIGHT = 700
+COLUMNS = 20
+
+ctx = draw.canvas(WIDTH, HEIGHT, "PiLang graphics stress test")
+cube_count = 100
+angle = 0
+fps = 0
+frame_count = 0
+fps_started = clock()
+next_input = 0
+
+fun project(x, y, z, c, s) {
+    let rx = x * c - z * s
+    let rz = x * s + z * c + 14
+    return {x: WIDTH / 2 + rx / rz * 520, y: HEIGHT / 2 - y / rz * 520}
+}
+
+fun line(canvas, a, b) {
+    draw.line(canvas, a.x, a.y, b.x, b.y, draw.COLOR_CYAN)
+}
+
+fun cube(canvas, x, y, z, c, s) {
+    let p0 = project(x - .45, y - .45, z - .45, c, s)
+    let p1 = project(x + .45, y - .45, z - .45, c, s)
+    let p2 = project(x + .45, y + .45, z - .45, c, s)
+    let p3 = project(x - .45, y + .45, z - .45, c, s)
+    let p4 = project(x - .45, y - .45, z + .45, c, s)
+    let p5 = project(x + .45, y - .45, z + .45, c, s)
+    let p6 = project(x + .45, y + .45, z + .45, c, s)
+    let p7 = project(x - .45, y + .45, z + .45, c, s)
+
+    line(canvas, p0, p1); line(canvas, p1, p2); line(canvas, p2, p3); line(canvas, p3, p0)
+    line(canvas, p4, p5); line(canvas, p5, p6); line(canvas, p6, p7); line(canvas, p7, p4)
+    line(canvas, p0, p4); line(canvas, p1, p5); line(canvas, p2, p6); line(canvas, p3, p7)
+}
+
+fun render(canvas) {
+    let now = clock()
+    if now >= next_input {
+        if draw.key(canvas, draw.KEY_UP) {
+            cube_count += 25
+            next_input = now + .15
+        }
+        if draw.key(canvas, draw.KEY_DOWN) {
+            cube_count -= 25
+            if cube_count < 25 cube_count = 25
+            next_input = now + .15
+        }
+    }
+
+    draw.clear(canvas, draw.COLOR_BLACK)
+    angle += .015
+    let c = cos(angle)
+    let s = sin(angle)
+
+    for i in 0..cube_count {
+        let column = i % COLUMNS
+        let row = (i - column) / COLUMNS
+        let x = (column - (COLUMNS - 1) / 2) * 1.25
+        let y = (row - 3) * 1.25
+        let z = sin(i * .8 + angle * 2) * 2
+        cube(canvas, x, y, z, c, s)
+    }
+
+    frame_count += 1
+    let elapsed = now - fps_started
+    if elapsed >= 1 {
+        fps = frame_count / elapsed
+        frame_count = 0
+        fps_started = now
+    }
+
+    draw.text(canvas, 16, 16, "CPU wireframe stress test", {color: draw.COLOR_WHITE, size: 20, bold: true})
+    draw.text(canvas, 16, 44, "Cubes: " + cube_count + "  Lines/frame: " + cube_count * 12, {color: draw.COLOR_LIGHT_GRAY, size: 16})
+    draw.text(canvas, 16, 68, "FPS: " + fps + "  Up/Down: change load  Escape: close", {color: draw.COLOR_LIGHT_GRAY, size: 16})
+}
+
+draw.on_frame(ctx, render)
+draw.run(ctx)

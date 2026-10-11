@@ -1,0 +1,233 @@
+import draw
+import math.{sin, cos, sqrt, floor}
+import time.{clock}
+
+WIDTH = 600
+HEIGHT = 600
+BALL_COUNT = 18
+BOX = 4
+RADIUS = .32
+GRAVITY = 7
+SCALE = 650
+PHYSICS_STEP = 1 / 120
+
+ctx = draw.canvas(WIDTH, HEIGHT, "PiLang bouncing particles")
+
+colors = [
+    draw.COLOR_RED,
+    draw.COLOR_GREEN,
+    draw.COLOR_BLUE,
+    draw.COLOR_YELLOW,
+    draw.COLOR_MAGENTA,
+    draw.COLOR_CYAN,
+    draw.COLOR_ORANGE,
+    draw.COLOR_PURPLE,
+    draw.COLOR_PINK,
+    draw.COLOR_LIME,
+    draw.COLOR_TEAL,
+    draw.COLOR_INDIGO
+]
+
+balls = []
+let i = 0
+
+while i < BALL_COUNT {
+    balls.append({
+        x: sin(i * 2.4) * 3,
+        y: 1 + (sin(i * 1.7) + 1) * 2.5,
+        z: cos(i * 2.1) * 3,
+        vx: cos(i * 1.3) * 2,
+        vy: sin(i * .9) * 2,
+        vz: sin(i * 1.8) * 2,
+        color: colors[i % 12]
+    })
+    i += 1
+}
+
+last_frame = clock()
+fps_started = last_frame
+frame_count = 0
+fps = 0
+accumulator = 0
+
+// Fixed diagonal view, looking down approximately 65 degrees.
+camera_angle = .20
+camera_c = cos(camera_angle)
+camera_s = sin(camera_angle)
+
+fun project(x, y, z) {
+    let rx = x * camera_c - z * camera_s
+    let rz = x * camera_s + z * camera_c
+
+    let ry = (y - 2) * .423 - rz * .906
+    let depth = (y - 2) * .906 + rz * .423 + 15
+
+    return {
+        x: WIDTH / 2 + rx / depth * SCALE,
+        y: HEIGHT / 2 - ry / depth * SCALE,
+        z: depth
+    }
+}
+
+fun world_line(canvas, x1, y1, z1, x2, y2, z2) {
+    let a = project(x1, y1, z1)
+    let b = project(x2, y2, z2)
+
+    draw.line(
+        canvas, a.x, a.y, b.x, b.y,
+        draw.COLOR_DARK_GRAY
+    )
+}
+
+// Flat filled circle, without lighting or highlights.
+fun disk(canvas, x, y, radius, color) {
+    if radius < 1 return
+
+    let first = floor(y - radius)
+    let last = floor(y + radius)
+
+    if first < 0 first = 0
+    if last >= HEIGHT last = HEIGHT - 1
+
+    let row = first
+
+    while row <= last {
+        let dy = row + .5 - y
+        let width_squared = radius * radius - dy * dy
+
+        if width_squared > 0 {
+            let half_width = sqrt(width_squared)
+
+            draw.line(
+                canvas,
+                x - half_width, row,
+                x + half_width, row,
+                color
+            )
+        }
+
+        row += 1
+    }
+}
+
+fun simulate(dt) {
+    for ball in balls {
+        ball.vy -= GRAVITY * dt
+
+        ball.x += ball.vx * dt
+        ball.y += ball.vy * dt
+        ball.z += ball.vz * dt
+
+        if ball.x < -BOX + RADIUS {
+            ball.x = -BOX + RADIUS
+            ball.vx = -ball.vx
+        }
+        if ball.x > BOX - RADIUS {
+            ball.x = BOX - RADIUS
+            ball.vx = -ball.vx
+        }
+
+        if ball.z < -BOX + RADIUS {
+            ball.z = -BOX + RADIUS
+            ball.vz = -ball.vz
+        }
+        if ball.z > BOX - RADIUS {
+            ball.z = BOX - RADIUS
+            ball.vz = -ball.vz
+        }
+
+        if ball.y < RADIUS {
+            ball.y = RADIUS
+            ball.vy = -ball.vy
+        }
+        if ball.y > 6 - RADIUS {
+            ball.y = 6 - RADIUS
+            ball.vy = -ball.vy
+        }
+    }
+}
+
+fun render(canvas) {
+    let now = clock()
+    let dt = now - last_frame
+    last_frame = now
+
+    if dt > .1 dt = .1
+    if dt < 0 dt = 0
+
+    accumulator += dt
+
+    while accumulator >= PHYSICS_STEP {
+        simulate(PHYSICS_STEP)
+        accumulator -= PHYSICS_STEP
+    }
+
+    draw.clear(canvas, 0x111111)
+
+    // Wireframe ground.
+    let grid = -BOX
+
+    while grid <= BOX {
+        world_line(canvas, grid, 0, -BOX, grid, 0, BOX)
+        world_line(canvas, -BOX, 0, grid, BOX, 0, grid)
+        grid += 1
+    }
+
+    let projected = []
+
+    for ball in balls {
+        let p = project(ball.x, ball.y, ball.z)
+
+        projected.append({
+            x: p.x,
+            y: p.y,
+            z: p.z,
+            radius: RADIUS / p.z * SCALE,
+            color: ball.color
+        })
+    }
+
+    // Draw distant particles first.
+    let i = 0
+
+    while i < BALL_COUNT {
+        let farthest = i
+        let j = i + 1
+
+        while j < BALL_COUNT {
+            if projected[j].z > projected[farthest].z {
+                farthest = j
+            }
+            j += 1
+        }
+
+        if farthest != i {
+            let temporary = projected[i]
+            projected[i] = projected[farthest]
+            projected[farthest] = temporary
+        }
+
+        i += 1
+    }
+
+    for p in projected {
+        disk(canvas, p.x, p.y, p.radius, p.color)
+    }
+
+    frame_count += 1
+    let elapsed = now - fps_started
+
+    if elapsed >= 1 {
+        fps = floor(frame_count / elapsed)
+        frame_count = 0
+        fps_started = now
+    }
+
+    draw.text(canvas, 16, 16, "FPS: " + fps, {
+        color: draw.COLOR_LIGHT_GRAY,
+        size: 15
+    })
+}
+
+draw.on_frame(ctx, render)
+draw.run(ctx)

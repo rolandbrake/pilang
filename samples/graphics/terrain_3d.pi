@@ -1,0 +1,235 @@
+import draw
+import math.{sin, cos, floor}
+import time.{clock}
+
+WIDTH = 600
+HEIGHT = 600
+GRID = 32
+STEP = 1.0
+MOVE_SPEED = 5
+TURN_SPEED = 1.6
+CAMERA_HEIGHT = 8
+NEAR = .5
+
+ctx = draw.canvas(WIDTH, HEIGHT, "PiLang terrain")
+
+camera_x = 0
+camera_z = 0
+camera_angle = 0
+
+terrain = []
+cached_x = nil
+cached_z = nil
+
+fps = 0
+frame_count = 0
+fps_started = clock()
+last_frame = fps_started
+
+fun hash(x, z) {
+    let n = sin(x * 127.1 + z * 311.7) * 43758.5453
+    return (n - floor(n)) * 2 - 1
+}
+
+fun lerp(a, b, t) {
+    return a + (b - a) * t
+}
+
+fun noise(x, z) {
+    let ix = floor(x)
+    let iz = floor(z)
+    let fx = x - ix
+    let fz = z - iz
+
+    let u = fx * fx * (3 - 2 * fx)
+    let v = fz * fz * (3 - 2 * fz)
+
+    return lerp(
+        lerp(hash(ix, iz), hash(ix + 1, iz), u),
+        lerp(hash(ix, iz + 1), hash(ix + 1, iz + 1), u),
+        v
+    )
+}
+
+fun height(x, z) {
+    return noise(x * .09, z * .09) * 4
+         + noise(x * .22, z * .22) * 2
+         + noise(x * .55, z * .55)
+         + noise(x * 1.2, z * 1.2) * .5
+         + noise(x * 2.5, z * 2.5) * .25
+}
+
+fun rebuild_terrain(cell_x, cell_z) {
+    terrain = []
+
+    for z in 0..GRID {
+        let row = []
+        let wz = (cell_z - GRID / 2 + z) * STEP
+
+        for x in 0..GRID {
+            let wx = (cell_x - GRID / 2 + x) * STEP
+            row.append(height(wx, wz))
+        }
+
+        terrain.append(row)
+    }
+
+    cached_x = cell_x
+    cached_z = cell_z
+}
+
+fun camera_point(x, y, z, camera_y, c, s) {
+    let dx = x - camera_x
+    let dz = z - camera_z
+    let depth = dx * s + dz * c
+
+    // Tilt the view downward slightly.
+    let horizontal = dx * c - dz * s
+    let vertical = y - camera_y
+
+    return {
+        x: horizontal,
+        y: vertical * .94 + depth * .342,
+        z: depth * .94 - vertical * .342
+    }
+}
+
+fun project(p) {
+    return {
+        x: WIDTH / 2 + p.x / p.z * 520,
+        y: HEIGHT / 2 - p.y / p.z * 520
+    }
+}
+
+fun segment(canvas, a, b) {
+    if a.z < NEAR {
+        if b.z < NEAR return
+
+        let t = (NEAR - a.z) / (b.z - a.z)
+        a = {
+            x: lerp(a.x, b.x, t),
+            y: lerp(a.y, b.y, t),
+            z: NEAR
+        }
+    }
+
+    if b.z < NEAR {
+        let t = (NEAR - b.z) / (a.z - b.z)
+        b = {
+            x: lerp(b.x, a.x, t),
+            y: lerp(b.y, a.y, t),
+            z: NEAR
+        }
+    }
+
+    let p = project(a)
+    let q = project(b)
+
+    // Skip segments entirely outside one side of the screen.
+    if p.x < 0 {
+        if q.x < 0 return
+    }
+    if p.x > WIDTH {
+        if q.x > WIDTH return
+    }
+    if p.y < 0 {
+        if q.y < 0 return
+    }
+    if p.y > HEIGHT {
+        if q.y > HEIGHT return
+    }
+
+    draw.line(canvas, p.x, p.y, q.x, q.y, draw.COLOR_LIME)
+}
+
+fun render(canvas) {
+    let now = clock()
+    let dt = now - last_frame
+    last_frame = now
+
+    if dt > .1 dt = .1
+    if dt < 0 dt = 0
+
+    if draw.key(canvas, draw.KEY_LEFT) {
+        camera_angle -= TURN_SPEED * dt
+    }
+    if draw.key(canvas, draw.KEY_RIGHT) {
+        camera_angle += TURN_SPEED * dt
+    }
+
+    let c = cos(camera_angle)
+    let s = sin(camera_angle)
+    let movement = 0
+
+    if draw.key(canvas, draw.KEY_UP) {
+        movement += MOVE_SPEED * dt
+    }
+    if draw.key(canvas, draw.KEY_DOWN) {
+        movement -= MOVE_SPEED * dt
+    }
+
+    camera_x += s * movement
+    camera_z += c * movement
+
+    let camera_y = height(camera_x, camera_z) + CAMERA_HEIGHT
+    let cell_x = floor(camera_x / STEP)
+    let cell_z = floor(camera_z / STEP)
+
+    if cell_x != cached_x {
+        rebuild_terrain(cell_x, cell_z)
+    } else {
+        if cell_z != cached_z {
+            rebuild_terrain(cell_x, cell_z)
+        }
+    }
+
+    draw.clear(canvas, 0x06120E)
+
+    let start_x = (cell_x - GRID / 2) * STEP
+    let start_z = (cell_z - GRID / 2) * STEP
+    let previous_row = []
+
+    for z in 0..GRID {
+        let current_row = []
+        let wz = start_z + z * STEP
+
+        for x in 0..GRID {
+            let wx = start_x + x * STEP
+            let terrain_row = terrain[z]
+            let ground_height = terrain_row[x]
+            let here = camera_point(
+                wx, ground_height, wz, camera_y, c, s
+            )
+
+            current_row.append(here)
+
+            if x > 0 {
+                segment(canvas, current_row[x - 1], here)
+            }
+
+            if z > 0 {
+                segment(canvas, previous_row[x], here)
+            }
+        }
+
+        previous_row = current_row
+    }
+
+    frame_count += 1
+    let elapsed = now - fps_started
+
+    if elapsed >= 1 {
+        fps = floor(frame_count / elapsed)
+        frame_count = 0
+        fps_started = now
+    }
+
+    draw.text(
+        canvas, 16, 16, "FPS: " + fps,
+        {color: draw.COLOR_WHITE, size: 20}
+    )
+}
+
+rebuild_terrain(0, 0)
+draw.on_frame(ctx, render)
+draw.run(ctx)

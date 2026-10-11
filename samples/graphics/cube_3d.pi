@@ -1,0 +1,223 @@
+// Software-projected 3D cube with filled faces and wireframe edges.
+
+import draw
+import math.{sin, cos, floor}
+import time.{clock}
+
+WIDTH = 600
+HEIGHT = 600
+
+ctx = draw.canvas(WIDTH, HEIGHT, "PiLang colored cube")
+
+vertices = [
+    [-1, -1, -1],
+    [ 1, -1, -1],
+    [ 1,  1, -1],
+    [-1,  1, -1],
+    [-1, -1,  1],
+    [ 1, -1,  1],
+    [ 1,  1,  1],
+    [-1,  1,  1]
+]
+
+// Vertices ordered outward for hidden-face removal.
+faces = [
+    {indices: [0, 3, 2, 1], color: draw.COLOR_RED},
+    {indices: [4, 5, 6, 7], color: draw.COLOR_BLUE},
+    {indices: [0, 4, 7, 3], color: draw.COLOR_GREEN},
+    {indices: [1, 2, 6, 5], color: draw.COLOR_YELLOW},
+    {indices: [0, 1, 5, 4], color: draw.COLOR_MAGENTA},
+    {indices: [3, 7, 6, 2], color: draw.COLOR_CYAN}
+]
+
+angle_x = 0
+angle_y = 0
+
+fps = 0
+frame_count = 0
+fps_started = clock()
+last_frame = fps_started
+
+fun project(vertex, cx, sx, cy, sy) {
+    let x = vertex[0]
+    let y = vertex[1]
+    let z = vertex[2]
+
+    let ry = y * cx - z * sx
+    let rz = y * sx + z * cx
+
+    let rx = x * cy + rz * sy
+    let depth = -x * sy + rz * cy + 6
+
+    return {
+        x: WIDTH / 2 + rx / depth * 500,
+        y: HEIGHT / 2 - ry / depth * 500,
+        z: depth
+    }
+}
+
+// Scanline fill for a convex four-sided face.
+fun fill_face(canvas, points, color) {
+    let min_y = points[0].y
+    let max_y = min_y
+
+    for p in points {
+        if p.y < min_y min_y = p.y
+        if p.y > max_y max_y = p.y
+    }
+
+    let y = floor(min_y)
+    let end_y = floor(max_y)
+
+    if y < 0 y = 0
+    if end_y >= HEIGHT end_y = HEIGHT - 1
+
+    while y <= end_y {
+        let scan_y = y + .5
+        let left = 1000000000
+        let right = -1000000000
+        let hits = 0
+
+        for i in [0, 1, 2, 3] {
+            let a = points[i]
+            let b = points[(i + 1) % 4]
+
+            let low = a
+            let high = b
+
+            if low.y > high.y {
+                low = b
+                high = a
+            }
+
+            // Half-open interval avoids counting shared vertices twice.
+            if scan_y >= low.y {
+                if scan_y < high.y {
+                    let t = (scan_y - low.y) / (high.y - low.y)
+                    let x = low.x + (high.x - low.x) * t
+
+                    if x < left left = x
+                    if x > right right = x
+                    hits += 1
+                }
+            }
+        }
+
+        if hits >= 2 {
+            if left < 0 left = 0
+            if right > WIDTH - 1 right = WIDTH - 1
+
+            if left <= right {
+                draw.line(canvas, left, y, right, y, color)
+            }
+        }
+
+        y += 1
+    }
+}
+
+fun outline_face(canvas, points) {
+    for i in [0, 1, 2, 3] {
+        let a = points[i]
+        let b = points[(i + 1) % 4]
+
+        draw.line(
+            canvas, a.x, a.y, b.x, b.y,
+            draw.COLOR_BLACK
+        )
+    }
+}
+
+fun render(canvas) {
+    let now = clock()
+    let dt = now - last_frame
+    last_frame = now
+
+    if dt > .1 dt = .1
+    if dt < 0 dt = 0
+
+    angle_x += dt * .6
+    angle_y += dt * .9
+
+    let cx = cos(angle_x)
+    let sx = sin(angle_x)
+    let cy = cos(angle_y)
+    let sy = sin(angle_y)
+
+    let projected = []
+
+    for vertex in vertices {
+        projected.append(project(vertex, cx, sx, cy, sy))
+    }
+
+    let visible = []
+    let visible_count = 0
+
+    for face in faces {
+        let a = projected[face.indices[0]]
+        let b = projected[face.indices[1]]
+        let c = projected[face.indices[2]]
+        let d = projected[face.indices[3]]
+
+        let facing = (b.x - a.x) * (c.y - a.y)
+                   - (b.y - a.y) * (c.x - a.x)
+
+        if facing > 0 {
+            visible.append({
+                points: [a, b, c, d],
+                color: face.color,
+                depth: (a.z + b.z + c.z + d.z) / 4
+            })
+            visible_count += 1
+        }
+    }
+
+    // Sort visible faces by depth, farthest first.
+    let i = 0
+    while i < visible_count {
+        let farthest = i
+        let j = i + 1
+
+        while j < visible_count {
+            if visible[j].depth > visible[farthest].depth {
+                farthest = j
+            }
+            j += 1
+        }
+
+        if farthest != i {
+            let temporary = visible[i]
+            visible[i] = visible[farthest]
+            visible[farthest] = temporary
+        }
+
+        i += 1
+    }
+
+    draw.clear(canvas, 0x06120E)
+
+    for face in visible {
+        fill_face(canvas, face.points, face.color)
+    }
+
+    for face in visible {
+        outline_face(canvas, face.points)
+    }
+
+    frame_count += 1
+    let elapsed = now - fps_started
+
+    if elapsed >= 1 {
+        fps = floor(frame_count / elapsed)
+        frame_count = 0
+        fps_started = now
+    }
+
+    draw.text(
+        canvas, 16, 16, "FPS: " + fps,
+        {color: draw.COLOR_WHITE, size: 15}
+    )
+}
+
+draw.on_frame(ctx, render)
+draw.run(ctx)
