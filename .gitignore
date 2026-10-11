@@ -5,7 +5,7 @@
 ```gitignore
 # Compiled object files
 *.o
-*.obj
+#*.obj
 
 # Compiled Dynamic libraries
 *.so

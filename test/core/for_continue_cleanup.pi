@@ -1,0 +1,12 @@
+// Regression: every continue must remove the current for-loop locals.
+
+let total = 0
+
+for i in 0..2000 {
+    let first = i * 2
+    let second = first + 1
+    if i % 2 == 0 continue
+    total += second
+}
+
+assert(total == 2001000, "continue() must not retain for-loop locals on the VM stack")

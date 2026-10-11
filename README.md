@@ -51,6 +51,28 @@ Apply image-processing operations such as edge detection and grayscale conversio
   </a>
 </p>
 
+## 3D Graphics
+
+Explore software-projected 3D scenes written in PiLang, including animated
+tunnels, loaded OBJ models, procedural terrain, and wireframe models.
+
+<p align="center">
+  <a href="./samples/graphics/monkey_3d.pi">
+    <img src="imgs/monkey.gif" alt="Pilang rotating OBJ monkey model" width="280" height="280">
+  </a>
+  <a href="./samples/graphics/tunnel_3d.pi">
+    <img src="imgs/tunnel.gif" alt="Pilang animated 3D tunnel" width="280" height="280">
+  </a>
+</p>
+
+<p align="center">
+  <a href="./samples/graphics/terrain_3d.pi">
+    <img src="imgs/terrain.gif" alt="Pilang interactive 3D terrain" width="280" height="280">
+  </a>
+  <a href="./samples/model3d.pi">
+    <img src="imgs/model3d.gif" alt="Pilang rotating 3D wireframe model" width="280" height="280">
+  </a>
+</p>
 
 ## The Pilang Feel
 
@@ -394,15 +416,6 @@ The language website and playground are available at:
 **https://pi-lang.netlify.app/**
 
 Use it to read docs, browse examples, and try Pilang in the browser.
-
-
-<p align="center">
-    <a href="./samples/model3d.pi">
-    <img src="imgs/model3d.gif" alt="linux 3d model" height="150">
-    </a>
-</p>
-
-
 
 ## License
 

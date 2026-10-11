@@ -224,10 +224,10 @@ fun render(canvas) {
         fps_started = now
     }
 
-    draw.text(
-        canvas, 16, 16, "FPS: " + fps,
-        {color: draw.COLOR_WHITE, size: 20}
-    )
+    // draw.text(
+    //     canvas, 16, 16, "FPS: " + fps,
+    //     {color: draw.COLOR_WHITE, size: 20}
+    // )
 }
 
 rebuild_terrain(0, 0)

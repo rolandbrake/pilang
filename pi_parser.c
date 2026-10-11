@@ -2506,10 +2506,11 @@ static void break_stmt(parser_t *parser)
     if (!in_loop(parser->comp))
         p_errorf(tok.line, tok.column, "'break' used outside of a loop");
 
-    if (is_forLoop(parser->comp))
+    bool for_loop = is_forLoop(parser->comp);
+    if (for_loop)
         emit(parser->comp, OP_POP_ITER);
 
-    emit_pop(parser->comp, loop_depth(parser->comp) + 1);
+    emit_pop(parser->comp, loop_depth(parser->comp) + (for_loop ? 0 : 1));
     push_break(parser->comp, emit_jump(parser->comp, 0));
 
     // Mark this point as a return-like exit to check for unreachable code
@@ -2528,7 +2529,8 @@ static void continue_stmt(parser_t *parser)
         p_errorf(tok.line, tok.column, "'continue' used outside of a loop");
 
     int address = get_continue(parser->comp);
-    emit_pop(parser->comp, loop_depth(parser->comp) + 1);
+    bool for_loop = is_forLoop(parser->comp);
+    emit_pop(parser->comp, loop_depth(parser->comp) + (for_loop ? 0 : 1));
     emit_jump(parser->comp, address - code_size(parser->comp));
 
     parser->is_return = true;

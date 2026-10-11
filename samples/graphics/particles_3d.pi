@@ -55,12 +55,16 @@ camera_angle = .20
 camera_c = cos(camera_angle)
 camera_s = sin(camera_angle)
 
+camera_pitch = 1.134          // radians, about 65 degrees. Positive = look down from above.
+pitch_c = cos(camera_pitch)
+pitch_s = sin(camera_pitch)
+
 fun project(x, y, z) {
     let rx = x * camera_c - z * camera_s
     let rz = x * camera_s + z * camera_c
 
-    let ry = (y - 2) * .423 - rz * .906
-    let depth = (y - 2) * .906 + rz * .423 + 15
+    let ry = (y - 2) * pitch_c + rz * pitch_s
+    let depth = -(y - 2) * pitch_s + rz * pitch_c + 15
 
     return {
         x: WIDTH / 2 + rx / depth * SCALE,
