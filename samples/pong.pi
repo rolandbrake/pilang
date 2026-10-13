@@ -1,0 +1,122 @@
+// Two-player Pong for the SDL draw API.
+// Left paddle: W/S. Right paddle: Up/Down. Escape or close the window to quit.
+
+import draw
+import time.{clock}
+
+WIDTH = 600
+HEIGHT = 460
+PADDLE_WIDTH = 24
+PADDLE_HEIGHT = 100
+PADDLE_MARGIN = 32
+PADDLE_SPEED = 420
+BALL_SIZE = 10
+BALL_SPEED = 360
+
+ctx = draw.canvas(WIDTH, HEIGHT, "PiLang Pong")
+
+left_y = (HEIGHT - PADDLE_HEIGHT) / 2
+right_y = left_y
+ball_x = (WIDTH - BALL_SIZE) / 2
+ball_y = (HEIGHT - BALL_SIZE) / 2
+ball_vx = BALL_SPEED
+ball_vy = BALL_SPEED * .45
+left_score = 0
+right_score = 0
+last_frame = clock()
+
+fun clamp_paddle(y) {
+    if y < 0 return 0
+    if y > HEIGHT - PADDLE_HEIGHT return HEIGHT - PADDLE_HEIGHT
+    return y
+}
+
+fun reset_ball(direction) {
+    ball_x = (WIDTH - BALL_SIZE) / 2
+    ball_y = (HEIGHT - BALL_SIZE) / 2
+    ball_vx = BALL_SPEED * direction
+    ball_vy = BALL_SPEED * .45 * direction
+}
+
+fun paddle_hit(paddle_y, paddle_x) {
+    return ball_x < paddle_x + PADDLE_WIDTH &&
+           ball_x + BALL_SIZE > paddle_x &&
+           ball_y < paddle_y + PADDLE_HEIGHT &&
+           ball_y + BALL_SIZE > paddle_y
+}
+
+fun update(canvas, dt) {
+    if draw.key(canvas, draw.KEY_W) {
+        left_y -= PADDLE_SPEED * dt
+    }
+    if draw.key(canvas, draw.KEY_S) {
+        left_y += PADDLE_SPEED * dt
+    }
+    if draw.key(canvas, draw.KEY_UP) {
+        right_y -= PADDLE_SPEED * dt
+    }
+    if draw.key(canvas, draw.KEY_DOWN) {
+        right_y += PADDLE_SPEED * dt
+    }
+
+    left_y = clamp_paddle(left_y)
+    right_y = clamp_paddle(right_y)
+
+    ball_x += ball_vx * dt
+    ball_y += ball_vy * dt
+
+    if ball_y <= 0 || ball_y + BALL_SIZE >= HEIGHT {
+        ball_vy = -ball_vy
+        if ball_y < 0 ball_y = 0
+        if ball_y + BALL_SIZE > HEIGHT ball_y = HEIGHT - BALL_SIZE
+    }
+
+    let left_x = PADDLE_MARGIN
+    let right_x = WIDTH - PADDLE_MARGIN - PADDLE_WIDTH
+    if ball_vx < 0 && paddle_hit(left_y, left_x) {
+        ball_x = left_x + PADDLE_WIDTH
+        ball_vx = -ball_vx * 1.04
+    }
+    if ball_vx > 0 && paddle_hit(right_y, right_x) {
+        ball_x = right_x - BALL_SIZE
+        ball_vx = -ball_vx * 1.04
+    }
+
+    if ball_x + BALL_SIZE < 0 {
+        right_score += 1
+        reset_ball(-1)
+    }
+    if ball_x > WIDTH {
+        left_score += 1
+        reset_ball(1)
+    }
+}
+
+fun render(canvas) {
+    let now = clock()
+    let dt = now - last_frame
+    last_frame = now
+    if dt > .05 dt = .05
+    if dt < 0 dt = 0
+
+    update(canvas, dt)
+
+    draw.clear(canvas, 0x10131F)
+    let center_x = WIDTH / 2
+    for y in 16..HEIGHT:28 {
+        draw.rect(canvas, center_x - 2, y, 4, 16, draw.COLOR_LIGHT_GRAY, true)
+    }
+
+    draw.rect(canvas, PADDLE_MARGIN, left_y, PADDLE_WIDTH, PADDLE_HEIGHT,
+              draw.COLOR_CYAN, true)
+    draw.rect(canvas, WIDTH - PADDLE_MARGIN - PADDLE_WIDTH, right_y,
+              PADDLE_WIDTH, PADDLE_HEIGHT, draw.COLOR_RED, true)
+    draw.circle(canvas, ball_x + BALL_SIZE / 2, 
+        ball_y + BALL_SIZE / 2, BALL_SIZE , draw.COLOR_WHITE, true)
+
+    draw.text(canvas, WIDTH / 2 - 35, 24, left_score + "     " + right_score,
+              {color: draw.COLOR_WHITE, size: 28, bold: true})
+}
+
+draw.animate(ctx, render)
+draw.run(ctx)

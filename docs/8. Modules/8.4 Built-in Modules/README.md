@@ -12,6 +12,7 @@ import sys.{EXIT_SUCCESS}
 ## Modules
 
 - [col](col.md): collection helpers
+- [audio](audio.md): audio clip loading, metadata, and playback
 - [draw](draw.md): canvas drawing and events
 - [fs](fs.md): files, directories, and paths
 - [func](func.md): higher-order function helpers

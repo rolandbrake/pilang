@@ -81,5 +81,5 @@ fun render(canvas) {
     })
 }
 
-draw.on_frame(ctx, render)
+draw.animate(ctx, render)
 draw.run(ctx)

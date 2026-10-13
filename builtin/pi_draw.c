@@ -131,7 +131,6 @@ static Value _map_get(PiMap *map, char *key)
     return *(Value *)item;
 }
 
-// Helper function to parse options from a table
 static void _parse_drawOptions(Value opts, int *color, char **font_path, int *font_size,
                                char **align, bool *bold, bool *italic, float *img_alpha,
                                int *img_w, int *img_h)
@@ -141,42 +140,34 @@ static void _parse_drawOptions(Value opts, int *color, char **font_path, int *fo
 
     PiMap *table = AS_MAP(opts);
 
-    // Parse color
     Value _color = _map_get(table, "color");
     if (!IS_NIL(_color) && IS_NUM(_color))
         *color = (int)AS_NUM(_color);
 
-    // Parse font
     Value _font = _map_get(table, "font");
     if (!IS_NIL(_font) && IS_STRING(_font))
         *font_path = AS_CSTRING(_font);
 
-    // Parse font size
     Value _size = _map_get(table, "size");
     if (!IS_NIL(_size) && IS_NUM(_size))
         *font_size = (int)AS_NUM(_size);
 
-    // Parse alignment
     Value _align = _map_get(table, "align");
     if (!IS_NIL(_align) && IS_STRING(_align))
         *align = AS_CSTRING(_align);
 
-    // Parse bold
     Value _bold = _map_get(table, "bold");
     if (!IS_NIL(_bold) && IS_BOOL(_bold))
         *bold = AS_BOOL(_bold);
 
-    // Parse italic
     Value _italic = _map_get(table, "italic");
     if (!IS_NIL(_italic) && IS_BOOL(_italic))
         *italic = AS_BOOL(_italic);
 
-    // Parse image alpha
     Value _alpha = _map_get(table, "alpha");
     if (!IS_NIL(_alpha) && IS_NUM(_alpha))
         *img_alpha = (float)AS_NUM(_alpha);
 
-    // Parse image width/height
     Value _w = _map_get(table, "w");
     if (!IS_NIL(_w) && IS_NUM(_w))
         *img_w = (int)AS_NUM(_w);
@@ -285,7 +276,6 @@ static void _free_event(PiEvent *e)
     free(e);
 }
 
-// Add event to queue
 static void _push_event(PiContext *ctx, PiEvent *e)
 {
     if (ctx->eventQueue == NULL || ctx->eventQueue->events == NULL)
@@ -323,7 +313,6 @@ static void _push_event(PiContext *ctx, PiEvent *e)
     ctx->eventQueue->count++;
 }
 
-// Pop event from queue
 static PiEvent *_pop_event(PiContext *ctx)
 {
     if (ctx->eventQueue == NULL || !ctx->eventQueue->events || ctx->eventQueue->count == 0)
@@ -337,7 +326,6 @@ static PiEvent *_pop_event(PiContext *ctx)
     return e;
 }
 
-// Clear event queue
 static void _clear_eventQueue(PiContext *ctx)
 {
     if (ctx->eventQueue == NULL || !ctx->eventQueue->events)
@@ -350,7 +338,6 @@ static void _clear_eventQueue(PiContext *ctx)
     }
 }
 
-// Cleanup event system
 static void _cleanup_events(PiContext *ctx)
 {
     // Clear all handlers
@@ -363,7 +350,6 @@ static void _cleanup_events(PiContext *ctx)
         }
     }
 
-    // Clear event queue
     _clear_eventQueue(ctx);
     if (ctx->eventQueue != NULL && ctx->eventQueue->events)
     {
@@ -375,6 +361,27 @@ static void _cleanup_events(PiContext *ctx)
         free(ctx->eventQueue);
         ctx->eventQueue = NULL;
     }
+}
+
+typedef struct _drawFontCacheEntry
+{
+    int size;
+    int style;
+    TTF_Font *font;
+    struct _drawFontCacheEntry *next;
+} _drawFontCacheEntry;
+
+static void _cleanup_fontCache(PiContext *ctx)
+{
+    _drawFontCacheEntry *entry = (_drawFontCacheEntry *)ctx->userdata;
+    while (entry)
+    {
+        _drawFontCacheEntry *next = entry->next;
+        TTF_CloseFont(entry->font);
+        free(entry);
+        entry = next;
+    }
+    ctx->userdata = NULL;
 }
 
 void dw_cleanupContext(PiContext *ctx)
@@ -394,6 +401,7 @@ void dw_cleanupContext(PiContext *ctx)
     }
 
     _cleanup_events(ctx);
+    _cleanup_fontCache(ctx);
 
     if (ctx->renderer != NULL)
     {
@@ -579,7 +587,6 @@ Value dw_canvas(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, (Object *)ctx));
 }
 
-// Update dw_run to call the callback each frame
 Value dw_run(vm_t *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
@@ -592,8 +599,7 @@ Value dw_run(vm_t *vm, int argc, Value *argv)
         _pump_events(vm, ctx);
         if (!ctx->running)
             break;
-
-        // Call the frame callback if it exists
+    
         if (!IS_NIL(ctx->frame_callback))
         {
             Value args[1] = {argv[0]};
@@ -605,7 +611,7 @@ Value dw_run(vm_t *vm, int argc, Value *argv)
 
         pt3d_redraw_context(ctx);
 
-        // Present the rendered frame
+        
         SDL_RenderPresent(ctx->renderer);
 
         // Cap frame rate to 60 FPS
@@ -631,7 +637,7 @@ Value dw_clear(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-// Add this helper function for circle drawing
+
 static void draw_circle(SDL_Renderer *r, int cx, int cy, int radius)
 {
     int x = radius;
@@ -918,7 +924,7 @@ Value dw_polygon(vm_t *vm, int argc, Value *argv)
                                 points[i].x, points[i].y,
                                 points[i + 1].x, points[i + 1].y);
         }
-        // Close the polygon
+        
         SDL_RenderDrawLineF((SDL_Renderer *)ctx->renderer,
                             points[point_count - 1].x, points[point_count - 1].y,
                             points[0].x, points[0].y);
@@ -1004,7 +1010,7 @@ Value dw_alpha(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-// Helper to apply font styles
+
 static TTF_Font *load_styledFont(const char *font_path, int size, bool bold, bool italic)
 {
     if (!font_path)
@@ -1023,7 +1029,52 @@ static TTF_Font *load_styledFont(const char *font_path, int size, bool bold, boo
     return font;
 }
 
-// Helper to get text dimensions
+static TTF_Font *load_defaultFont(PiContext *ctx, int size, bool bold, bool italic)
+{
+    int style = TTF_STYLE_NORMAL;
+    if (bold)
+        style |= TTF_STYLE_BOLD;
+    if (italic)
+        style |= TTF_STYLE_ITALIC;
+
+    for (_drawFontCacheEntry *entry = (_drawFontCacheEntry *)ctx->userdata;
+         entry != NULL; entry = entry->next)
+    {
+        if (entry->size == size && entry->style == style)
+            return entry->font;
+    }
+
+    const char *default_fonts[] = {
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        "/System/Library/Fonts/Helvetica.ttc"};
+    TTF_Font *font = NULL;
+    for (int i = 0; i < 3; i++)
+    {
+        font = TTF_OpenFont(default_fonts[i], size);
+        if (font)
+            break;
+    }
+    if (!font)
+        return NULL;
+
+    TTF_SetFontStyle(font, style);
+    _drawFontCacheEntry *entry = malloc(sizeof(_drawFontCacheEntry));
+    if (!entry)
+    {
+        TTF_CloseFont(font);
+        return NULL;
+    }
+
+    entry->size = size;
+    entry->style = style;
+    entry->font = font;
+    entry->next = (_drawFontCacheEntry *)ctx->userdata;
+    ctx->userdata = entry;
+    return font;
+}
+
+
 static void get_textDimensions(TTF_Font *font, const char *text, int *w, int *h)
 {
     if (!font || !text)
@@ -1038,7 +1089,7 @@ static void get_textDimensions(TTF_Font *font, const char *text, int *w, int *h)
     TTF_SizeUTF8(font, text, w, h);
 }
 
-// Helper to align text position
+
 static void align_textPosition(int text_w, int text_h, float *x, float *y, const char *align)
 {
     if (!align)
@@ -1058,7 +1109,6 @@ static void align_textPosition(int text_w, int text_h, float *x, float *y, const
     // "left" and "top" are default, no adjustment needed
 }
 
-// Draw text with full options support
 Value dw_text(vm_t *vm, int argc, Value *argv)
 {
     // Usage: text(canvas, x, y, text, opts)
@@ -1083,11 +1133,11 @@ Value dw_text(vm_t *vm, int argc, Value *argv)
     bool bold = false;
     bool italic = false;
 
-    // Parse options if provided
+    
     if (argc > 4)
         _parse_drawOptions(argv[4], &color, &font_path, &font_size, &align, &bold, &italic, NULL, NULL, NULL);
 
-    // Load font
+    
     TTF_Font *font = NULL;
     if (font_path)
     {
@@ -1106,29 +1156,16 @@ Value dw_text(vm_t *vm, int argc, Value *argv)
     }
     else
     {
-        // Try to load default font
-        const char *default_fonts[] = {
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "C:/Windows/Fonts/arial.ttf",
-            "/System/Library/Fonts/Helvetica.ttc"};
-        for (int i = 0; i < 3; i++)
-        {
-            font = TTF_OpenFont(default_fonts[i], font_size);
-            if (font)
-                break;
-        }
+        font = load_defaultFont(ctx, font_size, bold, italic);
         if (!font)
             vm_error(vm, "Failed to load any font. Please specify a font path.");
     }
 
-    // Get text dimensions
     int text_w, text_h;
     get_textDimensions(font, text, &text_w, &text_h);
 
-    // Apply alignment
     align_textPosition(text_w, text_h, &x, &y, align);
 
-    // Apply _transform
     _transform(ctx, &x, &y);
 
     // Create surface and texture
@@ -1156,19 +1193,16 @@ Value dw_text(vm_t *vm, int argc, Value *argv)
         vm_errorf(vm, "Failed to create texture: %s", SDL_GetError());
     }
 
-    // Draw texture
     SDL_Rect dst = {(int)x, (int)y, text_w, text_h};
     SDL_RenderCopy(ctx->renderer, texture, NULL, &dst);
     SDL_DestroyTexture(texture);
 
-    // Clean up font if we loaded it
     if (font_path && font)
         TTF_CloseFont(font);
 
     return NEW_NIL();
 }
 
-// Draw image with full options support
 Value dw_image(vm_t *vm, int argc, Value *argv)
 {
     // Usage: image(canvas, path, x, y, opts)
@@ -1191,14 +1225,11 @@ Value dw_image(vm_t *vm, int argc, Value *argv)
     int img_w = 0;
     int img_h = 0;
 
-    // Parse options if provided
     if (argc > 4)
         _parse_drawOptions(argv[4], &color, NULL, NULL, NULL, NULL, NULL, &img_alpha, &img_w, &img_h);
 
-    // Apply _transform
     _transform(ctx, &x, &y);
 
-    // Load image
     SDL_Surface *surface = IMG_Load(path);
     if (!surface)
         vm_errorf(vm, "Failed to load image '%s': %s", path, IMG_GetError());
@@ -1264,7 +1295,7 @@ Value dw_push(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-// Pop _transform state from stack
+
 Value dw_pop(vm_t *vm, int argc, Value *argv)
 {
     // Usage: pop(canvas)
@@ -1365,17 +1396,17 @@ Value dw_present(vm_t *vm, int argc, Value *argv)
 }
 
 // Add this function to pi_draw.c
-Value dw_onFrame(vm_t *vm, int argc, Value *argv)
+Value dw_animate(vm_t *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
-        vm_error(vm, "on_frame() takes a canvas as first argument");
+        vm_error(vm, "animate() takes a canvas as first argument");
 
     if (argc < 2)
-        vm_error(vm, "on_frame() needs a callback function");
+        vm_error(vm, "animate() needs a callback function");
 
     if (!IS_FUN(argv[1]))
-        vm_error(vm, "on_frame() second argument must be a function");
+        vm_error(vm, "animate() second argument must be a function");
 
     // Store the callback in the context
     ctx->frame_callback = argv[1];
@@ -1664,7 +1695,7 @@ static BuiltinFunc draw_funcs[] = {
     {"polygon", dw_polygon},
     {"circle", dw_circle},
     {"present", dw_present},
-    {"on_frame", dw_onFrame},
+    {"animate", dw_animate},
     {"on", dw_on},
     {"off", dw_off},
     {"poll", dw_poll},

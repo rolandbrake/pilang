@@ -17,7 +17,7 @@ const _BUILTIN_NAMES = [
     "lang legend len line linspace list listdir load3d log log10 log2 logE lower",
     "map math matmult max mean median mem memoize millis min mkdir mode mouse move mult",
     "NaN NAN ndim nil noop norm normal now num",
-    "of off on on_frame once ones OP_ADD OP_BAND OP_BNOT OP_BOR OP_BXOR OP_DIV OP_DOT OP_EQ OP_GE OP_GT OP_IS OP_LAND OP_LE OP_LOR OP_LT OP_MOD OP_MUL OP_NE OP_NEG OP_POS OP_POW OP_SHL OP_SHR OP_SUB OP_USHR",
+    "animate of off on once ones OP_ADD OP_BAND OP_BNOT OP_BOR OP_BXOR OP_DIV OP_DOT OP_EQ OP_GE OP_GT OP_IS OP_LAND OP_LE OP_LOR OP_LT OP_MOD OP_MUL OP_NE OP_NEG OP_POS OP_POW OP_SHL OP_SHR OP_SUB OP_USHR",
     "open ord os parse partial path peek percentile PHI PI pid pinv pipe pixel platform play plot poll poly polygon pop pow present print printf println prod proj3d prompt push",
     "rad ram rand rand_i rand_m rand_n randi randint randn random range rank read readline readlines rect reduce remove rend2d repeat replace reshape resize reverse rmdir rot2d rot3d rotate round run",
     "scale scale2d scale3d scatter seed seek set sfx shape show shuffle SIGABRT SIGINT sign signal SIGTERM sin size sleep slice solve sort sound spawn split spread sprite sqrt squeeze stat stats std step stop str string sub sum svd symmetric_diff sys",

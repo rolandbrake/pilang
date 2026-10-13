@@ -83,5 +83,5 @@ fun render(canvas) {
     draw.text(canvas, 16, 68, "FPS: " + fps + "  Up/Down: change load  Escape: close", {color: draw.COLOR_LIGHT_GRAY, size: 16})
 }
 
-draw.on_frame(ctx, render)
+draw.animate(ctx, render)
 draw.run(ctx)

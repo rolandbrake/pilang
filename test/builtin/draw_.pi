@@ -87,7 +87,7 @@ draw.on(ctx, "close", on_close)
 draw.off(ctx, "mousemove", on_move)
 draw.off(ctx, "keydown")
 
-draw.on_frame(ctx, paint)
+draw.animate(ctx, paint)
 draw.present(ctx)
 draw.run(ctx)
 

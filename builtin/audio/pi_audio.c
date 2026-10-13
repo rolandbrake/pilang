@@ -36,7 +36,8 @@ static void ensure_mixer(vm_t *vm)
 
 static int active_channel(ObjAudio *audio)
 {
-    if (audio->channel < 0 || Mix_GetChunk(audio->channel) != audio->chunk)
+    if (audio->channel < 0 || Mix_GetChunk(audio->channel) != audio->chunk ||
+        (!Mix_Playing(audio->channel) && !Mix_Paused(audio->channel)))
     {
         audio->channel = -1;
         return -1;

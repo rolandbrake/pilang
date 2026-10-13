@@ -1,0 +1,184 @@
+// Breakout for the SDL draw API.
+// Move with Left/Right. Press R to start a new game.
+
+import draw
+import time.{clock}
+
+WIDTH = 900
+HEIGHT = 620
+PADDLE_WIDTH = 130
+PADDLE_HEIGHT = 20
+PADDLE_Y = HEIGHT - 52
+PADDLE_SPEED = 540
+BALL_SIZE = 14
+BALL_SPEED = 390
+BRICK_COLUMNS = 10
+BRICK_ROWS = 6
+BRICK_HEIGHT = 28
+BRICK_GAP = 6
+BRICK_MARGIN = 46
+
+ctx = draw.canvas(WIDTH, HEIGHT, "PiLang Breakout")
+
+paddle_x = (WIDTH - PADDLE_WIDTH) / 2
+ball_x = 0
+ball_y = 0
+ball_vx = 0
+ball_vy = 0
+score = 0
+lives = 3
+bricks_left = 0
+bricks = []
+game_over = false
+won = false
+restart_was_down = false
+last_frame = clock()
+
+fun reset_ball() {
+    ball_x = paddle_x + (PADDLE_WIDTH - BALL_SIZE) / 2
+    ball_y = PADDLE_Y - BALL_SIZE - 2
+    ball_vx = BALL_SPEED * .55
+    ball_vy = -BALL_SPEED
+}
+
+fun start_game() {
+    paddle_x = (WIDTH - PADDLE_WIDTH) / 2
+    score = 0
+    lives = 3
+    game_over = false
+    won = false
+    bricks = []
+
+    let colors = [draw.COLOR_RED, 0xFF9800, draw.COLOR_YELLOW,
+                  draw.COLOR_LIME, draw.COLOR_CYAN, draw.COLOR_BLUE]
+    let brick_width = (WIDTH - BRICK_MARGIN * 2 -
+                       (BRICK_COLUMNS - 1) * BRICK_GAP) / BRICK_COLUMNS
+    for row in 0..BRICK_ROWS {
+        for column in 0..BRICK_COLUMNS {
+            bricks.append({
+                x: BRICK_MARGIN + column * (brick_width + BRICK_GAP),
+                y: 72 + row * (BRICK_HEIGHT + BRICK_GAP),
+                color: colors[row],
+                alive: true
+            })
+        }
+    }
+
+    bricks_left = BRICK_COLUMNS * BRICK_ROWS
+    reset_ball()
+}
+
+fun hits_rect(x, y, width, height) {
+    return ball_x < x + width && ball_x + BALL_SIZE > x &&
+           ball_y < y + height && ball_y + BALL_SIZE > y
+}
+
+fun update(canvas, dt) {
+    let restart_down = draw.key(canvas, draw.KEY_R)
+    if restart_down && !restart_was_down {
+        start_game()
+    }
+    restart_was_down = restart_down
+
+    if game_over || won return
+
+    if draw.key(canvas, draw.KEY_LEFT) {
+        paddle_x -= PADDLE_SPEED * dt
+    }
+    if draw.key(canvas, draw.KEY_RIGHT) {
+        paddle_x += PADDLE_SPEED * dt
+    }
+    if paddle_x < 0 paddle_x = 0
+    if paddle_x > WIDTH - PADDLE_WIDTH paddle_x = WIDTH - PADDLE_WIDTH
+
+    ball_x += ball_vx * dt
+    ball_y += ball_vy * dt
+
+    if ball_x <= 0 || ball_x + BALL_SIZE >= WIDTH {
+        ball_vx = -ball_vx
+        if ball_x < 0 ball_x = 0
+        if ball_x + BALL_SIZE > WIDTH ball_x = WIDTH - BALL_SIZE
+    }
+    if ball_y <= 0 {
+        ball_y = 0
+        ball_vy = -ball_vy
+    }
+
+    if ball_vy > 0 && hits_rect(paddle_x, PADDLE_Y, PADDLE_WIDTH, PADDLE_HEIGHT) {
+        let relative_hit = (ball_x + BALL_SIZE / 2 - paddle_x) / PADDLE_WIDTH - .5
+        ball_y = PADDLE_Y - BALL_SIZE
+        ball_vx = BALL_SPEED * relative_hit * 2
+        ball_vy = -BALL_SPEED
+    }
+
+    for brick in bricks {
+        if brick.alive && hits_rect(brick.x, brick.y,
+                                    (WIDTH - BRICK_MARGIN * 2 -
+                                     (BRICK_COLUMNS - 1) * BRICK_GAP) / BRICK_COLUMNS,
+                                    BRICK_HEIGHT) {
+            brick.alive = false
+            bricks_left -= 1
+            score += 10
+            ball_vy = -ball_vy
+            break
+        }
+    }
+
+    if bricks_left == 0 {
+        won = true
+        ball_vx = 0
+        ball_vy = 0
+    }
+
+    if ball_y > HEIGHT {
+        lives -= 1
+        if lives == 0 {
+            game_over = true
+            ball_vx = 0
+            ball_vy = 0
+        } else {
+            reset_ball()
+        }
+    }
+}
+
+fun render(canvas) {
+    let now = clock()
+    let dt = now - last_frame
+    last_frame = now
+    if dt > .05 dt = .05
+    if dt < 0 dt = 0
+
+    update(canvas, dt)
+
+    draw.clear(canvas, 0x10131F)
+    let brick_width = (WIDTH - BRICK_MARGIN * 2 -
+                       (BRICK_COLUMNS - 1) * BRICK_GAP) / BRICK_COLUMNS
+    for brick in bricks {
+        if brick.alive {
+            draw.rect(canvas, brick.x, brick.y, brick_width, BRICK_HEIGHT,
+                      brick.color, true)
+        }
+    }
+
+    draw.rect(canvas, paddle_x, PADDLE_Y, PADDLE_WIDTH, PADDLE_HEIGHT,
+              draw.COLOR_CYAN, true)
+    draw.circle(canvas, ball_x, ball_y, BALL_SIZE, draw.COLOR_WHITE, true)
+    draw.text(canvas, 20, 18, "Score: " + score + "    Lives: " + lives,
+              {color: draw.COLOR_WHITE, size: 20, bold: true})
+
+    if won {
+        draw.text(canvas, WIDTH / 2 - 115, HEIGHT / 2,
+                  "You cleared the wall! Press R",
+                  {color: draw.COLOR_LIME, size: 21, bold: true})
+    }
+    if game_over {
+        draw.text(canvas, WIDTH / 2 - 100, HEIGHT / 2,
+                  "Game over. Press R to retry",
+                  {color: draw.COLOR_RED, size: 21, bold: true})
+    }
+}
+
+start_game()
+draw.animate(ctx, render)
+draw.run(ctx)

@@ -231,5 +231,5 @@ fun render(canvas) {
 }
 
 rebuild_terrain(0, 0)
-draw.on_frame(ctx, render)
+draw.animate(ctx, render)
 draw.run(ctx)

@@ -90,12 +90,12 @@ Presents the current frame.
 draw.present()
 ```
 
-## `draw.on_frame(callback)`
+## `draw.animate(callback)`
 
 Registers a callback for frame updates.
 
 ```swift
-draw.on_frame(() -> {
+draw.animate(() -> {
     draw.clear()
     draw.present()
 })

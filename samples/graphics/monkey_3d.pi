@@ -99,7 +99,7 @@
 // }
 
 // load_obj(MODEL_PATH)
-// draw.on_frame(ctx, render)
+// draw.animate(ctx, render)
 // draw.run(ctx)
 
 
@@ -246,5 +246,5 @@ fun render(canvas) {
 }
 
 load_obj(MODEL_PATH)
-draw.on_frame(ctx, render)
+draw.animate(ctx, render)
 draw.run(ctx)

@@ -80,8 +80,8 @@ Value dw_isRunning(vm_t *vm, int argc, Value *argv);
 // Present the rendered frame to the screen.
 Value dw_present(vm_t *vm, int argc, Value *argv);
 
-// Set or invoke the per-frame callback.
-Value dw_onFrame(vm_t *vm, int argc, Value *argv);
+// Register the per-frame animation callback.
+Value dw_animate(vm_t *vm, int argc, Value *argv);
 
 // Close the canvas/window.
 Value dw_close(vm_t *vm, int argc, Value *argv);
