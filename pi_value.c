@@ -922,6 +922,13 @@ char *as_stringWithFormat(vm_t *vm, Value val)
             ObjImage *img = AS_IMAGE(val);
             return fmt_alloc(128, "<image %dx%d>", img->surface->w, img->surface->h);
         }
+
+        case OBJ_AUDIO:
+        {
+            ObjAudio *audio = AS_AUDIO(val);
+            return fmt_alloc(128, "<audio %d Hz, %u channel%s>", audio->spec.freq,
+                             audio->spec.channels, audio->spec.channels == 1 ? "" : "s");
+        }
 #endif
 
         default:
@@ -1166,6 +1173,11 @@ void print_value(Value val, bool is_root)
             printf("<image %dx%d>",
                    AS_IMAGE(val)->surface->w, AS_IMAGE(val)->surface->h);
             break;
+        case OBJ_AUDIO:
+            printf("<audio %d Hz, %u channel%s>", AS_AUDIO(val)->spec.freq,
+                   AS_AUDIO(val)->spec.channels,
+                   AS_AUDIO(val)->spec.channels == 1 ? "" : "s");
+            break;
 #endif
         /* Containers: reuse as_string so format lives in one place. */
         default:
@@ -1218,6 +1230,7 @@ char *type_name(Value val)
         case OBJ_SOCKET:   return "socket";
         case OBJ_MODEL3D:  return "model3d";
         case OBJ_IMAGE:    return "image";
+        case OBJ_AUDIO:    return "audio";
         case OBJ_CONTEXT:  return "context";
         case OBJ_CHART:    return "chart";
         case OBJ_CHART3D:  return "chart3d";

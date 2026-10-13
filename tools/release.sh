@@ -103,6 +103,7 @@ folders_to_refresh=(
     libs
     samples
     test
+    tools
 )
 
 for folder in "${folders_to_refresh[@]}"; do

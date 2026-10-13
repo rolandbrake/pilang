@@ -41,7 +41,8 @@ try {
         "imgs",
         "libs",
         "samples",
-        "test"
+        "test",
+        "tools"
     )
 
     foreach ($folder in $foldersToRefresh) {

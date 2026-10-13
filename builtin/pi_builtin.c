@@ -123,6 +123,7 @@ BuiltinModule *builtin_modules[] = {
     &module_image,
     &module_imageFilters,
     &module_imageColor,
+    &module_audio,
 #endif
     &module_tensor,
 

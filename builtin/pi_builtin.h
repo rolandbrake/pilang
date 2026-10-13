@@ -18,6 +18,7 @@
 // Image support is SDL2-dependent and unavailable in the WebAssembly build.
 #ifndef __EMSCRIPTEN__
 #include "image/pi_image.h"
+#include "audio/pi_audio.h"
 #endif
 
 typedef struct
@@ -71,6 +72,7 @@ extern BuiltinModule module_netSocket;
 extern BuiltinModule module_image;        // image: Image loading and manipulation
 extern BuiltinModule module_imageFilters; // image.filters: Convolution, blur, edge detection, …
 extern BuiltinModule module_imageColor;   // image.color: Color space and palette helpers
+extern BuiltinModule module_audio;         // audio: WAV loading and manipulation
 #endif
 
 // Defines a BuiltinModule from local func/const arrays, computing counts via sizeof.

@@ -46,6 +46,8 @@ typedef struct SDL_Rect
 
 #define IS_IMAGE(o) IS_OBJ_TYPE(o, OBJ_IMAGE)
 #define AS_IMAGE(o) ((ObjImage *)AS_OBJ(o))
+#define IS_AUDIO(o) IS_OBJ_TYPE(o, OBJ_AUDIO)
+#define AS_AUDIO(o) ((ObjAudio *)AS_OBJ(o))
 
 #define IS_COLLECTION(o) (IS_LIST(o) || IS_TENSOR(o) || IS_MAP(o) || IS_SET(o) || IS_TUPLE(o) || IS_STRING(o))
 
@@ -104,10 +106,9 @@ typedef enum
     OBJ_CODE,
     OBJ_FILE,
     OBJ_SOCKET,
-    OBJ_IMAGE,
-    OBJ_SPRITE,
+    OBJ_IMAGE,        
+    OBJ_AUDIO,
     OBJ_MODEL3D,
-    OBJ_SOUND,
 
     // GUI and event-related objects
     OBJ_CONTEXT,
@@ -388,6 +389,16 @@ typedef struct
 } ObjImage;
 
 ObjImage *new_image(SDL_Surface *surface);
+
+typedef struct
+{
+    Object object;
+    SDL_AudioSpec spec;
+    Uint8 *buffer;
+    Uint32 length;
+} ObjAudio;
+
+ObjAudio *new_audio(SDL_AudioSpec spec, Uint8 *buffer, Uint32 length);
 #endif
 
 struct PiChart3D;

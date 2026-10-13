@@ -61,13 +61,17 @@ IMAGE_SRCS := \
 	builtin/image/pi_filters.c \
 	builtin/image/pi_color.c
 
+AUDIO_SRCS := \
+	builtin/audio/pi_audio.c
+
 NATIVE_EXTRA_SRCS := \
 	builtin/net/pi_socket.c \
 	builtin/pi_os.c \
 	builtin/pi_draw.c \
 	builtin/pi_plot.c \
 	builtin/pi_plot3d.c \
-	$(IMAGE_SRCS)
+	$(IMAGE_SRCS) \
+	$(AUDIO_SRCS)
 
 NATIVE_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS) $(NATIVE_EXTRA_SRCS)
 WEB_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS)

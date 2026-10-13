@@ -1,0 +1,3 @@
+import audio
+
+assert(type(audio.load) == "function", "audio should expose load")

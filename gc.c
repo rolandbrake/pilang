@@ -590,6 +590,14 @@ void free_object(Object *obj)
             SDL_FreeSurface(image->surface);
         break;
     }
+
+    case OBJ_AUDIO:
+    {
+        ObjAudio *audio = (ObjAudio *)obj;
+        if (audio->buffer)
+            SDL_FreeWAV(audio->buffer);
+        break;
+    }
 #endif
 
     case OBJ_MAP:
