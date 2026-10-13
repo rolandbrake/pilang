@@ -594,8 +594,7 @@ void free_object(Object *obj)
     case OBJ_AUDIO:
     {
         ObjAudio *audio = (ObjAudio *)obj;
-        if (audio->buffer)
-            SDL_FreeWAV(audio->buffer);
+        free(audio->samples);
         break;
     }
 #endif

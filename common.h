@@ -93,6 +93,10 @@ typedef struct
 char *itos(int num);
 void error(const char *format, ...);
 int find_paletteColor(uint8_t r, uint8_t g, uint8_t b);
+bool is_absolute_path(const char *path);
+// Returns an owned path, resolving relative paths from vm->current_path.
+struct vm_t;
+char *resolve_path(struct vm_t *vm, const char *path);
 
 // Error handler callback definition
 typedef void (*error_handlerFn)(const char *message, int line, int column);

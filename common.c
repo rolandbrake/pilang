@@ -4,11 +4,39 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <string.h>
+#include <ctype.h>
 #include "common.h"
+#include "pi_vm.h"
 
 error_handlerFn global_errorHandler = NULL;
 int pi_cli_argc = 0;
 char **pi_cli_argv = NULL;
+
+bool is_absolute_path(const char *path)
+{
+    if (!path || !path[0])
+        return false;
+
+#ifdef _WIN32
+    return (isalpha((unsigned char)path[0]) && path[1] == ':') ||
+           (path[0] == '\\' && path[1] == '\\');
+#else
+    return path[0] == '/';
+#endif
+}
+
+char *resolve_path(vm_t *vm, const char *path)
+{
+    if (is_absolute_path(path) || !vm || !vm->current_path)
+        return strdup(path);
+
+    size_t length = strlen(vm->current_path) + 1 + strlen(path) + 1;
+    char *resolved = malloc(length);
+    if (resolved)
+        snprintf(resolved, length, "%s/%s", vm->current_path, path);
+    return resolved;
+}
 
 char *itos(int num)
 {

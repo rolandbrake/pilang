@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
@@ -41,31 +40,6 @@ static void _ensure_img()
     }
 }
 
-static bool _is_absolute_path(const char *path)
-{
-    if (!path || !path[0])
-        return false;
-
-#ifdef _WIN32
-    return (isalpha((unsigned char)path[0]) && path[1] == ':') ||
-           (path[0] == '\\' && path[1] == '\\');
-#else
-    return path[0] == '/';
-#endif
-}
-
-static char *_resolve_image_path(vm_t *vm, const char *path)
-{
-    if (_is_absolute_path(path) || !vm || !vm->current_path)
-        return strdup(path);
-
-    size_t length = strlen(vm->current_path) + 1 + strlen(path) + 1;
-    char *resolved = malloc(length);
-    if (resolved)
-        snprintf(resolved, length, "%s/%s", vm->current_path, path);
-    return resolved;
-}
-
 Value im_load(vm_t *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
@@ -74,7 +48,7 @@ Value im_load(vm_t *vm, int argc, Value *argv)
     _ensure_img();
 
     const char *path = AS_CSTRING(argv[0]);
-    char *resolved_path = _resolve_image_path(vm, path);
+    char *resolved_path = resolve_path(vm, path);
     if (!resolved_path)
         vm_error(vm, "[image.load] out of memory.");
 

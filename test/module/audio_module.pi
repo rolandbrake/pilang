@@ -1,3 +1,13 @@
 import audio
+import fs
 
 assert(type(audio.load) == "function", "audio should expose load")
+
+
+let clip = audio.load("./sample.wav")
+assert(type(clip) == "audio", "load should return an audio clip")
+assert(audio.sample_rate(clip) == 8000, "sample rate should be read from WAV")
+assert(audio.channels(clip) == 1, "channel count should be read from WAV")
+assert(audio.frames(clip) == 23808, "frame count should be derived from WAV data")
+assert(audio.duration(clip) == 2.976, "duration should be frames divided by sample rate")
+assert(audio.format(clip) == "f32", "loaded clips should use canonical float32 samples")

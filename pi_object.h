@@ -394,11 +394,11 @@ typedef struct
 {
     Object object;
     SDL_AudioSpec spec;
-    Uint8 *buffer;
-    Uint32 length;
+    float *samples;
+    Uint32 frames;
 } ObjAudio;
 
-ObjAudio *new_audio(SDL_AudioSpec spec, Uint8 *buffer, Uint32 length);
+ObjAudio *new_audio(SDL_AudioSpec spec, float *samples, Uint32 frames);
 #endif
 
 struct PiChart3D;
