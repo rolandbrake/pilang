@@ -594,6 +594,12 @@ void free_object(Object *obj)
     case OBJ_AUDIO:
     {
         ObjAudio *audio = (ObjAudio *)obj;
+        if (audio->chunk)
+        {
+            if (audio->channel >= 0 && Mix_GetChunk(audio->channel) == audio->chunk)
+                Mix_HaltChannel(audio->channel);
+            Mix_FreeChunk(audio->chunk);
+        }
         free(audio->samples);
         break;
     }

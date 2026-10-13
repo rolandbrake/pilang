@@ -4,6 +4,7 @@
 #include <stdint.h>
 #ifndef __EMSCRIPTEN__
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_mixer.h>
 #include <SDL2/SDL_ttf.h>
 #else
 typedef struct SDL_Rect
@@ -396,9 +397,12 @@ typedef struct
     SDL_AudioSpec spec;
     float *samples;
     Uint32 frames;
+    Mix_Chunk *chunk;
+    int channel;
 } ObjAudio;
 
-ObjAudio *new_audio(SDL_AudioSpec spec, float *samples, Uint32 frames);
+ObjAudio *new_audio(SDL_AudioSpec spec, float *samples, Uint32 frames,
+                    Mix_Chunk *chunk);
 #endif
 
 struct PiChart3D;

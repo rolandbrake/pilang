@@ -1,0 +1,14 @@
+import audio 
+
+let clip = audio.load("./samples/sample.wav") // also MP3 when its decoder is available
+
+let channel = audio.play(clip, 10)
+
+while audio.is_playing(clip) {
+    println("Playing...")
+    sleep(audio.duration(clip) * 1000)
+}
+// audio.pause(clip)
+// audio.resume(clip)
+// audio.stop(clip)
+// println(audio.is_playing(clip))
