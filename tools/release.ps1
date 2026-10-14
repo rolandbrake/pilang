@@ -11,7 +11,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ($Version -notmatch '^v\d+\.\d+\.\d+(-[A-Za-z0-9.-]+)?$') {
-    throw "Version must look like v0.1.3 or v0.1.3-beta.1"
+    throw "Version must look like v0.1.4 or v0.1.4-beta.1"
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")

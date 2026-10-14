@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
 
 static void print_usage(const char *program)
 {
-    printf("Pilangv0.1.3\n");
+    printf("Pilangv0.1.4\n");
     printf("Usage:\n");
     printf("  %s                            Start the interactive prompt\n", program);
     printf("  %s run [file] [args...]       Run main.pi or the specified Pilang file\n", program);
@@ -842,7 +842,7 @@ static int run_repl(void)
 #define C_CYAN "\033[36m"
 
     printf(
-        C_CYAN C_BOLD "Pilang v0.1.3" C_RESET
+        C_CYAN C_BOLD "Pilang v0.1.4" C_RESET
                       "  " C_YELLOW "(type 'exit' or press ^C to quit)" C_RESET "\n");
 
     compiler_t *comp = init_compiler();

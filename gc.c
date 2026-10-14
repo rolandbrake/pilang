@@ -717,7 +717,12 @@ void free_object(Object *obj)
         break;
     }
     case OBJ_EVENT:
+    {
+        PiEvent *event = (PiEvent *)obj;
+        free(event->type);
+        free(event->key);
         break;
+    }
 
     default:
         break;

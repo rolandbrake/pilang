@@ -175,6 +175,7 @@ static void _parse_drawOptions(Value opts, int *color, char **font_path, int *fo
     Value _h = _map_get(table, "h");
     if (!IS_NIL(_h) && IS_NUM(_h))
         *img_h = (int)AS_NUM(_h);
+
 }
 
 static EventType _get_eventType(const char *name)
@@ -343,11 +344,12 @@ static void _cleanup_events(PiContext *ctx)
     // Clear all handlers
     for (int i = 0; i < EVENT_COUNT; i++)
     {
-        ctx->handlers[i].count = 0;
-        for (int j = 0; j < MAX_HANDLERS; j++)
+        for (int j = 0; j < ctx->handlers[i].count; j++)
         {
+            free(ctx->handlers[i].fns[j]);
             ctx->handlers[i].fns[j] = NULL;
         }
+        ctx->handlers[i].count = 0;
     }
 
     _clear_eventQueue(ctx);
@@ -447,12 +449,17 @@ static _drawImageCacheEntry *_load_cachedImage(vm_t *vm, PiContext *ctx, const c
 
 void dw_cleanupContext(PiContext *ctx)
 {
-    if (ctx == NULL)
+    if (ctx == NULL || ctx->cleaned)
         return;
 
+    // draw.run() releases these resources when the window closes, then the
+    // context is released again later by the VM's garbage collector.  Mark it
+    // first so both paths are safe even if shutdown is re-entered.
+    ctx->cleaned = true;
     ctx->running = false;
     ctx->frame_callback = NEW_NIL();
     ctx->active_plot3d = NULL;
+    ctx->font = NULL;
 
     while (ctx->_transform_stack != NULL)
     {
@@ -1201,7 +1208,7 @@ Value dw_text(vm_t *vm, int argc, Value *argv)
     bool italic = false;
 
     
-    if (argc > 4)
+    if (argc > 4 && IS_MAP(argv[4]))
         _parse_drawOptions(argv[4], &color, &font_path, &font_size, &align, &bold, &italic, NULL, NULL, NULL);
 
     
@@ -1261,8 +1268,8 @@ Value dw_text(vm_t *vm, int argc, Value *argv)
         vm_errorf(vm, "Failed to create texture: %s", SDL_GetError());
     }
 
-    SDL_Rect dst = {(int)x, (int)y, text_w, text_h};
-    SDL_RenderCopy(ctx->renderer, texture, NULL, &dst);
+    SDL_FRect dst = {x, y, (float)text_w, (float)text_h};
+    SDL_RenderCopyF(ctx->renderer, texture, NULL, &dst);
     SDL_DestroyTexture(texture);
 
     if (font_path && font)
@@ -1274,7 +1281,7 @@ Value dw_text(vm_t *vm, int argc, Value *argv)
 Value dw_image(vm_t *vm, int argc, Value *argv)
 {
     // Usage: image(canvas, path, x, y, opts)
-    // opts: {w, h, alpha, color}
+    // opts: {w, h, alpha, color, flip_y, angle}
 
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
@@ -1292,9 +1299,19 @@ Value dw_image(vm_t *vm, int argc, Value *argv)
     float img_alpha = -1.0f; // -1 means use context alpha
     int img_w = 0;
     int img_h = 0;
+    bool flip_y = false;
+    double angle = 0;
 
-    if (argc > 4)
+    if (argc > 4 && IS_MAP(argv[4]))
+    {
         _parse_drawOptions(argv[4], &color, NULL, NULL, NULL, NULL, NULL, &img_alpha, &img_w, &img_h);
+        Value flip = _map_get(AS_MAP(argv[4]), "flip_y");
+        if (IS_BOOL(flip))
+            flip_y = AS_BOOL(flip);
+        Value rotation = _map_get(AS_MAP(argv[4]), "angle");
+        if (IS_NUM(rotation))
+            angle = AS_NUM(rotation);
+    }
 
     _transform(ctx, &x, &y);
 
@@ -1315,8 +1332,9 @@ Value dw_image(vm_t *vm, int argc, Value *argv)
                            (Uint8)(color & 255));
 
     // Draw
-    SDL_Rect dst = {(int)x, (int)y, dst_w, dst_h};
-    SDL_RenderCopy(ctx->renderer, image->texture, NULL, &dst);
+    SDL_FRect dst = {x, y, (float)dst_w, (float)dst_h};
+    SDL_RenderCopyExF(ctx->renderer, image->texture, NULL, &dst, angle, NULL,
+                      flip_y ? SDL_FLIP_VERTICAL : SDL_FLIP_NONE);
 
     return NEW_NIL();
 }
@@ -1556,6 +1574,7 @@ Value dw_off(vm_t *vm, int argc, Value *argv)
                     handlers->fns[j] = handlers->fns[j + 1];
                 }
                 handlers->count--;
+                handlers->fns[handlers->count] = NULL;
                 break;
             }
         }

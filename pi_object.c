@@ -649,6 +649,7 @@ Object *new_context(void)
     ctx->angle = 0;
     ctx->alpha = 1.0f;
     ctx->running = true;
+    ctx->cleaned = false;
     ctx->userdata = NULL;
     ctx->image_cache = NULL;
     ctx->frame_callback = NEW_NIL();

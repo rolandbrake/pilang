@@ -418,6 +418,7 @@ typedef struct PiContext
     void *renderer;
     int width, height;
     bool running;
+    bool cleaned;          // Native draw resources have been released.
     float tx, ty, sx, sy, angle, alpha;
     void *font;             // default font
     void *_transform_stack; 

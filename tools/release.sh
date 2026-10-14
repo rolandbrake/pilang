@@ -12,7 +12,7 @@ usage() {
 Usage: $0 <version> [options]
 
 Arguments:
-  version              Version (e.g. v0.1.3 or v0.1.3-beta.1)
+  version              Version (e.g. v0.1.4 or v0.1.4-beta.1)
 
 Options:
   --release-dir DIR    Release directory (default: build)
@@ -69,7 +69,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
-    echo "Version must look like v0.1.3 or v0.1.3-beta.1"
+    echo "Version must look like v0.1.4 or v0.1.4-beta.1"
     exit 1
 fi
 
