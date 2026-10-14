@@ -10,6 +10,8 @@
 #include "../../pi_object.h"
 #include "../../pi_value.h"
 
+static Mix_Music *current_music = NULL;
+
 ObjAudio *new_audio(SDL_AudioSpec spec, float *samples, Uint32 frames,
                     Mix_Chunk *chunk)
 {
@@ -244,6 +246,51 @@ Value au_isPlaying(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(active_channel(audio) >= 0);
 }
 
+Value au_playMusic(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 1 || !IS_STRING(argv[0]))
+        vm_error(vm, "[audio.play_music] expects a file path string.");
+
+    int loops = 0;
+    if (argc > 1)
+    {
+        if (!IS_NUM(argv[1]) || AS_NUM(argv[1]) < -1 || AS_NUM(argv[1]) != (int)AS_NUM(argv[1]))
+            vm_error(vm, "[audio.play_music] loops must be an integer greater than or equal to -1.");
+        loops = (int)AS_NUM(argv[1]);
+    }
+
+    ensure_mixer(vm);
+    const char *path = AS_CSTRING(argv[0]);
+    char *resolved_path = resolve_path(vm, path);
+    if (!resolved_path)
+        vm_error(vm, "[audio.play_music] out of memory.");
+
+    Mix_Music *music = Mix_LoadMUS(resolved_path);
+    free(resolved_path);
+    if (!music)
+        vm_errorf(vm, "[audio.play_music] failed to load '%s': %s", path, Mix_GetError());
+
+    Mix_HaltMusic();
+    if (current_music)
+        Mix_FreeMusic(current_music);
+    current_music = music;
+
+    if (Mix_PlayMusic(current_music, loops) < 0)
+        vm_errorf(vm, "[audio.play_music] failed to play '%s': %s", path, Mix_GetError());
+    return NEW_BOOL(true);
+}
+
+Value au_musicIsPlaying(vm_t *vm, int argc, Value *argv)
+{
+    return NEW_BOOL(Mix_PlayingMusic() || Mix_PausedMusic());
+}
+
+Value au_stopMusic(vm_t *vm, int argc, Value *argv)
+{
+    Mix_HaltMusic();
+    return NEW_BOOL(true);
+}
+
 static BuiltinFunc audio_funcs[] = {
     {"load", au_load},
     {"sample_rate", au_sampleRate},
@@ -256,6 +303,9 @@ static BuiltinFunc audio_funcs[] = {
     {"resume", au_resume},
     {"stop", au_stop},
     {"is_playing", au_isPlaying},
+    {"play_music", au_playMusic},
+    {"music_isPlaying", au_musicIsPlaying},
+    {"stop_music", au_stopMusic},
 };
 
 static BuiltinConst audio_consts[] = {};

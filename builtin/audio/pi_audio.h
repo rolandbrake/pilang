@@ -16,5 +16,8 @@ Value au_pause(vm_t *vm, int argc, Value *argv);
 Value au_resume(vm_t *vm, int argc, Value *argv);
 Value au_stop(vm_t *vm, int argc, Value *argv);
 Value au_isPlaying(vm_t *vm, int argc, Value *argv);
+Value au_playMusic(vm_t *vm, int argc, Value *argv);
+Value au_musicIsPlaying(vm_t *vm, int argc, Value *argv);
+Value au_stopMusic(vm_t *vm, int argc, Value *argv);
 
 #endif // PI_AUDIO_H

@@ -168,12 +168,12 @@ fun render(canvas) {
               {color: draw.COLOR_WHITE, size: 20, bold: true})
 
     if won {
-        draw.text(canvas, WIDTH / 2 - 115, HEIGHT / 2,
+        draw.text(canvas, WIDTH / 2 - 160, HEIGHT / 2,
                   "You cleared the wall! Press R",
                   {color: draw.COLOR_LIME, size: 21, bold: true})
     }
     if game_over {
-        draw.text(canvas, WIDTH / 2 - 100, HEIGHT / 2,
+        draw.text(canvas, WIDTH / 2 - 160, HEIGHT / 2,
                   "Game over. Press R to retry",
                   {color: draw.COLOR_RED, size: 21, bold: true})
     }

@@ -150,6 +150,13 @@ Draws text.
 draw.text("Hello", 20, 30)
 ```
 
+The text argument accepts any PiLang value and formats it with the same rules
+as `str`, so counters can be drawn directly:
+
+```swift
+draw.text(canvas, 20, 30, score)
+```
+
 ## `draw.image(path, x, y, ...)`
 
 Draws an image.
@@ -157,6 +164,10 @@ Draws an image.
 ```swift
 draw.image("sprite.png", 100, 100)
 ```
+
+Each path is decoded and uploaded once per canvas, then its texture is reused
+for later calls. This makes it suitable to draw the same sprites every frame;
+cached textures are released when the canvas closes.
 
 ## `draw.is_running()`
 

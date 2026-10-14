@@ -108,6 +108,67 @@ Value im_channels(vm_t *vm, int argc, Value *argv)
     return NEW_NUM((double)c);
 }
 
+static Uint8 image_alphaAt(SDL_Surface *surface, int x, int y)
+{
+    int bpp = surface->format->BytesPerPixel;
+    Uint8 *pixel = (Uint8 *)surface->pixels + y * surface->pitch + x * bpp;
+    Uint32 value = 0;
+    memcpy(&value, pixel, (size_t)bpp);
+
+    Uint8 r, g, b, a;
+    SDL_GetRGBA(value, surface->format, &r, &g, &b, &a);
+    return a;
+}
+
+Value im_overlaps(vm_t *vm, int argc, Value *argv)
+{
+    if (argc < 6 || !IS_IMAGE(argv[0]) || !IS_NUM(argv[1]) || !IS_NUM(argv[2]) ||
+        !IS_IMAGE(argv[3]) || !IS_NUM(argv[4]) || !IS_NUM(argv[5]))
+        vm_error(vm, "[image.overlaps] expects (image_a, x_a, y_a, image_b, x_b, y_b, alpha=1).");
+
+    ObjImage *a = AS_IMAGE(argv[0]);
+    int ax = (int)AS_NUM(argv[1]);
+    int ay = (int)AS_NUM(argv[2]);
+    ObjImage *b = AS_IMAGE(argv[3]);
+    int bx = (int)AS_NUM(argv[4]);
+    int by = (int)AS_NUM(argv[5]);
+    int threshold = argc > 6 && IS_NUM(argv[6]) ? (int)AS_NUM(argv[6]) : 1;
+    if (threshold < 0 || threshold > 255)
+        vm_error(vm, "[image.overlaps] alpha must be between 0 and 255.");
+
+    int left = ax > bx ? ax : bx;
+    int top = ay > by ? ay : by;
+    int right_a = ax + a->surface->w;
+    int right_b = bx + b->surface->w;
+    int bottom_a = ay + a->surface->h;
+    int bottom_b = by + b->surface->h;
+    int right = right_a < right_b ? right_a : right_b;
+    int bottom = bottom_a < bottom_b ? bottom_a : bottom_b;
+    if (left >= right || top >= bottom)
+        return NEW_BOOL(false);
+
+    if (SDL_LockSurface(a->surface) != 0 || SDL_LockSurface(b->surface) != 0)
+        vm_errorf(vm, "[image.overlaps] failed to lock image: %s", SDL_GetError());
+
+    bool hit = false;
+    for (int y = top; y < bottom && !hit; y++)
+    {
+        for (int x = left; x < right; x++)
+        {
+            if (image_alphaAt(a->surface, x - ax, y - ay) >= threshold &&
+                image_alphaAt(b->surface, x - bx, y - by) >= threshold)
+            {
+                hit = true;
+                break;
+            }
+        }
+    }
+
+    SDL_UnlockSurface(a->surface);
+    SDL_UnlockSurface(b->surface);
+    return NEW_BOOL(hit);
+}
+
 // Preserves the source pixel format rather than always converting to RGBA32,
 // which matters for palette/indexed surfaces that callers may want to keep as-is.
 static SDL_Surface *create_surfaceSameFormat(SDL_Surface *src, int w, int h)
@@ -482,6 +543,7 @@ static BuiltinFunc image_funcs[] = {
     {"width", im_width},
     {"height", im_height},
     {"channels", im_channels},
+    {"overlaps", im_overlaps},
     {"resize", im_resize},
     {"crop", im_crop},
     {"flip", im_flip},

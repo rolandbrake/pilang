@@ -75,6 +75,18 @@ println(image.height(img))
 println(image.channels(img))
 ```
 
+## `image.overlaps(image_a, x_a, y_a, image_b, x_b, y_b, alpha = 1)`
+
+Returns `true` when two images overlap at non-transparent pixels. Coordinates
+refer to the top-left corner of each image. `alpha` is the minimum alpha value
+that counts as solid, from `0` to `255`.
+
+```swift
+if image.overlaps(player, player_x, player_y, enemy, enemy_x, enemy_y) {
+    println("hit")
+}
+```
+
 ## Geometry
 
 ### `image.resize(img, width, height)`

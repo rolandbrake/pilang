@@ -650,6 +650,7 @@ Object *new_context(void)
     ctx->alpha = 1.0f;
     ctx->running = true;
     ctx->userdata = NULL;
+    ctx->image_cache = NULL;
     ctx->frame_callback = NEW_NIL();
     ctx->_transform_stack = NULL;
     ctx->font = NULL;

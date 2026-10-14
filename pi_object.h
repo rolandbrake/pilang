@@ -407,42 +407,43 @@ ObjAudio *new_audio(SDL_AudioSpec spec, float *samples, Uint32 frames,
 
 struct PiChart3D;
 
-// Update PiContext structure
+
 typedef struct PiContext
 {
 
     Object object;
 
-    // Existing fields
+    
     void *window;
     void *renderer;
     int width, height;
     bool running;
     float tx, ty, sx, sy, angle, alpha;
     void *font;             // default font
-    void *_transform_stack; // stack of _transformState
+    void *_transform_stack; 
 
     void *userdata; /* PiDraw extra state (_transform stack, font, fps); owned by builtin/pi_draw.c */
+    void *image_cache; /* PiDraw cached SDL textures; owned by builtin/pi_draw.c */
 
     Value frame_callback;
 
     SDL_Rect clip_rect; // clipping rectangle
     bool clip_enabled;
 
-    // Event handling
+
     HandlerList handlers[EVENT_COUNT];
 
-    // Event queue (using simple array or list)
+    
     EventQueue *eventQueue;
 
-    // FPS tracking
+    
     uint32_t last_fps_time;
     int frame_count;
     double current_fps;
 
     bool plot_subplots_cleared;
 
-    // Mouse state
+
     int mouse_x, mouse_y;
     uint32_t mouse_buttons;
 

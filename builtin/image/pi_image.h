@@ -9,6 +9,7 @@ Value im_save(vm_t *vm, int argc, Value *argv);
 Value im_width(vm_t *vm, int argc, Value *argv);
 Value im_height(vm_t *vm, int argc, Value *argv);
 Value im_channels(vm_t *vm, int argc, Value *argv);
+Value im_overlaps(vm_t *vm, int argc, Value *argv);
 Value im_resize(vm_t *vm, int argc, Value *argv);
 Value im_crop(vm_t *vm, int argc, Value *argv);
 Value im_flip(vm_t *vm, int argc, Value *argv);

@@ -371,6 +371,15 @@ typedef struct _drawFontCacheEntry
     struct _drawFontCacheEntry *next;
 } _drawFontCacheEntry;
 
+typedef struct _drawImageCacheEntry
+{
+    char *path;
+    SDL_Texture *texture;
+    int width;
+    int height;
+    struct _drawImageCacheEntry *next;
+} _drawImageCacheEntry;
+
 static void _cleanup_fontCache(PiContext *ctx)
 {
     _drawFontCacheEntry *entry = (_drawFontCacheEntry *)ctx->userdata;
@@ -382,6 +391,58 @@ static void _cleanup_fontCache(PiContext *ctx)
         entry = next;
     }
     ctx->userdata = NULL;
+}
+
+static void _cleanup_imageCache(PiContext *ctx)
+{
+    _drawImageCacheEntry *entry = (_drawImageCacheEntry *)ctx->image_cache;
+    while (entry)
+    {
+        _drawImageCacheEntry *next = entry->next;
+        SDL_DestroyTexture(entry->texture);
+        free(entry->path);
+        free(entry);
+        entry = next;
+    }
+    ctx->image_cache = NULL;
+}
+
+static _drawImageCacheEntry *_load_cachedImage(vm_t *vm, PiContext *ctx, const char *path)
+{
+    for (_drawImageCacheEntry *entry = (_drawImageCacheEntry *)ctx->image_cache;
+         entry != NULL; entry = entry->next)
+    {
+        if (strcmp(entry->path, path) == 0)
+            return entry;
+    }
+
+    SDL_Surface *surface = IMG_Load(path);
+    if (!surface)
+        vm_errorf(vm, "Failed to load image '%s': %s", path, IMG_GetError());
+
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(ctx->renderer, surface);
+    SDL_FreeSurface(surface);
+    if (!texture)
+        vm_errorf(vm, "Failed to create texture: %s", SDL_GetError());
+
+    _drawImageCacheEntry *entry = malloc(sizeof(*entry));
+    if (!entry)
+    {
+        SDL_DestroyTexture(texture);
+        vm_error(vm, "Out of memory caching image texture.");
+    }
+    entry->path = _draw_strdup(path);
+    if (!entry->path)
+    {
+        SDL_DestroyTexture(texture);
+        free(entry);
+        vm_error(vm, "Out of memory caching image path.");
+    }
+    entry->texture = texture;
+    SDL_QueryTexture(texture, NULL, NULL, &entry->width, &entry->height);
+    entry->next = (_drawImageCacheEntry *)ctx->image_cache;
+    ctx->image_cache = entry;
+    return entry;
 }
 
 void dw_cleanupContext(PiContext *ctx)
@@ -402,6 +463,7 @@ void dw_cleanupContext(PiContext *ctx)
 
     _cleanup_events(ctx);
     _cleanup_fontCache(ctx);
+    _cleanup_imageCache(ctx);
 
     if (ctx->renderer != NULL)
     {
@@ -1123,7 +1185,12 @@ Value dw_text(vm_t *vm, int argc, Value *argv)
 
     float x = as_number(argv[1]);
     float y = as_number(argv[2]);
-    const char *text = AS_CSTRING(argv[3]);
+    // Convert any PiLang value to display text. AS_CSTRING assumes an object
+    // string and can dereference invalid memory for numbers (for example a
+    // score counter), which previously terminated the process.
+    char *text = as_stringWithFormat(vm, argv[3]);
+    if (!text)
+        vm_error(vm, "text() could not format its text argument");
 
     // Default options
     int color = 0xFFFFFF;
@@ -1185,6 +1252,7 @@ Value dw_text(vm_t *vm, int argc, Value *argv)
 
     SDL_Texture *texture = SDL_CreateTextureFromSurface(ctx->renderer, surface);
     SDL_FreeSurface(surface);
+    free(text);
 
     if (!texture)
     {
@@ -1230,38 +1298,25 @@ Value dw_image(vm_t *vm, int argc, Value *argv)
 
     _transform(ctx, &x, &y);
 
-    SDL_Surface *surface = IMG_Load(path);
-    if (!surface)
-        vm_errorf(vm, "Failed to load image '%s': %s", path, IMG_GetError());
-
-    SDL_Texture *texture = SDL_CreateTextureFromSurface(ctx->renderer, surface);
-    SDL_FreeSurface(surface);
-
-    if (!texture)
-        vm_errorf(vm, "Failed to create texture: %s", SDL_GetError());
-
-    // Get original dimensions
-    int orig_w, orig_h;
-    SDL_QueryTexture(texture, NULL, NULL, &orig_w, &orig_h);
+    _drawImageCacheEntry *image = _load_cachedImage(vm, ctx, path);
 
     // Apply resize if specified
-    int dst_w = img_w > 0 ? img_w : orig_w;
-    int dst_h = img_h > 0 ? img_h : orig_h;
+    int dst_w = img_w > 0 ? img_w : image->width;
+    int dst_h = img_h > 0 ? img_h : image->height;
 
     // Apply alpha
     Uint8 alpha = (Uint8)((img_alpha >= 0 ? img_alpha : ctx->alpha) * 255);
-    SDL_SetTextureAlphaMod(texture, alpha);
+    SDL_SetTextureAlphaMod(image->texture, alpha);
 
     // Apply color modulation
-    SDL_SetTextureColorMod(texture,
+    SDL_SetTextureColorMod(image->texture,
                            (Uint8)((color >> 16) & 255),
                            (Uint8)((color >> 8) & 255),
                            (Uint8)(color & 255));
 
     // Draw
     SDL_Rect dst = {(int)x, (int)y, dst_w, dst_h};
-    SDL_RenderCopy(ctx->renderer, texture, NULL, &dst);
-    SDL_DestroyTexture(texture);
+    SDL_RenderCopy(ctx->renderer, image->texture, NULL, &dst);
 
     return NEW_NIL();
 }

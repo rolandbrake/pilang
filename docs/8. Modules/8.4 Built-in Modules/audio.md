@@ -105,3 +105,19 @@ audio.resume(clip)
 sleep(1000)
 audio.stop(clip)
 ```
+
+## Streaming music
+
+Use streaming playback for long music tracks. Unlike `audio.load`, streaming
+music is not decoded into a full in-memory sound effect.
+
+```swift
+audio.play_music("music/theme.ogg")
+if !audio.music_isPlaying() {
+    audio.play_music("music/next_theme.ogg")
+}
+audio.stop_music()
+```
+
+`audio.play_music(path, loops = 0)` accepts the same loop count as
+`audio.play`; `-1` loops indefinitely.
