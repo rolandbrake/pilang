@@ -71,6 +71,9 @@ Value dw_wait(vm_t *vm, int argc, Value *argv);
 // Get current mouse state or position.
 Value dw_mouse(vm_t *vm, int argc, Value *argv);
 
+// Show or hide the mouse cursor.
+Value dw_cursor(vm_t *vm, int argc, Value *argv);
+
 // Get current keyboard state.
 Value dw_key(vm_t *vm, int argc, Value *argv);
 

@@ -142,6 +142,29 @@ if draw.key(ctx, draw.KEY_A)
     println("A is held")
 ```
 
+## `draw.mouse(canvas)`
+
+Returns the current pointer state as a map with `x`, `y`, `left`, `middle`,
+and `right` fields.
+
+```swift
+let mouse = draw.mouse(ctx)
+if mouse.left
+    println(mouse.x, mouse.y)
+```
+
+Mouse input is also available through `mousedown`, `mouseup`, `mousemove`,
+and `scroll` event handlers. Mouse button events provide `x`, `y`, `button`,
+and `pressed`; move events also provide `dx` and `dy`.
+
+## `draw.cursor(canvas, visible)`
+
+Shows or hides the system mouse cursor over the canvas.
+
+```swift
+draw.cursor(ctx, false) // hide cursor
+```
+
 ## `draw.text(text, x, y, ...)`
 
 Draws text.

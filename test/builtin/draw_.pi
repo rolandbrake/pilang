@@ -77,6 +77,12 @@ fun paint(ctx) {
 let ctx = draw.canvas(720, 320, "PiLang draw use-case")
 
 assert(draw.is_running(ctx) == true, "canvas() should create a running draw context")
+let mouse = draw.mouse(ctx)
+assert(is_num(mouse.x) && is_num(mouse.y), "mouse() should return pointer coordinates")
+assert(is_bool(mouse.left) && is_bool(mouse.middle) && is_bool(mouse.right),
+       "mouse() should return button states")
+draw.cursor(ctx, false)
+draw.cursor(ctx, true)
 // assert(draw.poll(ctx) == nil, "poll() should return nil when no events are queued yet")
 startup_event = draw.poll(ctx)
 

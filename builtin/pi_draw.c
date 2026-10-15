@@ -1400,6 +1400,10 @@ Value dw_pop(vm_t *vm, int argc, Value *argv)
 
 Value dw_mouse(vm_t *vm, int argc, Value *argv)
 {
+    PiContext *ctx = _get_ctx(argv[0]);
+    if (!ctx)
+        vm_error(vm, "mouse() takes a canvas as first argument");
+
     int x, y;
     Uint32 buttons = SDL_GetMouseState(&x, &y);
 
@@ -1408,10 +1412,22 @@ Value dw_mouse(vm_t *vm, int argc, Value *argv)
     ht_put(table, "x", &NEW_NUM((double)x));
     ht_put(table, "y", &NEW_NUM((double)y));
     ht_put(table, "left", &NEW_BOOL(buttons & SDL_BUTTON(SDL_BUTTON_LEFT)));
+    ht_put(table, "middle", &NEW_BOOL(buttons & SDL_BUTTON(SDL_BUTTON_MIDDLE)));
+    ht_put(table, "right", &NEW_BOOL(buttons & SDL_BUTTON(SDL_BUTTON_RIGHT)));
 
     PiMap *map = (PiMap *)new_map(table);
 
     return NEW_OBJ(map);
+}
+
+Value dw_cursor(vm_t *vm, int argc, Value *argv)
+{
+    PiContext *ctx = _get_ctx(argv[0]);
+    if (!ctx || argc < 2 || !IS_BOOL(argv[1]))
+        vm_error(vm, "cursor() takes a canvas and a visibility boolean");
+
+    SDL_ShowCursor(AS_BOOL(argv[1]) ? SDL_ENABLE : SDL_DISABLE);
+    return NEW_NIL();
 }
 
 Value dw_key(vm_t *vm, int argc, Value *argv)
@@ -1774,6 +1790,8 @@ static BuiltinFunc draw_funcs[] = {
     {"off", dw_off},
     {"poll", dw_poll},
     {"wait", dw_wait},
+    {"mouse", dw_mouse},
+    {"cursor", dw_cursor},
     {"key", dw_key},
     {"text", dw_text},
     {"image", dw_image},
