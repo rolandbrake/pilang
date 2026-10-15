@@ -112,7 +112,7 @@ import type.{float, int}
 
 WIDTH = 500
 HEIGHT = 500
-MODEL_PATH = "samples/graphics/monkey.obj"
+MODEL_PATH = "./monkey.obj"
 
 FACE_SIGN = 1        // if the monkey looks inside-out or has holes, set to -1
 BUCKETS = 64         // depth buckets used for far-to-near drawing
