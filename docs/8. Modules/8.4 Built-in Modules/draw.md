@@ -6,12 +6,18 @@ The `draw` module provides canvas drawing, events, _transforms, and drawing stat
 import draw
 ```
 
-## `draw.canvas(width, height, title = nil)`
+## `draw.canvas(width, height, title = nil, icon = nil)`
 
 Creates a drawing canvas or window.
 
 ```swift
 draw.canvas(640, 480, "Demo")
+```
+
+Pass an image path after the title to replace the default PiLang window icon.
+
+```swift
+draw.canvas(640, 480, "Demo", "assets/icon.png")
 ```
 
 ## `draw.run(callback = nil)`

@@ -580,9 +580,12 @@ static void _pump_events(vm_t *vm, PiContext *ctx)
 
     while (SDL_PollEvent(&sdl_event))
     {
-        if (sdl_event.type == SDL_QUIT ||
-            (sdl_event.type == SDL_WINDOWEVENT && sdl_event.window.event == SDL_WINDOWEVENT_CLOSE) ||
-            (sdl_event.type == SDL_KEYDOWN && sdl_event.key.keysym.sym == SDLK_ESCAPE))
+        bool closing = sdl_event.type == SDL_QUIT ||
+                       (sdl_event.type == SDL_WINDOWEVENT &&
+                        sdl_event.window.event == SDL_WINDOWEVENT_CLOSE) ||
+                       (sdl_event.type == SDL_KEYDOWN &&
+                        sdl_event.key.keysym.sym == SDLK_ESCAPE);
+        if (closing)
             ctx->running = false;
 
         if (sdl_event.type == SDL_WINDOWEVENT &&
@@ -594,12 +597,16 @@ static void _pump_events(vm_t *vm, PiContext *ctx)
         }
 
         PiEvent *event = _translate_sdlEvent(&sdl_event);
-        if (event == NULL)
-            continue;
+        if (event != NULL)
+        {
+            _push_event(ctx, event);
+            _dispatch_event(vm, ctx, event);
+            _free_event(event);
+        }
 
-        _push_event(ctx, event);
-        _dispatch_event(vm, ctx, event);
-        _free_event(event);
+        // Do not dispatch stale window events after the application asks to close.
+        if (closing)
+            break;
     }
 }
 
@@ -614,6 +621,13 @@ Value dw_canvas(vm_t *vm, int argc, Value *argv)
     const char *title = (argc > 2 && IS_STRING(argv[2]))
                             ? AS_CSTRING(argv[2])
                             : "PiLang";
+    const char *icon_path = NULL;
+    if (argc > 3)
+    {
+        if (!IS_STRING(argv[3]))
+            vm_error(vm, "canvas() icon must be an image path");
+        icon_path = AS_CSTRING(argv[3]);
+    }
 
     PiContext *ctx = (PiContext *)new_context();
 
@@ -621,7 +635,7 @@ Value dw_canvas(vm_t *vm, int argc, Value *argv)
                                    SDL_WINDOWPOS_UNDEFINED,
                                    SDL_WINDOWPOS_UNDEFINED,
                                    w, h,
-                                   SDL_WINDOW_SHOWN);
+                                   SDL_WINDOW_HIDDEN);
 
     if (!ctx->window)
     {
@@ -629,7 +643,21 @@ Value dw_canvas(vm_t *vm, int argc, Value *argv)
         vm_errorf(vm, "Failed to create window: %s", SDL_GetError());
     }
 
-    _set_windowIcon((SDL_Window *)ctx->window);
+    if (icon_path)
+    {
+        if (!_try_setWindowIcon((SDL_Window *)ctx->window, icon_path))
+        {
+            SDL_DestroyWindow((SDL_Window *)ctx->window);
+            free(ctx);
+            vm_errorf(vm, "Failed to load window icon '%s': %s", icon_path, IMG_GetError());
+        }
+    }
+    else
+    {
+        _set_windowIcon((SDL_Window *)ctx->window);
+    }
+
+    SDL_ShowWindow((SDL_Window *)ctx->window);
 
     ctx->renderer = SDL_CreateRenderer(
         (SDL_Window *)ctx->window,
