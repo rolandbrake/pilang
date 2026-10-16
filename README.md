@@ -55,7 +55,7 @@ Apply image-processing operations such as edge detection and grayscale conversio
 
 ## Games
 
-**In progress.** Pilang is growing support for small interactive games.
+Pilang is growing support for small interactive games.
 
 <p align="center">
   <a href="./flappy bird/main.pi">
@@ -65,7 +65,7 @@ Apply image-processing operations such as edge detection and grayscale conversio
 
 ## 3D Graphics
 
-**In progress.** Explore software-projected 3D scenes and model rendering in PiLang.
+Explore software-projected 3D scenes and model rendering in PiLang.
 
 <p align="center">
   <a href="./samples/graphics/monkey_3d.pi">

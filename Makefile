@@ -52,6 +52,7 @@ COMMON_BUILTIN_SRCS := \
 	builtin/pi_type.c \
 	builtin/pi_random.c \
 	builtin/pi_lang.c \
+	builtin/pi_loon.c \
 	builtin/pi_obj.c \
 	builtin/pi_methods.c \
 	builtin/pi_builtin.c
@@ -140,7 +141,7 @@ EMCC_FLAGS ?= \
 	-s OFFSCREEN_FRAMEBUFFER=1 \
 	--shell-file index.html
 
-.PHONY: all debug release web run test clean
+.PHONY: all debug release web run test loon-test clean
 
 all: release
 
@@ -161,6 +162,10 @@ run: release
 
 test: release
 	python tools/run_tests.py
+
+loon-test:
+	$(MAKE) release
+	./$(TARGET) test/loon/basic.pi
 
 clean:
 	$(CLEAN)

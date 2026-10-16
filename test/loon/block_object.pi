@@ -1,0 +1,10 @@
+import fs
+import loon
+
+let file = fs.open("test/loon/block_object.loon", "r")
+let document = loon.parse(fs.read(file))
+fs.close(file)
+
+assert(document.items[0].name == "deep", "block objects should parse fields")
+assert(document.items[0].meta.rank == 2, "block objects should support nested objects")
+assert(document.items[0].meta.enabled == true, "block object values should retain booleans")

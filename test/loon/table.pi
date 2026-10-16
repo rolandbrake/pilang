@@ -1,0 +1,9 @@
+import fs
+import loon
+
+let file = fs.open("test/loon/table.loon", "r")
+let document = loon.parse(fs.read(file))
+fs.close(file)
+
+assert(document.rows[0].name == "Ada", "tables should create maps")
+assert(document.rows[1].age == 22, "tables should preserve row values")

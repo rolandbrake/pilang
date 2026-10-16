@@ -1,0 +1,21 @@
+import loon
+import fs
+
+let file = fs.open("test/loon/basic.loon", "r")
+let document = loon.parse(fs.read(file))
+fs.close(file)
+
+assert(document.name == "example", "LOON strings should become map values")
+assert(document.negative == -42 && document.decimal == 2.5, "LOON numbers should parse")
+assert(document.enabled && document.disabled == false && document.nothing == nil, "LOON literals should parse")
+assert(document.message == "line one\nline two\t!", "LOON string escapes should parse")
+assert(document["display name"] == "Ada" && document["a:b"] == "quoted key", "quoted keys should parse")
+assert(document.settings.enabled == false, "nested LOON objects should become maps")
+assert(document.values[1] == 2, "LOON arrays should become lists")
+assert(len(document.empty_values) == 0 && len(document.empty_object) == 0, "empty values should parse")
+assert(document.flat_object.active == true, "inline objects should parse")
+assert(document.items[1].name == "second", "LOON block arrays should become lists")
+assert(document.items[2][0] == 4, "block arrays should accept nested arrays")
+assert(document.items[3].meta.rank == 2, "braced block objects should parse")
+assert(document.rows[0].name == "Ada", "LOON tables should become lists of maps")
+assert(document.rows[1].age == 22, "LOON table cells should preserve their values")

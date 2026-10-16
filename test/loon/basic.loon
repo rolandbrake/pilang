@@ -1,0 +1,34 @@
+name: "example"
+negative: -42
+decimal: 2.5
+enabled: true
+disabled: false
+nothing: null
+message: "line one\nline two\t!"
+"display name": "Ada"
+"a:b": "quoted key"
+
+settings:
+  enabled: false
+  ratio: 2.5
+
+values: [1, 2, 3]
+empty_values: []
+empty_object: {}
+flat_object: {name: "flat", active: true}
+
+items:
+  [
+    "first"
+    {name: "second", enabled: true}
+    [4, 5]
+    {
+      name: "deep"
+      meta:
+        rank: 2
+    }
+  ]
+
+rows(name, age):
+  "Ada", 10
+  "Grace", 22

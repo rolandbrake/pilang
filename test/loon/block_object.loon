@@ -1,0 +1,9 @@
+items:
+  [
+    {
+      name: "deep"
+      meta:
+        rank: 2
+        enabled: true
+    }
+  ]

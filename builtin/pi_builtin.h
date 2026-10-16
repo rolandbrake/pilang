@@ -14,6 +14,7 @@
 #include "pi_obj.h"     // Object functions
 #include "pi_random.h"  // Random functions
 #include "pi_lang.h"    // Language/runtime constants
+#include "pi_loon.h"    // LOON data notation
 #include "pi_plot3d.h"  // 3D plot functions
 // Image support is SDL2-dependent and unavailable in the WebAssembly build.
 #ifndef __EMSCRIPTEN__
@@ -63,6 +64,7 @@ extern BuiltinModule module_time;   // time: Time functions (e.g., now, sleep)
 extern BuiltinModule module_type;   // type: Type functions (e.g., type, typeof)
 extern BuiltinModule module_random; // random: Random number helpers
 extern BuiltinModule module_lang;   // lang: Runtime/language constants (e.g., operator ids)
+extern BuiltinModule module_loon;   // loon: LOON parsing
 extern BuiltinModule module_draw;   // draw: 2D canvas (pixel, line, rect, circle, text, …)
 extern BuiltinModule module_plot;   // plot: 2D plotting (plot, scatter, bar, show, …)
 extern BuiltinModule module_plot3d; // plot3d: 3D plotting (surface, mesh, wireframe, …)
