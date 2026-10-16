@@ -12,6 +12,7 @@ Value au_duration(vm_t *vm, int argc, Value *argv);
 Value au_format(vm_t *vm, int argc, Value *argv);
 
 Value au_play(vm_t *vm, int argc, Value *argv);
+Value au_volume(vm_t *vm, int argc, Value *argv);
 Value au_pause(vm_t *vm, int argc, Value *argv);
 Value au_resume(vm_t *vm, int argc, Value *argv);
 Value au_stop(vm_t *vm, int argc, Value *argv);

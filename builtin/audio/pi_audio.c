@@ -209,6 +209,17 @@ Value au_play(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(channel);
 }
 
+Value au_volume(vm_t *vm, int argc, Value *argv)
+{
+    ObjAudio *audio = require_audio(vm, argc, argv, "volume");
+    if (argc < 2 || !IS_NUM(argv[1]) || AS_NUM(argv[1]) < 0 || AS_NUM(argv[1]) > 1)
+        vm_error(vm, "[audio.volume] expects a clip and a volume from 0 to 1.");
+
+    int volume = (int)(AS_NUM(argv[1]) * MIX_MAX_VOLUME);
+    Mix_VolumeChunk(audio->chunk, volume);
+    return NEW_NUM((double)volume / MIX_MAX_VOLUME);
+}
+
 Value au_pause(vm_t *vm, int argc, Value *argv)
 {
     ObjAudio *audio = require_audio(vm, argc, argv, "pause");
@@ -299,6 +310,7 @@ static BuiltinFunc audio_funcs[] = {
     {"duration", au_duration},
     {"format", au_format},
     {"play", au_play},
+    {"volume", au_volume},
     {"pause", au_pause},
     {"resume", au_resume},
     {"stop", au_stop},
