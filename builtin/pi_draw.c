@@ -25,6 +25,8 @@ typedef struct _transformState
     struct _transformState *next;
 } _transformState;
 
+#define EVENT_QUEUE_CAPACITY 256
+
 static char *_draw_strdup(const char *text)
 {
     size_t length = strlen(text) + 1;
@@ -175,7 +177,6 @@ static void _parse_drawOptions(Value opts, int *color, char **font_path, int *fo
     Value _h = _map_get(table, "h");
     if (!IS_NIL(_h) && IS_NUM(_h))
         *img_h = (int)AS_NUM(_h);
-
 }
 
 static EventType _get_eventType(const char *name)
@@ -230,7 +231,7 @@ static void _init_handlerList(HandlerList *list, const char *name)
 static void _init_eventQueue(PiContext *ctx)
 {
     ctx->eventQueue = (EventQueue *)malloc(sizeof(EventQueue));
-    ctx->eventQueue->capacity = INIT_CAP;
+    ctx->eventQueue->capacity = EVENT_QUEUE_CAPACITY;
     ctx->eventQueue->events = (PiEvent **)calloc(ctx->eventQueue->capacity, sizeof(PiEvent *));
     ctx->eventQueue->head = 0;
     ctx->eventQueue->tail = 0;
@@ -277,6 +278,8 @@ static void _free_event(PiEvent *e)
     free(e);
 }
 
+static PiEvent *_pop_event(PiContext *ctx);
+
 static void _push_event(PiContext *ctx, PiEvent *e)
 {
     if (ctx->eventQueue == NULL || ctx->eventQueue->events == NULL)
@@ -284,26 +287,13 @@ static void _push_event(PiContext *ctx, PiEvent *e)
         _init_eventQueue(ctx);
     }
 
-    // Resize if needed
+    // Keep queued events bounded. draw.run() already dispatches every event,
+    // while draw.poll() is optional, so an unconsumed queue must not grow for
+    // the lifetime of a graphical application.
     if (ctx->eventQueue->count >= ctx->eventQueue->capacity)
     {
-        int new_capacity = ctx->eventQueue->capacity * 2;
-        PiEvent **new_events = (PiEvent **)realloc(ctx->eventQueue->events, new_capacity * sizeof(PiEvent *));
-        if (!new_events)
-            return;
-
-        // Reorganize if wrapped around
-        if (ctx->eventQueue->head > ctx->eventQueue->tail)
-        {
-            // Move wrapped elements to the end
-            int old_capacity = ctx->eventQueue->capacity;
-            for (int i = ctx->eventQueue->tail - 1; i >= 0; i--)
-                new_events[i + old_capacity] = new_events[i];
-            ctx->eventQueue->tail += old_capacity;
-        }
-
-        ctx->eventQueue->events = new_events;
-        ctx->eventQueue->capacity = new_capacity;
+        PiEvent *oldest = _pop_event(ctx);
+        _free_event(oldest);
     }
 
     // Copy event
@@ -696,7 +686,7 @@ Value dw_run(vm_t *vm, int argc, Value *argv)
         _pump_events(vm, ctx);
         if (!ctx->running)
             break;
-    
+
         if (!IS_NIL(ctx->frame_callback))
         {
             Value args[1] = {argv[0]};
@@ -708,7 +698,6 @@ Value dw_run(vm_t *vm, int argc, Value *argv)
 
         pt3d_redraw_context(ctx);
 
-        
         SDL_RenderPresent(ctx->renderer);
 
         // Cap frame rate to 60 FPS
@@ -733,7 +722,6 @@ Value dw_clear(vm_t *vm, int argc, Value *argv)
 
     return NEW_NIL();
 }
-
 
 static void draw_circle(SDL_Renderer *r, int cx, int cy, int radius)
 {
@@ -1021,7 +1009,7 @@ Value dw_polygon(vm_t *vm, int argc, Value *argv)
                                 points[i].x, points[i].y,
                                 points[i + 1].x, points[i + 1].y);
         }
-        
+
         SDL_RenderDrawLineF((SDL_Renderer *)ctx->renderer,
                             points[point_count - 1].x, points[point_count - 1].y,
                             points[0].x, points[0].y);
@@ -1107,7 +1095,6 @@ Value dw_alpha(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-
 static TTF_Font *load_styledFont(const char *font_path, int size, bool bold, bool italic)
 {
     if (!font_path)
@@ -1171,7 +1158,6 @@ static TTF_Font *load_defaultFont(PiContext *ctx, int size, bool bold, bool ital
     return font;
 }
 
-
 static void get_textDimensions(TTF_Font *font, const char *text, int *w, int *h)
 {
     if (!font || !text)
@@ -1185,7 +1171,6 @@ static void get_textDimensions(TTF_Font *font, const char *text, int *w, int *h)
 
     TTF_SizeUTF8(font, text, w, h);
 }
-
 
 static void align_textPosition(int text_w, int text_h, float *x, float *y, const char *align)
 {
@@ -1235,11 +1220,9 @@ Value dw_text(vm_t *vm, int argc, Value *argv)
     bool bold = false;
     bool italic = false;
 
-    
     if (argc > 4 && IS_MAP(argv[4]))
         _parse_drawOptions(argv[4], &color, &font_path, &font_size, &align, &bold, &italic, NULL, NULL, NULL);
 
-    
     TTF_Font *font = NULL;
     if (font_path)
     {
@@ -1395,7 +1378,6 @@ Value dw_push(vm_t *vm, int argc, Value *argv)
 
     return NEW_NIL();
 }
-
 
 Value dw_pop(vm_t *vm, int argc, Value *argv)
 {

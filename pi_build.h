@@ -95,6 +95,7 @@ bool px_writeProjectBuild(const char *build_path, const char *entry_path,
 bool px_readProjectBuild(const char *build_path, const char *entry_path,
                          const char *entry_source, px_project_build_t *build);
 bool px_readExecutableBuild(const char *build_path, px_project_build_t *build);
+bool px_readEmbeddedBuild(const char *path, uint64_t offset, px_project_build_t *build);
 void px_freeProjectBuild(px_project_build_t *build);
 px_built_module_t *px_findBuiltModule(px_project_build_t *build, const char *path);
 px_built_module_t *px_findBuiltModuleByName(px_project_build_t *build, const char *name);

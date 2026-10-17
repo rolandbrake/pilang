@@ -460,8 +460,12 @@ compiler_t *px_readCompiler(FILE *file)
     return compiler;
 }
 
+static uint64_t read_base;
+
 static bool seek_to(FILE *file, uint64_t offset)
 {
+    if (offset > UINT64_MAX - read_base) return false;
+    offset += read_base;
     return offset <= LONG_MAX && fseek(file, (long)offset, SEEK_SET) == 0;
 }
 
@@ -836,7 +840,7 @@ static uint64_t update_projectHash(uint64_t hash, const char *source, size_t siz
 
 static bool read_projectBuild(const char *build_path, const char *entry_path,
                               const char *entry_source, bool validate_sources,
-                              px_project_build_t *build)
+                              px_project_build_t *build, uint64_t base)
 {
     if (!build_path || !build || (validate_sources && (!entry_path || !entry_source)))
         return false;
@@ -846,8 +850,10 @@ static bool read_projectBuild(const char *build_path, const char *entry_path,
     if (!file)
         return false;
 
+    read_base = base;
+
     px_header_t header;
-    if (!px_readHeader(file, &header) || !px_headerIsValid(&header, PX_VM_ABI)             ||
+    if (!seek_to(file, 0) || !px_readHeader(file, &header) || !px_headerIsValid(&header, PX_VM_ABI)             ||
         header.module_count == 0 || header.module_count > PI_MAX_LIST_SIZE                 ||
         header.module_table_offset < header.header_size                                    ||
         header.string_table_offset < header.module_table_offset +
@@ -949,7 +955,7 @@ static bool read_projectBuild(const char *build_path, const char *entry_path,
         build->modules[i].compiler = px_readCompiler(file);
         long end = ftell(file);
         if (!build->modules[i].compiler || end < 0 ||
-            (uint64_t)end != record->payload_offset + record->payload_size)
+            (uint64_t)end - read_base != record->payload_offset + record->payload_size)
         {
             free(records);
             goto failed;
@@ -958,10 +964,12 @@ static bool read_projectBuild(const char *build_path, const char *entry_path,
 
     free(records);
     fclose(file);
+    read_base = 0;
     return true;
 
 failed:
     fclose(file);
+    read_base = 0;
     px_freeProjectBuild(build);
     return false;
 }
@@ -969,10 +977,15 @@ failed:
 bool px_readProjectBuild(const char *build_path, const char *entry_path,
                          const char *entry_source, px_project_build_t *build)
 {
-    return read_projectBuild(build_path, entry_path, entry_source, true, build);
+    return read_projectBuild(build_path, entry_path, entry_source, true, build, 0);
 }
 
 bool px_readExecutableBuild(const char *build_path, px_project_build_t *build)
 {
-    return read_projectBuild(build_path, NULL, NULL, false, build);
+    return read_projectBuild(build_path, NULL, NULL, false, build, 0);
+}
+
+bool px_readEmbeddedBuild(const char *path, uint64_t offset, px_project_build_t *build)
+{
+    return read_projectBuild(path, NULL, NULL, false, build, offset);
 }

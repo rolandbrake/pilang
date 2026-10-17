@@ -5,6 +5,7 @@
 
 #include "pi_filters.h"
 #include "./pi_image.h"
+#include "../../common.h"
 #include "../../pi_object.h"
 #include "../../pi_value.h"
 
@@ -882,7 +883,7 @@ static void compute_gradient(const float *gray, float *mag, float *ang, int w, i
             }
             mag[y * w + x] = sqrtf(gx * gx + gy * gy);
             // Angle stored in [0, 180) — direction only, not orientation.
-            ang[y * w + x] = atan2f(gy, gx) * 180.0f / M_PI;
+            ang[y * w + x] = atan2f(gy, gx) * 180.0f / (float)PI;
             if (ang[y * w + x] < 0.0f)
                 ang[y * w + x] += 180.0f;
         }

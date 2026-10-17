@@ -6,7 +6,7 @@ disabled: false
 nothing: null
 message: "line one\nline two\t!"
 "display name": "Ada"
-"a:b": "quoted key"
+"key": "quoted key"
 
 settings:
   enabled: false

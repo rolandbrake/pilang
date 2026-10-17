@@ -15,6 +15,7 @@
 #include "pi_compiler.h"
 #include "pi_build.h"
 #include "pi_module.h"
+#include "pi_package.h"
 #include "pi_vm.h"
 
 #ifndef TARGET_FPS
@@ -277,6 +278,7 @@ int main(int argc, char *argv[])
 #include "pi_compiler.h"
 #include "pi_build.h"
 #include "pi_module.h"
+#include "pi_package.h"
 #include "pi_vm.h"
 #include "common.h"
 
@@ -289,6 +291,23 @@ int main(int argc, char *argv[])
 #define TARGET_FPS 60
 #endif
 
+static bool package_colors;
+
+static void package_initOutput(void)
+{
+#ifdef _WIN32
+    HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD mode;
+    package_colors = output != INVALID_HANDLE_VALUE && GetConsoleMode(output, &mode) &&
+                     SetConsoleMode(output, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+#endif
+}
+
+static const char *package_color(const char *color)
+{
+    return package_colors ? color : "";
+}
+
 static void print_usage(const char *program)
 {
     printf("Pilangv0.1.4\n");
@@ -299,6 +318,7 @@ static void print_usage(const char *program)
     printf("  %s dis <file>                 Print bytecode for the specified Pilang file\n", program);
     printf("  %s dis -o <output> <file>     Write bytecode to a file\n", program);
     printf("  %s build [file]               Build main.pi or the specified project\n", program);
+    printf("  %s pack [target:win]          Validate package.loon and build its entry project\n", program);
     printf("  %s fmt <file>                 Format a file in place\n", program);
     printf("  %s min <file>                 Minimize a file in place\n", program);
     printf("  %s help                       Display this help message\n", program);
@@ -671,6 +691,31 @@ static int run_executableFile(const char *filename)
     comp->source_name = strdup(entry->path);
     int status = run_compiler(comp, NULL, entry->path, true, build);
     return status;
+}
+
+static int run_embeddedBuild(const char *filename, uint64_t offset)
+{
+    px_project_build_t *build = calloc(1, sizeof(*build));
+    if (!build || !px_readEmbeddedBuild(filename, offset, build))
+    {
+        free(build);
+        fprintf(stderr, "Could not load packaged application '%s'.\n", filename);
+        return 1;
+    }
+    px_built_module_t *entry = NULL;
+    for (uint32_t i = 0; i < build->module_count; i++)
+        if (build->modules[i].is_entry)
+            entry = &build->modules[i];
+    if (!entry || !entry->compiler)
+    {
+        px_freeProjectBuild(build);
+        free(build);
+        return 1;
+    }
+    compiler_t *comp = entry->compiler;
+    entry->compiler = NULL;
+    comp->source_name = strdup(entry->path);
+    return run_compiler(comp, NULL, entry->path, true, build);
 }
 
 static int disassemble_file(const char *filename, const char *output_filename)
@@ -1052,6 +1097,20 @@ int main(int argc, char *argv[])
 
     signal(SIGINT, handle_sigint);
 
+#ifdef _WIN32
+    char executable[MAX_PATH];
+    DWORD executable_length = GetModuleFileNameA(NULL, executable, sizeof(executable));
+    uint64_t embedded_offset;
+    bool embedded_console;
+    if (executable_length > 0 && executable_length < sizeof(executable) &&
+        package_embeddedOffset(executable, &embedded_offset, &embedded_console))
+    {
+        if (!embedded_console)
+            FreeConsole();
+        return run_embeddedBuild(executable, embedded_offset);
+    }
+#endif
+
     /* No arguments -> drop into the interactive REPL. */
     if (argc < 2)
         return run_repl();
@@ -1087,6 +1146,67 @@ int main(int argc, char *argv[])
         pi_cli_argc = 1;
         pi_cli_argv = argc == 2 ? main_argv : &argv[2];
         return build_file(input);
+    }
+
+    if (strcmp(command, "pack") == 0)
+    {
+        package_initOutput();
+        const char *target = "win";
+        if (argc == 3 && strncmp(argv[2], "target:", 7) == 0)
+            target = argv[2] + 7;
+        else if (argc != 2)
+        {
+            fprintf(stderr, "Usage: %s pack [target:win]\n", argv[0]);
+            return 1;
+        }
+        if (strcmp(target, "win") != 0)
+        {
+            fprintf(stderr, "%sPackaging failed:%s target '%s' is not supported yet.\n",
+                    package_color("\033[31m"), package_color("\033[0m"), target);
+            return 1;
+        }
+        pi_package_t package;
+        if (!package_load(&package, "win"))
+        {
+            fprintf(stderr, "%sPackaging failed:%s package.loon is invalid.\n",
+                    package_color("\033[31m"), package_color("\033[0m"));
+            return 1;
+        }
+        printf("%sPackaging%s %s %s (%s)\n", package_color("\033[36m"),
+               package_color("\033[0m"), package.name, package.version, target);
+        int status = build_file(package.entry);
+        if (status != 0)
+        {
+            fprintf(stderr, "%sPackaging failed:%s could not compile '%s'.\n",
+                    package_color("\033[31m"), package_color("\033[0m"), package.entry);
+            package_free(&package);
+            return status;
+        }
+        const char *runtime_path = argv[0];
+#ifdef _WIN32
+        char runtime_path_buffer[MAX_PATH];
+        DWORD runtime_length = GetModuleFileNameA(NULL, runtime_path_buffer, sizeof(runtime_path_buffer));
+        if (runtime_length == 0 || runtime_length >= sizeof(runtime_path_buffer))
+        {
+            fprintf(stderr, "%sPackaging failed:%s could not locate the Pilang executable.\n",
+                    package_color("\033[31m"), package_color("\033[0m"));
+            package_free(&package);
+            return 1;
+        }
+        runtime_path = runtime_path_buffer;
+#endif
+        char package_error[256];
+        if (!package_bundle(runtime_path, &package, package_error, sizeof(package_error)))
+        {
+            fprintf(stderr, "%sPackaging failed:%s %s\n", package_color("\033[31m"),
+                    package_color("\033[0m"), package_error[0] ? package_error : "unknown error");
+            status = 1;
+        }
+        else
+            printf("%sPackage created:%s %s\n", package_color("\033[32m"),
+                   package_color("\033[0m"), package.output);
+        package_free(&package);
+        return status;
     }
 
     if (strcmp(command, "run") == 0)

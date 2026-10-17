@@ -43,6 +43,7 @@
 # Build directories
 build/
 bin/
+third_party/
 emsdk/
 release/
 # utils/
@@ -92,6 +93,5 @@ __pycache__/
 # Local agent instructions
 AGENTS.md
 
-
-don't-touch-my-present/
-flappy bird/
+Don't Touch My Presents/
+Flappy Bird/

@@ -35,6 +35,7 @@ CORE_SRCS := \
 	pi_func.c \
 	pi_frame.c \
 	gc.c \
+	pi_package.c \
 	pi_module.c \
 	pi_build.c
 
@@ -85,17 +86,20 @@ DEBUG_CFLAGS ?=  -DDEBUG_BUILD
 RELEASE_CFLAGS ?=  -O3
 
 ifeq ($(OS),Windows_NT)
-RELEASE_CFLAGS += -static-libgcc -static-libstdc++
+STATIC_PREFIX ?= third_party/prefix
+NATIVE_CPPFLAGS = $(CPPFLAGS) -I$(STATIC_PREFIX)/include
+RELEASE_CFLAGS += -static
+DEBUG_CFLAGS += -static
 NATIVE_LDLIBS ?= \
+	-L$(STATIC_PREFIX)/lib \
 	-lmingw32 \
 	-lSDL2main \
 	-lSDL2_image \
-	-lSDL2_Mixer \
+	-lSDL2_mixer \
 	-lSDL2_ttf \
 	-lSDL2 \
-	-Wl,-Bstatic \
+	-lfreetype \
 	-lwinpthread \
-	-Wl,-Bdynamic \
 	-lwinmm \
 	-lole32 \
 	-loleaut32 \
@@ -104,18 +108,14 @@ NATIVE_LDLIBS ?= \
 	-limm32 \
 	-lversion \
 	-lshlwapi \
-	-lws2_32
-
-DEBUG_LDLIBS ?= \
-	-lmingw32 \
-	-lSDL2main \
-	-lSDL2_image \
-	-lSDL2_Mixer \
-	-lSDL2_ttf \
-	-lSDL2 \
-	-lwinpthread \
-	-lshlwapi \
-	-lws2_32
+	-lws2_32 \
+	-lopengl32 \
+	-lkernel32 \
+	-luser32 \
+	-lgdi32 \
+	-ladvapi32 \
+	-lshell32
+DEBUG_LDLIBS ?= $(NATIVE_LDLIBS)
 else
 PKG_CONFIG ?= pkg-config
 SDL_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_image SDL2_ttf 2>/dev/null)
@@ -123,9 +123,11 @@ SDL_LDLIBS ?= $(shell $(PKG_CONFIG) --libs sdl2 SDL2_image SDL2_ttf 2>/dev/null)
 CPPFLAGS += -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE $(SDL_CFLAGS)
 NATIVE_LDLIBS ?= $(SDL_LDLIBS) -lm -pthread
 DEBUG_LDLIBS ?= $(NATIVE_LDLIBS)
+NATIVE_CPPFLAGS = $(CPPFLAGS)
 endif
 
 CFLAGS = $(CPPFLAGS) $(WARNINGS) $(CSTD)
+NATIVE_CFLAGS = $(NATIVE_CPPFLAGS) $(WARNINGS) $(CSTD)
 
 EMCC_FLAGS ?= \
 	-s ASYNCIFY \
@@ -141,18 +143,21 @@ EMCC_FLAGS ?= \
 	-s OFFSCREEN_FRAMEBUFFER=1 \
 	--shell-file index.html
 
-.PHONY: all debug release web run test loon-test clean
+.PHONY: all debug release static-deps web run test loon-test clean
 
 all: release
 
 $(RELEASE_DIR):
 	$(MKDIR)
 
+static-deps:
+	powershell -NoProfile -ExecutionPolicy Bypass -File tools/setup_deps.ps1
+
 debug: $(RELEASE_DIR)
-	$(CC) $(CFLAGS) $(DEBUG_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(DEBUG_LDLIBS)
+	$(CC) $(NATIVE_CFLAGS) $(DEBUG_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(DEBUG_LDLIBS)
 
 release: $(RELEASE_DIR)
-	$(CC) $(CFLAGS) $(RELEASE_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(NATIVE_LDLIBS)
+	$(CC) $(NATIVE_CFLAGS) $(RELEASE_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(NATIVE_LDLIBS)
 
 web: $(RELEASE_DIR)
 	$(EMCC) $(CPPFLAGS) $(EMCC_FLAGS) -o $(WEB_TARGET) $(WEB_SRCS)

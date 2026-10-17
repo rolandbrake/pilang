@@ -1,0 +1,6 @@
+name: "Package Test"
+version: "1.0.0"
+entry: "main.pi"
+targets:
+  win:
+    output: "test.exe"

@@ -33,6 +33,53 @@ with `...`, and send a value through a pipeline with `=>`. The result is a
 language that reads naturally while staying playful and direct for numerical
 work, simulations, and visual experiments.
 
+## Windows build and packaging
+
+Pilang's Windows release is a single static executable. SDL2, SDL_image,
+SDL_ttf, SDL_mixer, and their required static libraries are linked into
+`bin/pilang.exe`; users do not need to place those DLLs beside it.
+
+To build from a fresh clone, install Git, CMake, and a MinGW-w64 toolchain that
+provides `gcc` and `mingw32-make`, then run from the repository root:
+
+```powershell
+make static-deps   # runs tools/setup_deps.ps1 to build pinned SDL dependencies once
+make release       # creates bin/pilang.exe
+```
+
+The downloaded sources and build artifacts live in `third_party/`. They are
+ignored by Git and can be regenerated at any time with `make static-deps`.
+
+To package an application, create a `package.loon` next to its entry file and
+run the compiler from that directory. For the included example:
+
+```powershell
+cd test\package
+..\..\bin\pilang.exe pack target:win
+```
+
+You can use `pilang pack target:win` instead after adding `bin/` to `PATH`.
+
+For example:
+
+```loon
+name: "My App"
+version: "1.0.0"
+entry: "main.pi"
+targets:
+  win:
+    output: "my-app.exe"
+    console: false
+    icon: "data/assets/icon.png"
+```
+
+`my-app.exe` contains both the Pilang runtime and compiled application. It can
+be started with a double-click. Set `console: false` to hide the command prompt
+for a windowed application. `icon` accepts a PNG up to 256 by 256 pixels or an
+ICO file and sets
+the Windows executable icon. See [`test/package/package.loon`](test/package/package.loon)
+for a working example.
+
 ## Math Plotting
 
 Create mathematical plots and visualize data directly.
@@ -58,7 +105,7 @@ Apply image-processing operations such as edge detection and grayscale conversio
 Pilang is growing support for small interactive games.
 
 <p align="center">
-  <a href="./flappy bird/main.pi">
+  <a href="https://github.com/rolandbrake/pilang-games">
     <img src="imgs/games.png" alt="Pilang games in progress" height="500">
   </a>
 </p>
@@ -68,7 +115,7 @@ Pilang is growing support for small interactive games.
 Explore software-projected 3D scenes and model rendering in PiLang.
 
 <p align="center">
-  <a href="./samples/graphics/monkey_3d.pi">
+  <a href="./samples/graphics/tunnel_3d.pi">
     <img src="imgs/3d_models.png" alt="Pilang 3D graphics in progress" height="400">
   </a>
 </p>

@@ -7,7 +7,6 @@
 #include "builtin/pi_draw.h"
 #endif
 
-
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -111,10 +110,14 @@ static size_t gc_tensorElementSize(TN_TYPE type)
 {
     switch (type)
     {
-    case TN_FLOAT32: return sizeof(float);
-    case TN_FLOAT64: return sizeof(double);
-    case TN_INT32: return sizeof(int32_t);
-    case TN_INT64: return sizeof(int64_t);
+    case TN_FLOAT32:
+        return sizeof(float);
+    case TN_FLOAT64:
+        return sizeof(double);
+    case TN_INT32:
+        return sizeof(int32_t);
+    case TN_INT64:
+        return sizeof(int64_t);
     }
     return sizeof(double);
 }
@@ -189,16 +192,26 @@ size_t gc_objectBytes(Object *obj)
                gc_listBytes(module->code) + gc_listBytes(module->constants) + gc_listBytes(module->names) +
                gc_tableBytes(module->instrs) + gc_tableBytes(module->globals);
     }
-    case OBJ_RANGE: return sizeof(PiRange);
-    case OBJ_SLICE: return sizeof(PiSlice);
-    case OBJ_SET: return sizeof(PiSet);
-    case OBJ_FILE: return sizeof(ObjFile);
-    case OBJ_SOCKET: return sizeof(PiSocket);
-    case OBJ_CONTEXT: return sizeof(PiContext);
-    case OBJ_CHART: return sizeof(PiChart);
-    case OBJ_CHART3D: return sizeof(PiChart3D);
-    case OBJ_EVENT: return sizeof(PiEvent);
-    default: return sizeof(Object);
+    case OBJ_RANGE:
+        return sizeof(PiRange);
+    case OBJ_SLICE:
+        return sizeof(PiSlice);
+    case OBJ_SET:
+        return sizeof(PiSet);
+    case OBJ_FILE:
+        return sizeof(ObjFile);
+    case OBJ_SOCKET:
+        return sizeof(PiSocket);
+    case OBJ_CONTEXT:
+        return sizeof(PiContext);
+    case OBJ_CHART:
+        return sizeof(PiChart);
+    case OBJ_CHART3D:
+        return sizeof(PiChart3D);
+    case OBJ_EVENT:
+        return sizeof(PiEvent);
+    default:
+        return sizeof(Object);
     }
 }
 
@@ -489,7 +502,7 @@ void sweep(vm_t *vm)
     Object *obj = vm->objects;
     Object *prev = NULL;
     int live_count = 0;
-    int collected = 0;
+    size_t collected_bytes = 0;
 
     while (obj != NULL)
     {
@@ -499,8 +512,8 @@ void sweep(vm_t *vm)
         {
             obj->in_gcList = false;
 
+            collected_bytes += obj->gc_bytes;
             free_object(obj);
-            collected++;
 
             if (prev != NULL)
                 prev->next = next;
@@ -522,14 +535,13 @@ void sweep(vm_t *vm)
 
 #ifdef _WIN32
     /*
-     * Keep Windows heap trimming out of the hot GC path. Calling HeapCompact
-     * after every medium-sized sweep can stall allocation-heavy programs, but
-     * very large sweeps such as an autograd tape still benefit from an
-     * occasional trim so later allocations do not hit fragmented heap pressure.
+     * Trim only after releasing a meaningful amount of memory. Counting
+     * objects missed workloads such as draw.mouse(), where a small number of
+     * maps owns most of the reclaimed allocations.
      */
     static ULONGLONG last_trim_ms = 0;
     ULONGLONG now_ms = GetTickCount64();
-    if (collected >= 32768 && now_ms - last_trim_ms >= 1000)
+    if (collected_bytes >= 8 * 1024 * 1024 && now_ms - last_trim_ms >= 1000)
     {
         gc_trimHeap();
         last_trim_ms = now_ms;
