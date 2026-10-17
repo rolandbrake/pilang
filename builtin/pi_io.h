@@ -11,25 +11,25 @@
 #define ANSI_YELLOW "\033[33m"
 #define ANSI_RESET "\033[0m"
 
-Value pi_println(vm_t *vm, int argc, Value *argv);
-Value pi_print(vm_t *vm, int argc, Value *argv);
-Value pi_printf(vm_t *vm, int argc, Value *argv);
-Value io_format(vm_t *vm, int argc, Value *argv);
+Value pi_println(VM *vm, int argc, Value *argv);
+Value pi_print(VM *vm, int argc, Value *argv);
+Value pi_printf(VM *vm, int argc, Value *argv);
+Value io_format(VM *vm, int argc, Value *argv);
 
-char *pi_displayString(vm_t *vm, Value value);
+char *pi_displayString(VM *vm, Value value);
 
-Value pi_log(vm_t *vm, int argc, Value *argv);
+Value pi_log(VM *vm, int argc, Value *argv);
 
-Value pi_input(vm_t *vm, int argc, Value *argv);
+Value pi_input(VM *vm, int argc, Value *argv);
 
 // display a formatted string similar to python string format
-Value io_clear(vm_t *vm, int argc, Value *argv);
-Value io_pos(vm_t *vm, int argc, Value *argv);
-Value io_cursor(vm_t *vm, int argc, Value *argv);
-Value io_key(vm_t *vm, int argc, Value *argv);
+Value io_clear(VM *vm, int argc, Value *argv);
+Value io_pos(VM *vm, int argc, Value *argv);
+Value io_cursor(VM *vm, int argc, Value *argv);
+Value io_key(VM *vm, int argc, Value *argv);
 // read a line from stdin
-Value io_readline(vm_t *vm, int argc, Value *argv);
+Value io_readline(VM *vm, int argc, Value *argv);
 // display a message and wait for user input
-Value io_prompt(vm_t *vm, int argc, Value *argv);
+Value io_prompt(VM *vm, int argc, Value *argv);
 
 #endif // PI_IO_H

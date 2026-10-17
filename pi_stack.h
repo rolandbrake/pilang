@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 
-typedef unsigned char byte;
+typedef unsigned char Byte;
 
 typedef struct
 {
@@ -13,45 +13,45 @@ typedef struct
     int i_size;   // size of each element in bytes
     int top;      // index of top element; -1 when empty
     int capacity; // allocated slot count
-} pistack_t;
+} PiStack;
 
-static inline int stack_isEmpty(const pistack_t *stack)
+static inline int _stack_isEmpty(const PiStack *stack)
 {
     return stack->top == -1;
 }
 
-static inline int stack_isFull(const pistack_t *stack)
+static inline int _stack_isFull(const PiStack *stack)
 {
     return stack->top == stack->capacity - 1;
 }
 
-static inline int stack_size(const pistack_t *stack)
+static inline int _stack_size(const PiStack *stack)
 {
     return stack->top + 1;
 }
 
-static inline void *stack_peek(const pistack_t *stack)
+static inline void *_stack_peek(const PiStack *stack)
 {
     if (stack->top < 0)
         return NULL;
-    return (byte *)stack->data + stack->top * stack->i_size;
+    return (Byte *)stack->data + stack->top * stack->i_size;
 }
 
-void stack_expand(pistack_t *stack);
+void stack_expand(PiStack *stack);
 
-static inline void stack_push(pistack_t *stack, const void *item)
+static inline void _stack_push(PiStack *stack, const void *item)
 {
-    if (stack_isFull(stack))
+    if (_stack_isFull(stack))
         stack_expand(stack);
     stack->top++;
-    memcpy((byte *)stack->data + stack->top * stack->i_size, item, stack->i_size);
+    memcpy((Byte *)stack->data + stack->top * stack->i_size, item, stack->i_size);
 }
 
-static inline void *stack_pop(pistack_t *stack)
+static inline void *_stack_pop(PiStack *stack)
 {
     if (stack->top < 0)
         return NULL;
-    void *slot = (byte *)stack->data + stack->top * stack->i_size;
+    void *slot = (Byte *)stack->data + stack->top * stack->i_size;
     stack->top--;
     return slot;
 }
@@ -62,22 +62,22 @@ static inline void *stack_pop(pistack_t *stack)
     do                              \
     {                               \
         int _tmp = (value);         \
-        stack_push((stack), &_tmp); \
+        _stack_push((stack), &_tmp); \
     } while (0)
 
-#define POP_INT(stack) (*(int *)stack_pop(stack))
+#define POP_INT(stack) (*(int *)_stack_pop(stack))
 
-pistack_t *stack_create(int i_size);
-pistack_t *stack_createCap(int i_size, int capacity);
+PiStack *stack_create(int i_size);
+PiStack *stack_createCap(int i_size, int capacity);
 
-void stack_push(pistack_t *stack, const void *item);
-void *stack_pop(pistack_t *stack);
+void _stack_push(PiStack *stack, const void *item);
+void *_stack_pop(PiStack *stack);
 
-void *stack_peek(const pistack_t *stack);
+void *_stack_peek(const PiStack *stack);
 
-void *stack_getAt(const pistack_t *stack, int index);
+void *stack_getAt(const PiStack *stack, int index);
 
-void stack_free(pistack_t *stack);
-void stack_print(pistack_t *stack, void (*print_item)(void *));
+void stack_free(PiStack *stack);
+void stack_print(PiStack *stack, void (*print_item)(void *));
 
 #endif /* PI_STACK_H */

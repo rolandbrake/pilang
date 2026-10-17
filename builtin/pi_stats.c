@@ -1,7 +1,7 @@
 #include "pi_stats.h"
 #include "pi_builtin.h"
 
-Value pi_mean(vm_t *vm, int argc, Value *argv)
+Value pi_mean(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "[mean] expects exactly one argument: a list of numeric values.");
@@ -11,7 +11,7 @@ Value pi_mean(vm_t *vm, int argc, Value *argv)
     if (!IS_LIST(arg))
         vm_error(vm, "[mean] expects a list of numeric values.");
 
-    list_t *input = AS_CLIST(arg);
+    List *input = AS_CLIST(arg);
 
     if (input->size == 0)
         vm_error(vm, "[mean] cannot compute mean of an empty list.");
@@ -20,7 +20,7 @@ Value pi_mean(vm_t *vm, int argc, Value *argv)
 
     for (int i = 0; i < input->size; i++)
     {
-        Value item = *(Value *)list_getAt(input, i);
+        Value item = *(Value *)_list_getAt(input, i);
 
         if (!is_numeric(item))
             vm_error(vm, "[mean] all elements in the list must be numeric.");
@@ -32,24 +32,24 @@ Value pi_mean(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(mean);
 }
 
-Value pi_avg(vm_t *vm, int argc, Value *argv)
+Value pi_avg(VM *vm, int argc, Value *argv)
 {
     return pi_mean(vm, argc, argv);
 }
 
-Value pi_var(vm_t *vm, int argc, Value *argv)
+Value pi_var(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_LIST(argv[0]))
         vm_error(vm, "[var] expects a single argument: a list of numbers.");
 
-    list_t *input = AS_CLIST(argv[0]);
+    List *input = AS_CLIST(argv[0]);
     if (input->size == 0)
         vm_error(vm, "[var] Cannot calculate variance of an empty list.");
 
     double sum = 0.0;
     for (int i = 0; i < input->size; i++)
     {
-        Value item = *(Value *)list_getAt(input, i);
+        Value item = *(Value *)_list_getAt(input, i);
         if (!is_numeric(item))
             vm_error(vm, "[var] All elements in the list must be numeric.");
 
@@ -61,7 +61,7 @@ Value pi_var(vm_t *vm, int argc, Value *argv)
 
     for (int i = 0; i < input->size; i++)
     {
-        Value item = *(Value *)list_getAt(input, i);
+        Value item = *(Value *)_list_getAt(input, i);
         double diff = as_number(item) - mean;
         variance += diff * diff;
     }
@@ -72,19 +72,19 @@ Value pi_var(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(variance);
 }
 
-Value pi_dev(vm_t *vm, int argc, Value *argv)
+Value pi_dev(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_LIST(argv[0]))
         vm_error(vm, "[dev] expects a single argument: a list of numbers.");
 
-    list_t *input = AS_CLIST(argv[0]);
+    List *input = AS_CLIST(argv[0]);
     if (input->size == 0)
         vm_error(vm, "[dev] Cannot calculate standard deviation of an empty list.");
 
     double sum = 0.0;
     for (int i = 0; i < input->size; i++)
     {
-        Value item = *(Value *)list_getAt(input, i);
+        Value item = *(Value *)_list_getAt(input, i);
         if (!is_numeric(item))
             vm_error(vm, "[dev] All elements in the list must be numeric.");
 
@@ -96,7 +96,7 @@ Value pi_dev(vm_t *vm, int argc, Value *argv)
 
     for (int i = 0; i < input->size; i++)
     {
-        Value item = *(Value *)list_getAt(input, i);
+        Value item = *(Value *)_list_getAt(input, i);
         double diff = as_number(item) - mean;
         variance += diff * diff;
     }
@@ -107,7 +107,7 @@ Value pi_dev(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(sqrt(variance));
 }
 
-static int compare_values(const void *a, const void *b)
+static int _compare_values(const void *a, const void *b)
 {
     const Value *va = (const Value *)a;
     const Value *vb = (const Value *)b;
@@ -120,12 +120,12 @@ static int compare_values(const void *a, const void *b)
     return 0;
 }
 
-Value pi_median(vm_t *vm, int argc, Value *argv)
+Value pi_median(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_LIST(argv[0]))
         vm_error(vm, "[median] expects a single argument: a list of numbers.");
 
-    list_t *input = AS_CLIST(argv[0]);
+    List *input = AS_CLIST(argv[0]);
     int size = input->size;
     if (size == 0)
         vm_error(vm, "[median] Cannot calculate median of an empty list.");
@@ -137,7 +137,7 @@ Value pi_median(vm_t *vm, int argc, Value *argv)
 
     for (int i = 0; i < size; i++)
     {
-        Value item = *(Value *)list_getAt(input, i);
+        Value item = *(Value *)_list_getAt(input, i);
         if (!is_numeric(item))
         {
             free(copy);
@@ -147,7 +147,7 @@ Value pi_median(vm_t *vm, int argc, Value *argv)
         copy[i] = item;
     }
 
-    qsort(copy, size, sizeof(Value), compare_values);
+    qsort(copy, size, sizeof(Value), _compare_values);
 
     Value median;
     if (size % 2 == 1)
@@ -165,12 +165,12 @@ Value pi_median(vm_t *vm, int argc, Value *argv)
     return median;
 }
 
-Value pi_mode(vm_t *vm, int argc, Value *argv)
+Value pi_mode(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_LIST(argv[0]))
         vm_error(vm, "[mode] expects a single argument: a list of numbers.");
 
-    list_t *input = AS_CLIST(argv[0]);
+    List *input = AS_CLIST(argv[0]);
     int size = input->size;
 
     if (size == 0)
@@ -183,7 +183,7 @@ Value pi_mode(vm_t *vm, int argc, Value *argv)
 
     for (int i = 0; i < size; i++)
     {
-        Value item = *(Value *)list_getAt(input, i);
+        Value item = *(Value *)_list_getAt(input, i);
         if (!is_numeric(item))
         {
             free(copy);
@@ -193,7 +193,7 @@ Value pi_mode(vm_t *vm, int argc, Value *argv)
         copy[i] = item;
     }
 
-    qsort(copy, size, sizeof(Value), compare_values);
+    qsort(copy, size, sizeof(Value), _compare_values);
 
     int max_count = 1;
     int current_count = 1;

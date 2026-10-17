@@ -13,30 +13,30 @@ typedef struct
     int col; /* palette colour for this series */
 } DrawContext;
 
-Value pt_chart(vm_t *vm, int argc, Value *argv);
+Value pt_chart(VM *vm, int argc, Value *argv);
 
-Value pt_func(vm_t *vm, int argc, Value *argv);
+Value pt_func(VM *vm, int argc, Value *argv);
 // returning Chart object
-Value pt_scatter(vm_t *vm, int argc, Value *argv);
-Value pt_bar(vm_t *vm, int argc, Value *argv);
-Value pt_line(vm_t *vm, int argc, Value *argv);
-Value pt_hist(vm_t *vm, int argc, Value *argv);
-Value pt_step(vm_t *vm, int argc, Value *argv);
-Value pt_imshow(vm_t *vm, int argc, Value *argv);
-Value pt_heatmap(vm_t *vm, int argc, Value *argv);
-Value pt_contour(vm_t *vm, int argc, Value *argv);
-Value pt_quiver(vm_t *vm, int argc, Value *argv);
-Value pt_streamplot(vm_t *vm, int argc, Value *argv);
+Value pt_scatter(VM *vm, int argc, Value *argv);
+Value pt_bar(VM *vm, int argc, Value *argv);
+Value pt_line(VM *vm, int argc, Value *argv);
+Value pt_hist(VM *vm, int argc, Value *argv);
+Value pt_step(VM *vm, int argc, Value *argv);
+Value pt_imshow(VM *vm, int argc, Value *argv);
+Value pt_heatmap(VM *vm, int argc, Value *argv);
+Value pt_contour(VM *vm, int argc, Value *argv);
+Value pt_quiver(VM *vm, int argc, Value *argv);
+Value pt_streamplot(VM *vm, int argc, Value *argv);
 
 // Chart functions
-Value pt_show(vm_t *vm, int argc, Value *argv);
-Value pt_title(vm_t *vm, int argc, Value *argv);
-Value pt_xlabel(vm_t *vm, int argc, Value *argv);
-Value pt_ylabel(vm_t *vm, int argc, Value *argv);
-Value pt_tick(vm_t *vm, int argc, Value *argv);
-Value pt_grid(vm_t *vm, int argc, Value *argv);
-Value pt_axes(vm_t *vm, int argc, Value *argv);
-Value pt_legend(vm_t *vm, int argc, Value *argv);
-Value pt_subplot(vm_t *vm, int argc, Value *argv);
+Value pt_show(VM *vm, int argc, Value *argv);
+Value pt_title(VM *vm, int argc, Value *argv);
+Value pt_xlabel(VM *vm, int argc, Value *argv);
+Value pt_ylabel(VM *vm, int argc, Value *argv);
+Value pt_tick(VM *vm, int argc, Value *argv);
+Value pt_grid(VM *vm, int argc, Value *argv);
+Value pt_axes(VM *vm, int argc, Value *argv);
+Value pt_legend(VM *vm, int argc, Value *argv);
+Value pt_subplot(VM *vm, int argc, Value *argv);
 
 #endif // PI_PLOT_H

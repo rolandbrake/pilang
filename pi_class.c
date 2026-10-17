@@ -4,35 +4,35 @@
 
 static uint64_t class_epoch = 1;
 
-static bool table_getValue(table_t *table, const char *name, Value *out)
+static bool _table_getValue(HT_Table *table, const char *name, Value *out)
 {
     if (!table)
-        return false;
+        return FALSE;
 
-    Value *value = (Value *)ht_get(table, name);
+    Value *value = (Value *)_ht_get(table, name);
     if (!value)
-        return false;
+        return FALSE;
 
     if (out)
         *out = *value;
-    return true;
+    return TRUE;
 }
 
-static bool table_getValueHash(table_t *table, const char *name, uint64_t hash, Value *out)
+static bool _table_getValueHash(HT_Table *table, const char *name, uint64_t hash, Value *out)
 {
     if (!table)
-        return false;
+        return FALSE;
 
-    Value *value = (Value *)ht_getHash(table, name, hash);
+    Value *value = (Value *)_ht_getHash(table, name, hash);
     if (!value)
-        return false;
+        return FALSE;
 
     if (out)
         *out = *value;
-    return true;
+    return TRUE;
 }
 
-Object *new_class(const char *name, PiClass *super, table_t *members)
+Object *new_class(const char *name, PiClass *super, HT_Table *members)
 {
     PiClass *_class = CREATE_OBJ(PiClass, OBJ_CLASS);
     _class->name = name ? strdup(name) : NULL;
@@ -42,14 +42,14 @@ Object *new_class(const char *name, PiClass *super, table_t *members)
     _class->slot_count = super ? super->slot_count : 0;
     if (super && super->field_names)
     {
-        ht_iter fields = ht_iterator(super->field_names);
-        while (ht_next(&fields))
+        HT_Iterator fields = _ht_iterator(super->field_names);
+        while (_ht_next(&fields))
             ht_put(_class->field_names, fields.key, fields.value);
     }
     _class->version = 1;
     memset(_class->bound_cache, 0, sizeof(_class->bound_cache));
     _class->bound_cache_next = 0;
-    _class->it = ht_iterator(_class->members);
+    _class->it = _ht_iterator(_class->members);
     return (Object *)_class;
 }
 
@@ -63,10 +63,10 @@ Object *new_instance(PiClass *_class)
                           : NULL;
     for (uint16_t i = 0; i < _class->slot_count; i++)
         instance->slots[i] = NEW_NIL();
-    instance->owns_storage = true;
+    instance->owns_storage = TRUE;
     memset(instance->bound_cache, 0, sizeof(instance->bound_cache));
     instance->bound_cache_next = 0;
-    instance->it = ht_iterator(instance->fields);
+    instance->it = _ht_iterator(instance->fields);
     return (Object *)instance;
 }
 
@@ -74,20 +74,20 @@ bool class_getMember(PiClass *_class, const char *name, Value *out)
 {
     for (PiClass *current = _class; current != NULL; current = current->super)
     {
-        if (table_getValue(current->members, name, out))
-            return true;
+        if (_table_getValue(current->members, name, out))
+            return TRUE;
     }
-    return false;
+    return FALSE;
 }
 
 bool class_getMemberHash(PiClass *_class, const char *name, uint64_t hash, Value *out)
 {
     for (PiClass *current = _class; current != NULL; current = current->super)
     {
-        if (table_getValueHash(current->members, name, hash, out))
-            return true;
+        if (_table_getValueHash(current->members, name, hash, out))
+            return TRUE;
     }
-    return false;
+    return FALSE;
 }
 
 void class_setMember(PiClass *_class, const char *name, Value value)
@@ -103,7 +103,7 @@ void class_setMember(PiClass *_class, const char *name, Value value)
 bool class_deleteMember(PiClass *_class, const char *name)
 {
     if (!_class || !_class->members)
-        return false;
+        return FALSE;
 
     bool removed = ht_delete(_class->members, name);
     if (removed)
@@ -122,34 +122,34 @@ uint64_t class_mutationVersion(void)
 bool instance_getMember(PiInstance *instance, const char *name, Value *out)
 {
     if (!instance)
-        return false;
+        return FALSE;
 
     uint16_t slot;
     if (class_getFieldSlot(instance->_class, name, &slot))
     {
         if (out)
             *out = instance->slots[slot];
-        return true;
+        return TRUE;
     }
-    if (table_getValue(instance->fields, name, out))
-        return true;
+    if (_table_getValue(instance->fields, name, out))
+        return TRUE;
     return class_getMember(instance->_class, name, out);
 }
 
 bool instance_getMemberHash(PiInstance *instance, const char *name, uint64_t hash, Value *out)
 {
     if (!instance)
-        return false;
+        return FALSE;
 
     uint16_t slot;
     if (class_getFieldSlotHash(instance->_class, name, hash, &slot))
     {
         if (out)
             *out = instance->slots[slot];
-        return true;
+        return TRUE;
     }
-    if (table_getValueHash(instance->fields, name, hash, out))
-        return true;
+    if (_table_getValueHash(instance->fields, name, hash, out))
+        return TRUE;
     return class_getMemberHash(instance->_class, name, hash, out);
 }
 
@@ -166,7 +166,7 @@ void instance_setMember(PiInstance *instance, const char *name, Value value)
     if (!instance->fields)
     {
         instance->fields = ht_create(sizeof(Value));
-        instance->it = ht_iterator(instance->fields);
+        instance->it = _ht_iterator(instance->fields);
     }
     if (!ht_set(instance->fields, name, &value))
         ht_put(instance->fields, name, &value);
@@ -175,23 +175,23 @@ void instance_setMember(PiInstance *instance, const char *name, Value value)
 bool class_getFieldSlot(PiClass *_class, const char *name, uint16_t *slot)
 {
     if (!_class || !_class->field_names)
-        return false;
-    uint16_t *found = (uint16_t *)ht_get(_class->field_names, name);
+        return FALSE;
+    uint16_t *found = (uint16_t *)_ht_get(_class->field_names, name);
     if (!found)
-        return false;
+        return FALSE;
     if (slot)
         *slot = *found;
-    return true;
+    return TRUE;
 }
 
 bool class_getFieldSlotHash(PiClass *_class, const char *name, uint64_t hash, uint16_t *slot)
 {
     if (!_class || !_class->field_names)
-        return false;
-    uint16_t *found = (uint16_t *)ht_getHash(_class->field_names, name, hash);
+        return FALSE;
+    uint16_t *found = (uint16_t *)_ht_getHash(_class->field_names, name, hash);
     if (!found)
-        return false;
+        return FALSE;
     if (slot)
         *slot = *found;
-    return true;
+    return TRUE;
 }

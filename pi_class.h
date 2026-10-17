@@ -3,7 +3,7 @@
 
 #include "pi_object.h"
 
-Object *new_class(const char *name, PiClass *super, table_t *members);
+Object *new_class(const char *name, PiClass *super, HT_Table *members);
 Object *new_instance(PiClass *_class);
 
 bool class_getMember(PiClass *_class, const char *name, Value *out);

@@ -4,24 +4,24 @@
 #include "../pi_vm.h"
 #include "../pi_value.h"
 
-Value pt3d_surface(vm_t *vm, int argc, Value *argv);
-Value pt3d_mesh(vm_t *vm, int argc, Value *argv);
-Value pt3d_wireframe(vm_t *vm, int argc, Value *argv);
-Value pt3d_scatter(vm_t *vm, int argc, Value *argv);
+Value pt3d_surface(VM *vm, int argc, Value *argv);
+Value pt3d_mesh(VM *vm, int argc, Value *argv);
+Value pt3d_wireframe(VM *vm, int argc, Value *argv);
+Value pt3d_scatter(VM *vm, int argc, Value *argv);
 
-Value pt3d_chart(vm_t *vm, int argc, Value *argv);
+Value pt3d_chart(VM *vm, int argc, Value *argv);
 
-Value pt3d_show(vm_t *vm, int argc, Value *argv);
-void pt3d_redraw_context(PiContext *ctx);
+Value pt3d_show(VM *vm, int argc, Value *argv);
+void pt3d_RedrawContext(PiContext *ctx);
 
-Value pt3d_title(vm_t *vm, int argc, Value *argv);
-Value pt3d_xlabel(vm_t *vm, int argc, Value *argv);
-Value pt3d_ylabel(vm_t *vm, int argc, Value *argv);
-Value pt3d_zlabel(vm_t *vm, int argc, Value *argv);
+Value pt3d_title(VM *vm, int argc, Value *argv);
+Value pt3d_xlabel(VM *vm, int argc, Value *argv);
+Value pt3d_ylabel(VM *vm, int argc, Value *argv);
+Value pt3d_zlabel(VM *vm, int argc, Value *argv);
 
-Value pt3d_grid(vm_t *vm, int argc, Value *argv);
+Value pt3d_grid(VM *vm, int argc, Value *argv);
 
-Value pt3d_view(vm_t *vm, int argc, Value *argv);
-Value pt3d_subplot(vm_t *vm, int argc, Value *argv);
+Value pt3d_view(VM *vm, int argc, Value *argv);
+Value pt3d_subplot(VM *vm, int argc, Value *argv);
 
 #endif // PI_PLOT3D_H

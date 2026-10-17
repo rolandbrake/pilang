@@ -105,7 +105,7 @@ Apply image-processing operations such as edge detection and grayscale conversio
 Pilang is growing support for small interactive games.
 
 <p align="center">
-  <a href="https://github.com/rolandbrake/pilang-games">
+  <a href="https://github.com/rolandbrake/pilang-games" target="_blank">
     <img src="imgs/games.png" alt="Pilang games in progress" height="500">
   </a>
 </p>

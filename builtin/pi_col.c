@@ -24,7 +24,7 @@ static int _compare(const void *a, const void *b)
     return 0;
 }
 
-Value pi_pop(vm_t *vm, int argc, Value *argv)
+Value pi_pop(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[pop] expects at least one argument.");
@@ -33,7 +33,7 @@ Value pi_pop(vm_t *vm, int argc, Value *argv)
 
     if (IS_LIST(arg))
     {
-        list_t *list = AS_CLIST(arg);
+        List *list = AS_CLIST(arg);
         if (list->size == 0)
             vm_error(vm, "[pop] Cannot pop from an empty list.");
         return *(Value *)list_pop(list);
@@ -60,7 +60,7 @@ Value pi_pop(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_push(vm_t *vm, int argc, Value *argv)
+Value pi_push(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[push] expects at least two arguments.");
@@ -69,9 +69,9 @@ Value pi_push(vm_t *vm, int argc, Value *argv)
 
     if (IS_LIST(target))
     {
-        list_t *list = AS_CLIST(target);
+        List *list = AS_CLIST(target);
         for (int i = 1; i < argc; i++)
-            list_add(list, &argv[i]);
+            _list_add(list, &argv[i]);
 
         return NEW_NUM(list->size);
     }
@@ -103,7 +103,7 @@ Value pi_push(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_empty(vm_t *vm, int argc, Value *argv)
+Value pi_empty(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[empty] expects at least one argument.");
@@ -112,7 +112,7 @@ Value pi_empty(vm_t *vm, int argc, Value *argv)
 
     if (IS_LIST(arg))
     {
-        list_t *list = AS_CLIST(arg);
+        List *list = AS_CLIST(arg);
         return NEW_BOOL(list->size == 0);
     }
     else if (IS_STRING(arg))
@@ -136,7 +136,7 @@ Value pi_empty(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_insert(vm_t *vm, int argc, Value *argv)
+Value pi_insert(VM *vm, int argc, Value *argv)
 {
     if (argc < 3)
         vm_error(vm, "[insert] expects 3 arguments at least: collection, index, value.");
@@ -152,7 +152,7 @@ Value pi_insert(vm_t *vm, int argc, Value *argv)
 
     if (IS_LIST(collection))
     {
-        list_t *list = AS_CLIST(collection);
+        List *list = AS_CLIST(collection);
         if (index < 0 || index > list->size)
             vm_error(vm, "[insert] Index out of bounds for list.");
 
@@ -190,7 +190,7 @@ Value pi_insert(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_remove(vm_t *vm, int argc, Value *argv)
+Value pi_remove(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[remove] expects two arguments at least: collection and index.");
@@ -204,7 +204,7 @@ Value pi_remove(vm_t *vm, int argc, Value *argv)
     if (IS_LIST(collection))
     {
         int index = as_number(_index);
-        list_t *list = AS_CLIST(collection);
+        List *list = AS_CLIST(collection);
         return *(Value *)list_remove(list, index);
     }
 
@@ -247,7 +247,7 @@ Value pi_remove(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_slice(vm_t *vm, int argc, Value *argv)
+Value pi_slice(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[slice] expects at least 2 arguments: start, end [, step].");
@@ -270,7 +270,7 @@ Value pi_slice(vm_t *vm, int argc, Value *argv)
                                          as_number(step))));
 }
 
-Value pi_len(vm_t *vm, int argc, Value *argv)
+Value pi_len(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[len] expects at least one argument.");
@@ -298,7 +298,7 @@ Value pi_len(vm_t *vm, int argc, Value *argv)
     }
 }
 
-Value pi_range(vm_t *vm, int argc, Value *argv)
+Value pi_range(VM *vm, int argc, Value *argv)
 {
     double start = 0;
     double end = 0;
@@ -339,7 +339,7 @@ Value pi_range(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(range_obj);
 }
 
-Value pi_peek(vm_t *vm, int argc, Value *argv)
+Value pi_peek(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[peek] expects at least one argument.");
@@ -348,10 +348,10 @@ Value pi_peek(vm_t *vm, int argc, Value *argv)
 
     if (IS_LIST(arg))
     {
-        list_t *list = AS_CLIST(arg);
+        List *list = AS_CLIST(arg);
         if (list->size == 0)
             vm_error(vm, "[peek] Cannot peek from an empty list.");
-        return *(Value *)list_getAt(list, list->size - 1);
+        return *(Value *)_list_getAt(list, list->size - 1);
     }
     else if (IS_STRING(arg))
     {
@@ -368,7 +368,7 @@ Value pi_peek(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_union(vm_t *vm, int argc, Value *argv)
+Value pi_union(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[union] expects at least two sets.");
@@ -391,7 +391,7 @@ Value pi_union(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)result);
 }
 
-Value pi_intersection(vm_t *vm, int argc, Value *argv)
+Value pi_intersection(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[intersection] expects at least two sets.");
@@ -408,12 +408,12 @@ Value pi_intersection(vm_t *vm, int argc, Value *argv)
     for (int i = 0; i < set_size(first); i++)
     {
         Value value = set_get(first, i);
-        bool present = true;
+        bool present = TRUE;
         for (int i = 1; i < argc; i++)
         {
             if (!set_has(AS_SET(argv[i]), value))
             {
-                present = false;
+                present = FALSE;
                 break;
             }
         }
@@ -424,7 +424,7 @@ Value pi_intersection(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)result);
 }
 
-Value pi_difference(vm_t *vm, int argc, Value *argv)
+Value pi_difference(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[difference] expects two sets.");
@@ -446,7 +446,7 @@ Value pi_difference(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)result);
 }
 
-Value pi_symmetricDiff(vm_t *vm, int argc, Value *argv)
+Value pi_symmetricDiff(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[s_diff] expects two sets.");
@@ -478,7 +478,7 @@ Value pi_symmetricDiff(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)result);
 }
 
-Value pi_issubset(vm_t *vm, int argc, Value *argv)
+Value pi_issubset(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[issubset] expects two sets.");
@@ -492,13 +492,13 @@ Value pi_issubset(vm_t *vm, int argc, Value *argv)
     for (int i = 0; i < set_size(s1); i++)
     {
         if (!set_has(s2, set_get(s1, i)))
-            return NEW_BOOL(false);
+            return NEW_BOOL(FALSE);
     }
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value pi_issuperset(vm_t *vm, int argc, Value *argv)
+Value pi_issuperset(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[issuperset] expects two sets.");
@@ -512,13 +512,13 @@ Value pi_issuperset(vm_t *vm, int argc, Value *argv)
     for (int i = 0; i < set_size(s2); i++)
     {
         if (!set_has(s1, set_get(s2, i)))
-            return NEW_BOOL(false);
+            return NEW_BOOL(FALSE);
     }
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value pi_isdisjoint(vm_t *vm, int argc, Value *argv)
+Value pi_isdisjoint(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[isdisjoint] expects two sets.");
@@ -532,13 +532,13 @@ Value pi_isdisjoint(vm_t *vm, int argc, Value *argv)
     for (int i = 0; i < set_size(s1); i++)
     {
         if (set_has(s2, set_get(s1, i)))
-            return NEW_BOOL(false);
+            return NEW_BOOL(FALSE);
     }
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value _pi_set(vm_t *vm, int argc, Value *argv)
+Value _pi_set(VM *vm, int argc, Value *argv)
 {
     if (argc >= 1 && !IS_COLLECTION(argv[0]))
         vm_error(vm, "[set] expects one argument: an iterable.");
@@ -553,7 +553,7 @@ Value _pi_set(vm_t *vm, int argc, Value *argv)
             PiList *list = AS_LIST(iterable);
             for (int i = 0; i < list->items->size; i++)
             {
-                Value *item = (Value *)list_getAt(list->items, i);
+                Value *item = (Value *)_list_getAt(list->items, i);
                 set_add(result, *item);
             }
         }
@@ -578,7 +578,7 @@ Value _pi_set(vm_t *vm, int argc, Value *argv)
             PiTuple *tuple = AS_TUPLE(iterable);
             for (int i = 0; i < tuple->items->size; i++)
             {
-                Value *item = (Value *)list_getAt(tuple->items, i);
+                Value *item = (Value *)_list_getAt(tuple->items, i);
                 set_add(result, *item);
             }
         }
@@ -589,7 +589,7 @@ Value _pi_set(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)result);
 }
 
-Value pi_copy(vm_t *vm, int argc, Value *argv)
+Value pi_copy(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "[copy] expects one argument.");
@@ -607,12 +607,12 @@ Value pi_copy(vm_t *vm, int argc, Value *argv)
     case OBJ_LIST:
     {
         PiList *original = AS_LIST(value);
-        list_t *items = list_create(sizeof(Value));
+        List *items = list_create(sizeof(Value));
         for (int i = 0; i < LIST_SIZE(original->items); i++)
         {
-            Value item = *(Value *)list_getAt(original->items, i);
+            Value item = *(Value *)_list_getAt(original->items, i);
             Value copied = pi_copy(vm, 1, &item);
-            list_add(items, &copied);
+            _list_add(items, &copied);
         }
 
         PiList *copy = (PiList *)add_obj(vm, new_list(items));
@@ -623,12 +623,12 @@ Value pi_copy(vm_t *vm, int argc, Value *argv)
     case OBJ_TUPLE:
     {
         PiTuple *original = AS_TUPLE(value);
-        list_t *items = list_create(sizeof(Value));
+        List *items = list_create(sizeof(Value));
         for (int i = 0; i < LIST_SIZE(original->items); i++)
         {
-            Value item = *(Value *)list_getAt(original->items, i);
+            Value item = *(Value *)_list_getAt(original->items, i);
             Value copied = pi_copy(vm, 1, &item);
-            list_add(items, &copied);
+            _list_add(items, &copied);
         }
 
         return NEW_OBJ(add_obj(vm, new_tuple(items)));
@@ -637,12 +637,12 @@ Value pi_copy(vm_t *vm, int argc, Value *argv)
     case OBJ_MAP:
     {
         PiMap *original = AS_MAP(value);
-        table_t *table = ht_create(sizeof(Value));
+        HT_Table *table = ht_create(sizeof(Value));
         Object *obj = add_obj(vm, new_map(table));
         PiMap *copy = (PiMap *)obj;
 
-        ht_iter it = ht_iterator(original->table);
-        while (ht_next(&it))
+        HT_Iterator it = _ht_iterator(original->table);
+        while (_ht_next(&it))
         {
             Value *item = it.value;
             if (!item)
@@ -696,7 +696,7 @@ Value pi_copy(vm_t *vm, int argc, Value *argv)
     }
 }
 
-Value cl_add(vm_t *vm, int argc, Value *argv)
+Value cl_add(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[add] expects at least two arguments: set and elements.");
@@ -730,14 +730,14 @@ Value cl_add(vm_t *vm, int argc, Value *argv)
     return argv[0];
 }
 
-Value cl_clear(vm_t *vm, int argc, Value *argv)
+Value cl_clear(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "[clear] expects at least one argument");
 
     if (IS_LIST(argv[0]))
     {
-        list_t *list = AS_CLIST(argv[0]);
+        List *list = AS_CLIST(argv[0]);
         list_clear(list);
     }
     else if (IS_STRING(argv[0]))
@@ -758,7 +758,7 @@ Value cl_clear(vm_t *vm, int argc, Value *argv)
     return argv[0];
 }
 
-Value cl_peek(vm_t *vm, int argc, Value *argv)
+Value cl_peek(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[peek] expects at least one argument.");
@@ -767,10 +767,10 @@ Value cl_peek(vm_t *vm, int argc, Value *argv)
 
     if (IS_LIST(arg))
     {
-        list_t *list = AS_CLIST(arg);
+        List *list = AS_CLIST(arg);
         if (list->size == 0)
             vm_error(vm, "[peek] Cannot peek from an empty list.");
-        return *(Value *)list_getAt(list, list->size - 1);
+        return *(Value *)_list_getAt(list, list->size - 1);
     }
     else if (IS_STRING(arg))
     {
@@ -788,7 +788,7 @@ Value cl_peek(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value cl_sort(vm_t *vm, int argc, Value *argv)
+Value cl_sort(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[sort] expects one argument.");
@@ -798,19 +798,19 @@ Value cl_sort(vm_t *vm, int argc, Value *argv)
     if (!IS_LIST(arg))
         vm_error(vm, "[sort] Argument must be a list.");
 
-    list_t *list = AS_CLIST(arg);
+    List *list = AS_CLIST(arg);
 
     if (list->size <= 1)
         return NEW_NIL();
 
-    Value first = (*(Value *)list_getAt(list, 0));
+    Value first = (*(Value *)_list_getAt(list, 0));
 
     if (!IS_STRING(first) && !IS_NUM(first))
         vm_error(vm, "[sort] List elements must all be numbers or strings.");
 
     for (int i = 1; i < list->size; i++)
     {
-        Value item = (*(Value *)list_getAt(list, i));
+        Value item = (*(Value *)_list_getAt(list, i));
         if (item.type != first.type)
             vm_error(vm, "[sort] List elements must all be of the same type.");
     }
@@ -820,7 +820,7 @@ Value cl_sort(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value cl_unshift(vm_t *vm, int argc, Value *argv)
+Value cl_unshift(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[unshift] expects at least two arguments: collection and values.");
@@ -829,7 +829,7 @@ Value cl_unshift(vm_t *vm, int argc, Value *argv)
 
     if (IS_LIST(target))
     {
-        list_t *list = AS_CLIST(target);
+        List *list = AS_CLIST(target);
 
         for (int i = 1; i < argc; i++)
             list_addFirst(list, &argv[i]);
@@ -873,7 +873,7 @@ Value cl_unshift(vm_t *vm, int argc, Value *argv)
     return NEW_NIL(); // Unreachable
 }
 
-Value cl_append(vm_t *vm, int argc, Value *argv)
+Value cl_append(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[append] expects at least two arguments: collection and values.");
@@ -882,10 +882,10 @@ Value cl_append(vm_t *vm, int argc, Value *argv)
 
     if (IS_LIST(target))
     {
-        list_t *list = AS_CLIST(target);
+        List *list = AS_CLIST(target);
 
         for (int i = 1; i < argc; i++)
-            list_add(list, &argv[i]);
+            _list_add(list, &argv[i]);
 
         return NEW_NUM(list->size);
     }
@@ -926,7 +926,7 @@ Value cl_append(vm_t *vm, int argc, Value *argv)
     return NEW_NIL(); // Unreachable
 }
 
-Value cl_contains(vm_t *vm, int argc, Value *argv)
+Value cl_contains(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[contains] expects two arguments at least: a collection and a value.");
@@ -939,9 +939,9 @@ Value cl_contains(vm_t *vm, int argc, Value *argv)
         PiList *list = AS_LIST(collection);
         for (int i = 0; i < list->items->size; i++)
         {
-            Value item = *(Value *)list_getAt(list->items, i);
+            Value item = *(Value *)_list_getAt(list->items, i);
             if (equals(item, target))
-                return NEW_BOOL(true);
+                return NEW_BOOL(TRUE);
         }
     }
     else if (IS_STRING(collection))
@@ -953,12 +953,12 @@ Value cl_contains(vm_t *vm, int argc, Value *argv)
         PiString *substr = AS_STRING(target);
 
         if (substr->length == 0 || substr->length > str->length)
-            return NEW_BOOL(false);
+            return NEW_BOOL(FALSE);
 
         for (int i = 0; i <= str->length - substr->length; i++)
         {
             if (strncmp(&str->chars[i], substr->chars, substr->length) == 0)
-                return NEW_BOOL(true);
+                return NEW_BOOL(TRUE);
         }
     }
     else if (IS_TUPLE(collection))
@@ -966,9 +966,9 @@ Value cl_contains(vm_t *vm, int argc, Value *argv)
         PiTuple *tuple = AS_TUPLE(collection);
         for (int i = 0; i < tuple->items->size; i++)
         {
-            Value item = *(Value *)list_getAt(tuple->items, i);
+            Value item = *(Value *)_list_getAt(tuple->items, i);
             if (equals(item, target))
-                return NEW_BOOL(true);
+                return NEW_BOOL(TRUE);
         }
     }
     else if (IS_MAP(collection))
@@ -985,10 +985,10 @@ Value cl_contains(vm_t *vm, int argc, Value *argv)
     else
         vm_error(vm, "[contains] First argument must be a list, tuple, string, map, or set.");
 
-    return NEW_BOOL(false);
+    return NEW_BOOL(FALSE);
 }
 
-Value cl_indexOf(vm_t *vm, int argc, Value *argv)
+Value cl_indexOf(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[index_of] expects at least two arguments: a collection and a value.");
@@ -1001,7 +1001,7 @@ Value cl_indexOf(vm_t *vm, int argc, Value *argv)
         PiList *list = AS_LIST(collection);
         for (int i = 0; i < list->items->size; i++)
         {
-            Value item = *(Value *)list_getAt(list->items, i);
+            Value item = *(Value *)_list_getAt(list->items, i);
             if (equals(item, target))
                 return NEW_NUM(i);
         }
@@ -1026,7 +1026,7 @@ Value cl_indexOf(vm_t *vm, int argc, Value *argv)
         PiTuple *tuple = AS_TUPLE(collection);
         for (int i = 0; i < tuple->items->size; i++)
         {
-            Value item = *(Value *)list_getAt(tuple->items, i);
+            Value item = *(Value *)_list_getAt(tuple->items, i);
             if (equals(item, target))
                 return NEW_NUM(i);
         }
@@ -1037,7 +1037,7 @@ Value cl_indexOf(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(-1);
 }
 
-Value cl_count(vm_t *vm, int argc, Value *argv)
+Value cl_count(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[count] expects at least two arguments: a collection and a value.");
@@ -1051,7 +1051,7 @@ Value cl_count(vm_t *vm, int argc, Value *argv)
         PiList *list = AS_LIST(collection);
         for (int i = 0; i < list->items->size; i++)
         {
-            Value item = *(Value *)list_getAt(list->items, i);
+            Value item = *(Value *)_list_getAt(list->items, i);
             if (equals(item, target))
                 count++;
         }
@@ -1061,7 +1061,7 @@ Value cl_count(vm_t *vm, int argc, Value *argv)
         PiTuple *tuple = AS_TUPLE(collection);
         for (int i = 0; i < tuple->items->size; i++)
         {
-            Value item = *(Value *)list_getAt(tuple->items, i);
+            Value item = *(Value *)_list_getAt(tuple->items, i);
             if (equals(item, target))
                 count++;
         }
@@ -1093,7 +1093,7 @@ Value cl_count(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(count);
 }
 
-Value cl_concat(vm_t *vm, int argc, Value *argv)
+Value cl_concat(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[concat] expects at least two arguments.");
@@ -1105,7 +1105,7 @@ Value cl_concat(vm_t *vm, int argc, Value *argv)
     {
         PiList *l_list = AS_LIST(left);
         PiList *r_list = AS_LIST(right);
-        list_t *result = list_copy(l_list->items);
+        List *result = list_copy(l_list->items);
         list_addAll(result, r_list->items);
         return NEW_OBJ(add_obj(vm, new_list(result)));
     }
@@ -1113,7 +1113,7 @@ Value cl_concat(vm_t *vm, int argc, Value *argv)
     {
         PiTuple *l_tuple = AS_TUPLE(left);
         PiTuple *r_tuple = AS_TUPLE(right);
-        list_t *result = list_copy(l_tuple->items);
+        List *result = list_copy(l_tuple->items);
         list_addAll(result, r_tuple->items);
         return NEW_OBJ(add_obj(vm, new_tuple(result)));
     }
@@ -1135,11 +1135,11 @@ Value cl_concat(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_tuple(vm_t *vm, int argc, Value *argv)
+Value pi_tuple(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
     {
-        list_t *items = list_create(sizeof(Value));
+        List *items = list_create(sizeof(Value));
         return NEW_OBJ(add_obj(vm, new_tuple(items)));
     }
 
@@ -1159,27 +1159,27 @@ Value pi_tuple(vm_t *vm, int argc, Value *argv)
         else if (IS_STRING(arg))
         {
             PiString *str = AS_STRING(arg);
-            list_t *items = list_create(sizeof(Value));
+            List *items = list_create(sizeof(Value));
             for (int i = 0; i < str->length; i++)
             {
                 char *ch = malloc(2);
                 ch[0] = str->chars[i];
                 ch[1] = '\0';
                 Value value = NEW_OBJ(add_obj(vm, new_pistring(ch)));
-                list_add(items, &value);
+                _list_add(items, &value);
             }
             return NEW_OBJ(add_obj(vm, new_tuple(items)));
         }
     }
 
-    list_t *items = list_create(sizeof(Value));
+    List *items = list_create(sizeof(Value));
     for (int i = 0; i < argc; i++)
-        list_add(items, &argv[i]);
+        _list_add(items, &argv[i]);
 
     return NEW_OBJ(add_obj(vm, new_tuple(items)));
 }
 
-Value cl_repeat(vm_t *vm, int argc, Value *argv)
+Value cl_repeat(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[repeat] expects two arguments: a collection and a repeat count.");
@@ -1195,7 +1195,7 @@ Value cl_repeat(vm_t *vm, int argc, Value *argv)
     if (IS_LIST(collection))
     {
         PiList *list = AS_LIST(collection);
-        list_t *result = list_create(sizeof(Value));
+        List *result = list_create(sizeof(Value));
         for (int i = 0; i < times; i++)
             list_addAll(result, list->items);
 
@@ -1205,7 +1205,7 @@ Value cl_repeat(vm_t *vm, int argc, Value *argv)
     else if (IS_TUPLE(collection))
     {
         PiTuple *tuple = AS_TUPLE(collection);
-        list_t *result = list_create(sizeof(Value));
+        List *result = list_create(sizeof(Value));
         for (int i = 0; i < times; i++)
             list_addAll(result, tuple->items);
         Object *o = add_obj(vm, new_tuple(result));
@@ -1229,7 +1229,7 @@ Value cl_repeat(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value cl_reverse(vm_t *vm, int argc, Value *argv)
+Value cl_reverse(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "[reverse] expects one argument at least: a list or a string.");
@@ -1238,14 +1238,14 @@ Value cl_reverse(vm_t *vm, int argc, Value *argv)
 
     if (IS_LIST(input))
     {
-        list_t *list = AS_CLIST(input);
+        List *list = AS_CLIST(input);
         int size = list->size;
 
-        list_t *copy = list_copy(list);
+        List *copy = list_copy(list);
         for (int i = 0; i < size / 2; i++)
         {
-            Value *a = (Value *)list_getAt(copy, i);
-            Value *b = (Value *)list_getAt(copy, size - i - 1);
+            Value *a = (Value *)_list_getAt(copy, i);
+            Value *b = (Value *)_list_getAt(copy, size - i - 1);
             Value tmp = *a;
             *a = *b;
             *b = tmp;
@@ -1273,7 +1273,7 @@ Value cl_reverse(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value cl_flat(vm_t *vm, int argc, Value *argv)
+Value cl_flat(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "[flat] expects one argument: a list.");
@@ -1282,25 +1282,25 @@ Value cl_flat(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[flat] argument must be a list.");
 
     PiList *input = AS_LIST(argv[0]);
-    list_t *result = list_create(sizeof(Value));
+    List *result = list_create(sizeof(Value));
 
     for (int i = 0; i < input->items->size; i++)
     {
-        Value item = *(Value *)list_getAt(input->items, i);
+        Value item = *(Value *)_list_getAt(input->items, i);
         if (IS_LIST(item))
         {
             PiList *nested = AS_LIST(item);
             for (int j = 0; j < nested->items->size; j++)
-                list_add(result, list_getAt(nested->items, j));
+                _list_add(result, _list_getAt(nested->items, j));
         }
         else
-            list_add(result, &item);
+            _list_add(result, &item);
     }
 
     return NEW_OBJ(add_obj(vm, new_list(result)));
 }
 
-Value cl_shuffle(vm_t *vm, int argc, Value *argv)
+Value cl_shuffle(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "[shuffle] expects one argument at least: a list.");
@@ -1313,18 +1313,18 @@ Value cl_shuffle(vm_t *vm, int argc, Value *argv)
 
     // Seed RNG once
     // Seed once so repeated shuffle calls do not reset randomness.
-    static bool seeded = false;
+    static bool seeded = FALSE;
     if (!seeded)
     {
         srand((unsigned int)time(NULL));
-        seeded = true;
+        seeded = TRUE;
     }
 
     for (int i = size - 1; i > 0; i--)
     {
         int j = rand() % (i + 1);
-        Value *a = (Value *)list_getAt(list->items, i);
-        Value *b = (Value *)list_getAt(list->items, j);
+        Value *a = (Value *)_list_getAt(list->items, i);
+        Value *b = (Value *)_list_getAt(list->items, j);
         Value tmp = *a;
         *a = *b;
         *b = tmp;
@@ -1333,7 +1333,7 @@ Value cl_shuffle(vm_t *vm, int argc, Value *argv)
     return argv[0];
 }
 
-Value cl_copy(vm_t *vm, int argc, Value *argv)
+Value cl_copy(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "[copy] expects one argument at least!.");
@@ -1348,13 +1348,13 @@ Value cl_copy(vm_t *vm, int argc, Value *argv)
     else if (IS_LIST(input))
     {
         PiList *orig = AS_LIST(input);
-        list_t *copied_items = list_create(sizeof(Value));
+        List *copied_items = list_create(sizeof(Value));
 
         for (int i = 0; i < orig->items->size; i++)
         {
-            Value *item = (Value *)list_getAt(orig->items, i);
+            Value *item = (Value *)_list_getAt(orig->items, i);
             // Collection method copy is shallow; pi_copy() above is the deep-copy builtin.
-            list_add(copied_items, item);
+            _list_add(copied_items, item);
         }
 
         PiList *result = (PiList *)new_list(copied_items);
@@ -1377,16 +1377,16 @@ Value cl_copy(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value cl_zip(vm_t *vm, int argc, Value *argv)
+Value cl_zip(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[zip] expects at least two arguments: iterables.");
 
     Value *iterables = argv;
-    int numIterables = argc;
+    int num_iterables = argc;
 
-    int minLength = INT_MAX;
-    for (int i = 0; i < numIterables; i++)
+    int min_length = INT_MAX;
+    for (int i = 0; i < num_iterables; i++)
     {
         if (!IS_LIST(iterables[i]) && !IS_STRING(iterables[i]))
             vm_error(vm, "[zip] all iterables must be lists, strings, or maps.");
@@ -1398,22 +1398,22 @@ Value cl_zip(vm_t *vm, int argc, Value *argv)
         else if (IS_STRING(iterables[i]))
             length = PISTR_SIZE(iterables[i]);
 
-        if (minLength > length)
-            minLength = length;
+        if (min_length > length)
+            min_length = length;
     }
 
-    list_t *zippedItems = list_create(sizeof(Value));
-    for (int i = 0; i < minLength; i++)
+    List *zipped_items = list_create(sizeof(Value));
+    for (int i = 0; i < min_length; i++)
     {
-        list_t *zippedItemsIndex = list_create(sizeof(Value));
+        List *zipped_items_index = list_create(sizeof(Value));
 
-        for (int j = 0; j < numIterables; j++)
+        for (int j = 0; j < num_iterables; j++)
         {
             Value value = NEW_NIL();
 
             if (IS_LIST(iterables[j]))
             {
-                Value *item = (Value *)list_getAt(AS_CLIST(iterables[j]), i);
+                Value *item = (Value *)_list_getAt(AS_CLIST(iterables[j]), i);
                 value = *item;
             }
             else if (IS_STRING(iterables[j]))
@@ -1423,17 +1423,17 @@ Value cl_zip(vm_t *vm, int argc, Value *argv)
                 value = NEW_OBJ(new_pistring(strdup(ch)));
             }
 
-            list_add(zippedItemsIndex, &value);
+            _list_add(zipped_items_index, &value);
         }
 
-        Value listVal = NEW_OBJ(new_list(zippedItemsIndex));
-        list_add(zippedItems, &listVal);
+        Value list_val = NEW_OBJ(new_list(zipped_items_index));
+        _list_add(zipped_items, &list_val);
     }
 
-    return NEW_OBJ(new_list(zippedItems));
+    return NEW_OBJ(new_list(zipped_items));
 }
 
-Value cl_join(vm_t *vm, int argc, Value *argv)
+Value cl_join(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || argc > 2)
         vm_error(vm, "[join] expects a list, tuple, or string, and an optional separator.");
@@ -1453,7 +1453,7 @@ Value cl_join(vm_t *vm, int argc, Value *argv)
     if (!IS_LIST(collection) && !IS_TUPLE(collection))
         vm_error(vm, "[join] first argument must be a list, tuple, or string.");
 
-    list_t *items = IS_LIST(collection) ? AS_LIST(collection)->items : AS_TUPLE(collection)->items;
+    List *items = IS_LIST(collection) ? AS_LIST(collection)->items : AS_TUPLE(collection)->items;
     int size = LIST_SIZE(items);
     size_t sep_len = strlen(separator);
     size_t result_len = 0;
@@ -1468,7 +1468,7 @@ Value cl_join(vm_t *vm, int argc, Value *argv)
 
     for (int i = 0; i < size; i++)
     {
-        Value item = *(Value *)list_getAt(items, i);
+        Value item = *(Value *)_list_getAt(items, i);
         parts[i] = as_string(item);
         result_len += strlen(parts[i]);
         if (i > 0)
@@ -1500,12 +1500,12 @@ Value cl_join(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, new_pistring(result)));
 }
 
-Value pi_join(vm_t *vm, int argc, Value *argv)
+Value pi_join(VM *vm, int argc, Value *argv)
 {
     return cl_join(vm, argc, argv);
 }
 
-Value cl_isIterable(vm_t *vm, int argc, Value *argv)
+Value cl_isIterable(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "[is_iterable] expects at least one argument.");

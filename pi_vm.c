@@ -25,18 +25,18 @@
 #include "builtin/pi_col.h"
 #include "builtin/pi_methods.h"
 
-volatile interrupt_flag_t interrupt_requested = 0;
+volatile InterruptFlag interrupt_requested = 0;
 
-static void add_objectClassMembers(PiClass *klass);
-static Value construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Value kw_args);
+static void _add_objectClassMembers(PiClass *klass);
+static Value _construct(VM *vm, PiClass *_class, size_t argc, Value *argv, Value kw_args);
 
-static Value bind(vm_t *vm, Function *function, Object *instance);
-static Value bind_callable(vm_t *vm, PiInstance *instance);
-static Value bind_nativeMethod(Object *instance, NativeMethod *method);
+static Value _bind(VM *vm, Function *function, Object *instance);
+static Value _bind_callable(VM *vm, PiInstance *instance);
+static Value _bind_nativeMethod(Object *instance, NativeMethod *method);
 
-static void gc_collect(vm_t *vm);
+static void _gc_collect(VM *vm);
 
-static char *copy_dirName(const char *path)
+static char *_copy_dirName(const char *path)
 {
     if (!path || path[0] == '\0')
         return strdup(".");
@@ -57,12 +57,12 @@ static char *copy_dirName(const char *path)
     return dir;
 }
 
-static ObjModule *vm_currentModule(vm_t *vm)
+static ObjModule *_vm_currentModule(VM *vm)
 {
     if (!vm || !vm->globals)
         return NULL;
 
-    Value *module_val = ht_get(vm->globals, "module");
+    Value *module_val = _ht_get(vm->globals, "module");
 
     if (!module_val || !IS_MODULE(*module_val))
         return NULL;
@@ -70,15 +70,15 @@ static ObjModule *vm_currentModule(vm_t *vm)
     return AS_MODULE(*module_val);
 }
 
-static void list_refreshNumericFlag(PiList *list)
+static void _list_refreshNumericFlag(PiList *list)
 {
-    bool numeric = true;
+    bool numeric = TRUE;
 
     for (int i = 0; i < LIST_SIZE(list->items); i++)
     {
-        if (!IS_NUM(*(Value *)list_getAt(list->items, i)))
+        if (!IS_NUM(*(Value *)_list_getAt(list->items, i)))
         {
-            numeric = false;
+            numeric = FALSE;
             break;
         }
     }
@@ -86,23 +86,23 @@ static void list_refreshNumericFlag(PiList *list)
     list->is_numeric = numeric;
 }
 
-static Value make_iterPair(vm_t *vm, Value first, Value second)
+static Value _make_iterPair(VM *vm, Value first, Value second)
 {
-    list_t *items = list_create(sizeof(Value));
-    list_add(items, &first);
-    list_add(items, &second);
+    List *items = list_create(sizeof(Value));
+    _list_add(items, &first);
+    _list_add(items, &second);
     return NEW_OBJ(add_obj(vm, new_list(items)));
 }
 
-static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
+static void _list_setSlice(VM *vm, PiList *target, PiSlice *slice, Value value)
 {
     if (!IS_LIST(value) && !IS_TUPLE(value))
         vm_error(vm, "List slice assignment requires a list or tuple.");
 
-    list_t *items = target->items;
-    list_t *source = IS_LIST(value)
-                         ? AS_LIST(value)->items
-                         : AS_TUPLE(value)->items;
+    List *items = target->items;
+    List *source = IS_LIST(value)
+                       ? AS_LIST(value)->items
+                       : AS_TUPLE(value)->items;
 
     int size = LIST_SIZE(items);
     int step = (int)slice->step;
@@ -134,7 +134,7 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
             vm_error(vm, "Memory allocation failed during slice assignment.");
 
         for (int i = 0; i < source_count; i++)
-            snapshot[i] = *(Value *)list_getAt(source, i);
+            snapshot[i] = *(Value *)_list_getAt(source, i);
     }
 
     if (step == 1)
@@ -156,11 +156,11 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
             _list_expand(items, new_capacity);
         }
 
-        void *insert_at = (byte *)items->data + start * items->i_size;
+        void *insert_at = (Byte *)items->data + start * items->i_size;
         void *tail_from =
-            (byte *)items->data + (start + delete_count) * items->i_size;
+            (Byte *)items->data + (start + delete_count) * items->i_size;
         void *tail_to =
-            (byte *)items->data + (start + source_count) * items->i_size;
+            (Byte *)items->data + (start + source_count) * items->i_size;
 
         memmove(
             tail_to,
@@ -198,44 +198,44 @@ static void list_setSlice(vm_t *vm, PiList *target, PiSlice *slice, Value value)
 
         for (int i = 0; i < source_count; i++)
         {
-            list_set(items, current, &snapshot[i]);
+            _list_set(items, current, &snapshot[i]);
             current += step;
         }
     }
 
     free(snapshot);
 
-    list_refreshNumericFlag(target);
+    _list_refreshNumericFlag(target);
 }
 
-static bool set_equals(PiSet *left, PiSet *right)
+static bool _set_equals(PiSet *left, PiSet *right)
 {
     if (set_size(left) != set_size(right))
-        return false;
+        return FALSE;
 
     for (int i = 0; i < set_size(left); i++)
     {
         Value value = set_get(left, i);
         if (!set_has(right, value))
-            return false;
+            return FALSE;
     }
 
-    return true;
+    return TRUE;
 }
 
-static bool set_isSubset(PiSet *left, PiSet *right)
+static bool _set_isSubset(PiSet *left, PiSet *right)
 {
     for (int i = 0; i < set_size(left); i++)
     {
         Value value = set_get(left, i);
         if (!set_has(right, value))
-            return false;
+            return FALSE;
     }
 
-    return true;
+    return TRUE;
 }
 
-static Object *set_ops(PiSet *left, PiSet *right, int op)
+static Object *_set_ops(PiSet *left, PiSet *right, int op)
 {
     PiSet *result = (PiSet *)new_set();
 
@@ -274,7 +274,7 @@ static Object *set_ops(PiSet *left, PiSet *right, int op)
     return (Object *)result;
 }
 
-static Object *set_difference(PiSet *left, PiSet *right)
+static Object *_set_difference(PiSet *left, PiSet *right)
 {
     PiSet *result = (PiSet *)new_set();
     for (int i = 0; i < set_size(left); i++)
@@ -287,9 +287,9 @@ static Object *set_difference(PiSet *left, PiSet *right)
     return (Object *)result;
 }
 
-static const char *vm_moduleLabel(vm_t *vm)
+static const char *_vm_moduleLabel(VM *vm)
 {
-    ObjModule *module = vm_currentModule(vm);
+    ObjModule *module = _vm_currentModule(vm);
 
     if (!module)
         return NULL;
@@ -303,7 +303,7 @@ static const char *vm_moduleLabel(vm_t *vm)
     return NULL;
 }
 
-static instr_t *vm_instrForOffset(vm_t *vm, int target_offset)
+static Instruction *_vm_instrForOffset(VM *vm, int target_offset)
 {
     if (!vm || !vm->instrs)
         return NULL;
@@ -318,20 +318,20 @@ static instr_t *vm_instrForOffset(vm_t *vm, int target_offset)
             scope_name = fn->name;
     }
 
-    list_t *instrs = ht_get(vm->instrs, scope_name);
+    List *instrs = _ht_get(vm->instrs, scope_name);
 
     if (!instrs && strcmp(scope_name, "<global>") != 0)
-        instrs = ht_get(vm->instrs, "<global>");
+        instrs = _ht_get(vm->instrs, "<global>");
 
     if (!instrs)
         return NULL;
 
-    int size = list_size(instrs);
-    instr_t *instr = NULL;
+    int size = LIST_SIZE(instrs);
+    Instruction *instr = NULL;
 
     for (int i = 0; i < size; i++)
     {
-        instr_t *cur = (instr_t *)list_getAt(instrs, i);
+        Instruction *cur = (Instruction *)_list_getAt(instrs, i);
 
         if (cur->offset > target_offset)
             break;
@@ -342,7 +342,7 @@ static instr_t *vm_instrForOffset(vm_t *vm, int target_offset)
     return instr;
 }
 
-static instr_t *vm_currentInstr(vm_t *vm)
+static Instruction *_vm_currentInstr(VM *vm)
 {
     if (!vm)
         return NULL;
@@ -350,12 +350,12 @@ static instr_t *vm_currentInstr(vm_t *vm)
     if (vm->current_instr)
         return vm->current_instr;
 
-    return vm_instrForOffset(vm, vm->error_pc);
+    return _vm_instrForOffset(vm, vm->error_pc);
 }
 
-static const char *vm_callName(vm_t *vm, int offset)
+static const char *_vm_callName(VM *vm, int offset)
 {
-    instr_t *instr = vm_instrForOffset(vm, offset);
+    Instruction *instr = _vm_instrForOffset(vm, offset);
 
     if (!instr || !instr->descr || instr->descr[0] == '\0' || strcmp(instr->descr, "<FUN>") == 0)
         return NULL;
@@ -363,9 +363,9 @@ static const char *vm_callName(vm_t *vm, int offset)
     return instr->descr;
 }
 
-vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
+VM *init_vm(Compiler *comp, const char *entry_name, bool is_main)
 {
-    vm_t *vm = (vm_t *)malloc(sizeof(vm_t));
+    VM *vm = (VM *)malloc(sizeof(VM));
 
     vm->pc = 0;
     vm->error_pc = 0;
@@ -395,7 +395,7 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     vm->comp_sp = 0;
     vm->frame_sp = 0;
 
-    vm->running = true;
+    vm->running = TRUE;
 
     vm->fps = TARGET_FPS;
 
@@ -405,9 +405,9 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
 
     vm->gc_bytes = 0;
     vm->next_gc_bytes = GC_INITIAL_BYTES;
-    vm->gc_requested = false;
+    vm->gc_requested = FALSE;
 
-    vm->openUpvalues = NULL;
+    vm->open_upvalues = NULL;
 
     vm->function = NULL;
     vm->_kw_args = NEW_NIL();
@@ -423,7 +423,7 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
 
     if (entry_name && entry_name[0] != '\0')
     {
-        char *entry_dir = copy_dirName(entry_name);
+        char *entry_dir = _copy_dirName(entry_name);
         if (entry_dir)
         {
             free(vm->current_path);
@@ -439,7 +439,7 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
         vm,
         module_name,
         module_path,
-        false,
+        FALSE,
         is_main);
 
     /* Treat the entry module as loaded so imports cannot re-enter it. */
@@ -450,14 +450,14 @@ vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main)
     ht_put(vm->globals, "module", &main_module_val);
 
     vm->object_class = (PiClass *)add_obj(vm, new_class("Object", NULL, ht_create(sizeof(Value))));
-    add_objectClassMembers(vm->object_class);
+    _add_objectClassMembers(vm->object_class);
     Value object_class_val = NEW_OBJ((Object *)vm->object_class);
     ht_put(vm->globals, "Object", &object_class_val);
 
     return vm;
 }
 
-void vm_reset(vm_t *vm, compiler_t *comp)
+void vm_reset(VM *vm, Compiler *comp)
 {
     vm->pc = 0;
     vm->error_pc = 0;
@@ -478,25 +478,25 @@ void vm_reset(vm_t *vm, compiler_t *comp)
     vm->comp_sp = 0;
     vm->frame_sp = 0;
 
-    vm->running = true;
+    vm->running = TRUE;
 
     vm->gc_bytes = gc_recountBytes(vm);
     vm->next_gc_bytes = vm->gc_bytes + GC_INITIAL_BYTES;
-    vm->gc_requested = false;
+    vm->gc_requested = FALSE;
 
-    vm->openUpvalues = NULL;
+    vm->open_upvalues = NULL;
     vm->function = NULL;
     vm->_kw_args = NEW_NIL();
 
     mark_constants(vm);
 }
 
-inline Object *add_obj(vm_t *vm, Object *obj)
+inline Object *add_obj(VM *vm, Object *obj)
 {
     if (obj->in_gcList)
         return obj;
 
-    obj->in_gcList = true;
+    obj->in_gcList = TRUE;
     obj->gc_color = GC_WHITE;
 
     obj->next = vm->objects;
@@ -506,12 +506,12 @@ inline Object *add_obj(vm_t *vm, Object *obj)
     obj->gc_bytes = gc_objectBytes(obj);
     vm->gc_bytes += obj->gc_bytes;
     if (vm->gc_bytes >= vm->next_gc_bytes)
-        vm->gc_requested = true;
+        vm->gc_requested = TRUE;
 
     return obj;
 }
 
-static void gc_collect(vm_t *vm)
+static void _gc_collect(VM *vm)
 {
     size_t before = vm->gc_bytes;
     run_gc(vm);
@@ -526,7 +526,7 @@ static void gc_collect(vm_t *vm)
 
     vm->gc_bytes = after;
     vm->next_gc_bytes = after + allocation_budget;
-    vm->gc_requested = false;
+    vm->gc_requested = FALSE;
 
 #ifdef DEBUG
     printf("[GC] Before: %zu bytes, After: %zu bytes, Collected: %zu bytes, Next threshold: %zu bytes\n",
@@ -534,41 +534,41 @@ static void gc_collect(vm_t *vm)
 #endif
 }
 
-Value vm_kwargs(vm_t *vm)
+Value vm_kwargs(VM *vm)
 {
     if (!vm)
         return NEW_NIL();
     return vm->_kw_args;
 }
 
-bool vm_hasKwarg(vm_t *vm, const char *name)
+bool vm_hasKwarg(VM *vm, const char *name)
 {
     if (!vm || !name || !IS_MAP(vm->_kw_args))
-        return false;
-    return ht_get(AS_MAP(vm->_kw_args)->table, name) != NULL;
+        return FALSE;
+    return _ht_get(AS_MAP(vm->_kw_args)->table, name) != NULL;
 }
 
-bool vm_getKwarg(vm_t *vm, const char *name, Value *out)
+bool vm_getKwarg(VM *vm, const char *name, Value *out)
 {
     if (!vm || !name || !out || !IS_MAP(vm->_kw_args))
-        return false;
+        return FALSE;
 
-    Value *value = ht_get(AS_MAP(vm->_kw_args)->table, name);
+    Value *value = _ht_get(AS_MAP(vm->_kw_args)->table, name);
     if (!value)
-        return false;
+        return FALSE;
 
     *out = *value;
-    return true;
+    return TRUE;
 }
 
-Value vm_getKwargOr(vm_t *vm, const char *name, Value fallback)
+Value vm_getKwargOr(VM *vm, const char *name, Value fallback)
 {
     Value value;
     return vm_getKwarg(vm, name, &value) ? value : fallback;
 }
 
 #ifdef DEBUG
-static inline int count_objs(vm_t *vm)
+static inline int _count_objs(VM *vm)
 {
     int count = 0;
     Object *obj = vm->objects;
@@ -582,10 +582,10 @@ static inline int count_objs(vm_t *vm)
 }
 #endif
 
-void vm_error(vm_t *vm, const char *message)
+void vm_error(VM *vm, const char *message)
 {
-    instr_t *instr = vm_currentInstr(vm);
-    const char *module_label = vm_moduleLabel(vm);
+    Instruction *instr = _vm_currentInstr(vm);
+    const char *module_label = _vm_moduleLabel(vm);
 
     if (global_errorHandler)
     {
@@ -624,10 +624,10 @@ void vm_error(vm_t *vm, const char *message)
     exit(EXIT_FAILURE);
 }
 
-void vm_errorf(vm_t *vm, const char *fmt, ...)
+void vm_errorf(VM *vm, const char *fmt, ...)
 {
-    instr_t *instr = vm_currentInstr(vm);
-    const char *module_label = vm_moduleLabel(vm);
+    Instruction *instr = _vm_currentInstr(vm);
+    const char *module_label = _vm_moduleLabel(vm);
 
     char message[1024];
 
@@ -674,7 +674,7 @@ void vm_errorf(vm_t *vm, const char *fmt, ...)
     exit(EXIT_FAILURE);
 }
 
-static inline Value pop_stack(vm_t *vm)
+static inline Value _pop_stack(VM *vm)
 {
     if (vm->sp <= 0)
         vm_error(vm, "Stack underflow: Attempted to pop from an empty stack");
@@ -684,7 +684,7 @@ static inline Value pop_stack(vm_t *vm)
     return value;
 }
 
-static inline void set_stackTop(vm_t *vm, int new_sp)
+static inline void _set_stackTop(VM *vm, int new_sp)
 {
     if (new_sp < 0 || new_sp > STACK_MAX)
         vm_error(vm, "Invalid stack pointer update.");
@@ -699,7 +699,7 @@ static inline void set_stackTop(vm_t *vm, int new_sp)
     vm->sp = new_sp;
 }
 
-static inline void push_stack(vm_t *vm, Value value)
+static inline void _push_stack(VM *vm, Value value)
 {
     if (vm->sp >= STACK_MAX)
         vm_error(vm, "[stack] Stack overflow: Attempted to push onto a full stack");
@@ -707,7 +707,7 @@ static inline void push_stack(vm_t *vm, Value value)
     vm->stack[vm->sp++] = value;
 }
 
-static inline Value peek_stack(vm_t *vm)
+static inline Value _peek_stack(VM *vm)
 {
     if (vm->sp <= 0)
         vm_error(vm, "Stack underflow: Attempted to peek at an empty stack");
@@ -716,7 +716,7 @@ static inline Value peek_stack(vm_t *vm)
 }
 
 /* Hash-table growth relocates inline values, so cached slots track its version. */
-static inline Value *global_slot(vm_t *vm, uint8_t index, const char *name)
+static inline Value *_global_slot(VM *vm, uint8_t index, const char *name)
 {
     GlobalCache *cache = vm->global_cache;
     if (!cache)
@@ -734,13 +734,13 @@ static inline Value *global_slot(vm_t *vm, uint8_t index, const char *name)
     Value *slot = cache->slots[index];
     if (!slot)
     {
-        slot = ht_get(vm->globals, name);
+        slot = _ht_get(vm->globals, name);
         cache->slots[index] = slot;
     }
     return slot;
 }
 
-static inline int resolve_localSlot(vm_t *vm, int local)
+static inline int _resolve_localSlot(VM *vm, int local)
 {
     if (vm->comp_sp > 0)
     {
@@ -753,12 +753,12 @@ static inline int resolve_localSlot(vm_t *vm, int local)
     return vm->bp + local;
 }
 
-static Value bind_nativeMethod(Object *instance, NativeMethod *method)
+static Value _bind_nativeMethod(Object *instance, NativeMethod *method)
 {
     if (!method->has_cached_bound)
     {
         method->cached_bound = *new_native(method->name, method->func);
-        method->has_cached_bound = true;
+        method->has_cached_bound = TRUE;
     }
 
     Value native = method->cached_bound;
@@ -769,9 +769,9 @@ static Value bind_nativeMethod(Object *instance, NativeMethod *method)
     return native;
 }
 
-static inline void vm_listAppendValue(PiList *list, Value value);
+static inline void _vm_listAppendValue(PiList *list, Value value);
 
-static void list_extendFromIterable(vm_t *vm, PiList *plist, Value iterable)
+static void _list_extendFromIterable(VM *vm, PiList *plist, Value iterable)
 {
     if (!IS_OBJ(iterable) || !is_iterable(AS_OBJ(iterable)))
         vm_error(vm, "Spread expects an iterable value.");
@@ -784,18 +784,18 @@ static void list_extendFromIterable(vm_t *vm, PiList *plist, Value iterable)
         Value value = iter_next(iter);
         if (IS_OBJ(value))
             add_obj(vm, AS_OBJ(value));
-        vm_listAppendValue(plist, value);
+        _vm_listAppendValue(plist, value);
     }
 }
 
-static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
+static void _map_extendFromMap(VM *vm, PiMap *target, Value source)
 {
     if (!IS_MAP(source))
         vm_error(vm, "Map spread expects a map value.");
 
     PiMap *map = AS_MAP(source);
-    ht_iter it = ht_iterator(map->table);
-    while (ht_next(&it))
+    HT_Iterator it = _ht_iterator(map->table);
+    while (_ht_next(&it))
     {
         const char *key = it.key;
         Value *item = (Value *)it.value;
@@ -810,21 +810,21 @@ static void map_extendFromMap(vm_t *vm, PiMap *target, Value source)
 }
 
 /* Used to preserve last-write-wins semantics when removing repeated spreads. */
-static bool map_hasKeyOverlap(PiMap *left, PiMap *right)
+static bool _map_hasKeyOverlap(PiMap *left, PiMap *right)
 {
     PiMap *smaller = left->table->size <= right->table->size ? left : right;
     PiMap *larger = smaller == left ? right : left;
-    ht_iter it = ht_iterator(smaller->table);
+    HT_Iterator it = _ht_iterator(smaller->table);
 
-    while (ht_next(&it))
+    while (_ht_next(&it))
     {
         if (ht_has(larger->table, it.key))
-            return true;
+            return TRUE;
     }
-    return false;
+    return FALSE;
 }
 
-static bool map_extendSourceIsRedundant(Value *sources, int index)
+static bool _map_extendSourceIsRedundant(Value *sources, int index)
 {
     PiMap *source = AS_MAP(sources[index]);
     int previous = -1;
@@ -839,19 +839,19 @@ static bool map_extendSourceIsRedundant(Value *sources, int index)
     }
 
     if (previous < 0)
-        return false;
+        return FALSE;
 
     for (int i = previous + 1; i < index; i++)
     {
         PiMap *intermediate = AS_MAP(sources[i]);
-        if (map_hasKeyOverlap(source, intermediate))
-            return false;
+        if (_map_hasKeyOverlap(source, intermediate))
+            return FALSE;
     }
 
-    return true;
+    return TRUE;
 }
 
-static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw_args)
+static Value _call_withArgList(VM *vm, Value callee, PiList *arg_list, Value kw_args)
 {
     int num_args = arg_list->items->size;
 
@@ -861,7 +861,7 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
         vm_error(vm, "Memory allocation failed for argument list.");
 
     for (int i = 0; i < num_args; i++)
-        args[i] = *(Value *)list_getAt(arg_list->items, i);
+        args[i] = *(Value *)_list_getAt(arg_list->items, i);
 
     Value result;
 
@@ -873,7 +873,7 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
     }
     else if (IS_INSTANCE(callee))
     {
-        Value bound = bind_callable(vm, AS_INSTANCE(callee));
+        Value bound = _bind_callable(vm, AS_INSTANCE(callee));
         if (!IS_FUN(bound))
         {
             free(args);
@@ -890,7 +890,7 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
     }
     else if (IS_CLASS(callee))
     {
-        result = construct(vm, AS_CLASS(callee), num_args, args, kw_args);
+        result = _construct(vm, AS_CLASS(callee), num_args, args, kw_args);
     }
     else
     {
@@ -903,7 +903,7 @@ static Value call_withArgList(vm_t *vm, Value callee, PiList *arg_list, Value kw
     return result;
 }
 
-void push_frame(vm_t *vm, Frame *frame)
+void push_frame(VM *vm, Frame *frame)
 {
     if (vm->frame_sp >= STACK_MAX)
         vm_error(vm, "[frame] Stack overflow: Attempted to push onto a full stack");
@@ -911,7 +911,7 @@ void push_frame(vm_t *vm, Frame *frame)
     vm->frames[vm->frame_sp++] = *frame;
 }
 
-Frame *pop_frame(vm_t *vm)
+Frame *pop_frame(VM *vm)
 {
     if (vm->frame_sp <= 0)
         vm_error(vm, "Stack underflow: Attempted to pop from an empty stack");
@@ -919,17 +919,17 @@ Frame *pop_frame(vm_t *vm)
     return &vm->frames[--vm->frame_sp];
 }
 
-static inline char *read_name(vm_t *vm, int index)
+static inline char *_read_name(VM *vm, int index)
 {
     return string_get(vm->names, index);
 }
 
-static inline bool is_false(vm_t *vm, Value value)
+static inline bool _is_false(VM *vm, Value value)
 {
     return IS_NIL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 
-static inline int read_short(vm_t *vm)
+static inline int _vm_readShort(VM *vm)
 {
     uint8_t *code = (uint8_t *)vm->code->data;
     int high = code[vm->pc++] & 0xFF;
@@ -945,7 +945,7 @@ static inline int _read_short(uint8_t *code, int pc)
     return (high << 8) | low;
 }
 
-static inline void vm_storeLocalSlot(vm_t *vm, int slot, Value value)
+static inline void _vm_storeLocalSlot(VM *vm, int slot, Value value)
 {
     vm->stack[slot] = value;
     if (vm->sp <= slot)
@@ -956,55 +956,55 @@ static inline void vm_storeLocalSlot(vm_t *vm, int slot, Value value)
     }
 }
 
-static inline bool vm_storeLoopValueIfLocal(vm_t *vm, uint8_t *code, int *pc, Value value)
+static inline bool _vm_storeLoopValueIfLocal(VM *vm, uint8_t *code, int *pc, Value value)
 {
     int next_pc = *pc + 2;
     if (vm->comp_sp > 0 || code[next_pc] != OP_STORE_LOCAL)
-        return false;
+        return FALSE;
 
-    vm_storeLocalSlot(vm, vm->bp + code[next_pc + 1], value);
+    _vm_storeLocalSlot(vm, vm->bp + code[next_pc + 1], value);
     *pc += 4;
-    return true;
+    return TRUE;
 }
 
-static inline void vm_listAppendValue(PiList *list, Value value)
+static inline void _vm_listAppendValue(PiList *list, Value value)
 {
-    list_t *items = list->items;
+    List *items = list->items;
     if (items->size == items->capacity)
         _list_grow(items);
     ((Value *)items->data)[items->size++] = value;
 
     if (!IS_NUM(value))
-        list->is_numeric = false;
+        list->is_numeric = FALSE;
 }
 
-static bool list_getNumericMatrixShape(PiList *list, int *rows, int *cols)
+static bool _list_getNumericMatrixShape(PiList *list, int *rows, int *cols)
 {
     int count = LIST_SIZE(list->items);
     if (count == 0)
-        return false;
+        return FALSE;
 
     int width = -1;
     for (int i = 0; i < count; i++)
     {
-        Value value = *(Value *)list_getAt(list->items, i);
+        Value value = *(Value *)_list_getAt(list->items, i);
         if (!IS_LIST(value))
-            return false;
+            return FALSE;
         PiList *row = AS_LIST(value);
         if (!row->is_numeric)
-            return false;
+            return FALSE;
         if (width < 0)
             width = LIST_SIZE(row->items);
         else if (width != LIST_SIZE(row->items))
-            return false;
+            return FALSE;
     }
 
     *rows = count;
     *cols = width;
-    return true;
+    return TRUE;
 }
 
-static inline Value op_binaryNum(int op, double l, double r)
+static inline Value _op_binaryNum(int op, double l, double r)
 {
     switch (op)
     {
@@ -1044,10 +1044,10 @@ static inline Value op_binaryNum(int op, double l, double r)
     }
 }
 
-static UpValue *capture_upvalue(vm_t *vm, int index)
+static UpValue *_capture_upvalue(VM *vm, int index)
 {
     UpValue *prev = NULL;
-    UpValue *upvalue = vm->openUpvalues;
+    UpValue *upvalue = vm->open_upvalues;
     while (upvalue != NULL && upvalue->index != index)
     {
         prev = upvalue;
@@ -1064,17 +1064,17 @@ static UpValue *capture_upvalue(vm_t *vm, int index)
 
     created_upvalue->next = upvalue;
     if (prev == NULL)
-        vm->openUpvalues = created_upvalue;
+        vm->open_upvalues = created_upvalue;
     else
         prev->next = created_upvalue;
 
     return created_upvalue;
 }
 
-static void remove_upvalue(vm_t *vm, int index)
+static void _remove_upvalue(VM *vm, int index)
 {
     UpValue *prev = NULL;
-    UpValue *upvalue = vm->openUpvalues;
+    UpValue *upvalue = vm->open_upvalues;
 
     while (upvalue != NULL && upvalue->index != index)
     {
@@ -1089,13 +1089,13 @@ static void remove_upvalue(vm_t *vm, int index)
         upvalue->value = vm->stack[index];
 
         if (prev == NULL)
-            vm->openUpvalues = upvalue->next;
+            vm->open_upvalues = upvalue->next;
         else
             prev->next = upvalue->next;
     }
 }
 
-static Value bind(vm_t *vm, Function *function, Object *instance)
+static Value _bind(VM *vm, Function *function, Object *instance)
 {
     if (FUNC_HAS_FLAG(function, FUNC_NATIVE))
     {
@@ -1115,7 +1115,7 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
     ((Function *)fn)->instrs = function->instrs;
     ((Function *)fn)->globals = function->globals;
     ((Function *)fn)->param_names = function->param_names;
-    ((Function *)fn)->owns_params = false;
+    ((Function *)fn)->owns_params = FALSE;
     if (function->upvalue_count > 0 && function->upvalues)
     {
         UpValue **upvalues = ALLOCATE(UpValue *, function->upvalue_count + 1);
@@ -1127,12 +1127,12 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
         }
         upvalues[function->upvalue_count] = NULL;
         ((Function *)fn)->upvalues = upvalues;
-        ((Function *)fn)->owns_upvalues = true;
+        ((Function *)fn)->owns_upvalues = TRUE;
     }
     else
     {
         ((Function *)fn)->upvalues = NULL;
-        ((Function *)fn)->owns_upvalues = false;
+        ((Function *)fn)->owns_upvalues = FALSE;
     }
     ((Function *)fn)->upvalue_count = function->upvalue_count;
     ((Function *)fn)->flags = (function->flags & ~(FUNC_NEED_ARGS | FUNC_NEED_KWARGS)) |
@@ -1150,12 +1150,12 @@ static Value bind(vm_t *vm, Function *function, Object *instance)
     return NEW_OBJ(fn);
 }
 
-static Value bind_callable(vm_t *vm, PiInstance *instance)
+static Value _bind_callable(VM *vm, PiInstance *instance)
 {
     const uint64_t call_hash = 0;
     const uint64_t epoch = class_mutationVersion();
     BoundCache *cache = instance->bound_cache;
-    table_t *owner_table = NULL;
+    HT_Table *owner_table = NULL;
     Value method;
 
     if (!instance_getMember(instance, "call", &method) || !IS_FUN(method))
@@ -1163,7 +1163,7 @@ static Value bind_callable(vm_t *vm, PiInstance *instance)
 
     for (PiClass *current = instance->_class; current != NULL; current = current->super)
     {
-        if (current->members && ht_get(current->members, "call"))
+        if (current->members && _ht_get(current->members, "call"))
         {
             owner_table = current->members;
             break;
@@ -1180,7 +1180,7 @@ static Value bind_callable(vm_t *vm, PiInstance *instance)
             return entry->bound_fn;
     }
 
-    Value bound = bind(vm, AS_FUN(method), (Object *)instance);
+    Value bound = _bind(vm, AS_FUN(method), (Object *)instance);
     BoundCache *entry = &cache[instance->bound_cache_next++ % BOUND_CACHE_SIZE];
     entry->key_hash = call_hash;
     entry->key = NULL;
@@ -1189,13 +1189,13 @@ static Value bind_callable(vm_t *vm, PiInstance *instance)
     entry->class_epoch = epoch;
     entry->fields_version = instance->fields ? instance->fields->version : 0;
     entry->bound_fn = bound;
-    entry->valid = true;
+    entry->valid = TRUE;
     return bound;
 }
 
-static void add_objectClassMembers(PiClass *klass)
+static void _add_objectClassMembers(PiClass *klass)
 {
-    table_t *members = klass->members;
+    HT_Table *members = klass->members;
     Value format = *new_native("format", pi_toString);
     Value hash = *new_native("hash", pi_hashCode);
     Value clone = *new_native("clone", pi_clone);
@@ -1239,7 +1239,7 @@ static void add_objectClassMembers(PiClass *klass)
     ht_put(members, "values", &values);
 }
 
-static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
+static Value _call_methodNoArgs(VM *vm, Value receiver, const char *name)
 {
     if (IS_INSTANCE(receiver) || IS_CLASS(receiver))
     {
@@ -1253,53 +1253,53 @@ static Value call_methodNoArgs(vm_t *vm, Value receiver, const char *name)
         Object *target = IS_INSTANCE(receiver) || FUNC_HAS_FLAG(AS_FUN(method), FUNC_NATIVE)
                              ? AS_OBJ(receiver)
                              : NULL;
-        Value bound = bind(vm, AS_FUN(method), target);
+        Value bound = _bind(vm, AS_FUN(method), target);
         return call_func(vm, AS_FUN(bound), 0, NULL, NEW_NIL());
     }
 
     return receiver;
 }
 
-static bool call_methodWithArgs(vm_t *vm, Value receiver, const char *name,
-                                Value *args, int argc, Value *result)
+static bool _call_methodWithArgs(VM *vm, Value receiver, const char *name,
+                                 Value *args, int argc, Value *result)
 {
     if (!IS_INSTANCE(receiver) && !IS_CLASS(receiver))
-        return false;
+        return FALSE;
 
     Value method;
     bool found = IS_INSTANCE(receiver)
                      ? instance_getMember(AS_INSTANCE(receiver), name, &method)
                      : class_getMember(AS_CLASS(receiver), name, &method);
     if (!found || !IS_FUN(method))
-        return false;
+        return FALSE;
 
     Object *target = IS_INSTANCE(receiver) || FUNC_HAS_FLAG(AS_FUN(method), FUNC_NATIVE)
                          ? AS_OBJ(receiver)
                          : NULL;
-    Value bound = bind(vm, AS_FUN(method), target);
+    Value bound = _bind(vm, AS_FUN(method), target);
     *result = call_func(vm, AS_FUN(bound), argc, args, NEW_NIL());
-    return true;
+    return TRUE;
 }
 
-Value vm_callMethodNoArgs(vm_t *vm, Value receiver, const char *name)
+Value vm_callMethodNoArgs(VM *vm, Value receiver, const char *name)
 {
-    return call_methodNoArgs(vm, receiver, name);
+    return _call_methodNoArgs(vm, receiver, name);
 }
 
-static Value to_primitive(vm_t *vm, Value value, bool pref_string)
+static Value _to_primitive(VM *vm, Value value, bool pref_string)
 {
     if (!IS_INSTANCE(value))
         return value;
 
     (void)pref_string;
-    Value result = call_methodNoArgs(vm, value, "format");
+    Value result = _call_methodNoArgs(vm, value, "format");
     if (result.type != VAL_OBJ || IS_STRING(result))
         return result;
 
     return value;
 }
 
-static Value construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Value kw_args)
+static Value _construct(VM *vm, PiClass *_class, size_t argc, Value *argv, Value kw_args)
 {
     if (!_class)
         vm_error(vm, "Cannot construct a null class.");
@@ -1308,10 +1308,10 @@ static Value construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Valu
     Value constructor;
     if (class_getMember(_class, "constructor", &constructor) && IS_FUN(constructor))
     {
-        Value bound = bind(vm, AS_FUN(constructor), instance);
-        push_stack(vm, NEW_OBJ(instance));
+        Value bound = _bind(vm, AS_FUN(constructor), instance);
+        _push_stack(vm, NEW_OBJ(instance));
         Value result = call_func(vm, AS_FUN(bound), argc, argv, kw_args);
-        pop_stack(vm);
+        _pop_stack(vm);
 
         /* Match JavaScript: object returns replace the instance; primitives do not. */
         if (IS_OBJ(result) && OBJ_TYPE(result) != OBJ_STRING)
@@ -1320,7 +1320,7 @@ static Value construct(vm_t *vm, PiClass *_class, size_t argc, Value *argv, Valu
     return NEW_OBJ(instance);
 }
 
-static double tensor_applyBinary(int op, double left, double right)
+static double _tensor_applyBinary(int op, double left, double right)
 {
     switch (op)
     {
@@ -1339,20 +1339,20 @@ static double tensor_applyBinary(int op, double left, double right)
     }
 }
 
-static Value tensor_scalarBinary(vm_t *vm, PiTensor *tensor, double scalar, int op, bool scalar_left)
+static Value _tensor_scalarBinary(VM *vm, PiTensor *tensor, double scalar, int op, bool scalar_left)
 {
     PiTensor *result = (PiTensor *)add_obj(vm, new_tensor(tensor->ndim, tensor->shape, tensor->type));
     for (int i = 0; i < tensor->size; i++)
     {
         double cell = tensor_getFlat(tensor, i);
-        double value = scalar_left ? tensor_applyBinary(op, scalar, cell)
-                                   : tensor_applyBinary(op, cell, scalar);
+        double value = scalar_left ? _tensor_applyBinary(op, scalar, cell)
+                                   : _tensor_applyBinary(op, cell, scalar);
         tensor_setFlat(result, i, value);
     }
     return NEW_OBJ(result);
 }
 
-static bool tensor_broadcastShape(PiTensor *left, PiTensor *right, int *ndim, int *shape)
+static bool _tensor_broadcastShape(PiTensor *left, PiTensor *right, int *ndim, int *shape)
 {
     *ndim = left->ndim > right->ndim ? left->ndim : right->ndim;
     for (int i = 0; i < *ndim; i++)
@@ -1363,14 +1363,14 @@ static bool tensor_broadcastShape(PiTensor *left, PiTensor *right, int *ndim, in
         int rdim = ri < 0 ? 1 : right->shape[ri];
 
         if (ldim != rdim && ldim != 1 && rdim != 1)
-            return false;
+            return FALSE;
 
         shape[i] = ldim > rdim ? ldim : rdim;
     }
-    return true;
+    return TRUE;
 }
 
-static int tensor_projectOffset(PiTensor *tensor, int result_ndim, int *result_indices)
+static int _tensor_projectOffset(PiTensor *tensor, int result_ndim, int *result_indices)
 {
     int offset = 0;
     int shift = result_ndim - tensor->ndim;
@@ -1383,11 +1383,11 @@ static int tensor_projectOffset(PiTensor *tensor, int result_ndim, int *result_i
     return offset;
 }
 
-static Value tensor_broadcastBinary(vm_t *vm, PiTensor *left, PiTensor *right, int op)
+static Value _tensor_broadcastBinary(VM *vm, PiTensor *left, PiTensor *right, int op)
 {
     int shape[16];
     int ndim = 0;
-    if (left->ndim > 16 || right->ndim > 16 || !tensor_broadcastShape(left, right, &ndim, shape))
+    if (left->ndim > 16 || right->ndim > 16 || !_tensor_broadcastShape(left, right, &ndim, shape))
         vm_error(vm, "Tensor broadcast dimension mismatch.");
 
     PiTensor *result = (PiTensor *)add_obj(vm, new_tensor(ndim, shape, TN_FLOAT64));
@@ -1402,9 +1402,9 @@ static Value tensor_broadcastBinary(vm_t *vm, PiTensor *left, PiTensor *right, i
             remaining %= result->strides[dim];
         }
 
-        double l = tensor_getFlat(left, tensor_projectOffset(left, ndim, indices));
-        double r = tensor_getFlat(right, tensor_projectOffset(right, ndim, indices));
-        tensor_setFlat(result, flat, tensor_applyBinary(op, l, r));
+        double l = tensor_getFlat(left, _tensor_projectOffset(left, ndim, indices));
+        double r = tensor_getFlat(right, _tensor_projectOffset(right, ndim, indices));
+        tensor_setFlat(result, flat, _tensor_applyBinary(op, l, r));
     }
 
     return NEW_OBJ(result);
@@ -1418,7 +1418,7 @@ typedef struct TensorSliceSpec
     int count;
 } TensorSliceSpec;
 
-static int tensor_sliceBound(int length, double value, int sign)
+static int _tensor_sliceBound(int length, double value, int sign)
 {
     int bound = (int)value;
 
@@ -1441,7 +1441,7 @@ static int tensor_sliceBound(int length, double value, int sign)
     return bound;
 }
 
-static bool is_private_moduleName(const char *name)
+static bool _is_PrivateModuleName(const char *name)
 {
     return name != NULL && name[0] == '_' && name[1] != '\0';
 }
@@ -1460,7 +1460,7 @@ static bool is_private_moduleName(const char *name)
         vm_errorf((vm), __VA_ARGS__); \
     } while (0)
 
-void vm_run(vm_t *vm)
+void vm_run(VM *vm)
 {
     static const void *dispatch[256] = {
         [OP_LOAD_CONST] = VM_TARGET(OP_LOAD_CONST),
@@ -1535,7 +1535,7 @@ void vm_run(vm_t *vm)
     uint8_t *code = (uint8_t *)vm->code->data;
     Value *constants_data = (Value *)vm->constants->data;
 
-    Value nilValue;
+    Value nil_value;
     Object *iter = NULL;
     Function *function = (Function *)vm->function;
 
@@ -1544,9 +1544,9 @@ void vm_run(vm_t *vm)
     {                                                                              \
         Value retval = (value_expr);                                               \
                                                                                    \
-        if (vm->openUpvalues)                                                      \
+        if (vm->open_upvalues)                                                     \
             for (int i = vm->sp - 1; i >= vm->bp; i--)                             \
-                remove_upvalue(vm, i);                                             \
+                _remove_upvalue(vm, i);                                            \
                                                                                    \
         if (vm->frame_sp <= 0)                                                     \
             vm_error(vm, "Stack underflow: Attempted to pop from an empty stack"); \
@@ -1586,7 +1586,7 @@ void vm_run(vm_t *vm)
         if (vm->frame_sp < frame_sp)                                               \
         {                                                                          \
             if (vm->gc_requested)                                                  \
-                gc_collect(vm);                                                    \
+                _gc_collect(vm);                                                   \
             return;                                                                \
         }                                                                          \
                                                                                    \
@@ -1606,13 +1606,13 @@ OP_LOAD_CONST:
 OP_STORE_GLOBAL:
     {
         uint8_t index = code[pc++];
-        char *name = read_name(vm, index);
+        char *name = _read_name(vm, index);
 
         Value new_value = POP();
-        Value *old_value = global_slot(vm, index, name);
+        Value *old_value = _global_slot(vm, index, name);
         if (old_value && IS_FUN(*old_value))
         {
-            AS_FUN(*old_value)->global_valid = false;
+            AS_FUN(*old_value)->global_valid = FALSE;
             AS_FUN(*old_value)->glonal_index = -1;
         }
 
@@ -1621,12 +1621,12 @@ OP_STORE_GLOBAL:
         else
         {
             ht_put(vm->globals, name, &new_value);
-            vm->global_cache->slots[index] = ht_get(vm->globals, name);
+            vm->global_cache->slots[index] = _ht_get(vm->globals, name);
         }
         if (IS_FUN(new_value) && AS_FUN(new_value)->name &&
             strcmp(AS_FUN(new_value)->name, name) == 0)
         {
-            AS_FUN(new_value)->global_valid = true;
+            AS_FUN(new_value)->global_valid = TRUE;
             AS_FUN(new_value)->glonal_index = index;
         }
         VM_DISPATCH_SAFE();
@@ -1652,11 +1652,11 @@ OP_LOAD_GLOBAL:
             VM_DISPATCH_SAFE();
         }
 
-        Value *_value = global_slot(vm, index, name);
+        Value *_value = _global_slot(vm, index, name);
         if (_value == NULL)
         {
-            nilValue = NEW_NIL();
-            _value = &nilValue;
+            nil_value = NEW_NIL();
+            _value = &nil_value;
         }
         PUSH(*_value);
         VM_DISPATCH_SAFE();
@@ -1667,7 +1667,7 @@ OP_LOAD_LOCAL:
         uint8_t local = code[pc++];
         int slot = vm->bp + local;
         if (vm->comp_sp > 0)
-            slot = resolve_localSlot(vm, local);
+            slot = _resolve_localSlot(vm, local);
 
         if (vm->comp_sp == 0)
         {
@@ -1701,7 +1701,7 @@ OP_LOAD_LOCAL:
                 }
                 if (IS_LIST(*left))
                 {
-                    vm_listAppendValue(AS_LIST(*left), right);
+                    _vm_listAppendValue(AS_LIST(*left), right);
                     pc += 6;
                     VM_DISPATCH_SAFE();
                 }
@@ -1727,8 +1727,8 @@ OP_LOAD_SUPER:
         free(super_view->slots);
         super_view->fields = instance->fields;
         super_view->slots = instance->slots;
-        super_view->owns_storage = false;
-        push_stack(vm, NEW_OBJ(add_obj(vm, (Object *)super_view)));
+        super_view->owns_storage = FALSE;
+        _push_stack(vm, NEW_OBJ(add_obj(vm, (Object *)super_view)));
         VM_DISPATCH_SAFE();
     }
 
@@ -1737,14 +1737,14 @@ OP_STORE_LOCAL:
         uint8_t local = code[pc++];
         int slot = vm->bp + local;
         if (vm->comp_sp > 0)
-            slot = resolve_localSlot(vm, local);
-        vm_storeLocalSlot(vm, slot, POP());
+            slot = _resolve_localSlot(vm, local);
+        _vm_storeLocalSlot(vm, slot, POP());
         VM_DISPATCH_SAFE();
     }
 
 OP_POP:
     {
-        remove_upvalue(vm, vm->sp - 1);
+        _remove_upvalue(vm, vm->sp - 1);
         POP();
         VM_DISPATCH_SAFE();
     }
@@ -1754,7 +1754,7 @@ OP_POP_N:
         uint8_t n = code[pc++];
         for (int i = 0; i < n; i++)
         {
-            remove_upvalue(vm, vm->sp - 1);
+            _remove_upvalue(vm, vm->sp - 1);
             POP();
         }
         VM_DISPATCH_SAFE();
@@ -1762,7 +1762,7 @@ OP_POP_N:
 
 OP_DUP_TOP:
     {
-        Value value = peek_stack(vm);
+        Value value = _peek_stack(vm);
         PUSH(value);
         VM_DISPATCH_SAFE();
     }
@@ -1828,7 +1828,7 @@ OP_COMPARE:
         {
             double l = AS_NUM(left);
             double r = AS_NUM(right);
-            bool result = false;
+            bool result = FALSE;
             switch (op)
             {
             case 0:
@@ -1869,7 +1869,7 @@ OP_COMPARE:
         {
             double l = as_number(left);
             double r = as_number(right);
-            bool result = false;
+            bool result = FALSE;
             switch (op)
             {
             case 0:
@@ -1939,7 +1939,7 @@ OP_COMPARE:
                 result = (cmp <= 0);
                 break;
             default:
-                result = false;
+                result = FALSE;
                 break;
             }
             PUSH(NEW_BOOL(result));
@@ -1953,29 +1953,29 @@ OP_COMPARE:
 
             PiSet *left_set = AS_SET(left);
             PiSet *right_set = AS_SET(right);
-            bool result = false;
+            bool result = FALSE;
             switch (op)
             {
             case 0:
-                result = set_equals(left_set, right_set);
+                result = _set_equals(left_set, right_set);
                 break;
             case 1:
-                result = !set_equals(left_set, right_set);
+                result = !_set_equals(left_set, right_set);
                 break;
             case 2:
-                result = set_isSubset(right_set, left_set) && set_size(left_set) != set_size(right_set);
+                result = _set_isSubset(right_set, left_set) && set_size(left_set) != set_size(right_set);
                 break;
             case 3:
-                result = set_isSubset(left_set, right_set) && set_size(left_set) != set_size(right_set);
+                result = _set_isSubset(left_set, right_set) && set_size(left_set) != set_size(right_set);
                 break;
             case 4:
-                result = set_isSubset(right_set, left_set);
+                result = _set_isSubset(right_set, left_set);
                 break;
             case 5:
-                result = set_isSubset(left_set, right_set);
+                result = _set_isSubset(left_set, right_set);
                 break;
             }
-            push_stack(vm, NEW_BOOL(result));
+            _push_stack(vm, NEW_BOOL(result));
             VM_DISPATCH_SAFE();
         }
 
@@ -1984,19 +1984,19 @@ OP_COMPARE:
             if (!IS_OBJ(right) || !is_iterable(AS_OBJ(right)))
                 vm_error(vm, "Right operand of 'in' must be iterable.");
 
-            bool result = false;
+            bool result = FALSE;
             switch (OBJ_TYPE(right))
             {
             case OBJ_LIST:
             {
                 PiList *list = AS_LIST(right);
                 Value *items = (Value *)list->items->data;
-                int size = list_size(list->items);
+                int size = LIST_SIZE(list->items);
                 for (int i = 0; i < size; i++)
                 {
                     if (equals(left, items[i]))
                     {
-                        result = true;
+                        result = TRUE;
                         break;
                     }
                 }
@@ -2044,29 +2044,29 @@ OP_COMPARE:
                 {
                     if (equals(left, iter_next(iterable)))
                     {
-                        result = true;
+                        result = TRUE;
                         break;
                     }
                 }
                 break;
             }
             }
-            push_stack(vm, NEW_BOOL(result));
+            _push_stack(vm, NEW_BOOL(result));
             VM_DISPATCH_SAFE();
         }
 
         if (op <= 1)
         {
-            bool result = false;
+            bool result = FALSE;
             if (IS_OBJ(left) && IS_OBJ(right) && AS_OBJ(left) == AS_OBJ(right))
             {
-                push_stack(vm, NEW_BOOL(op == 0));
+                _push_stack(vm, NEW_BOOL(op == 0));
                 VM_DISPATCH_SAFE();
             }
             Value l = TO_PRIM_NUM(left);
             Value r = TO_PRIM_NUM(right);
             result = (compare(l, r) == 0);
-            push_stack(vm, NEW_BOOL(op == 0 ? result : !result));
+            _push_stack(vm, NEW_BOOL(op == 0 ? result : !result));
             VM_DISPATCH_SAFE();
         }
 
@@ -2092,9 +2092,9 @@ OP_COMPARE:
                 break;
             default:
                 vm_errorf(vm, "Unknown compare opcode: [%d]", op);
-                result = false;
+                result = FALSE;
             }
-            push_stack(vm, NEW_BOOL(result));
+            _push_stack(vm, NEW_BOOL(result));
         }
         VM_DISPATCH_SAFE();
     }
@@ -2108,16 +2108,16 @@ OP_BINARY:
         if (op <= 13 && IS_NUM(left) && IS_NUM(right))
         {
             vm->sp--;
-            vm->stack[vm->sp - 1] = op_binaryNum(op, AS_NUM(left), AS_NUM(right));
+            vm->stack[vm->sp - 1] = _op_binaryNum(op, AS_NUM(left), AS_NUM(right));
             VM_DISPATCH_SAFE();
         }
 
-        right = pop_stack(vm);
-        left = pop_stack(vm);
+        right = _pop_stack(vm);
+        left = _pop_stack(vm);
 
         if (op <= 13 && is_numeric(left) && is_numeric(right))
         {
-            PUSH(op_binaryNum(op, as_number(left), as_number(right)));
+            PUSH(_op_binaryNum(op, as_number(left), as_number(right)));
             VM_DISPATCH_SAFE();
         }
 
@@ -2126,8 +2126,8 @@ OP_BINARY:
             Value operator_args[2] = {NEW_NUM(op), right};
             Value reflected_args[2] = {NEW_NUM(op), left};
             Value result;
-            if (call_methodWithArgs(vm, left, "compute", operator_args, 2, &result) ||
-                call_methodWithArgs(vm, right, "rcompute", reflected_args, 2, &result))
+            if (_call_methodWithArgs(vm, left, "compute", operator_args, 2, &result) ||
+                _call_methodWithArgs(vm, right, "rcompute", reflected_args, 2, &result))
             {
                 PUSH(result);
                 VM_DISPATCH_SAFE();
@@ -2140,15 +2140,15 @@ OP_BINARY:
         {
             if (IS_NAN(left) || IS_NAN(right))
             {
-                push_stack(vm, NEW_NUM(NAN));
+                _push_stack(vm, NEW_NUM(NAN));
                 break;
             }
 
             if (IS_LIST(left))
             {
                 PiList *list = AS_LIST(left);
-                vm_listAppendValue(list, right);
-                push_stack(vm, left);
+                _vm_listAppendValue(list, right);
+                _push_stack(vm, left);
                 break;
             }
 
@@ -2163,7 +2163,7 @@ OP_BINARY:
                     vm_error(vm, "Memory allocation failed.");
                 memcpy(res, l_str, l_len);
                 memcpy(res + l_len, r_str, r_len + 1);
-                push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(res))));
+                _push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(res))));
                 break;
             }
 
@@ -2171,25 +2171,25 @@ OP_BINARY:
             {
                 PiTuple *l_tuple = AS_TUPLE(left);
                 PiTuple *r_tuple = AS_TUPLE(right);
-                list_t *result = list_copy(l_tuple->items);
+                List *result = list_copy(l_tuple->items);
                 list_addAll(result, r_tuple->items);
-                push_stack(vm, NEW_OBJ(add_obj(vm, new_tuple(result))));
+                _push_stack(vm, NEW_OBJ(add_obj(vm, new_tuple(result))));
                 break;
             }
 
             if (IS_TENSOR(left))
             {
                 if (IS_TENSOR(right))
-                    push_stack(vm, tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 0));
+                    _push_stack(vm, _tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 0));
                 else if (is_numeric(right))
-                    push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 0, false));
+                    _push_stack(vm, _tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 0, FALSE));
                 else
                     vm_error(vm, "Unsupported right operand for tensor [+].");
                 break;
             }
             if (IS_TENSOR(right) && is_numeric(left))
             {
-                push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 0, true));
+                _push_stack(vm, _tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 0, TRUE));
                 break;
             }
 
@@ -2198,7 +2198,7 @@ OP_BINARY:
             Value _right = TO_PRIM(vm, right, pref_string);
             if (is_numeric(_left) && is_numeric(_right))
             {
-                push_stack(vm, NEW_NUM(as_number(_left) + as_number(_right)));
+                _push_stack(vm, NEW_NUM(as_number(_left) + as_number(_right)));
                 break;
             }
             if (IS_STRING(_left) || IS_STRING(_right))
@@ -2216,7 +2216,7 @@ OP_BINARY:
                 }
                 memcpy(res, l_str, l_len);
                 memcpy(res + l_len, r_str, r_len + 1);
-                push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(res))));
+                _push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(res))));
                 free(l_str);
                 free(r_str);
                 break;
@@ -2229,22 +2229,22 @@ OP_BINARY:
             if (IS_LIST(left))
             {
                 PiList *list = AS_LIST(left);
-                int size = list_size(list->items);
+                int size = LIST_SIZE(list->items);
                 for (int i = 0; i < size; i++)
                 {
-                    Value item = *(Value *)list_getAt(list->items, i);
+                    Value item = *(Value *)_list_getAt(list->items, i);
                     if (equals(item, right))
                     {
                         list_remove(list->items, i);
                         break;
                     }
                 }
-                push_stack(vm, left);
+                _push_stack(vm, left);
                 break;
             }
             if (IS_STRING(left))
             {
-                Value _right = TO_PRIM(vm, right, false);
+                Value _right = TO_PRIM(vm, right, FALSE);
                 char *l_str = as_stringWithFormat(vm, left);
                 char *r_str = as_stringWithFormat(vm, _right);
                 size_t l_len = strlen(l_str);
@@ -2261,37 +2261,37 @@ OP_BINARY:
                     r_ptr = match + r_len;
                 }
                 strcpy(w_ptr, r_ptr);
-                push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(res))));
+                _push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(res))));
                 free(l_str);
                 free(r_str);
                 break;
             }
             if (IS_SET(left) && IS_SET(right))
             {
-                push_stack(vm, NEW_OBJ(add_obj(vm, set_difference(AS_SET(left), AS_SET(right)))));
+                _push_stack(vm, NEW_OBJ(add_obj(vm, _set_difference(AS_SET(left), AS_SET(right)))));
                 break;
             }
             if (IS_TENSOR(left))
             {
                 if (IS_TENSOR(right))
-                    push_stack(vm, tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 1));
+                    _push_stack(vm, _tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 1));
                 else if (is_numeric(right))
-                    push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 1, false));
+                    _push_stack(vm, _tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 1, FALSE));
                 else
                     vm_error(vm, "Unsupported right operand for tensor [-].");
                 break;
             }
             if (IS_TENSOR(right) && is_numeric(left))
             {
-                push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 1, true));
+                _push_stack(vm, _tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 1, TRUE));
                 break;
             }
             {
-                Value _left = TO_PRIM(vm, left, false);
-                Value _right = TO_PRIM(vm, right, false);
+                Value _left = TO_PRIM(vm, left, FALSE);
+                Value _right = TO_PRIM(vm, right, FALSE);
                 if (is_numeric(_left) && is_numeric(_right))
                 {
-                    push_stack(vm, NEW_NUM(as_number(_left) - as_number(_right)));
+                    _push_stack(vm, NEW_NUM(as_number(_left) - as_number(_right)));
                     break;
                 }
             }
@@ -2305,41 +2305,41 @@ OP_BINARY:
                 PiList *A = AS_LIST(left);
                 PiList *B = AS_LIST(right);
                 int m, n, n_right, p;
-                if (!list_getNumericMatrixShape(A, &m, &n) ||
-                    !list_getNumericMatrixShape(B, &n_right, &p))
+                if (!_list_getNumericMatrixShape(A, &m, &n) ||
+                    !_list_getNumericMatrixShape(B, &n_right, &p))
                     vm_error(vm, "Matrix multiplication requires rectangular numeric lists.");
                 if (n != n_right)
                     vm_error(vm, "Matrix multiplication dimension mismatch.");
-                list_t *result = list_create(sizeof(Value));
+                List *result = list_create(sizeof(Value));
                 for (int i = 0; i < m; i++)
                 {
-                    list_t *rowA = as_list(*(Value *)list_getAt(A->items, i));
-                    list_t *temp = list_create(sizeof(Value));
+                    List *row_a = as_list(*(Value *)_list_getAt(A->items, i));
+                    List *temp = list_create(sizeof(Value));
                     for (int j = 0; j < p; j++)
                     {
                         double sum = 0.0;
                         for (int k = 0; k < n; k++)
                         {
-                            double a = as_number(*(Value *)list_getAt(rowA, k));
-                            list_t *rowB = as_list(*(Value *)list_getAt(B->items, k));
-                            double b = as_number(*(Value *)list_getAt(rowB, j));
+                            double a = as_number(*(Value *)_list_getAt(row_a, k));
+                            List *row_b = as_list(*(Value *)_list_getAt(B->items, k));
+                            double b = as_number(*(Value *)_list_getAt(row_b, j));
                             sum += a * b;
                         }
                         Value num = NEW_NUM(sum);
-                        list_add(temp, &num);
+                        _list_add(temp, &num);
                     }
                     Value row = NEW_OBJ(new_list(temp));
-                    list_add(result, &row);
+                    _list_add(result, &row);
                 }
                 Object *res_obj = add_obj(vm, new_list(result));
-                push_stack(vm, NEW_OBJ(res_obj));
+                _push_stack(vm, NEW_OBJ(res_obj));
                 break;
             }
             if (IS_LIST(left))
             {
-                Value right_prim = TO_PRIM(vm, right, false);
+                Value right_prim = TO_PRIM(vm, right, FALSE);
                 double count_number = as_number(right_prim);
-                list_t *list = as_list(left);
+                List *list = as_list(left);
                 if (!isfinite(count_number) || count_number < 0 || floor(count_number) != count_number)
                     vm_error(vm, "List repetition count must be a non-negative integer.");
                 if (count_number > 0 && list->size > PI_MAX_LIST_SIZE / count_number)
@@ -2347,18 +2347,18 @@ OP_BINARY:
 
                 int count = (int)count_number;
                 int result_size = (int)(list->size * count_number);
-                list_t *result = list_createCap(list->i_size, result_size);
+                List *result = list_createCap(list->i_size, result_size);
                 for (int i = 0; i < count; i++)
                     list_addAll(result, list);
                 Object *res_obj = new_list(result);
                 if (AS_LIST(left)->is_numeric)
-                    ((PiList *)res_obj)->is_numeric = true;
-                push_stack(vm, NEW_OBJ(add_obj(vm, res_obj)));
+                    ((PiList *)res_obj)->is_numeric = TRUE;
+                _push_stack(vm, NEW_OBJ(add_obj(vm, res_obj)));
                 break;
             }
             if (IS_STRING(left))
             {
-                Value right_prim = TO_PRIM(vm, right, false);
+                Value right_prim = TO_PRIM(vm, right, FALSE);
                 int count = (int)as_number(right_prim);
                 const char *str = AS_STRING(left)->chars;
                 size_t o_len = AS_STRING(left)->length;
@@ -2369,50 +2369,50 @@ OP_BINARY:
                 for (int i = 0; i < count; i++)
                     memcpy(result + i * o_len, str, o_len);
                 result[r_len] = '\0';
-                push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(result))));
+                _push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(result))));
                 break;
             }
             if (IS_TUPLE(left) && is_numeric(right))
             {
-                int repeatCount = (int)as_number(right);
+                int repeat_count = (int)as_number(right);
                 PiTuple *tuple = AS_TUPLE(left);
-                list_t *result = list_create(sizeof(Value));
-                for (int i = 0; i < repeatCount; i++)
+                List *result = list_create(sizeof(Value));
+                for (int i = 0; i < repeat_count; i++)
                     list_addAll(result, tuple->items);
-                push_stack(vm, NEW_OBJ(add_obj(vm, new_tuple(result))));
+                _push_stack(vm, NEW_OBJ(add_obj(vm, new_tuple(result))));
                 break;
             }
             if (is_numeric(left) && IS_TUPLE(right))
             {
-                int repeatCount = (int)as_number(left);
+                int repeat_count = (int)as_number(left);
                 PiTuple *tuple = AS_TUPLE(right);
-                list_t *result = list_create(sizeof(Value));
-                for (int i = 0; i < repeatCount; i++)
+                List *result = list_create(sizeof(Value));
+                for (int i = 0; i < repeat_count; i++)
                     list_addAll(result, tuple->items);
-                push_stack(vm, NEW_OBJ(add_obj(vm, new_tuple(result))));
+                _push_stack(vm, NEW_OBJ(add_obj(vm, new_tuple(result))));
                 break;
             }
             if (IS_TENSOR(left))
             {
                 if (IS_TENSOR(right))
-                    push_stack(vm, tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 2));
+                    _push_stack(vm, _tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 2));
                 else if (is_numeric(right))
-                    push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 2, false));
+                    _push_stack(vm, _tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 2, FALSE));
                 else
                     vm_error(vm, "Unsupported right operand for tensor [*].");
                 break;
             }
             if (IS_TENSOR(right) && is_numeric(left))
             {
-                push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 2, true));
+                _push_stack(vm, _tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 2, TRUE));
                 break;
             }
             {
-                Value _left = TO_PRIM(vm, left, false);
-                Value _right = TO_PRIM(vm, right, false);
+                Value _left = TO_PRIM(vm, left, FALSE);
+                Value _right = TO_PRIM(vm, right, FALSE);
                 if (is_numeric(_left) && is_numeric(_right))
                 {
-                    push_stack(vm, NEW_NUM(as_number(_left) * as_number(_right)));
+                    _push_stack(vm, NEW_NUM(as_number(_left) * as_number(_right)));
                     break;
                 }
             }
@@ -2424,39 +2424,39 @@ OP_BINARY:
             if (IS_TENSOR(left))
             {
                 if (IS_TENSOR(right))
-                    push_stack(vm, tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 3));
+                    _push_stack(vm, _tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 3));
                 else if (is_numeric(right))
-                    push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 3, false));
+                    _push_stack(vm, _tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 3, FALSE));
                 else
                     vm_error(vm, "Unsupported right operand for tensor [/].");
                 break;
             }
             if (IS_TENSOR(right) && is_numeric(left))
             {
-                push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 3, true));
+                _push_stack(vm, _tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 3, TRUE));
                 break;
             }
             {
-                Value _left = TO_PRIM(vm, left, false);
-                Value _right = TO_PRIM(vm, right, false);
+                Value _left = TO_PRIM(vm, left, FALSE);
+                Value _right = TO_PRIM(vm, right, FALSE);
                 double denom = as_number(_right);
-                push_stack(vm, NEW_NUM(denom == 0.0 ? INFINITY : as_number(_left) / denom));
+                _push_stack(vm, NEW_NUM(denom == 0.0 ? INFINITY : as_number(_left) / denom));
             }
             break;
         }
         case 4: // %
         {
-            Value _left = TO_PRIM(vm, left, false);
-            Value _right = TO_PRIM(vm, right, false);
+            Value _left = TO_PRIM(vm, left, FALSE);
+            Value _right = TO_PRIM(vm, right, FALSE);
             int denom = (int)as_number(_right);
-            push_stack(vm, denom == 0 ? NEW_NAN() : NEW_NUM((int)as_number(_left) % denom));
+            _push_stack(vm, denom == 0 ? NEW_NAN() : NEW_NUM((int)as_number(_left) % denom));
             break;
         }
         case 5:
-            push_stack(vm, NEW_BOOL(as_bool(left) && as_bool(right)));
+            _push_stack(vm, NEW_BOOL(as_bool(left) && as_bool(right)));
             break;
         case 6:
-            push_stack(vm, NEW_BOOL(as_bool(left) || as_bool(right)));
+            _push_stack(vm, NEW_BOOL(as_bool(left) || as_bool(right)));
             break;
         case 7:
         {
@@ -2464,21 +2464,21 @@ OP_BINARY:
             if (IS_TENSOR(left))
             {
                 if (IS_TENSOR(right))
-                    push_stack(vm, tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 7));
+                    _push_stack(vm, _tensor_broadcastBinary(vm, AS_TENSOR(left), AS_TENSOR(right), 7));
                 else if (is_numeric(right))
-                    push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 7, false));
+                    _push_stack(vm, _tensor_scalarBinary(vm, AS_TENSOR(left), as_number(right), 7, FALSE));
                 else
                     vm_error(vm, "Unsupported right operand for tensor [**].");
                 break;
             }
             if (IS_TENSOR(right) && is_numeric(left))
             {
-                push_stack(vm, tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 7, true));
+                _push_stack(vm, _tensor_scalarBinary(vm, AS_TENSOR(right), as_number(left), 7, TRUE));
                 break;
             }
-            Value _left = TO_PRIM(vm, left, false);
-            Value _right = TO_PRIM(vm, right, false);
-            push_stack(vm, NEW_NUM(pow(as_number(_left), as_number(_right))));
+            Value _left = TO_PRIM(vm, left, FALSE);
+            Value _right = TO_PRIM(vm, right, FALSE);
+            _push_stack(vm, NEW_NUM(pow(as_number(_left), as_number(_right))));
             break;
         }
         case 8:
@@ -2490,7 +2490,7 @@ OP_BINARY:
         {
             if ((op == 8 || op == 9 || op == 10) && IS_SET(left) && IS_SET(right))
             {
-                push_stack(vm, NEW_OBJ(add_obj(vm, set_ops(AS_SET(left), AS_SET(right), op))));
+                _push_stack(vm, NEW_OBJ(add_obj(vm, _set_ops(AS_SET(left), AS_SET(right), op))));
                 break;
             }
             if (op == 10 && IS_LIST(left) && IS_LIST(right))
@@ -2499,24 +2499,24 @@ OP_BINARY:
                 PiList *r_list = AS_LIST(right);
                 if (!l_list->is_numeric || !r_list->is_numeric)
                     vm_error(vm, "Cross product requires numeric lists.");
-                if (list_size(l_list->items) != 3 || list_size(r_list->items) != 3)
+                if (LIST_SIZE(l_list->items) != 3 || LIST_SIZE(r_list->items) != 3)
                     vm_error(vm, "Cross product is defined for 3-dimensional vectors only.");
                 Value *a = (Value *)l_list->items->data;
                 Value *b = (Value *)r_list->items->data;
                 double x = as_number(a[1]) * as_number(b[2]) - as_number(a[2]) * as_number(b[1]);
                 double y = as_number(a[2]) * as_number(b[0]) - as_number(a[0]) * as_number(b[2]);
                 double z = as_number(a[0]) * as_number(b[1]) - as_number(a[1]) * as_number(b[0]);
-                list_t *res = list_create(sizeof(Value));
+                List *res = list_create(sizeof(Value));
                 Value vx = NEW_NUM(x), vy = NEW_NUM(y), vz = NEW_NUM(z);
-                list_add(res, &vx);
-                list_add(res, &vy);
-                list_add(res, &vz);
-                push_stack(vm, NEW_OBJ(add_obj(vm, new_list(res))));
+                _list_add(res, &vx);
+                _list_add(res, &vy);
+                _list_add(res, &vz);
+                _push_stack(vm, NEW_OBJ(add_obj(vm, new_list(res))));
                 break;
             }
             {
-                Value _left = TO_PRIM(vm, left, false);
-                Value _right = TO_PRIM(vm, right, false);
+                Value _left = TO_PRIM(vm, left, FALSE);
+                Value _right = TO_PRIM(vm, right, FALSE);
                 if (is_numeric(_left) && is_numeric(_right))
                 {
                     double l = as_number(_left), r = as_number(_right);
@@ -2544,22 +2544,22 @@ OP_BINARY:
                     default:
                         result = 0;
                     }
-                    push_stack(vm, NEW_NUM(result));
+                    _push_stack(vm, NEW_NUM(result));
                     break;
                 }
                 if (IS_LIST(left))
                 {
-                    list_t *list = as_list(left);
-                    list_t *result = list_create(sizeof(Value));
-                    int size = list_size(list);
+                    List *list = as_list(left);
+                    List *result = list_create(sizeof(Value));
+                    int size = LIST_SIZE(list);
                     if (op == 13)
                     {
                         uint32_t r = (uint32_t)as_number(_right);
                         for (int i = 0; i < size; i++)
                         {
-                            Value item = *(Value *)list_getAt(list, i);
+                            Value item = *(Value *)_list_getAt(list, i);
                             Value v = NEW_NUM((uint32_t)as_number(item) >> r);
-                            list_add(result, &v);
+                            _list_add(result, &v);
                         }
                     }
                     else
@@ -2567,7 +2567,7 @@ OP_BINARY:
                         int r = (int)as_number(_right);
                         for (int i = 0; i < size; i++)
                         {
-                            Value item = *(Value *)list_getAt(list, i);
+                            Value item = *(Value *)_list_getAt(list, i);
                             int lv = (int)as_number(item);
                             int rv;
                             switch (op)
@@ -2591,10 +2591,10 @@ OP_BINARY:
                                 rv = 0;
                             }
                             Value v = NEW_NUM(rv);
-                            list_add(result, &v);
+                            _list_add(result, &v);
                         }
                     }
-                    push_stack(vm, NEW_OBJ(add_obj(vm, new_list(result))));
+                    _push_stack(vm, NEW_OBJ(add_obj(vm, new_list(result))));
                     break;
                 }
             }
@@ -2610,53 +2610,53 @@ OP_BINARY:
             PiList *r_list = AS_LIST(right);
             if (!l_list->is_numeric || !r_list->is_numeric)
                 vm_error(vm, "Dot product requires numeric lists.");
-            int l_size = list_size(l_list->items);
-            if (l_size != list_size(r_list->items))
+            int l_size = LIST_SIZE(l_list->items);
+            if (l_size != LIST_SIZE(r_list->items))
                 vm_error(vm, "Dot product requires lists of the same length.");
             Value *a = (Value *)l_list->items->data;
             Value *b = (Value *)r_list->items->data;
             double result = 0.0;
             for (int i = 0; i < l_size; i++)
                 result += as_number(a[i]) * as_number(b[i]);
-            push_stack(vm, NEW_NUM(result));
+            _push_stack(vm, NEW_NUM(result));
             break;
         }
         case 15:
         {
             if (IS_INSTANCE(left) && IS_CLASS(right))
             {
-                bool matches = false;
+                bool matches = FALSE;
                 for (PiClass *current = AS_INSTANCE(left)->_class; current; current = current->super)
                 {
                     if (current == AS_CLASS(right))
                     {
-                        matches = true;
+                        matches = TRUE;
                         break;
                     }
                 }
-                push_stack(vm, NEW_BOOL(matches));
+                _push_stack(vm, NEW_BOOL(matches));
                 break;
             }
             if (IS_CLASS(left) && IS_CLASS(right))
             {
-                bool matches = false;
+                bool matches = FALSE;
                 for (PiClass *current = AS_CLASS(left); current; current = current->super)
                 {
                     if (current == AS_CLASS(right))
                     {
-                        matches = true;
+                        matches = TRUE;
                         break;
                     }
                 }
-                push_stack(vm, NEW_BOOL(matches));
+                _push_stack(vm, NEW_BOOL(matches));
                 break;
             }
             if (!IS_MAP(left) || !IS_MAP(right))
             {
-                push_stack(vm, NEW_BOOL(false));
+                _push_stack(vm, NEW_BOOL(FALSE));
                 break;
             }
-            push_stack(vm, NEW_BOOL(AS_MAP(left) == AS_MAP(right)));
+            _push_stack(vm, NEW_BOOL(AS_MAP(left) == AS_MAP(right)));
             break;
         }
         default:
@@ -2684,10 +2684,10 @@ OP_UNARY:
             switch (OBJ_TYPE(operand))
             {
             case OBJ_LIST:
-                vm->stack[vm->sp - 1] = NEW_NUM(list_size(AS_LIST(operand)->items));
+                vm->stack[vm->sp - 1] = NEW_NUM(LIST_SIZE(AS_LIST(operand)->items));
                 break;
             case OBJ_TUPLE:
-                vm->stack[vm->sp - 1] = NEW_NUM(list_size(AS_TUPLE(operand)->items));
+                vm->stack[vm->sp - 1] = NEW_NUM(LIST_SIZE(AS_TUPLE(operand)->items));
                 break;
             case OBJ_SET:
                 vm->stack[vm->sp - 1] = NEW_NUM(set_size(AS_SET(operand)));
@@ -2744,7 +2744,7 @@ OP_UNARY:
 
         if (IS_NIL(operand) && op == 2)
         {
-            vm->stack[vm->sp - 1] = NEW_BOOL(true);
+            vm->stack[vm->sp - 1] = NEW_BOOL(TRUE);
             VM_DISPATCH_SAFE();
         }
 
@@ -2802,9 +2802,9 @@ OP_CALL_FUNCTION:
                 callee_fn->native == pi_push && callee_fn->instance &&
                 callee_fn->instance->type == OBJ_LIST)
             {
-                list_t *items = ((PiList *)callee_fn->instance)->items;
+                List *items = ((PiList *)callee_fn->instance)->items;
                 for (uint8_t i = 0; i < num_args; i++)
-                    list_add(items, &vm->stack[args_base + i]);
+                    _list_add(items, &vm->stack[args_base + i]);
                 vm->sp = obj_slot;
                 PUSH(NEW_NUM(items->size));
                 VM_DISPATCH_SAFE();
@@ -2910,7 +2910,7 @@ OP_CALL_FUNCTION:
         }
         else if (IS_INSTANCE(callee))
         {
-            Value bound = bind_callable(vm, AS_INSTANCE(callee));
+            Value bound = _bind_callable(vm, AS_INSTANCE(callee));
             if (!IS_FUN(bound))
             {
                 if (num_args > 8)
@@ -2922,7 +2922,7 @@ OP_CALL_FUNCTION:
         }
         else if (IS_CLASS(callee))
         {
-            Value result = construct(vm, AS_CLASS(callee), num_args, args, NEW_NIL());
+            Value result = _construct(vm, AS_CLASS(callee), num_args, args, NEW_NIL());
             PUSH(result);
         }
         else if (IS_MAP(callee))
@@ -2935,7 +2935,7 @@ OP_CALL_FUNCTION:
         {
             if (num_args > 8)
                 free(args);
-            const char *name = vm_callName(vm, instr_pc);
+            const char *name = _vm_callName(vm, instr_pc);
             if (name)
                 vm_errorf(vm, "Attempt to call '%s', which is not a function.", name);
             else
@@ -2950,7 +2950,7 @@ OP_CALL_FUNCTION:
 OP_CALL_FUNCTION_KW:
     {
         uint8_t num_args = code[pc++];
-        Value kw_args = pop_stack(vm);
+        Value kw_args = _pop_stack(vm);
         if (!IS_OBJ(kw_args) || OBJ_TYPE(kw_args) != OBJ_MAP)
             vm_error(vm, "Named arguments must be a map.");
 
@@ -2960,8 +2960,8 @@ OP_CALL_FUNCTION_KW:
             vm_error(vm, "Memory allocation failed for argument list.");
 
         for (int i = num_args - 1; i >= 0; i--)
-            args[i] = pop_stack(vm);
-        Value callee = pop_stack(vm);
+            args[i] = _pop_stack(vm);
+        Value callee = _pop_stack(vm);
         Value result = NEW_NIL();
 
         if (IS_FUN(callee))
@@ -2974,7 +2974,7 @@ OP_CALL_FUNCTION_KW:
         }
         else if (IS_INSTANCE(callee))
         {
-            Value bound = bind_callable(vm, AS_INSTANCE(callee));
+            Value bound = _bind_callable(vm, AS_INSTANCE(callee));
             if (!IS_FUN(bound))
             {
                 if (num_args > 8)
@@ -2987,7 +2987,7 @@ OP_CALL_FUNCTION_KW:
         }
         else if (IS_CLASS(callee))
         {
-            result = construct(vm, AS_CLASS(callee), num_args, args, kw_args);
+            result = _construct(vm, AS_CLASS(callee), num_args, args, kw_args);
         }
         else if (IS_MAP(callee))
         {
@@ -2999,7 +2999,7 @@ OP_CALL_FUNCTION_KW:
         {
             if (num_args > 8)
                 free(args);
-            const char *name = vm_callName(vm, instr_pc);
+            const char *name = _vm_callName(vm, instr_pc);
             if (name)
                 vm_errorf(vm, "Attempt to call '%s', which is not a function.", name);
             else
@@ -3008,7 +3008,7 @@ OP_CALL_FUNCTION_KW:
 
         if (num_args > 8)
             free(args);
-        push_stack(vm, result);
+        _push_stack(vm, result);
         VM_DISPATCH_SAFE();
     }
 
@@ -3018,17 +3018,17 @@ OP_CALL_SPREAD:
         Value kw_args = NEW_NIL();
         if (has_named)
         {
-            kw_args = pop_stack(vm);
+            kw_args = _pop_stack(vm);
             if (!IS_OBJ(kw_args) || OBJ_TYPE(kw_args) != OBJ_MAP)
                 vm_error(vm, "Named arguments must be a map.");
         }
-        Value arg_list_value = pop_stack(vm);
+        Value arg_list_value = _pop_stack(vm);
         if (!IS_LIST(arg_list_value))
             vm_error(vm, "Spread call arguments must be collected in a list.");
-        Value callee = pop_stack(vm);
+        Value callee = _pop_stack(vm);
         vm->error_pc = vm->pc;
         vm->pc = pc;
-        push_stack(vm, call_withArgList(vm, callee, AS_LIST(arg_list_value), kw_args));
+        _push_stack(vm, _call_withArgList(vm, callee, AS_LIST(arg_list_value), kw_args));
         VM_DISPATCH_SAFE();
     }
 
@@ -3059,7 +3059,7 @@ OP_LOOP:
         if (iter->type == OBJ_LIST)
         {
             PiList *list = (PiList *)iter;
-            list_t *items = list->items;
+            List *items = list->items;
             if (list->current < items->size)
             {
                 int index = list->current;
@@ -3068,13 +3068,13 @@ OP_LOOP:
                     add_obj(vm, AS_OBJ(value));
                 if (pair_loop)
                 {
-                    push_stack(vm, NEW_NIL());
-                    push_stack(vm, make_iterPair(vm, NEW_NUM(index), value));
+                    _push_stack(vm, NEW_NIL());
+                    _push_stack(vm, _make_iterPair(vm, NEW_NUM(index), value));
                     pc += 2;
                 }
                 else
                 {
-                    bool fused_store = vm_storeLoopValueIfLocal(vm, code, &pc, value);
+                    bool fused_store = _vm_storeLoopValueIfLocal(vm, code, &pc, value);
                     if (!fused_store)
                     {
                         PUSH(value);
@@ -3100,13 +3100,13 @@ OP_LOOP:
                 range->current = value + range->step;
                 if (pair_loop)
                 {
-                    push_stack(vm, NEW_NIL());
-                    push_stack(vm, make_iterPair(vm, NEW_NUM((value - range->start) / range->step), NEW_NUM(value)));
+                    _push_stack(vm, NEW_NIL());
+                    _push_stack(vm, _make_iterPair(vm, NEW_NUM((value - range->start) / range->step), NEW_NUM(value)));
                     pc += 2;
                 }
                 else
                 {
-                    bool fused_store = vm_storeLoopValueIfLocal(vm, code, &pc, NEW_NUM(value));
+                    bool fused_store = _vm_storeLoopValueIfLocal(vm, code, &pc, NEW_NUM(value));
                     if (!fused_store)
                     {
                         PUSH(NEW_NUM(value));
@@ -3125,7 +3125,7 @@ OP_LOOP:
         if (iter->type == OBJ_TUPLE)
         {
             PiTuple *tuple = (PiTuple *)iter;
-            list_t *items = tuple->items;
+            List *items = tuple->items;
             if (tuple->current < items->size)
             {
                 int index = tuple->current;
@@ -3134,16 +3134,16 @@ OP_LOOP:
                     add_obj(vm, AS_OBJ(value));
                 if (pair_loop)
                 {
-                    push_stack(vm, NEW_NIL());
-                    push_stack(vm, make_iterPair(vm, NEW_NUM(index), value));
+                    _push_stack(vm, NEW_NIL());
+                    _push_stack(vm, _make_iterPair(vm, NEW_NUM(index), value));
                     pc += 2;
                 }
                 else
                 {
-                    bool fused_store = vm_storeLoopValueIfLocal(vm, code, &pc, value);
+                    bool fused_store = _vm_storeLoopValueIfLocal(vm, code, &pc, value);
                     if (!fused_store)
                     {
-                        push_stack(vm, value);
+                        _push_stack(vm, value);
                         pc += 2;
                     }
                 }
@@ -3170,11 +3170,11 @@ OP_LOOP:
                 Value value = NEW_OBJ(add_obj(vm, new_pistring(chars)));
                 if (pair_loop)
                 {
-                    push_stack(vm, NEW_NIL());
-                    push_stack(vm, make_iterPair(vm, NEW_NUM(index), value));
+                    _push_stack(vm, NEW_NIL());
+                    _push_stack(vm, _make_iterPair(vm, NEW_NUM(index), value));
                 }
                 else
-                    push_stack(vm, value);
+                    _push_stack(vm, value);
                 pc += 2;
             }
             else
@@ -3190,17 +3190,17 @@ OP_LOOP:
             if (iter->type == OBJ_MAP)
             {
                 PiMap *map = (PiMap *)iter;
-                ht_next(&map->it);
+                _ht_next(&map->it);
                 if (pair_loop)
                 {
                     Value value = *(Value *)map->it.value;
                     if (IS_OBJ(value))
                         add_obj(vm, AS_OBJ(value));
-                    push_stack(vm, NEW_NIL());
-                    push_stack(vm, make_iterPair(vm, NEW_OBJ(add_obj(vm, new_pistring(strdup(map->it.key)))), value));
+                    _push_stack(vm, NEW_NIL());
+                    _push_stack(vm, _make_iterPair(vm, NEW_OBJ(add_obj(vm, new_pistring(strdup(map->it.key)))), value));
                 }
                 else
-                    push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(strdup(map->it.key)))));
+                    _push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(strdup(map->it.key)))));
             }
             else
             {
@@ -3224,11 +3224,11 @@ OP_LOOP:
                     add_obj(vm, AS_OBJ(value));
                 if (pair_loop)
                 {
-                    push_stack(vm, NEW_NIL());
-                    push_stack(vm, make_iterPair(vm, NEW_NUM(index), value));
+                    _push_stack(vm, NEW_NIL());
+                    _push_stack(vm, _make_iterPair(vm, NEW_NUM(index), value));
                 }
                 else
-                    push_stack(vm, value);
+                    _push_stack(vm, value);
             }
             pc += 2;
         }
@@ -3249,9 +3249,9 @@ OP_POP_ITER:
 
 OP_PUSH_RANGE:
     {
-        Value step = pop_stack(vm);
-        Value end = pop_stack(vm);
-        Value start = pop_stack(vm);
+        Value step = _pop_stack(vm);
+        Value end = _pop_stack(vm);
+        Value start = _pop_stack(vm);
         if (!IS_NUM(start) || !IS_NUM(end))
             vm_error(vm, "PiRange `start` and `end` must be numbers.");
         if (!IS_NIL(step) && !IS_NUM(step))
@@ -3259,7 +3259,7 @@ OP_PUSH_RANGE:
         double _start = as_number(start);
         double _end = as_number(end);
         double _step = IS_NIL(step) ? ((_start < _end) ? 1.0 : -1.0) : as_number(step);
-        push_stack(vm, NEW_OBJ(add_obj(vm, new_range(_start, _end, _step))));
+        _push_stack(vm, NEW_OBJ(add_obj(vm, new_range(_start, _end, _step))));
         VM_DISPATCH_SAFE();
     }
 
@@ -3267,26 +3267,26 @@ OP_PUSH_LIST:
     {
         uint8_t high = code[pc++];
         uint8_t low = code[pc++];
-        int numElements = (high << 8) | low;
-        list_t *list = list_create(sizeof(Value));
+        int num_elements = (high << 8) | low;
+        List *list = list_create(sizeof(Value));
 
-        if (numElements == 0)
+        if (num_elements == 0)
         {
             Object *l_obj = add_obj(vm, new_list(list));
-            push_stack(vm, NEW_OBJ(l_obj));
+            _push_stack(vm, NEW_OBJ(l_obj));
             VM_DISPATCH_SAFE();
         }
 
-        int element_base = vm->sp - numElements;
-        for (int i = 0; i < numElements; i++)
+        int element_base = vm->sp - num_elements;
+        for (int i = 0; i < num_elements; i++)
         {
             Value v = vm->stack[element_base + i];
-            list_add(list, &v);
+            _list_add(list, &v);
         }
 
         Object *l_obj = add_obj(vm, new_list(list));
-        set_stackTop(vm, element_base);
-        push_stack(vm, NEW_OBJ(l_obj));
+        _set_stackTop(vm, element_base);
+        _push_stack(vm, NEW_OBJ(l_obj));
         VM_DISPATCH_SAFE();
     }
 
@@ -3294,17 +3294,17 @@ OP_PUSH_SET:
     {
         uint8_t high = code[pc++];
         uint8_t low = code[pc++];
-        int numElements = (high << 8) | low;
+        int num_elements = (high << 8) | low;
         PiSet *set = (PiSet *)new_set();
 
-        if (numElements == 0)
+        if (num_elements == 0)
         {
-            push_stack(vm, NEW_OBJ(add_obj(vm, (Object *)set)));
+            _push_stack(vm, NEW_OBJ(add_obj(vm, (Object *)set)));
             VM_DISPATCH_SAFE();
         }
 
-        int element_base = vm->sp - numElements;
-        for (int i = 0; i < numElements; i++)
+        int element_base = vm->sp - num_elements;
+        for (int i = 0; i < num_elements; i++)
         {
             Value element = vm->stack[element_base + i];
             if (IS_OBJ(element))
@@ -3312,8 +3312,8 @@ OP_PUSH_SET:
             set_add(set, element);
         }
         Object *set_obj = add_obj(vm, (Object *)set);
-        set_stackTop(vm, element_base);
-        push_stack(vm, NEW_OBJ(set_obj));
+        _set_stackTop(vm, element_base);
+        _push_stack(vm, NEW_OBJ(set_obj));
         VM_DISPATCH_SAFE();
     }
 
@@ -3321,35 +3321,35 @@ OP_PUSH_TUPLE:
     {
         uint8_t high = code[pc++];
         uint8_t low = code[pc++];
-        int numElements = (high << 8) | low;
-        list_t *items = list_create(sizeof(Value));
-        if (numElements > 0)
+        int num_elements = (high << 8) | low;
+        List *items = list_create(sizeof(Value));
+        if (num_elements > 0)
         {
-            int element_base = vm->sp - numElements;
-            for (int i = 0; i < numElements; i++)
+            int element_base = vm->sp - num_elements;
+            for (int i = 0; i < num_elements; i++)
             {
                 Value element = vm->stack[element_base + i];
                 if (IS_OBJ(element))
                     add_obj(vm, AS_OBJ(element));
-                list_add(items, &element);
+                _list_add(items, &element);
             }
-            set_stackTop(vm, element_base);
+            _set_stackTop(vm, element_base);
         }
-        push_stack(vm, NEW_OBJ(add_obj(vm, new_tuple(items))));
+        _push_stack(vm, NEW_OBJ(add_obj(vm, new_tuple(items))));
         VM_DISPATCH_SAFE();
     }
 
 OP_COMP_APPEND:
     {
         int local = code[pc++];
-        Value value = pop_stack(vm);
-        int slot = resolve_localSlot(vm, local);
+        Value value = _pop_stack(vm);
+        int slot = _resolve_localSlot(vm, local);
         if (slot < vm->bp || slot >= vm->sp)
             vm_error(vm, "List append local expects a list target.");
         Value target = vm->stack[slot];
         if (!IS_LIST(target))
             vm_error(vm, "List append local expects a list target.");
-        vm_listAppendValue(AS_LIST(target), value);
+        _vm_listAppendValue(AS_LIST(target), value);
         VM_DISPATCH_SAFE();
     }
 
@@ -3358,11 +3358,11 @@ OP_COMP_BEGIN:
         int local_base = code[pc++];
         if (vm->comp_sp >= COMP_MAX)
             vm_error(vm, "Too many nested list comprehensions.");
-        list_t *list = list_create(sizeof(Value));
+        List *list = list_create(sizeof(Value));
         Object *l_obj = add_obj(vm, new_list(list));
         PiList *plist = (PiList *)l_obj;
-        plist->is_numeric = true;
-        push_stack(vm, NEW_OBJ(l_obj));
+        plist->is_numeric = TRUE;
+        _push_stack(vm, NEW_OBJ(l_obj));
         int top = vm->comp_sp++;
         vm->comp_frames[top].base = vm->sp - 1;
         vm->comp_frames[top].local_base = local_base;
@@ -3374,7 +3374,7 @@ OP_COMP_END:
     {
         if (vm->comp_sp <= 0)
             vm_error(vm, "List comprehension end without a matching begin.");
-        if (!IS_LIST(peek_stack(vm)))
+        if (!IS_LIST(_peek_stack(vm)))
             vm_error(vm, "List comprehension end expects a list accumulator.");
         int top = vm->comp_sp - 1;
         if (vm->comp_frames[top].base != vm->sp - 1)
@@ -3391,17 +3391,17 @@ OP_LIST_EXTEND:
             vm_error(vm, "List extend expects a list target.");
         PiList *target = AS_LIST(vm->stack[source_base - 1]);
         for (int i = 0; i < source_count; i++)
-            list_extendFromIterable(vm, target, vm->stack[source_base + i]);
-        set_stackTop(vm, source_base);
+            _list_extendFromIterable(vm, target, vm->stack[source_base + i]);
+        _set_stackTop(vm, source_base);
         VM_DISPATCH_SAFE();
     }
 
 OP_PUSH_MAP:
     {
-        int numElements = code[pc++] << 8;
-        numElements |= code[pc++];
-        table_t *table = ht_create(sizeof(Value));
-        int _sp = vm->sp - (numElements * 2);
+        int num_elements = code[pc++] << 8;
+        num_elements |= code[pc++];
+        HT_Table *table = ht_create(sizeof(Value));
+        int _sp = vm->sp - (num_elements * 2);
 
         for (int i = _sp; i < vm->sp; i += 2)
         {
@@ -3409,9 +3409,9 @@ OP_PUSH_MAP:
             char *key = AS_CSTRING(vm->stack[i + 1]);
             ht_put(table, key, &value);
         }
-        set_stackTop(vm, _sp);
+        _set_stackTop(vm, _sp);
         Object *map = add_obj(vm, new_map(table));
-        push_stack(vm, NEW_OBJ(map));
+        _push_stack(vm, NEW_OBJ(map));
         VM_DISPATCH_SAFE();
     }
 
@@ -3428,7 +3428,7 @@ OP_PUSH_CLASS:
             !IS_CLASS(vm->stack[name_slot + 1]))
             vm_error(vm, "PUSH_CLASS expects members, field names, a class name, and a superclass.");
 
-        table_t *members = ht_create(sizeof(Value));
+        HT_Table *members = ht_create(sizeof(Value));
         for (int i = 0; i < num_members * 2; i += 2)
         {
             Value value = vm->stack[base + i];
@@ -3456,15 +3456,15 @@ OP_PUSH_CLASS:
                 ht_put(pi_class->field_names, field, &slot);
             }
         }
-        ht_iter member_it = ht_iterator(members);
-        while (ht_next(&member_it))
+        HT_Iterator member_it = _ht_iterator(members);
+        while (_ht_next(&member_it))
         {
             Value *member = (Value *)member_it.value;
             if (member && IS_FUN(*member))
                 AS_FUN(*member)->owner = klass;
         }
-        set_stackTop(vm, base);
-        push_stack(vm, NEW_OBJ(klass));
+        _set_stackTop(vm, base);
+        _push_stack(vm, NEW_OBJ(klass));
         VM_DISPATCH_SAFE();
     }
 
@@ -3485,26 +3485,26 @@ OP_MAP_EXTEND:
         for (int i = 0; i < source_count; i++)
         {
             Value *sources = &vm->stack[source_base];
-            if (!map_extendSourceIsRedundant(sources, i))
-                map_extendFromMap(vm, target, sources[i]);
+            if (!_map_extendSourceIsRedundant(sources, i))
+                _map_extendFromMap(vm, target, sources[i]);
         }
-        set_stackTop(vm, source_base);
+        _set_stackTop(vm, source_base);
         VM_DISPATCH_SAFE();
     }
 
 OP_PUSH_FUNCTION:
     {
-        int numParams = code[pc++];
-        ObjCode *body = AS_CODE(pop_stack(vm));
-        char *name = AS_CSTRING(pop_stack(vm));
-        list_t *defaults = list_create(sizeof(Value));
-        int param_base = vm->sp - numParams;
-        for (int i = 0; i < numParams; i++)
+        int num_params = code[pc++];
+        ObjCode *body = AS_CODE(_pop_stack(vm));
+        char *name = AS_CSTRING(_pop_stack(vm));
+        List *defaults = list_create(sizeof(Value));
+        int param_base = vm->sp - num_params;
+        for (int i = 0; i < num_params; i++)
         {
             Value param = vm->stack[param_base + i];
-            list_add(defaults, &param);
+            _list_add(defaults, &param);
         }
-        set_stackTop(vm, param_base);
+        _set_stackTop(vm, param_base);
         Object *fn = new_func(name, body, defaults, NULL, NULL);
         ((Function *)fn)->flags = (body->need_args ? FUNC_NEED_ARGS : 0) |
                                   (body->need_kwargs ? FUNC_NEED_KWARGS : 0);
@@ -3512,37 +3512,37 @@ OP_PUSH_FUNCTION:
         ((Function *)fn)->names = vm->names;
         ((Function *)fn)->instrs = vm->instrs;
         ((Function *)fn)->globals = vm->globals;
-        push_stack(vm, NEW_OBJ(add_obj(vm, fn)));
+        _push_stack(vm, NEW_OBJ(add_obj(vm, fn)));
         VM_DISPATCH_SAFE();
     }
 
 OP_PUSH_CLOSURE:
     {
-        int numParams = code[pc++];
-        int numUpvalues = code[pc++];
-        UpValue **upvalues = ALLOCATE(UpValue *, numUpvalues + 1);
-        for (int i = 0; i < numUpvalues; i++)
+        int num_params = code[pc++];
+        int num_upvalues = code[pc++];
+        UpValue **upvalues = ALLOCATE(UpValue *, num_upvalues + 1);
+        for (int i = 0; i < num_upvalues; i++)
         {
-            bool is_local = as_bool(pop_stack(vm));
-            int index = as_number(pop_stack(vm));
+            bool is_local = as_bool(_pop_stack(vm));
+            int index = as_number(_pop_stack(vm));
             UpValue *upvalue = is_local
-                                   ? capture_upvalue(vm, vm->bp + index)
+                                   ? _capture_upvalue(vm, vm->bp + index)
                                    : function->upvalues[index];
             if (upvalue)
                 upvalue->ref_count++;
-            upvalues[numUpvalues - i - 1] = upvalue;
+            upvalues[num_upvalues - i - 1] = upvalue;
         }
-        upvalues[numUpvalues] = NULL;
-        ObjCode *body = AS_CODE(pop_stack(vm));
-        char *name = AS_CSTRING(pop_stack(vm));
-        list_t *defaults = list_create(sizeof(Value));
-        int param_base = vm->sp - numParams;
-        for (int i = 0; i < numParams; i++)
+        upvalues[num_upvalues] = NULL;
+        ObjCode *body = AS_CODE(_pop_stack(vm));
+        char *name = AS_CSTRING(_pop_stack(vm));
+        List *defaults = list_create(sizeof(Value));
+        int param_base = vm->sp - num_params;
+        for (int i = 0; i < num_params; i++)
         {
             Value param = vm->stack[param_base + i];
-            list_add(defaults, &param);
+            _list_add(defaults, &param);
         }
-        set_stackTop(vm, param_base);
+        _set_stackTop(vm, param_base);
         Object *fun_obj = new_func(name, body, defaults, upvalues, NULL);
         ((Function *)fun_obj)->flags = (body->need_args ? FUNC_NEED_ARGS : 0) |
                                        (body->need_kwargs ? FUNC_NEED_KWARGS : 0);
@@ -3550,7 +3550,7 @@ OP_PUSH_CLOSURE:
         ((Function *)fun_obj)->names = vm->names;
         ((Function *)fun_obj)->instrs = vm->instrs;
         ((Function *)fun_obj)->globals = vm->globals;
-        push_stack(vm, NEW_OBJ(add_obj(vm, fun_obj)));
+        _push_stack(vm, NEW_OBJ(add_obj(vm, fun_obj)));
         VM_DISPATCH_SAFE();
     }
 
@@ -3559,8 +3559,8 @@ OP_LOAD_UPVALUE:
         int index = code[pc++];
         if (function->upvalues == NULL || function->upvalues[index] == NULL)
             vm_error(vm, "Invalid method binding: closure lost its captured variables while binding a method.");
-        UpValue *upValue = function->upvalues[index];
-        push_stack(vm, upValue->index != -1 ? vm->stack[upValue->index] : upValue->value);
+        UpValue *up_value = function->upvalues[index];
+        _push_stack(vm, up_value->index != -1 ? vm->stack[up_value->index] : up_value->value);
         VM_DISPATCH_SAFE();
     }
 
@@ -3569,10 +3569,10 @@ OP_STORE_UPVALUE:
         int index = code[pc++];
         if (function->upvalues == NULL || function->upvalues[index] == NULL)
             vm_error(vm, "Invalid method binding: closure lost its captured variables while binding a method.");
-        UpValue *upValue = function->upvalues[index];
-        Value stored = pop_stack(vm);
-        if (upValue->index != -1)
-            vm->stack[upValue->index] = stored;
+        UpValue *up_value = function->upvalues[index];
+        Value stored = _pop_stack(vm);
+        if (up_value->index != -1)
+            vm->stack[up_value->index] = stored;
         else
             function->upvalues[index]->value = stored;
         VM_DISPATCH_SAFE();
@@ -3580,9 +3580,9 @@ OP_STORE_UPVALUE:
 
 OP_PUSH_SLICE:
     {
-        Value _step = pop_stack(vm);
-        Value _end = pop_stack(vm);
-        Value _start = pop_stack(vm);
+        Value _step = _pop_stack(vm);
+        Value _end = _pop_stack(vm);
+        Value _start = _pop_stack(vm);
         if (!IS_NUM(_start) || !IS_NUM(_end))
             vm_error(vm, "Slice start and end must be numbers");
         if (!IS_NIL(_step) && !IS_NUM(_step))
@@ -3590,7 +3590,7 @@ OP_PUSH_SLICE:
         double step = IS_NIL(_step) ? 1.0 : as_number(_step);
         if (step == 0.0)
             vm_error(vm, "Slice step cannot be zero");
-        push_stack(vm, NEW_OBJ(add_obj(vm, new_slice(as_number(_start), as_number(_end), step))));
+        _push_stack(vm, NEW_OBJ(add_obj(vm, new_slice(as_number(_start), as_number(_end), step))));
         VM_DISPATCH_SAFE();
     }
 
@@ -3672,7 +3672,7 @@ OP_GET_MEMBER:
                     cache->name_index = (uint16_t)((code[instr_pc + 1] << 8) |
                                                    code[instr_pc + 2]);
                     cache->slot = slot;
-                    cache->valid = true;
+                    cache->valid = TRUE;
                     code[instr_pc] = OP_GET_SLOT;
                     code[instr_pc + 1] = (uint8_t)(slot >> 8);
                     code[instr_pc + 2] = (uint8_t)slot;
@@ -3688,7 +3688,7 @@ OP_GET_MEMBER:
             const char *key = IS_STRING(index) ? AS_CSTRING(index) : (owned_key = as_string(index));
             Value item = NEW_NIL();
             bool found;
-            bool bound_cache_hit = false;
+            bool bound_cache_hit = FALSE;
             if (!bracket_access && IS_STRING(index))
             {
                 uint64_t hash = AS_STRING(index)->hash;
@@ -3709,8 +3709,8 @@ OP_GET_MEMBER:
                         entry->owner_table && entry->owner_table->version == entry->owner_version)
                     {
                         item = entry->bound_fn;
-                        found = true;
-                        bound_cache_hit = true;
+                        found = TRUE;
+                        bound_cache_hit = TRUE;
                         break;
                     }
                 }
@@ -3736,7 +3736,7 @@ OP_GET_MEMBER:
                 Object *receiver = NULL;
                 if (OBJ_TYPE(container) == OBJ_INSTANCE || FUNC_HAS_FLAG(AS_FUN(item), FUNC_NATIVE))
                     receiver = AS_OBJ(container);
-                item = bind(vm, AS_FUN(item), receiver);
+                item = _bind(vm, AS_FUN(item), receiver);
 
                 if (!bracket_access && IS_STRING(index))
                 {
@@ -3747,11 +3747,11 @@ OP_GET_MEMBER:
                     uint8_t *next = OBJ_TYPE(container) == OBJ_CLASS
                                         ? &AS_CLASS(container)->bound_cache_next
                                         : &AS_INSTANCE(container)->bound_cache_next;
-                    table_t *owner_table = NULL;
+                    HT_Table *owner_table = NULL;
 
                     if (OBJ_TYPE(container) == OBJ_INSTANCE)
                         owner_table = AS_INSTANCE(container)->fields &&
-                                              ht_getHash(AS_INSTANCE(container)->fields, key, hash)
+                                              _ht_getHash(AS_INSTANCE(container)->fields, key, hash)
                                           ? AS_INSTANCE(container)->fields
                                           : NULL;
 
@@ -3760,7 +3760,7 @@ OP_GET_MEMBER:
                                                 : AS_INSTANCE(container)->_class;
                          !owner_table && current != NULL; current = current->super)
                     {
-                        if (current->members && ht_getHash(current->members, key, hash))
+                        if (current->members && _ht_getHash(current->members, key, hash))
                             owner_table = current->members;
                     }
 
@@ -3777,7 +3777,7 @@ OP_GET_MEMBER:
                                                     ? AS_INSTANCE(container)->fields->version
                                                     : 0;
                         entry->bound_fn = item;
-                        entry->valid = true;
+                        entry->valid = TRUE;
                     }
                 }
             }
@@ -3804,7 +3804,7 @@ OP_GET_MEMBER:
             NativeMethod *method = pi_nativeMethodFor(OBJ_TYPE(container), method_name);
             if (method)
             {
-                vm->stack[vm->sp - 1] = bind_nativeMethod(AS_OBJ(container), method);
+                vm->stack[vm->sp - 1] = _bind_nativeMethod(AS_OBJ(container), method);
                 VM_DISPATCH_SAFE();
             }
             char available_methods[512];
@@ -3828,7 +3828,7 @@ OP_GET_MEMBER:
         }
         case OBJ_LIST:
         {
-            list_t *list = AS_LIST(container)->items;
+            List *list = AS_LIST(container)->items;
             if (list->size == 0)
                 vm->stack[vm->sp - 1] = NEW_NIL();
             else
@@ -3855,7 +3855,7 @@ OP_GET_MEMBER:
             char *owned_property = NULL;
             const char *property = IS_STRING(index) ? AS_CSTRING(index) : (owned_property = as_string(index));
             Value item = NEW_NIL();
-            if (is_private_moduleName(property))
+            if (_is_PrivateModuleName(property))
             {
                 free(owned_property);
                 vm_error(vm, "Cannot access private module member.");
@@ -3880,7 +3880,7 @@ OP_GET_MEMBER:
         {
             PiTuple *tuple = AS_TUPLE(container);
             int _index = get_index(as_number(index), LIST_SIZE(tuple->items));
-            vm->stack[vm->sp - 1] = *(Value *)list_getAt(tuple->items, _index);
+            vm->stack[vm->sp - 1] = *(Value *)_list_getAt(tuple->items, _index);
             break;
         }
         case OBJ_STRING:
@@ -3905,9 +3905,9 @@ OP_TENSOR_GET:
         uint8_t ndim = code[pc++];
         Value indices[MAX_TENSOR_DIMS];
         for (int i = ndim - 1; i >= 0; i--)
-            indices[i] = pop_stack(vm);
+            indices[i] = _pop_stack(vm);
 
-        Value container = pop_stack(vm);
+        Value container = _pop_stack(vm);
         if (!IS_TENSOR(container))
             vm_error(vm, "N-dimensional indexing is only supported for tensors.");
 
@@ -3916,7 +3916,7 @@ OP_TENSOR_GET:
             vm_error(vm, "Too many tensor indices.");
 
         TensorSliceSpec specs[MAX_TENSOR_DIMS];
-        bool has_slice = false;
+        bool has_slice = FALSE;
 
         for (int i = 0; i < tensor->ndim; i++)
         {
@@ -3929,12 +3929,12 @@ OP_TENSOR_GET:
                         vm_error(vm, "Tensor slice step cannot be zero.");
                     specs[i].step = (int)slice->step;
                     int sign = specs[i].step > 0 ? 1 : -1;
-                    specs[i].start = isinf(slice->start) ? (sign > 0 ? tensor->shape[i] : -1) : tensor_sliceBound(tensor->shape[i], slice->start, sign);
-                    specs[i].end = isinf(slice->stop) ? (sign > 0 ? tensor->shape[i] : -1) : tensor_sliceBound(tensor->shape[i], slice->stop, sign);
+                    specs[i].start = isinf(slice->start) ? (sign > 0 ? tensor->shape[i] : -1) : _tensor_sliceBound(tensor->shape[i], slice->start, sign);
+                    specs[i].end = isinf(slice->stop) ? (sign > 0 ? tensor->shape[i] : -1) : _tensor_sliceBound(tensor->shape[i], slice->stop, sign);
                     specs[i].count = 0;
                     for (int current = specs[i].start; sign * (specs[i].end - current) > 0; current += specs[i].step)
                         specs[i].count++;
-                    has_slice = true;
+                    has_slice = TRUE;
                 }
                 else
                 {
@@ -3952,7 +3952,7 @@ OP_TENSOR_GET:
                 specs[i].end = tensor->shape[i];
                 specs[i].step = 1;
                 specs[i].count = tensor->shape[i];
-                has_slice = true;
+                has_slice = TRUE;
             }
         }
 
@@ -3961,7 +3961,7 @@ OP_TENSOR_GET:
             int coords[MAX_TENSOR_DIMS];
             for (int i = 0; i < tensor->ndim; i++)
                 coords[i] = specs[i].start;
-            push_stack(vm, NEW_NUM(tensor_get(tensor, coords)));
+            _push_stack(vm, NEW_NUM(tensor_get(tensor, coords)));
             VM_DISPATCH_SAFE();
         }
 
@@ -3982,7 +3982,7 @@ OP_TENSOR_GET:
             int coords[MAX_TENSOR_DIMS];
             for (int i = 0; i < tensor->ndim; i++)
                 coords[i] = specs[i].start;
-            push_stack(vm, NEW_NUM(tensor_get(tensor, coords)));
+            _push_stack(vm, NEW_NUM(tensor_get(tensor, coords)));
             VM_DISPATCH_SAFE();
         }
 
@@ -4011,7 +4011,7 @@ OP_TENSOR_GET:
             }
             tensor_setFlat(result, flat, tensor_get(tensor, src_coords));
         }
-        push_stack(vm, NEW_OBJ(result));
+        _push_stack(vm, NEW_OBJ(result));
         VM_DISPATCH_SAFE();
     }
 
@@ -4043,9 +4043,9 @@ OP_SET_SLOT:
                 code[instr_pc + 1] = (uint8_t)(slot >> 8);
                 code[instr_pc + 2] = (uint8_t)slot;
             }
-            Value receiver = pop_stack(vm);
+            Value receiver = _pop_stack(vm);
             (void)receiver;
-            instance->slots[slot] = pop_stack(vm);
+            instance->slots[slot] = _pop_stack(vm);
             VM_DISPATCH_SAFE();
         }
 
@@ -4069,9 +4069,9 @@ OP_SET_MEMBER:
 
         if (bracket_access)
         {
-            index = pop_stack(vm);
-            container = pop_stack(vm);
-            value = pop_stack(vm);
+            index = _pop_stack(vm);
+            container = _pop_stack(vm);
+            value = _pop_stack(vm);
         }
         else
         {
@@ -4079,8 +4079,8 @@ OP_SET_MEMBER:
             uint8_t low = code[pc++];
             uint16_t name_idx = (uint16_t)((high << 8) | low);
             index = constants_data[name_idx];
-            container = pop_stack(vm);
-            value = pop_stack(vm);
+            container = _pop_stack(vm);
+            value = _pop_stack(vm);
         }
         if (!IS_OBJ(container))
             vm_error(vm, "Unsupported operand type for set item operator.\n");
@@ -4099,7 +4099,7 @@ OP_SET_MEMBER:
                     cache->name_index = (uint16_t)((code[instr_pc + 1] << 8) |
                                                    code[instr_pc + 2]);
                     cache->slot = slot;
-                    cache->valid = true;
+                    cache->valid = TRUE;
                     code[instr_pc] = OP_SET_SLOT;
                     code[instr_pc + 1] = (uint8_t)(slot >> 8);
                     code[instr_pc + 2] = (uint8_t)slot;
@@ -4137,7 +4137,7 @@ OP_SET_MEMBER:
                 for (int col = 0; col < tensor->shape[1]; col++)
                 {
                     int indices[2] = {row, col};
-                    tensor_set(tensor, indices, as_number(*(Value *)list_getAt(src->items, col)));
+                    tensor_set(tensor, indices, as_number(*(Value *)_list_getAt(src->items, col)));
                 }
             }
             else
@@ -4149,13 +4149,13 @@ OP_SET_MEMBER:
             PiList *pi_list = AS_LIST(container);
             if (IS_SLICE(index))
             {
-                list_setSlice(vm, pi_list, AS_SLICE(index), value);
+                _list_setSlice(vm, pi_list, AS_SLICE(index), value);
                 break;
             }
-            list_t *list = pi_list->items;
-            int _index = get_index(as_number(index), list_size(list));
-            list_set(list, _index, &value);
-            list_refreshNumericFlag(pi_list);
+            List *list = pi_list->items;
+            int _index = get_index(as_number(index), LIST_SIZE(list));
+            _list_set(list, _index, &value);
+            _list_refreshNumericFlag(pi_list);
             break;
         }
         case OBJ_MAP:
@@ -4182,10 +4182,10 @@ OP_TENSOR_SET:
         uint8_t ndim = code[pc++];
         Value indices[MAX_TENSOR_DIMS];
         for (int i = ndim - 1; i >= 0; i--)
-            indices[i] = pop_stack(vm);
+            indices[i] = _pop_stack(vm);
 
-        Value container = pop_stack(vm);
-        Value assign_value = pop_stack(vm);
+        Value container = _pop_stack(vm);
+        Value assign_value = _pop_stack(vm);
 
         if (!IS_TENSOR(container))
             vm_error(vm, "N-dimensional assignment is only supported for tensors.");
@@ -4195,7 +4195,7 @@ OP_TENSOR_SET:
             vm_error(vm, "Too many tensor indices.");
 
         TensorSliceSpec specs[MAX_TENSOR_DIMS];
-        bool has_slice = false;
+        bool has_slice = FALSE;
 
         for (int i = 0; i < tensor->ndim; i++)
         {
@@ -4208,12 +4208,12 @@ OP_TENSOR_SET:
                         vm_error(vm, "Tensor slice step cannot be zero.");
                     specs[i].step = (int)slice->step;
                     int sign = specs[i].step > 0 ? 1 : -1;
-                    specs[i].start = isinf(slice->start) ? (sign > 0 ? tensor->shape[i] : -1) : tensor_sliceBound(tensor->shape[i], slice->start, sign);
-                    specs[i].end = isinf(slice->stop) ? (sign > 0 ? tensor->shape[i] : -1) : tensor_sliceBound(tensor->shape[i], slice->stop, sign);
+                    specs[i].start = isinf(slice->start) ? (sign > 0 ? tensor->shape[i] : -1) : _tensor_sliceBound(tensor->shape[i], slice->start, sign);
+                    specs[i].end = isinf(slice->stop) ? (sign > 0 ? tensor->shape[i] : -1) : _tensor_sliceBound(tensor->shape[i], slice->stop, sign);
                     specs[i].count = 0;
                     for (int current = specs[i].start; sign * (specs[i].end - current) > 0; current += specs[i].step)
                         specs[i].count++;
-                    has_slice = true;
+                    has_slice = TRUE;
                 }
                 else
                 {
@@ -4231,7 +4231,7 @@ OP_TENSOR_SET:
                 specs[i].end = tensor->shape[i];
                 specs[i].step = 1;
                 specs[i].count = tensor->shape[i];
-                has_slice = true;
+                has_slice = TRUE;
             }
         }
 
@@ -4246,7 +4246,7 @@ OP_TENSOR_SET:
                 tensor_set(tensor, coords, tensor_getFlat(AS_TENSOR(assign_value), 0));
             else
                 vm_error(vm, "Tensor assignment requires a numeric value.");
-            push_stack(vm, assign_value);
+            _push_stack(vm, assign_value);
             VM_DISPATCH_SAFE();
         }
 
@@ -4314,7 +4314,7 @@ OP_TENSOR_SET:
                 assign_num = tensor_getFlat(src_tensor, flat);
             else if (list_assign)
             {
-                Value item = *(Value *)list_getAt(src_list->items, flat);
+                Value item = *(Value *)_list_getAt(src_list->items, flat);
                 if (!IS_NUM(item))
                     vm_error(vm, "Assigned list must contain only numeric values.");
                 assign_num = as_number(item);
@@ -4323,23 +4323,23 @@ OP_TENSOR_SET:
                 vm_error(vm, "Tensor slice assignment requires a numeric scalar, numeric list, or tensor.");
             tensor_set(tensor, src_coords, assign_num);
         }
-        push_stack(vm, assign_value);
+        _push_stack(vm, assign_value);
         VM_DISPATCH_SAFE();
     }
 
 OP_IMPORT:
     {
-        Value name = pop_stack(vm);
+        Value name = _pop_stack(vm);
         if (!IS_STRING(name))
             vm_error(vm, "Module name must be a string.");
-        push_stack(vm, load_module(vm, AS_STRING(name)->chars));
+        _push_stack(vm, load_module(vm, AS_STRING(name)->chars));
         VM_DISPATCH_SAFE();
     }
 
 OP_GET_EXPORT:
     {
-        Value name = pop_stack(vm);
-        Value module = pop_stack(vm);
+        Value name = _pop_stack(vm);
+        Value module = _pop_stack(vm);
 
         if (!IS_OBJ(module) || (OBJ_TYPE(module) != OBJ_MAP && OBJ_TYPE(module) != OBJ_MODULE))
             vm_error(vm, "Attempt to access export from non-module object.");
@@ -4348,39 +4348,39 @@ OP_GET_EXPORT:
             vm_error(vm, "Export name must be a string.");
 
         char *export_name = AS_STRING(name)->chars;
-        if (OBJ_TYPE(module) == OBJ_MODULE && is_private_moduleName(export_name))
+        if (OBJ_TYPE(module) == OBJ_MODULE && _is_PrivateModuleName(export_name))
             vm_error(vm, "Cannot import private module member.");
 
         PiMap *_module = (OBJ_TYPE(module) == OBJ_MODULE) ? AS_MODULE(module)->exports : AS_MAP(module);
 
-        push_stack(vm, map_get(_module, name));
+        _push_stack(vm, map_get(_module, name));
 
         VM_DISPATCH_SAFE();
     }
 
 OP_IMPORT_ALL:
     {
-        Value module = pop_stack(vm);
+        Value module = _pop_stack(vm);
         if (!IS_OBJ(module) || (OBJ_TYPE(module) != OBJ_MAP &&
                                 OBJ_TYPE(module) != OBJ_MODULE))
             vm_error(vm, "Attempt to import from non-module object.");
 
         PiMap *_module = (OBJ_TYPE(module) == OBJ_MODULE) ? AS_MODULE(module)->exports : AS_MAP(module);
-        table_t *table = _module->table;
+        HT_Table *table = _module->table;
 
-        ht_iter it = ht_iterator(table);
-        while (ht_next(&it))
+        HT_Iterator it = _ht_iterator(table);
+        while (_ht_next(&it))
         {
             const char *key = it.key;
             Value *value = (Value *)it.value;
             if (!value)
                 continue;
-            if (OBJ_TYPE(module) == OBJ_MODULE && is_private_moduleName(key))
+            if (OBJ_TYPE(module) == OBJ_MODULE && _is_PrivateModuleName(key))
                 continue;
-            Value *old_value = ht_get(vm->globals, key);
+            Value *old_value = _ht_get(vm->globals, key);
             if (old_value && IS_FUN(*old_value))
             {
-                AS_FUN(*old_value)->global_valid = false;
+                AS_FUN(*old_value)->global_valid = FALSE;
                 AS_FUN(*old_value)->glonal_index = -1;
             }
             if (!ht_set(vm->globals, key, value))
@@ -4389,7 +4389,7 @@ OP_IMPORT_ALL:
             if (IS_FUN(*value) && AS_FUN(*value)->name &&
                 strcmp(AS_FUN(*value)->name, key) == 0)
             {
-                AS_FUN(*value)->global_valid = true;
+                AS_FUN(*value)->global_valid = TRUE;
                 AS_FUN(*value)->glonal_index = -1;
             }
         }
@@ -4401,8 +4401,8 @@ OP_IMPORT_ALL:
 
 OP_IMPORT_DEFAULT:
     {
-        Value name = pop_stack(vm);
-        Value module = pop_stack(vm);
+        Value name = _pop_stack(vm);
+        Value module = _pop_stack(vm);
 
         if (!IS_OBJ(module) || (OBJ_TYPE(module) != OBJ_MAP && OBJ_TYPE(module) != OBJ_MODULE))
             vm_error(vm, "Attempt to import from non-module object.");
@@ -4411,13 +4411,13 @@ OP_IMPORT_DEFAULT:
             vm_error(vm, "Export name must be a string.");
 
         char *export_name = AS_STRING(name)->chars;
-        if (OBJ_TYPE(module) == OBJ_MODULE && is_private_moduleName(export_name))
+        if (OBJ_TYPE(module) == OBJ_MODULE && _is_PrivateModuleName(export_name))
             vm_error(vm, "Cannot import private module member.");
 
         PiMap *_module = (OBJ_TYPE(module) == OBJ_MODULE) ? AS_MODULE(module)->exports : AS_MAP(module);
 
         Value value = map_get(_module, name);
-        push_stack(vm, map_has(_module, name) ? value : module);
+        _push_stack(vm, map_has(_module, name) ? value : module);
 
         VM_DISPATCH_SAFE();
     }
@@ -4435,8 +4435,8 @@ OP_RETURN_NIL:
 OP_HALT:
     {
         if (vm->gc_requested)
-            gc_collect(vm);
-        vm->running = false;
+            _gc_collect(vm);
+        vm->running = FALSE;
         goto L_VM_DONE;
     }
 
@@ -4444,7 +4444,7 @@ OP_NO:
     VM_DISPATCH_SAFE();
 
 OP_PUSH_NIL:
-    push_stack(vm, NEW_NIL());
+    _push_stack(vm, NEW_NIL());
     VM_DISPATCH_SAFE();
 
 OP_DEBUG:
@@ -4453,7 +4453,7 @@ OP_DEBUG:
 
 OP_PRINT:
     {
-        Value value = pop_stack(vm);
+        Value value = _pop_stack(vm);
         char *str = as_string(value);
         printf("%s\n", str);
         free(str);
@@ -4464,7 +4464,7 @@ L_VM_DONE:
     vm->pc = pc;
 }
 
-void free_vm(vm_t *vm)
+void free_vm(VM *vm)
 {
     if (vm->globals)
         ht_free(vm->globals);

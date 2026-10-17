@@ -3,22 +3,22 @@
 
 #include "../../pi_value.h"
 
-Value au_load(vm_t *vm, int argc, Value *argv);
+Value au_load(VM *vm, int argc, Value *argv);
 
-Value au_sampleRate(vm_t *vm, int argc, Value *argv);
-Value au_channels(vm_t *vm, int argc, Value *argv);
-Value au_frames(vm_t *vm, int argc, Value *argv);
-Value au_duration(vm_t *vm, int argc, Value *argv);
-Value au_format(vm_t *vm, int argc, Value *argv);
+Value au_sampleRate(VM *vm, int argc, Value *argv);
+Value au_channels(VM *vm, int argc, Value *argv);
+Value au_frames(VM *vm, int argc, Value *argv);
+Value au_duration(VM *vm, int argc, Value *argv);
+Value au_format(VM *vm, int argc, Value *argv);
 
-Value au_play(vm_t *vm, int argc, Value *argv);
-Value au_volume(vm_t *vm, int argc, Value *argv);
-Value au_pause(vm_t *vm, int argc, Value *argv);
-Value au_resume(vm_t *vm, int argc, Value *argv);
-Value au_stop(vm_t *vm, int argc, Value *argv);
-Value au_isPlaying(vm_t *vm, int argc, Value *argv);
-Value au_playMusic(vm_t *vm, int argc, Value *argv);
-Value au_musicIsPlaying(vm_t *vm, int argc, Value *argv);
-Value au_stopMusic(vm_t *vm, int argc, Value *argv);
+Value au_play(VM *vm, int argc, Value *argv);
+Value au_volume(VM *vm, int argc, Value *argv);
+Value au_pause(VM *vm, int argc, Value *argv);
+Value au_resume(VM *vm, int argc, Value *argv);
+Value au_stop(VM *vm, int argc, Value *argv);
+Value au_isPlaying(VM *vm, int argc, Value *argv);
+Value au_playMusic(VM *vm, int argc, Value *argv);
+Value au_musicIsPlaying(VM *vm, int argc, Value *argv);
+Value au_stopMusic(VM *vm, int argc, Value *argv);
 
 #endif // PI_AUDIO_H

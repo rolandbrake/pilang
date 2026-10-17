@@ -14,16 +14,16 @@
 #include "pi_socket.h"
 
 #ifdef _WIN32
-typedef SOCKET native_socket_t;
+typedef SOCKET NativeSocket;
 #define NET_INVALID_SOCKET INVALID_SOCKET
 #define net_close closesocket
 #else
-typedef int native_socket_t;
+typedef int NativeSocket;
 #define NET_INVALID_SOCKET (-1)
 #define net_close close
 #endif
 
-static PiSocket *require_socket(vm_t *vm, Value value)
+static PiSocket *_require_socket(VM *vm, Value value)
 {
     if (!IS_SOCKET(value))
         vm_error(vm, "socket operation expects a socket.");
@@ -34,7 +34,7 @@ static PiSocket *require_socket(vm_t *vm, Value value)
     return socket;
 }
 
-static int timeout_fromOptions(vm_t *vm, int argc, Value *argv)
+static int _timeout_fromOptions(VM *vm, int argc, Value *argv)
 {
     if (argc < 3 || IS_NIL(argv[2]))
         return 0;
@@ -49,7 +49,7 @@ static int timeout_fromOptions(vm_t *vm, int argc, Value *argv)
     return (int)AS_NUM(value);
 }
 
-static void set_timeout(native_socket_t socket, int timeout_ms)
+static void _set_timeout(NativeSocket socket, int timeout_ms)
 {
     if (timeout_ms <= 0)
         return;
@@ -69,20 +69,20 @@ static void set_timeout(native_socket_t socket, int timeout_ms)
 }
 
 #ifdef _WIN32
-static void ensure_winsock(vm_t *vm)
+static void _ensure_winsock(VM *vm)
 {
-    static bool ready = false;
+    static bool ready = FALSE;
     if (ready)
         return;
 
     WSADATA data;
     if (WSAStartup(MAKEWORD(2, 2), &data) != 0)
         vm_error(vm, "socket initialization failed.");
-    ready = true;
+    ready = TRUE;
 }
 #endif
 
-Value socket_Socket(vm_t *vm, int argc, Value *argv)
+Value socket_Socket(VM *vm, int argc, Value *argv)
 {
     if (argc > 3)
         vm_error(vm, "socket.Socket expects family, type, and optional protocol.");
@@ -97,22 +97,22 @@ Value socket_Socket(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "socket.Socket currently supports SOCK_STREAM only.");
 
 #ifdef _WIN32
-    ensure_winsock(vm);
+    _ensure_winsock(vm);
 #endif
 
-    native_socket_t handle = socket(family, type, protocol);
+    NativeSocket handle = socket(family, type, protocol);
     if (handle == NET_INVALID_SOCKET)
         vm_error(vm, "socket.Socket failed.");
     return NEW_OBJ(add_obj(vm, new_socket((intptr_t)handle, family, type, protocol)));
 }
 
-Value socket_connect(vm_t *vm, int argc, Value *argv)
+Value socket_connect(VM *vm, int argc, Value *argv)
 {
     PiSocket *client = NULL;
     int argument_offset = 0;
     if (argc > 0 && IS_SOCKET(argv[0]))
     {
-        client = require_socket(vm, argv[0]);
+        client = _require_socket(vm, argv[0]);
         argument_offset = 1;
     }
     if (argc < argument_offset + 2 || !IS_STRING(argv[argument_offset]) || !IS_NUM(argv[argument_offset + 1]))
@@ -123,7 +123,7 @@ Value socket_connect(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "socket.connect port must be an integer between 1 and 65535.");
 
 #ifdef _WIN32
-    ensure_winsock(vm);
+    _ensure_winsock(vm);
 #endif
 
     char port[6];
@@ -139,14 +139,14 @@ Value socket_connect(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "socket.connect could not resolve host.");
 
     int timeout_ms = argc > argument_offset + 2
-                         ? timeout_fromOptions(vm, 3, &argv[argument_offset])
+                         ? _timeout_fromOptions(vm, 3, &argv[argument_offset])
                          : 0;
-    native_socket_t handle = NET_INVALID_SOCKET;
-    bool connected = false;
+    NativeSocket handle = NET_INVALID_SOCKET;
+    bool connected = FALSE;
     for (struct addrinfo *address = addresses; address; address = address->ai_next)
     {
         if (client)
-            handle = (native_socket_t)client->handle;
+            handle = (NativeSocket)client->handle;
         else
         {
             handle = socket(address->ai_family, address->ai_socktype, address->ai_protocol);
@@ -154,10 +154,10 @@ Value socket_connect(vm_t *vm, int argc, Value *argv)
                 continue;
         }
 
-        set_timeout(handle, timeout_ms);
+        _set_timeout(handle, timeout_ms);
         if (connect(handle, address->ai_addr, (int)address->ai_addrlen) == 0)
         {
-            connected = true;
+            connected = TRUE;
             break;
         }
 
@@ -176,18 +176,18 @@ Value socket_connect(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, new_socket((intptr_t)handle, AF_UNSPEC, SOCK_STREAM, IPPROTO_TCP)));
 }
 
-Value socket_sendAll(vm_t *vm, int argc, Value *argv)
+Value socket_sendAll(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_STRING(argv[1]))
         vm_error(vm, "socket.send_all expects a socket and string data.");
 
-    PiSocket *socket = require_socket(vm, argv[0]);
+    PiSocket *socket = _require_socket(vm, argv[0]);
     PiString *data = AS_STRING(argv[1]);
     size_t sent = 0;
 
     while (sent < data->length)
     {
-        int written = send((native_socket_t)socket->handle, data->chars + sent,
+        int written = send((NativeSocket)socket->handle, data->chars + sent,
                            (int)(data->length - sent), 0);
         if (written <= 0)
             vm_error(vm, "socket.send_all failed.");
@@ -197,9 +197,9 @@ Value socket_sendAll(vm_t *vm, int argc, Value *argv)
     return NEW_NUM((double)sent);
 }
 
-Value socket_receive(vm_t *vm, int argc, Value *argv)
+Value socket_receive(VM *vm, int argc, Value *argv)
 {
-    PiSocket *socket = require_socket(vm, argc > 0 ? argv[0] : NEW_NIL());
+    PiSocket *socket = _require_socket(vm, argc > 0 ? argv[0] : NEW_NIL());
     int max_bytes = 4096;
     if (argc >= 2)
     {
@@ -212,7 +212,7 @@ Value socket_receive(vm_t *vm, int argc, Value *argv)
     if (!buffer)
         vm_error(vm, "socket.receive allocation failed.");
 
-    int count = recv((native_socket_t)socket->handle, buffer, max_bytes, 0);
+    int count = recv((NativeSocket)socket->handle, buffer, max_bytes, 0);
     if (count < 0)
     {
         free(buffer);
@@ -228,7 +228,7 @@ Value socket_receive(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value socket_close(vm_t *vm, int argc, Value *argv)
+Value socket_close(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_SOCKET(argv[0]))
         vm_error(vm, "socket.close expects a socket.");

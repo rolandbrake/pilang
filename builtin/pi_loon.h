@@ -14,18 +14,18 @@ typedef enum
     LOON_STRING,
     LOON_ARRAY,
     LOON_OBJECT,
-} loon_type_t;
+} LoonType;
 
-typedef struct loon_value_t loon_value_t;
+typedef struct LoonValue LoonValue;
 typedef struct
 {
     char *key;
-    loon_value_t *value;
-} loon_member_t;
+    LoonValue *value;
+} LoonMember;
 
-struct loon_value_t
+struct LoonValue
 {
-    loon_type_t type;
+    LoonType type;
     union
     {
         bool boolean;
@@ -33,12 +33,12 @@ struct loon_value_t
         char *string;
         struct
         {
-            loon_value_t **items;
+            LoonValue **items;
             size_t count;
         } array;
         struct
         {
-            loon_member_t *members;
+            LoonMember *members;
             size_t count;
         } object;
     } as;
@@ -49,12 +49,12 @@ typedef struct
     size_t line;
     size_t column;
     char message[160];
-} loon_error_t;
+} LoonError;
 
-loon_value_t *loon_parse(const char *source, loon_error_t *error);
-void loon_free(loon_value_t *value);
-const loon_value_t *loon_objectGet(const loon_value_t *value, const char *key);
+LoonValue *loon_parse(const char *source, LoonError *error);
+void loon_free(LoonValue *value);
+const LoonValue *loon_objectGet(const LoonValue *value, const char *key);
 
-Value loon_parseValue(vm_t *vm, int argc, Value *argv);
+Value loon_parseValue(VM *vm, int argc, Value *argv);
 
 #endif

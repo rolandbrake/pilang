@@ -7,7 +7,7 @@
 #include "pi_builtin.h"
 
 // Return a single character string based on the given numeric argument.
-Value pi_char(vm_t *vm, int argc, Value *argv)
+Value pi_char(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !is_numeric(argv[0]))
         vm_error(vm, "[char] expects a single numeric argument.");
@@ -23,7 +23,7 @@ Value pi_char(vm_t *vm, int argc, Value *argv)
  * Returns the Unicode code point (ASCII value) of the first character in the string.
  * If the input is not a string or is empty, an error is raised.
  */
-Value pi_ord(vm_t *vm, int argc, Value *argv)
+Value pi_ord(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[ord] expects a non-empty string as argument.");
@@ -42,7 +42,7 @@ Value pi_ord(vm_t *vm, int argc, Value *argv)
  * Removes leading and trailing whitespace from the input string.
  * Returns a new trimmed string.
  */
-Value pi_trim(vm_t *vm, int argc, Value *argv)
+Value pi_trim(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[trim] expects a string argument.");
@@ -69,7 +69,7 @@ Value pi_trim(vm_t *vm, int argc, Value *argv)
  * Converts all characters in the string to uppercase.
  * Returns a new uppercase string.
  */
-Value pi_upper(vm_t *vm, int argc, Value *argv)
+Value pi_upper(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[upper] expects a string argument.");
@@ -94,7 +94,7 @@ Value pi_upper(vm_t *vm, int argc, Value *argv)
  * Converts all characters in the string to lowercase.
  * Returns a new lowercase string.
  */
-Value pi_lower(vm_t *vm, int argc, Value *argv)
+Value pi_lower(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[lower] expects a string argument.");
@@ -119,7 +119,7 @@ Value pi_lower(vm_t *vm, int argc, Value *argv)
  * Replaces all occurrences of `old` with `new` in the given string.
  * Returns a new string with replacements applied.
  */
-Value st_replace(vm_t *vm, int argc, Value *argv)
+Value st_replace(VM *vm, int argc, Value *argv)
 {
     if (argc < 3 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]) || !IS_STRING(argv[2]))
         vm_error(vm, "[replace] expects three string arguments: (str, old, new).");
@@ -177,7 +177,7 @@ Value st_replace(vm_t *vm, int argc, Value *argv)
  *   is_upper("Hello") -> false
  *   is_upper("123!")  -> true (no lowercase letters)
  */
-Value st_isUpper(vm_t *vm, int argc, Value *argv)
+Value st_isUpper(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[is_upper] expects a string as argument.");
@@ -188,10 +188,10 @@ Value st_isUpper(vm_t *vm, int argc, Value *argv)
     for (int i = 0; i < str->length; i++)
     {
         if (isalpha(s[i]) && !isupper(s[i]))
-            return NEW_BOOL(false);
+            return NEW_BOOL(FALSE);
     }
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
 /**
@@ -203,7 +203,7 @@ Value st_isUpper(vm_t *vm, int argc, Value *argv)
  *   is_lower("Hello") -> false
  *   is_lower("123!")  -> true (no uppercase letters)
  */
-Value st_isLower(vm_t *vm, int argc, Value *argv)
+Value st_isLower(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[is_lower] expects a string as argument.");
@@ -214,10 +214,10 @@ Value st_isLower(vm_t *vm, int argc, Value *argv)
     for (int i = 0; i < str->length; i++)
     {
         if (isalpha(s[i]) && !islower(s[i]))
-            return NEW_BOOL(false);
+            return NEW_BOOL(FALSE);
     }
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
 /**
@@ -228,7 +228,7 @@ Value st_isLower(vm_t *vm, int argc, Value *argv)
  *   is_digit("123a5") -> false
  *   is_digit("")      -> false
  */
-Value st_isDigit(vm_t *vm, int argc, Value *argv)
+Value st_isDigit(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[is_digit] expects a string as argument.");
@@ -237,15 +237,15 @@ Value st_isDigit(vm_t *vm, int argc, Value *argv)
     const char *s = str->chars;
 
     if (str->length == 0)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
 
     for (int i = 0; i < str->length; i++)
     {
         if (!isdigit((unsigned char)s[i]))
-            return NEW_BOOL(false);
+            return NEW_BOOL(FALSE);
     }
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
 /**
@@ -257,7 +257,7 @@ Value st_isDigit(vm_t *vm, int argc, Value *argv)
  *   is_numeric("abc123") -> false
  *   is_numeric("")       -> false
  */
-Value st_isNumeric(vm_t *vm, int argc, Value *argv)
+Value st_isNumeric(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[is_numeric] expects a string as argument.");
@@ -267,7 +267,7 @@ Value st_isNumeric(vm_t *vm, int argc, Value *argv)
     int len = str->length;
 
     if (len == 0)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
 
     int i = 0;
     int dot_count = 0;
@@ -276,7 +276,7 @@ Value st_isNumeric(vm_t *vm, int argc, Value *argv)
         i++;
 
     if (i == len) // Sign character with no following digits.
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
 
     for (; i < len; i++)
     {
@@ -284,13 +284,13 @@ Value st_isNumeric(vm_t *vm, int argc, Value *argv)
         {
             dot_count++;
             if (dot_count > 1)
-                return NEW_BOOL(false);
+                return NEW_BOOL(FALSE);
         }
         else if (!isdigit((unsigned char)s[i]))
-            return NEW_BOOL(false);
+            return NEW_BOOL(FALSE);
     }
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
 /**
@@ -301,7 +301,7 @@ Value st_isNumeric(vm_t *vm, int argc, Value *argv)
  *   is_alpha("abc123") -> false
  *   is_alpha("")       -> false
  */
-Value st_isAlpha(vm_t *vm, int argc, Value *argv)
+Value st_isAlpha(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[is_alpha] expects a string as argument.");
@@ -311,15 +311,15 @@ Value st_isAlpha(vm_t *vm, int argc, Value *argv)
     int len = str->length;
 
     if (len == 0)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
 
     for (int i = 0; i < len; i++)
     {
         if (!isalpha((unsigned char)s[i]))
-            return NEW_BOOL(false);
+            return NEW_BOOL(FALSE);
     }
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
 /**
@@ -330,7 +330,7 @@ Value st_isAlpha(vm_t *vm, int argc, Value *argv)
  *   is_alnum("abc_123")  -> false
  *   is_alnum("")         -> false
  */
-Value st_isAlnum(vm_t *vm, int argc, Value *argv)
+Value st_isAlnum(VM *vm, int argc, Value *argv)
 {
     if (argc == 0 || !IS_STRING(argv[0]))
         vm_error(vm, "[is_alnum] expects a string as argument.");
@@ -340,18 +340,18 @@ Value st_isAlnum(vm_t *vm, int argc, Value *argv)
     int len = str->length;
 
     if (len == 0)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
 
     for (int i = 0; i < len; i++)
     {
         if (!isalnum((unsigned char)s[i]))
-            return NEW_BOOL(false);
+            return NEW_BOOL(FALSE);
     }
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value st_split(vm_t *vm, int argc, Value *argv)
+Value st_split(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]))
         vm_error(vm, "[split] expects two string arguments.");
@@ -360,7 +360,7 @@ Value st_split(vm_t *vm, int argc, Value *argv)
     const char *delim = AS_CSTRING(argv[1]);
 
     size_t len = strlen(str);
-    list_t *result = list_create(sizeof(Value));
+    List *result = list_create(sizeof(Value));
 
     if (len == 0)
         return NEW_OBJ(new_list(result));
@@ -372,7 +372,7 @@ Value st_split(vm_t *vm, int argc, Value *argv)
         {
             char ch[2] = {str[i], '\0'};
             Value item = NEW_OBJ(new_pistring(strdup(ch)));
-            list_add(result, &item);
+            _list_add(result, &item);
         }
         return NEW_OBJ(new_list(result));
     }
@@ -386,7 +386,7 @@ Value st_split(vm_t *vm, int argc, Value *argv)
     while (token != NULL)
     {
         Value item = NEW_OBJ(new_pistring(strdup(token)));
-        list_add(result, &item);
+        _list_add(result, &item);
         token = strtok(NULL, delim);
     }
     free(copy);

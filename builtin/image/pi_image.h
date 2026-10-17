@@ -4,21 +4,21 @@
 
 #include "../../pi_value.h"
 
-Value im_load(vm_t *vm, int argc, Value *argv);
-Value im_save(vm_t *vm, int argc, Value *argv);
-Value im_width(vm_t *vm, int argc, Value *argv);
-Value im_height(vm_t *vm, int argc, Value *argv);
-Value im_channels(vm_t *vm, int argc, Value *argv);
-Value im_overlaps(vm_t *vm, int argc, Value *argv);
-Value im_resize(vm_t *vm, int argc, Value *argv);
-Value im_crop(vm_t *vm, int argc, Value *argv);
-Value im_flip(vm_t *vm, int argc, Value *argv);
-Value im_rgb2gray(vm_t *vm, int argc, Value *argv);
-Value im_gray2rgb(vm_t *vm, int argc, Value *argv);
-Value im_gray2rgba(vm_t *vm, int argc, Value *argv);
-Value im_show(vm_t *vm, int argc, Value *argv);
-Value im_img2tensor(vm_t *vm, int argc, Value *argv);
-Value im_tensor2img(vm_t *vm, int argc, Value *argv);
+Value im_load(VM *vm, int argc, Value *argv);
+Value im_save(VM *vm, int argc, Value *argv);
+Value im_width(VM *vm, int argc, Value *argv);
+Value im_height(VM *vm, int argc, Value *argv);
+Value im_channels(VM *vm, int argc, Value *argv);
+Value im_overlaps(VM *vm, int argc, Value *argv);
+Value im_resize(VM *vm, int argc, Value *argv);
+Value im_crop(VM *vm, int argc, Value *argv);
+Value im_flip(VM *vm, int argc, Value *argv);
+Value im_rgb2gray(VM *vm, int argc, Value *argv);
+Value im_gray2rgb(VM *vm, int argc, Value *argv);
+Value im_gray2rgba(VM *vm, int argc, Value *argv);
+Value im_show(VM *vm, int argc, Value *argv);
+Value im_img2tensor(VM *vm, int argc, Value *argv);
+Value im_tensor2img(VM *vm, int argc, Value *argv);
 
 #endif // PI_IMAGE_H
 

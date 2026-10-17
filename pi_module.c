@@ -18,17 +18,17 @@
 #define getcwd _getcwd
 #endif
 
-static bool file_exists(const char *path)
+static bool _file_exists(const char *path)
 {
     FILE *f = fopen(path, "rb");
     if (!f)
-        return false; // Return false if the file could not be opened
+        return FALSE; // Return false if the file could not be opened
     fclose(f);
-    return true; // Return true if the file exists
+    return TRUE; // Return true if the file exists
 }
 
 // Reads the entire file into a NUL-terminated buffer.
-static char *file_readText(const char *path)
+static char *_file_readText(const char *path)
 {
     FILE *file = fopen(path, "rb");
     if (!file)
@@ -73,7 +73,7 @@ static char *file_readText(const char *path)
     return source;
 }
 
-static char *copy_dirName(const char *path)
+static char *_copy_dirName(const char *path)
 {
     if (!path)
         return strdup(".");
@@ -91,7 +91,7 @@ static char *copy_dirName(const char *path)
     return dir;
 }
 
-static char *build_modulePath(const char *base, const char *normalized)
+static char *_build_modulePath(const char *base, const char *normalized)
 {
     size_t full_len = strlen(base) + 1 + strlen(normalized) + 3 + 1;
     char *candidate = (char *)malloc(full_len);
@@ -105,7 +105,7 @@ static char *build_modulePath(const char *base, const char *normalized)
 // Finds libs/<module>.pi in base or one of its parent directories.  This lets
 // examples run from nested folders (for example ML/KNN) while still sharing
 // the project's top-level libraries.
-static char *find_libraryPath(const char *base, const char *normalized)
+static char *_find_libraryPath(const char *base, const char *normalized)
 {
     char cwd[4096];
     if (!getcwd(cwd, sizeof(cwd)))
@@ -126,7 +126,7 @@ static char *find_libraryPath(const char *base, const char *normalized)
     else
         snprintf(search, search_len + 1, "%s/%s", cwd, base);
 
-    while (true)
+    while (TRUE)
     {
         size_t libs_base_len = strlen(search) + strlen("/libs") + 1;
         char *libs_base = (char *)malloc(libs_base_len);
@@ -134,9 +134,9 @@ static char *find_libraryPath(const char *base, const char *normalized)
             break;
         snprintf(libs_base, libs_base_len, "%s/libs", search);
 
-        char *path = build_modulePath(libs_base, normalized);
+        char *path = _build_modulePath(libs_base, normalized);
         free(libs_base);
-        if (path && file_exists(path))
+        if (path && _file_exists(path))
         {
             free(search);
             return path;
@@ -161,7 +161,7 @@ static char *find_libraryPath(const char *base, const char *normalized)
     return NULL;
 }
 
-static const BuiltinModule *find_builtinModule(const char *name)
+static const BuiltinModule *_find_builtinModule(const char *name)
 {
     for (int i = 0; i < BUILTIN_MODULE_COUNT; i++)
     {
@@ -172,7 +172,7 @@ static const BuiltinModule *find_builtinModule(const char *name)
 }
 
 #ifdef __EMSCRIPTEN__
-static bool is_browserUnsupportedBuiltin(const char *name)
+static bool _is_browserUnsupportedBuiltin(const char *name)
 {
     return strcmp(name, "draw") == 0 ||
            strcmp(name, "plot") == 0 ||
@@ -181,7 +181,7 @@ static bool is_browserUnsupportedBuiltin(const char *name)
 }
 #endif
 
-static bool builtin_hasChildren(const char *name)
+static bool _builtin_hasChildren(const char *name)
 {
     size_t prefix_len = strlen(name);
     for (int i = 0; i < BUILTIN_MODULE_COUNT; i++)
@@ -189,20 +189,20 @@ static bool builtin_hasChildren(const char *name)
         const char *builtin_name = builtin_modules[i]->name;
         if (strncmp(builtin_name, name, prefix_len) == 0 &&
             builtin_name[prefix_len] == '.')
-            return true;
+            return TRUE;
     }
 
-    return false;
+    return FALSE;
 }
 
-static Value load_builtinNamed(vm_t *vm, const char *name);
+static Value _load_builtinNamed(VM *vm, const char *name);
 
 // Exposes nested builtin modules as fields on the parent package.
-static void attach_builtinChildren(vm_t *vm, ObjModule *module, const char *name)
+static void _attach_builtinChildren(VM *vm, ObjModule *module, const char *name)
 {
     size_t prefix_len = strlen(name);
-    table_t *seen = ht_create(sizeof(bool));
-    bool yes = true;
+    HT_Table *seen = ht_create(sizeof(bool));
+    bool yes = TRUE;
 
     for (int i = 0; i < BUILTIN_MODULE_COUNT; i++)
     {
@@ -222,7 +222,7 @@ static void attach_builtinChildren(vm_t *vm, ObjModule *module, const char *name
         memcpy(child_name, child_start, child_len);
         child_name[child_len] = '\0';
 
-        if (ht_get(seen, child_name))
+        if (_ht_get(seen, child_name))
         {
             free(child_name);
             continue;
@@ -239,7 +239,7 @@ static void attach_builtinChildren(vm_t *vm, ObjModule *module, const char *name
         }
 
         snprintf(full_name, full_len, "%s.%s", name, child_name);
-        Value child_module = load_builtinNamed(vm, full_name);
+        Value child_module = _load_builtinNamed(vm, full_name);
 
         Value key_val = NEW_OBJ(add_obj(vm, new_pistring(strdup(child_name))));
         map_set(module->exports, key_val, child_module);
@@ -252,14 +252,14 @@ static void attach_builtinChildren(vm_t *vm, ObjModule *module, const char *name
 }
 
 // Builtin modules are cached once and reused across imports.
-static Value load_builtinModule(vm_t *vm, const BuiltinModule *builtin)
+static Value _load_builtinModule(VM *vm, const BuiltinModule *builtin)
 {
     char cache_key[256];
     snprintf(cache_key, sizeof(cache_key), "@builtin:%s", builtin->name);
-    Value *cached = ht_get(vm->modules, cache_key);
+    Value *cached = _ht_get(vm->modules, cache_key);
     if (cached)
         return *cached;
-    Object *module_obj = new_module(vm, builtin->name, "<builtin>", true, false);
+    Object *module_obj = new_module(vm, builtin->name, "<builtin>", TRUE, FALSE);
     Value module_val = NEW_OBJ(module_obj);
     ht_put(vm->modules, cache_key, &module_val);
     ObjModule *module = AS_MODULE(module_val);
@@ -280,62 +280,62 @@ static Value load_builtinModule(vm_t *vm, const BuiltinModule *builtin)
         map_set(exports, key_val, *fn_val);
         free(fn_val);
     }
-    if (builtin_hasChildren(builtin->name))
-        attach_builtinChildren(vm, module, builtin->name);
+    if (_builtin_hasChildren(builtin->name))
+        _attach_builtinChildren(vm, module, builtin->name);
     module->state = MODULE_LOADED;
 
     return module_val;
 }
 
-static Value load_builtinPackage(vm_t *vm, const char *name)
+static Value _load_builtinPackage(VM *vm, const char *name)
 {
     char cache_key[256];
     snprintf(cache_key, sizeof(cache_key), "@builtin:%s", name);
 
-    Value *cached = ht_get(vm->modules, cache_key);
+    Value *cached = _ht_get(vm->modules, cache_key);
     if (cached)
         return *cached;
 
-    Object *module_obj = new_module(vm, name, "<builtin-package>", true, false);
+    Object *module_obj = new_module(vm, name, "<builtin-package>", TRUE, FALSE);
     Value module_val = NEW_OBJ(module_obj);
     ht_put(vm->modules, cache_key, &module_val);
 
     ObjModule *module = AS_MODULE(module_val);
-    attach_builtinChildren(vm, module, name);
+    _attach_builtinChildren(vm, module, name);
     module->state = MODULE_LOADED;
     return module_val;
 }
 
-static Value load_builtinNamed(vm_t *vm, const char *name)
+static Value _load_builtinNamed(VM *vm, const char *name)
 {
 #ifdef __EMSCRIPTEN__
-    if (is_browserUnsupportedBuiltin(name))
+    if (_is_browserUnsupportedBuiltin(name))
     {
         vm_errorf(vm, "Builtin module '%s' is not available in the browser playground.", name);
         return NEW_NIL();
     }
 #endif
 
-    const BuiltinModule *builtin = find_builtinModule(name);
+    const BuiltinModule *builtin = _find_builtinModule(name);
     if (builtin)
-        return load_builtinModule(vm, builtin);
+        return _load_builtinModule(vm, builtin);
 
-    if (builtin_hasChildren(name))
-        return load_builtinPackage(vm, name);
+    if (_builtin_hasChildren(name))
+        return _load_builtinPackage(vm, name);
 
     vm_errorf(vm, "Cannot resolve module '%s'.", name);
     return NEW_NIL();
 }
 
 // Creates a module object in the LOADING state. It becomes LOADED after execution completes.
-Object *new_module(vm_t *vm, const char *name, const char *path, bool builtin, bool is_main)
+Object *new_module(VM *vm, const char *name, const char *path, bool builtin, bool is_main)
 {
     ObjModule *module = (ObjModule *)malloc(sizeof(ObjModule));
     if (!module)
         vm_error(vm, "Out of memory while creating module object.");
     module->object.type = OBJ_MODULE;
-    module->object.is_marked = false;
-    module->object.in_gcList = false;
+    module->object.is_marked = FALSE;
+    module->object.in_gcList = FALSE;
     module->object.gc_color = GC_WHITE;
     module->object.next = NULL;
     module->name = strdup(name ? name : "");
@@ -371,18 +371,18 @@ BuiltinModule *new_builtinModule(const char *name, BuiltinFunc *functions,
     return module;
 }
 
-static bool is_private_moduleName(const char *name)
+static bool _is_PrivateModuleName(const char *name)
 {
     return name && name[0] == '_';
 }
 
-static table_t *collect_definedGlobals(compiler_t *comp)
+static HT_Table *_collect_definedGlobals(Compiler *comp)
 {
-    table_t *defined = ht_create(sizeof(bool));
-    bool yes = true;
+    HT_Table *defined = ht_create(sizeof(bool));
+    bool yes = TRUE;
 
     uint8_t *code = (uint8_t *)comp->code->data;
-    int size = list_size(comp->code);
+    int size = LIST_SIZE(comp->code);
     int pc = 0;
 
     while (pc < size)
@@ -392,13 +392,13 @@ static table_t *collect_definedGlobals(compiler_t *comp)
         if (op == OP_STORE_GLOBAL && pc < size)
         {
             int name_index = code[pc];
-            if (name_index >= 0 && name_index < list_size(comp->names))
+            if (name_index >= 0 && name_index < LIST_SIZE(comp->names))
             {
                 char *name = string_get(comp->names, name_index);
                 ht_put(defined, name, &yes);
             }
         }
-        pc += operand_count(op);
+        pc += _operand_count(op);
     }
 
     return defined;
@@ -426,14 +426,14 @@ char *module_resolvePathFrom(const char *base, const char *name)
             normalized[i] = '/';
     }
 
-    char *candidate = build_modulePath(base, normalized);
+    char *candidate = _build_modulePath(base, normalized);
     if (!candidate)
     {
         free(normalized);
         return NULL;
     }
 
-    if (file_exists(candidate))
+    if (_file_exists(candidate))
     {
         free(normalized);
         return candidate;
@@ -445,42 +445,42 @@ char *module_resolvePathFrom(const char *base, const char *name)
 
     free(candidate);
 
-    if (file_exists(fallback))
+    if (_file_exists(fallback))
         return fallback;
 
     free(fallback);
 
-    char *libs_path = find_libraryPath(base, normalized);
+    char *libs_path = _find_libraryPath(base, normalized);
     free(normalized);
     if (!libs_path)
         return NULL;
 
-    if (file_exists(libs_path))
+    if (_file_exists(libs_path))
         return libs_path;
 
     free(libs_path);
     return NULL;
 }
 
-char *module_resolvePath(vm_t *vm, const char *name)
+char *module_resolvePath(VM *vm, const char *name)
 {
     return module_resolvePathFrom(vm ? vm->current_path : NULL, name);
 }
 
 // Modules are cached before execution to support recursive/cyclic imports.
-Value load_module(vm_t *vm, const char *name)
+Value load_module(VM *vm, const char *name)
 {
     char *resolved = module_resolvePath(vm, name);
     if (!resolved)
     {
-        px_built_module_t *built_module = px_findBuiltModuleByName(vm->project_build, name);
+        PX_BuiltModule *built_module = px_findBuiltModuleByName(vm->project_build, name);
         if (built_module)
             resolved = strdup(built_module->path);
     }
     if (!resolved)
-        return load_builtinNamed(vm, name);
+        return _load_builtinNamed(vm, name);
 
-    Value *cached = ht_get(vm->modules, resolved);
+    Value *cached = _ht_get(vm->modules, resolved);
     if (cached)
     {
         Value loaded = *cached;
@@ -489,15 +489,15 @@ Value load_module(vm_t *vm, const char *name)
     }
 
     // Create/cache module object early to support recursive imports.
-    Object *module_obj = new_module(vm, name, resolved, false, false);
+    Object *module_obj = new_module(vm, name, resolved, FALSE, FALSE);
     Value module_val = NEW_OBJ(module_obj);
     ht_put(vm->modules, resolved, &module_val);
 
     ObjModule *module = AS_MODULE(module_val);
     char *source = NULL;
-    parser_t *parser = NULL;
-    compiler_t *comp = NULL;
-    px_built_module_t *built_module = px_findBuiltModule(vm->project_build, resolved);
+    Parser *parser = NULL;
+    Compiler *comp = NULL;
+    PX_BuiltModule *built_module = px_findBuiltModule(vm->project_build, resolved);
     if (built_module && built_module->compiler)
     {
         comp = built_module->compiler;
@@ -508,7 +508,7 @@ Value load_module(vm_t *vm, const char *name)
     }
     else
     {
-        source = file_readText(resolved);
+        source = _file_readText(resolved);
         if (!source)
             vm_errorf(vm, "Cannot read module '%s' (%s).", resolved, strerror(errno));
 
@@ -516,14 +516,14 @@ Value load_module(vm_t *vm, const char *name)
         module->source_hash = string_hash(source, module->source_size);
 
         init_scanner(source);
-        token_t *tokens = scan();
+        Token *tokens = scan();
         comp = init_compiler();
         comp->source_name = strdup(resolved);
         parser = init_parser(comp, tokens, MODE_FILE);
         parse(parser);
     }
 
-    vm_t *module_vm = init_vm(comp, NULL, false);
+    VM *module_vm = init_vm(comp, NULL, FALSE);
 
     // Share the parent VM's module cache with the module VM to allow caching of nested imports.
     ht_free(module_vm->modules);
@@ -534,7 +534,7 @@ Value load_module(vm_t *vm, const char *name)
     // allow relative imports within the module.
     if (module_vm->current_path)
         free(module_vm->current_path);
-    module_vm->current_path = copy_dirName(resolved);
+    module_vm->current_path = _copy_dirName(resolved);
 
     // Inside imported files, `module` refers to that file's module object.
     ht_set(module_vm->globals, "module", &module_val);
@@ -543,17 +543,17 @@ Value load_module(vm_t *vm, const char *name)
         vm_run(module_vm);
 
     PiMap *exports = module->exports;
-    table_t *defined_globals = collect_definedGlobals(comp);
+    HT_Table *defined_globals = _collect_definedGlobals(comp);
 
     // Iterate over defined_globals using the new iterator API
-    ht_iter it = ht_iterator(defined_globals);
-    while (ht_next(&it))
+    HT_Iterator it = _ht_iterator(defined_globals);
+    while (_ht_next(&it))
     {
         const char *key = it.key;
-        if (is_private_moduleName(key))
+        if (_is_PrivateModuleName(key))
             continue;
 
-        Value *value = ht_get(module_vm->globals, key);
+        Value *value = _ht_get(module_vm->globals, key);
         if (!value)
             continue;
 

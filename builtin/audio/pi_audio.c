@@ -24,19 +24,19 @@ ObjAudio *new_audio(SDL_AudioSpec spec, float *samples, Uint32 frames,
     return audio;
 }
 
-static void ensure_mixer(vm_t *vm)
+static void _ensure_mixer(VM *vm)
 {
-    static bool opened = false;
+    static bool opened = FALSE;
     if (opened)
         return;
 
     Mix_Init(MIX_INIT_MP3 | MIX_INIT_OGG);
     if (Mix_OpenAudio(48000, AUDIO_F32SYS, 2, 1024) < 0)
         vm_errorf(vm, "[audio] failed to open audio output: %s", Mix_GetError());
-    opened = true;
+    opened = TRUE;
 }
 
-static int active_channel(ObjAudio *audio)
+static int _active_channel(ObjAudio *audio)
 {
     if (audio->channel < 0 || Mix_GetChunk(audio->channel) != audio->chunk ||
         (!Mix_Playing(audio->channel) && !Mix_Paused(audio->channel)))
@@ -47,14 +47,14 @@ static int active_channel(ObjAudio *audio)
     return audio->channel;
 }
 
-static ObjAudio *require_audio(vm_t *vm, int argc, Value *argv, const char *name)
+static ObjAudio *_require_audio(VM *vm, int argc, Value *argv, const char *name)
 {
     if (argc < 1 || !IS_AUDIO(argv[0]))
         vm_errorf(vm, "[audio.%s] expects an audio clip.", name);
     return AS_AUDIO(argv[0]);
 }
 
-Value au_load(vm_t *vm, int argc, Value *argv)
+Value au_load(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[audio.load] expects a file path string.");
@@ -64,7 +64,7 @@ Value au_load(vm_t *vm, int argc, Value *argv)
     if (!resolved_path)
         vm_error(vm, "[audio.load] out of memory.");
 
-    ensure_mixer(vm);
+    _ensure_mixer(vm);
     Mix_Chunk *chunk = Mix_LoadWAV(resolved_path);
     if (!chunk)
     {
@@ -159,37 +159,37 @@ Value au_load(vm_t *vm, int argc, Value *argv)
                                                    (float *)converted_buffer, frames, chunk)));
 }
 
-Value au_sampleRate(vm_t *vm, int argc, Value *argv)
+Value au_sampleRate(VM *vm, int argc, Value *argv)
 {
-    return NEW_NUM(require_audio(vm, argc, argv, "sample_rate")->spec.freq);
+    return NEW_NUM(_require_audio(vm, argc, argv, "sample_rate")->spec.freq);
 }
 
-Value au_channels(vm_t *vm, int argc, Value *argv)
+Value au_channels(VM *vm, int argc, Value *argv)
 {
-    return NEW_NUM(require_audio(vm, argc, argv, "channels")->spec.channels);
+    return NEW_NUM(_require_audio(vm, argc, argv, "channels")->spec.channels);
 }
 
-Value au_frames(vm_t *vm, int argc, Value *argv)
+Value au_frames(VM *vm, int argc, Value *argv)
 {
-    return NEW_NUM(require_audio(vm, argc, argv, "frames")->frames);
+    return NEW_NUM(_require_audio(vm, argc, argv, "frames")->frames);
 }
 
-Value au_duration(vm_t *vm, int argc, Value *argv)
+Value au_duration(VM *vm, int argc, Value *argv)
 {
-    ObjAudio *audio = require_audio(vm, argc, argv, "duration");
+    ObjAudio *audio = _require_audio(vm, argc, argv, "duration");
     return NEW_NUM((double)audio->frames / audio->spec.freq);
 }
 
-Value au_format(vm_t *vm, int argc, Value *argv)
+Value au_format(VM *vm, int argc, Value *argv)
 {
-    ObjAudio *audio = require_audio(vm, argc, argv, "format");
+    ObjAudio *audio = _require_audio(vm, argc, argv, "format");
     const char *format = SDL_AUDIO_ISFLOAT(audio->spec.format) ? "f32" : "pcm";
     return NEW_OBJ(add_obj(vm, new_pistring(strdup(format))));
 }
 
-Value au_play(vm_t *vm, int argc, Value *argv)
+Value au_play(VM *vm, int argc, Value *argv)
 {
-    ObjAudio *audio = require_audio(vm, argc, argv, "play");
+    ObjAudio *audio = _require_audio(vm, argc, argv, "play");
     int loops = 0;
     if (argc > 1)
     {
@@ -198,7 +198,7 @@ Value au_play(vm_t *vm, int argc, Value *argv)
         loops = (int)AS_NUM(argv[1]);
     }
 
-    int current = active_channel(audio);
+    int current = _active_channel(audio);
     if (current >= 0)
         Mix_HaltChannel(current);
 
@@ -209,9 +209,9 @@ Value au_play(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(channel);
 }
 
-Value au_volume(vm_t *vm, int argc, Value *argv)
+Value au_volume(VM *vm, int argc, Value *argv)
 {
-    ObjAudio *audio = require_audio(vm, argc, argv, "volume");
+    ObjAudio *audio = _require_audio(vm, argc, argv, "volume");
     if (argc < 2 || !IS_NUM(argv[1]) || AS_NUM(argv[1]) < 0 || AS_NUM(argv[1]) > 1)
         vm_error(vm, "[audio.volume] expects a clip and a volume from 0 to 1.");
 
@@ -220,44 +220,44 @@ Value au_volume(vm_t *vm, int argc, Value *argv)
     return NEW_NUM((double)volume / MIX_MAX_VOLUME);
 }
 
-Value au_pause(vm_t *vm, int argc, Value *argv)
+Value au_pause(VM *vm, int argc, Value *argv)
 {
-    ObjAudio *audio = require_audio(vm, argc, argv, "pause");
-    int channel = active_channel(audio);
+    ObjAudio *audio = _require_audio(vm, argc, argv, "pause");
+    int channel = _active_channel(audio);
     if (channel < 0)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
     Mix_Pause(channel);
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value au_resume(vm_t *vm, int argc, Value *argv)
+Value au_resume(VM *vm, int argc, Value *argv)
 {
-    ObjAudio *audio = require_audio(vm, argc, argv, "resume");
-    int channel = active_channel(audio);
+    ObjAudio *audio = _require_audio(vm, argc, argv, "resume");
+    int channel = _active_channel(audio);
     if (channel < 0)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
     Mix_Resume(channel);
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value au_stop(vm_t *vm, int argc, Value *argv)
+Value au_stop(VM *vm, int argc, Value *argv)
 {
-    ObjAudio *audio = require_audio(vm, argc, argv, "stop");
-    int channel = active_channel(audio);
+    ObjAudio *audio = _require_audio(vm, argc, argv, "stop");
+    int channel = _active_channel(audio);
     if (channel < 0)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
     Mix_HaltChannel(channel);
     audio->channel = -1;
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value au_isPlaying(vm_t *vm, int argc, Value *argv)
+Value au_isPlaying(VM *vm, int argc, Value *argv)
 {
-    ObjAudio *audio = require_audio(vm, argc, argv, "is_playing");
-    return NEW_BOOL(active_channel(audio) >= 0);
+    ObjAudio *audio = _require_audio(vm, argc, argv, "is_playing");
+    return NEW_BOOL(_active_channel(audio) >= 0);
 }
 
-Value au_playMusic(vm_t *vm, int argc, Value *argv)
+Value au_playMusic(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[audio.play_music] expects a file path string.");
@@ -270,7 +270,7 @@ Value au_playMusic(vm_t *vm, int argc, Value *argv)
         loops = (int)AS_NUM(argv[1]);
     }
 
-    ensure_mixer(vm);
+    _ensure_mixer(vm);
     const char *path = AS_CSTRING(argv[0]);
     char *resolved_path = resolve_path(vm, path);
     if (!resolved_path)
@@ -288,18 +288,18 @@ Value au_playMusic(vm_t *vm, int argc, Value *argv)
 
     if (Mix_PlayMusic(current_music, loops) < 0)
         vm_errorf(vm, "[audio.play_music] failed to play '%s': %s", path, Mix_GetError());
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value au_musicIsPlaying(vm_t *vm, int argc, Value *argv)
+Value au_musicIsPlaying(VM *vm, int argc, Value *argv)
 {
     return NEW_BOOL(Mix_PlayingMusic() || Mix_PausedMusic());
 }
 
-Value au_stopMusic(vm_t *vm, int argc, Value *argv)
+Value au_stopMusic(VM *vm, int argc, Value *argv)
 {
     Mix_HaltMusic();
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
 static BuiltinFunc audio_funcs[] = {

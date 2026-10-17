@@ -13,7 +13,7 @@
 #include "common.h"
 
 typedef struct Object Object;
-typedef struct vm_t vm_t;
+typedef struct VM VM;
 
 #define IS_NUM(val) ((val).type == VAL_NUM)
 #define IS_NAN(val) ((val).type == VAL_NUM && (val).data.number == NAN)
@@ -43,11 +43,11 @@ typedef enum
     VAL_BOOL,
     VAL_NIL,
     VAL_OBJ,
-} v_type;
+} ValueType;
 
 typedef struct Value
 {
-    v_type type;
+    ValueType type;
     union
     {
         double number;
@@ -72,18 +72,18 @@ bool equals(Value left, Value right);
 
 int compare(Value left, Value right);
 
-Value new_value(token_t token);
+Value new_value(Token token);
 // Returns an owned string, decoding escapes for string literal tokens.
-char *string_fromToken(token_t token);
+char *string_fromToken(Token token);
 UpValue new_upvalue(Value value, int index);
 
 double as_number(Value val);
 bool as_bool(Value val);
 
 char *as_string(Value val);
-char *as_stringWithFormat(vm_t *vm, Value val);
+char *as_stringWithFormat(VM *vm, Value val);
 
-list_t *as_list(Value val);
+List *as_list(Value val);
 
 uint64_t value_hash(Value val);
 bool value_keyEquals(Value left, Value right);

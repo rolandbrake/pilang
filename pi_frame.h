@@ -15,11 +15,11 @@ typedef struct
     int bp; // base pointer
     int ip; // instruction pointer
 
-    list_t *code; // list of instructions
-    list_t *constants; // constants table for the frame
-    list_t *names; // names table for the frame
-    table_t *instrs; // instruction metadata for the frame
-    table_t *globals; // global environment for the frame
+    List *code; // list of instructions
+    List *constants; // constants table for the frame
+    List *names; // names table for the frame
+    HT_Table *instrs; // instruction metadata for the frame
+    HT_Table *globals; // global environment for the frame
     GlobalCache *global_cache; // resolved globals for this code unit
 
     int iters_top; // to track the state of iterators stack
@@ -28,7 +28,7 @@ typedef struct
     bool is_recursive; // Self-recursive fast calls reuse the current function context.
 } Frame;
 
-Frame *create_frame(int pc, int sp, int bp, list_t *code, list_t *constants, list_t *names, table_t *instrs, int iters_top, int ip, Function *fn);
+Frame *create_frame(int pc, int sp, int bp, List *code, List *constants, List *names, HT_Table *instrs, int iters_top, int ip, Function *fn);
 void free_frame(Frame *frame);
 
 #endif

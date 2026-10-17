@@ -11,7 +11,7 @@
 #include <SDL2/SDL.h>
 
 // helper to create a same-format surface
-static SDL_Surface *create_surfaceSameFormat(SDL_Surface *src, int w, int h)
+static SDL_Surface *_create_surfaceSameFormat(SDL_Surface *src, int w, int h)
 {
     Uint32 fmt = src->format->format;
     int bpp = src->format->BitsPerPixel;
@@ -20,7 +20,7 @@ static SDL_Surface *create_surfaceSameFormat(SDL_Surface *src, int w, int h)
 }
 
 // Color conversion: RGB to grayscale
-Value im_rgb2gray(vm_t *vm, int argc, Value *argv)
+Value im_rgb2gray(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.color.rgb2gray] expects an image.");
@@ -72,7 +72,7 @@ Value im_rgb2gray(vm_t *vm, int argc, Value *argv)
 }
 
 // Color conversion: Grayscale to RGB
-Value im_gray2rgb(vm_t *vm, int argc, Value *argv)
+Value im_gray2rgb(VM *vm, int argc, Value *argv)
 {
     // For our representation grayscale images are RGB with equal channels,
     // so just return a copy.
@@ -80,7 +80,7 @@ Value im_gray2rgb(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[image.color.gray2rgb] expects an image.");
 
     ObjImage *img = AS_IMAGE(argv[0]);
-    SDL_Surface *dst = create_surfaceSameFormat(img->surface, img->surface->w, img->surface->h);
+    SDL_Surface *dst = _create_surfaceSameFormat(img->surface, img->surface->w, img->surface->h);
     if (!dst)
         vm_error(vm, "[image.color.gray2rgb] failed to create surface.");
 
@@ -95,7 +95,7 @@ Value im_gray2rgb(vm_t *vm, int argc, Value *argv)
 }
 
 // Color conversion: Grayscale to RGBA
-Value im_gray2rgba(vm_t *vm, int argc, Value *argv)
+Value im_gray2rgba(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.color.gray2rgba] expects an image.");
@@ -136,7 +136,7 @@ Value im_gray2rgba(vm_t *vm, int argc, Value *argv)
 }
 
 // Color conversion: RGB to HSV
-Value im_rgb2hsv(vm_t *vm, int argc, Value *argv)
+Value im_rgb2hsv(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.color.rgb2hsv] expects an image.");
@@ -206,7 +206,7 @@ Value im_rgb2hsv(vm_t *vm, int argc, Value *argv)
 }
 
 // Color conversion: HSV to RGB
-Value im_hsv2rgb(vm_t *vm, int argc, Value *argv)
+Value im_hsv2rgb(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.color.hsv2rgb] expects an image.");

@@ -15,8 +15,8 @@ typedef struct
 #define GET_STRING(str_ptr) ((str_ptr)->data)
 
 String *new_string(const char *data);
-char *string_get(list_t *list, int index);
-void free_strings(list_t *list);
+char *string_get(List *list, int index);
+void free_strings(List *list);
 void free_string(String *string);
 
 #endif /* PI_STRING_H */

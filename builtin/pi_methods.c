@@ -146,7 +146,7 @@ static NativeMethod native_methods[] = {
 
 static int native_methodCount = sizeof(native_methods) / sizeof(NativeMethod);
 
-NativeMethod *pi_nativeMethodFor(o_type type, const char *name)
+NativeMethod *pi_nativeMethodFor(ObjectType type, const char *name)
 {
     /* Methods are grouped by receiver type.  Start in the relevant group so
      * a hot `list.push()` lookup does not scan the string-method group (and
@@ -188,7 +188,7 @@ NativeMethod *pi_nativeMethodFor(o_type type, const char *name)
     return NULL;
 }
 
-void pi_nativeMethodNames(o_type type, char *buffer, size_t size)
+void pi_nativeMethodNames(ObjectType type, char *buffer, size_t size)
 {
     if (!buffer || size == 0)
         return;
@@ -202,13 +202,13 @@ void pi_nativeMethodNames(o_type type, char *buffer, size_t size)
         if (method->type != type)
             continue;
 
-        bool seen = false;
+        bool seen = FALSE;
         for (int j = 0; j < i; j++)
         {
             NativeMethod *previous = &native_methods[j];
             if (previous->type == type && strcmp(previous->name, method->name) == 0)
             {
-                seen = true;
+                seen = TRUE;
                 break;
             }
         }

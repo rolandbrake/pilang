@@ -16,14 +16,14 @@
 #include "../pi_func.h"
 #include "../pi_table.h"
 
-typedef struct _transformState
+typedef struct TransformState
 {
     float tx, ty;
     float sx, sy;
     float angle;
     float alpha;
-    struct _transformState *next;
-} _transformState;
+    struct TransformState *next;
+} TransformState;
 
 #define EVENT_QUEUE_CAPACITY 256
 
@@ -51,11 +51,11 @@ static bool _try_setWindowIcon(SDL_Window *window, const char *path)
 {
     SDL_Surface *icon = IMG_Load(path);
     if (!icon)
-        return false;
+        return FALSE;
 
     SDL_SetWindowIcon(window, icon);
     SDL_FreeSurface(icon);
-    return true;
+    return TRUE;
 }
 
 static void _set_windowIcon(SDL_Window *window)
@@ -107,12 +107,12 @@ static void _set_windowIcon(SDL_Window *window)
 
 static void _set_color(SDL_Renderer *r, int color, float alpha)
 {
-    Uint8 rC = (color >> 16) & 255;
-    Uint8 gC = (color >> 8) & 255;
-    Uint8 bC = color & 255;
-    Uint8 aC = (Uint8)(alpha * 255);
+    Uint8 r_c = (color >> 16) & 255;
+    Uint8 g_c = (color >> 8) & 255;
+    Uint8 b_c = color & 255;
+    Uint8 a_c = (Uint8)(alpha * 255);
 
-    SDL_SetRenderDrawColor(r, rC, gC, bC, aC);
+    SDL_SetRenderDrawColor(r, r_c, g_c, b_c, a_c);
 }
 
 static void _transform(PiContext *ctx, float *x, float *y)
@@ -123,7 +123,7 @@ static void _transform(PiContext *ctx, float *x, float *y)
 
 static Value _map_get(PiMap *map, char *key)
 {
-    void *item = map ? ht_get(map->table, key) : NULL;
+    void *item = map ? _ht_get(map->table, key) : NULL;
 
     // Check if the item was found; if not, return nil
     if (item == NULL)
@@ -230,12 +230,12 @@ static void _init_handlerList(HandlerList *list, const char *name)
 
 static void _init_eventQueue(PiContext *ctx)
 {
-    ctx->eventQueue = (EventQueue *)malloc(sizeof(EventQueue));
-    ctx->eventQueue->capacity = EVENT_QUEUE_CAPACITY;
-    ctx->eventQueue->events = (PiEvent **)calloc(ctx->eventQueue->capacity, sizeof(PiEvent *));
-    ctx->eventQueue->head = 0;
-    ctx->eventQueue->tail = 0;
-    ctx->eventQueue->count = 0;
+    ctx->event_queue = (EventQueue *)malloc(sizeof(EventQueue));
+    ctx->event_queue->capacity = EVENT_QUEUE_CAPACITY;
+    ctx->event_queue->events = (PiEvent **)calloc(ctx->event_queue->capacity, sizeof(PiEvent *));
+    ctx->event_queue->head = 0;
+    ctx->event_queue->tail = 0;
+    ctx->event_queue->count = 0;
 }
 
 static void _init_eventSystem(PiContext *ctx)
@@ -282,7 +282,7 @@ static PiEvent *_pop_event(PiContext *ctx);
 
 static void _push_event(PiContext *ctx, PiEvent *e)
 {
-    if (ctx->eventQueue == NULL || ctx->eventQueue->events == NULL)
+    if (ctx->event_queue == NULL || ctx->event_queue->events == NULL)
     {
         _init_eventQueue(ctx);
     }
@@ -290,7 +290,7 @@ static void _push_event(PiContext *ctx, PiEvent *e)
     // Keep queued events bounded. draw.run() already dispatches every event,
     // while draw.poll() is optional, so an unconsumed queue must not grow for
     // the lifetime of a graphical application.
-    if (ctx->eventQueue->count >= ctx->eventQueue->capacity)
+    if (ctx->event_queue->count >= ctx->event_queue->capacity)
     {
         PiEvent *oldest = _pop_event(ctx);
         _free_event(oldest);
@@ -299,30 +299,30 @@ static void _push_event(PiContext *ctx, PiEvent *e)
     // Copy event
     PiEvent *copy = _clone_event(e);
 
-    ctx->eventQueue->events[ctx->eventQueue->tail] = copy;
-    ctx->eventQueue->tail = (ctx->eventQueue->tail + 1) % ctx->eventQueue->capacity;
-    ctx->eventQueue->count++;
+    ctx->event_queue->events[ctx->event_queue->tail] = copy;
+    ctx->event_queue->tail = (ctx->event_queue->tail + 1) % ctx->event_queue->capacity;
+    ctx->event_queue->count++;
 }
 
 static PiEvent *_pop_event(PiContext *ctx)
 {
-    if (ctx->eventQueue == NULL || !ctx->eventQueue->events || ctx->eventQueue->count == 0)
+    if (ctx->event_queue == NULL || !ctx->event_queue->events || ctx->event_queue->count == 0)
         return NULL;
 
-    PiEvent *e = ctx->eventQueue->events[ctx->eventQueue->head];
-    ctx->eventQueue->events[ctx->eventQueue->head] = NULL;
-    ctx->eventQueue->head = (ctx->eventQueue->head + 1) % ctx->eventQueue->capacity;
-    ctx->eventQueue->count--;
+    PiEvent *e = ctx->event_queue->events[ctx->event_queue->head];
+    ctx->event_queue->events[ctx->event_queue->head] = NULL;
+    ctx->event_queue->head = (ctx->event_queue->head + 1) % ctx->event_queue->capacity;
+    ctx->event_queue->count--;
 
     return e;
 }
 
 static void _clear_eventQueue(PiContext *ctx)
 {
-    if (ctx->eventQueue == NULL || !ctx->eventQueue->events)
+    if (ctx->event_queue == NULL || !ctx->event_queue->events)
         return;
 
-    while (ctx->eventQueue->count > 0)
+    while (ctx->event_queue->count > 0)
     {
         PiEvent *e = _pop_event(ctx);
         _free_event(e);
@@ -343,41 +343,41 @@ static void _cleanup_events(PiContext *ctx)
     }
 
     _clear_eventQueue(ctx);
-    if (ctx->eventQueue != NULL && ctx->eventQueue->events)
+    if (ctx->event_queue != NULL && ctx->event_queue->events)
     {
-        free(ctx->eventQueue->events);
-        ctx->eventQueue->events = NULL;
+        free(ctx->event_queue->events);
+        ctx->event_queue->events = NULL;
     }
-    if (ctx->eventQueue != NULL)
+    if (ctx->event_queue != NULL)
     {
-        free(ctx->eventQueue);
-        ctx->eventQueue = NULL;
+        free(ctx->event_queue);
+        ctx->event_queue = NULL;
     }
 }
 
-typedef struct _drawFontCacheEntry
+typedef struct DrawFontCacheEntry
 {
     int size;
     int style;
     TTF_Font *font;
-    struct _drawFontCacheEntry *next;
-} _drawFontCacheEntry;
+    struct DrawFontCacheEntry *next;
+} DrawFontCacheEntry;
 
-typedef struct _drawImageCacheEntry
+typedef struct DrawImageCacheEntry
 {
     char *path;
     SDL_Texture *texture;
     int width;
     int height;
-    struct _drawImageCacheEntry *next;
-} _drawImageCacheEntry;
+    struct DrawImageCacheEntry *next;
+} DrawImageCacheEntry;
 
 static void _cleanup_fontCache(PiContext *ctx)
 {
-    _drawFontCacheEntry *entry = (_drawFontCacheEntry *)ctx->userdata;
+    DrawFontCacheEntry *entry = (DrawFontCacheEntry *)ctx->userdata;
     while (entry)
     {
-        _drawFontCacheEntry *next = entry->next;
+        DrawFontCacheEntry *next = entry->next;
         TTF_CloseFont(entry->font);
         free(entry);
         entry = next;
@@ -387,10 +387,10 @@ static void _cleanup_fontCache(PiContext *ctx)
 
 static void _cleanup_imageCache(PiContext *ctx)
 {
-    _drawImageCacheEntry *entry = (_drawImageCacheEntry *)ctx->image_cache;
+    DrawImageCacheEntry *entry = (DrawImageCacheEntry *)ctx->image_cache;
     while (entry)
     {
-        _drawImageCacheEntry *next = entry->next;
+        DrawImageCacheEntry *next = entry->next;
         SDL_DestroyTexture(entry->texture);
         free(entry->path);
         free(entry);
@@ -399,9 +399,9 @@ static void _cleanup_imageCache(PiContext *ctx)
     ctx->image_cache = NULL;
 }
 
-static _drawImageCacheEntry *_load_cachedImage(vm_t *vm, PiContext *ctx, const char *path)
+static DrawImageCacheEntry *_load_cachedImage(VM *vm, PiContext *ctx, const char *path)
 {
-    for (_drawImageCacheEntry *entry = (_drawImageCacheEntry *)ctx->image_cache;
+    for (DrawImageCacheEntry *entry = (DrawImageCacheEntry *)ctx->image_cache;
          entry != NULL; entry = entry->next)
     {
         if (strcmp(entry->path, path) == 0)
@@ -417,7 +417,7 @@ static _drawImageCacheEntry *_load_cachedImage(vm_t *vm, PiContext *ctx, const c
     if (!texture)
         vm_errorf(vm, "Failed to create texture: %s", SDL_GetError());
 
-    _drawImageCacheEntry *entry = malloc(sizeof(*entry));
+    DrawImageCacheEntry *entry = malloc(sizeof(*entry));
     if (!entry)
     {
         SDL_DestroyTexture(texture);
@@ -432,7 +432,7 @@ static _drawImageCacheEntry *_load_cachedImage(vm_t *vm, PiContext *ctx, const c
     }
     entry->texture = texture;
     SDL_QueryTexture(texture, NULL, NULL, &entry->width, &entry->height);
-    entry->next = (_drawImageCacheEntry *)ctx->image_cache;
+    entry->next = (DrawImageCacheEntry *)ctx->image_cache;
     ctx->image_cache = entry;
     return entry;
 }
@@ -445,15 +445,15 @@ void dw_cleanupContext(PiContext *ctx)
     // draw.run() releases these resources when the window closes, then the
     // context is released again later by the VM's garbage collector.  Mark it
     // first so both paths are safe even if shutdown is re-entered.
-    ctx->cleaned = true;
-    ctx->running = false;
+    ctx->cleaned = TRUE;
+    ctx->running = FALSE;
     ctx->frame_callback = NEW_NIL();
     ctx->active_plot3d = NULL;
     ctx->font = NULL;
 
     while (ctx->_transform_stack != NULL)
     {
-        _transformState *state = (_transformState *)ctx->_transform_stack;
+        TransformState *state = (TransformState *)ctx->_transform_stack;
         ctx->_transform_stack = state->next;
         free(state);
     }
@@ -474,12 +474,12 @@ void dw_cleanupContext(PiContext *ctx)
     }
 }
 
-static Value _event_toValue(vm_t *vm, PiEvent *event)
+static Value _event_toValue(VM *vm, PiEvent *event)
 {
     return NEW_OBJ(add_obj(vm, (Object *)event));
 }
 
-static void _dispatch_event(vm_t *vm, PiContext *ctx, PiEvent *event)
+static void _dispatch_event(VM *vm, PiContext *ctx, PiEvent *event)
 {
     HandlerList *handlers = &ctx->handlers[event->event_type];
     if (handlers->count == 0)
@@ -564,7 +564,7 @@ static PiEvent *_translate_sdlEvent(const SDL_Event *event)
     return pi_event;
 }
 
-static void _pump_events(vm_t *vm, PiContext *ctx)
+static void _pump_events(VM *vm, PiContext *ctx)
 {
     SDL_Event sdl_event;
 
@@ -576,7 +576,7 @@ static void _pump_events(vm_t *vm, PiContext *ctx)
                        (sdl_event.type == SDL_KEYDOWN &&
                         sdl_event.key.keysym.sym == SDLK_ESCAPE);
         if (closing)
-            ctx->running = false;
+            ctx->running = FALSE;
 
         if (sdl_event.type == SDL_WINDOWEVENT &&
             (sdl_event.window.event == SDL_WINDOWEVENT_RESIZED ||
@@ -600,7 +600,7 @@ static void _pump_events(vm_t *vm, PiContext *ctx)
     }
 }
 
-Value dw_canvas(vm_t *vm, int argc, Value *argv)
+Value dw_canvas(VM *vm, int argc, Value *argv)
 {
     if (!IS_NUM(argv[0]) || !IS_NUM(argv[1]))
         vm_error(vm, "canvas() takes two numbers as arguments");
@@ -663,7 +663,7 @@ Value dw_canvas(vm_t *vm, int argc, Value *argv)
 
     ctx->width = w;
     ctx->height = h;
-    ctx->running = true;
+    ctx->running = TRUE;
     ctx->alpha = 1.0f; // Initialize alpha
     ctx->tx = 0.0f;    // Initialize _transform
     ctx->ty = 0.0f;
@@ -674,7 +674,7 @@ Value dw_canvas(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, (Object *)ctx));
 }
 
-Value dw_run(vm_t *vm, int argc, Value *argv)
+Value dw_run(VM *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (ctx == NULL)
@@ -696,7 +696,7 @@ Value dw_run(vm_t *vm, int argc, Value *argv)
         if (!ctx->running)
             break;
 
-        pt3d_redraw_context(ctx);
+        pt3d_RedrawContext(ctx);
 
         SDL_RenderPresent(ctx->renderer);
 
@@ -709,7 +709,7 @@ Value dw_run(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value dw_clear(vm_t *vm, int argc, Value *argv)
+Value dw_clear(VM *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
@@ -718,12 +718,12 @@ Value dw_clear(vm_t *vm, int argc, Value *argv)
     int color = (argc > 1) ? as_number(argv[1]) : 0x000000;
     _set_color(ctx->renderer, color, ctx->alpha);
     SDL_RenderClear((SDL_Renderer *)ctx->renderer);
-    ctx->plot_subplots_cleared = false;
+    ctx->plot_subplots_cleared = FALSE;
 
     return NEW_NIL();
 }
 
-static void draw_circle(SDL_Renderer *r, int cx, int cy, int radius)
+static void _draw_circle(SDL_Renderer *r, int cx, int cy, int radius)
 {
     int x = radius;
     int y = 0;
@@ -753,7 +753,7 @@ static void draw_circle(SDL_Renderer *r, int cx, int cy, int radius)
     }
 }
 
-static void draw_filledCircle(SDL_Renderer *r, int cx, int cy, int radius)
+static void _draw_filledCircle(SDL_Renderer *r, int cx, int cy, int radius)
 {
     for (int y = -radius; y <= radius; y++)
     {
@@ -762,7 +762,7 @@ static void draw_filledCircle(SDL_Renderer *r, int cx, int cy, int radius)
     }
 }
 
-Value dw_pixel(vm_t *vm, int argc, Value *argv)
+Value dw_pixel(VM *vm, int argc, Value *argv)
 {
     // Usage: pixel(canvas, x, y, color)
     PiContext *ctx = _get_ctx(argv[0]);
@@ -774,7 +774,7 @@ Value dw_pixel(vm_t *vm, int argc, Value *argv)
 
     float x = as_number(argv[1]);
     float y = as_number(argv[2]);
-    int color = (argc > 3) ? as_number(argv[3]) : 0xFFFFFF;
+    int color = (argc > 3) ? as_number(argv[3]) : 0xffffff;
 
     _transform(ctx, &x, &y);
     _set_color(ctx->renderer, color, ctx->alpha);
@@ -783,7 +783,7 @@ Value dw_pixel(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value dw_line(vm_t *vm, int argc, Value *argv)
+Value dw_line(VM *vm, int argc, Value *argv)
 {
     // Usage: line(canvas, x1, y1, x2, y2, color)
     PiContext *ctx = _get_ctx(argv[0]);
@@ -797,7 +797,7 @@ Value dw_line(vm_t *vm, int argc, Value *argv)
     float y1 = as_number(argv[2]);
     float x2 = as_number(argv[3]);
     float y2 = as_number(argv[4]);
-    int color = (argc > 5) ? as_number(argv[5]) : 0xFFFFFF;
+    int color = (argc > 5) ? as_number(argv[5]) : 0xffffff;
 
     _transform(ctx, &x1, &y1);
     _transform(ctx, &x2, &y2);
@@ -807,15 +807,15 @@ Value dw_line(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value dw_triangle(vm_t *vm, int argc, Value *argv)
+Value dw_triangle(VM *vm, int argc, Value *argv)
 {
-    // Usage: triangle(canvas, x1, y1, x2, y2, x3, y3, color, filled)
+    // Usage: Triangle(canvas, x1, y1, x2, y2, x3, y3, color, filled)
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
-        vm_error(vm, "triangle() takes a canvas as first argument");
+        vm_error(vm, "Triangle() takes a canvas as first argument");
 
     if (argc < 7)
-        vm_error(vm, "triangle() needs x1,y1,x2,y2,x3,y3 coordinates");
+        vm_error(vm, "Triangle() needs x1,y1,x2,y2,x3,y3 coordinates");
 
     float x1 = as_number(argv[1]);
     float y1 = as_number(argv[2]);
@@ -823,8 +823,8 @@ Value dw_triangle(vm_t *vm, int argc, Value *argv)
     float y2 = as_number(argv[4]);
     float x3 = as_number(argv[5]);
     float y3 = as_number(argv[6]);
-    int color = (argc > 7) ? as_number(argv[7]) : 0xFFFFFF;
-    bool filled = (argc > 8) ? as_bool(argv[8]) : false;
+    int color = (argc > 7) ? as_number(argv[7]) : 0xffffff;
+    bool filled = (argc > 8) ? as_bool(argv[8]) : FALSE;
 
     _transform(ctx, &x1, &y1);
     _transform(ctx, &x2, &y2);
@@ -833,7 +833,7 @@ Value dw_triangle(vm_t *vm, int argc, Value *argv)
 
     if (filled)
     {
-        // Draw filled triangle using geometry rendering
+        // Draw filled Triangle using geometry rendering
         SDL_Vertex vertices[3];
         SDL_Color col = {
             (Uint8)((color >> 16) & 255),
@@ -872,7 +872,7 @@ Value dw_triangle(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value dw_rect(vm_t *vm, int argc, Value *argv)
+Value dw_rect(VM *vm, int argc, Value *argv)
 {
     // Usage: rect(canvas, x, y, width, height, color, filled)
     PiContext *ctx = _get_ctx(argv[0]);
@@ -886,8 +886,8 @@ Value dw_rect(vm_t *vm, int argc, Value *argv)
     float y = as_number(argv[2]);
     float w = as_number(argv[3]);
     float h = as_number(argv[4]);
-    int color = (argc > 5) ? as_number(argv[5]) : 0xFFFFFF;
-    bool filled = (argc > 6) ? as_bool(argv[6]) : false;
+    int color = (argc > 5) ? as_number(argv[5]) : 0xffffff;
+    bool filled = (argc > 6) ? as_bool(argv[6]) : FALSE;
 
     // _transform the rectangle corners
     float x1 = x;
@@ -919,7 +919,7 @@ Value dw_rect(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value dw_polygon(vm_t *vm, int argc, Value *argv)
+Value dw_polygon(VM *vm, int argc, Value *argv)
 {
     // Usage: polygon(canvas, points, color, filled)
     // points is a list of [x1, y1, x2, y2, ...] or list of [x,y] pairs
@@ -935,7 +935,7 @@ Value dw_polygon(vm_t *vm, int argc, Value *argv)
     if (!IS_LIST(points_val))
         vm_error(vm, "polygon() second argument must be a list");
 
-    list_t *list = AS_CLIST(points_val);
+    List *list = AS_CLIST(points_val);
     int point_count = PILIST_SIZE(points_val);
 
     if (point_count < 3)
@@ -948,23 +948,23 @@ Value dw_polygon(vm_t *vm, int argc, Value *argv)
 
     for (int i = 0; i < point_count; i++)
     {
-        Value pair = *(Value *)list_getAt(list, i);
+        Value pair = *(Value *)_list_getAt(list, i);
         if (!IS_LIST(pair) || as_list(pair)->size < 2)
         {
             free(points);
             vm_error(vm, "Each point must be a list of [x, y]");
         }
 
-        list_t *point = as_list(pair);
-        float px = as_number(*(Value *)list_getAt(point, 0));
-        float py = as_number(*(Value *)list_getAt(point, 1));
+        List *point = as_list(pair);
+        float px = as_number(*(Value *)_list_getAt(point, 0));
+        float py = as_number(*(Value *)_list_getAt(point, 1));
         _transform(ctx, &px, &py);
         points[i].x = px;
         points[i].y = py;
     }
 
-    int color = (argc > 2) ? as_number(argv[2]) : 0xFFFFFF;
-    bool filled = (argc > 3) ? as_bool(argv[3]) : false;
+    int color = (argc > 2) ? as_number(argv[2]) : 0xffffff;
+    bool filled = (argc > 3) ? as_bool(argv[3]) : FALSE;
 
     _set_color(ctx->renderer, color, ctx->alpha);
 
@@ -972,7 +972,7 @@ Value dw_polygon(vm_t *vm, int argc, Value *argv)
     {
         // For filled polygon, we need to triangulate or use a different approach
         // Using SDL_RenderGeometry requires triangulation
-        // Simple approach: draw as a triangle fan from first point
+        // Simple approach: draw as a Triangle fan from first point
         for (int i = 1; i < point_count - 1; i++)
         {
             SDL_Vertex vertices[3];
@@ -1019,7 +1019,7 @@ Value dw_polygon(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value dw_circle(vm_t *vm, int argc, Value *argv)
+Value dw_circle(VM *vm, int argc, Value *argv)
 {
     // Usage: circle(canvas, x, y, radius, color, filled)
     PiContext *ctx = _get_ctx(argv[0]);
@@ -1032,8 +1032,8 @@ Value dw_circle(vm_t *vm, int argc, Value *argv)
     float x = as_number(argv[1]);
     float y = as_number(argv[2]);
     float radius = as_number(argv[3]);
-    int color = (argc > 4) ? as_number(argv[4]) : 0xFFFFFF;
-    bool filled = (argc > 5) ? as_bool(argv[5]) : false;
+    int color = (argc > 4) ? as_number(argv[4]) : 0xffffff;
+    bool filled = (argc > 5) ? as_bool(argv[5]) : FALSE;
 
     _transform(ctx, &x, &y);
 
@@ -1046,14 +1046,14 @@ Value dw_circle(vm_t *vm, int argc, Value *argv)
     _set_color(ctx->renderer, color, ctx->alpha);
 
     if (filled)
-        draw_filledCircle((SDL_Renderer *)ctx->renderer, (int)x, (int)y, final_radius);
+        _draw_filledCircle((SDL_Renderer *)ctx->renderer, (int)x, (int)y, final_radius);
     else
-        draw_circle((SDL_Renderer *)ctx->renderer, (int)x, (int)y, final_radius);
+        _draw_circle((SDL_Renderer *)ctx->renderer, (int)x, (int)y, final_radius);
 
     return NEW_NIL();
 }
 
-Value dw_translate(vm_t *vm, int argc, Value *argv)
+Value dw_translate(VM *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
@@ -1064,7 +1064,7 @@ Value dw_translate(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value dw_scale(vm_t *vm, int argc, Value *argv)
+Value dw_scale(VM *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
@@ -1075,7 +1075,7 @@ Value dw_scale(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value dw_rotate(vm_t *vm, int argc, Value *argv)
+Value dw_rotate(VM *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
@@ -1085,7 +1085,7 @@ Value dw_rotate(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value dw_alpha(vm_t *vm, int argc, Value *argv)
+Value dw_alpha(VM *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
@@ -1095,7 +1095,7 @@ Value dw_alpha(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-static TTF_Font *load_styledFont(const char *font_path, int size, bool bold, bool italic)
+static TTF_Font *_load_styledFont(const char *font_path, int size, bool bold, bool italic)
 {
     if (!font_path)
         return NULL;
@@ -1113,7 +1113,7 @@ static TTF_Font *load_styledFont(const char *font_path, int size, bool bold, boo
     return font;
 }
 
-static TTF_Font *load_defaultFont(PiContext *ctx, int size, bool bold, bool italic)
+static TTF_Font *_load_defaultFont(PiContext *ctx, int size, bool bold, bool italic)
 {
     int style = TTF_STYLE_NORMAL;
     if (bold)
@@ -1121,7 +1121,7 @@ static TTF_Font *load_defaultFont(PiContext *ctx, int size, bool bold, bool ital
     if (italic)
         style |= TTF_STYLE_ITALIC;
 
-    for (_drawFontCacheEntry *entry = (_drawFontCacheEntry *)ctx->userdata;
+    for (DrawFontCacheEntry *entry = (DrawFontCacheEntry *)ctx->userdata;
          entry != NULL; entry = entry->next)
     {
         if (entry->size == size && entry->style == style)
@@ -1143,7 +1143,7 @@ static TTF_Font *load_defaultFont(PiContext *ctx, int size, bool bold, bool ital
         return NULL;
 
     TTF_SetFontStyle(font, style);
-    _drawFontCacheEntry *entry = malloc(sizeof(_drawFontCacheEntry));
+    DrawFontCacheEntry *entry = malloc(sizeof(DrawFontCacheEntry));
     if (!entry)
     {
         TTF_CloseFont(font);
@@ -1153,12 +1153,12 @@ static TTF_Font *load_defaultFont(PiContext *ctx, int size, bool bold, bool ital
     entry->size = size;
     entry->style = style;
     entry->font = font;
-    entry->next = (_drawFontCacheEntry *)ctx->userdata;
+    entry->next = (DrawFontCacheEntry *)ctx->userdata;
     ctx->userdata = entry;
     return font;
 }
 
-static void get_textDimensions(TTF_Font *font, const char *text, int *w, int *h)
+static void _get_textDimensions(TTF_Font *font, const char *text, int *w, int *h)
 {
     if (!font || !text)
     {
@@ -1172,7 +1172,7 @@ static void get_textDimensions(TTF_Font *font, const char *text, int *w, int *h)
     TTF_SizeUTF8(font, text, w, h);
 }
 
-static void align_textPosition(int text_w, int text_h, float *x, float *y, const char *align)
+static void _align_textPosition(int text_w, int text_h, float *x, float *y, const char *align)
 {
     if (!align)
         return;
@@ -1191,7 +1191,7 @@ static void align_textPosition(int text_w, int text_h, float *x, float *y, const
     // "left" and "top" are default, no adjustment needed
 }
 
-Value dw_text(vm_t *vm, int argc, Value *argv)
+Value dw_text(VM *vm, int argc, Value *argv)
 {
     // Usage: text(canvas, x, y, text, opts)
     // opts: {color, font, size, align, bold, italic}
@@ -1213,12 +1213,12 @@ Value dw_text(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "text() could not format its text argument");
 
     // Default options
-    int color = 0xFFFFFF;
+    int color = 0xffffff;
     char *font_path = NULL;
     int font_size = 16;
     char *align = NULL;
-    bool bold = false;
-    bool italic = false;
+    bool bold = FALSE;
+    bool italic = FALSE;
 
     if (argc > 4 && IS_MAP(argv[4]))
         _parse_drawOptions(argv[4], &color, &font_path, &font_size, &align, &bold, &italic, NULL, NULL, NULL);
@@ -1226,7 +1226,7 @@ Value dw_text(vm_t *vm, int argc, Value *argv)
     TTF_Font *font = NULL;
     if (font_path)
     {
-        font = load_styledFont(font_path, font_size, bold, italic);
+        font = _load_styledFont(font_path, font_size, bold, italic);
     }
     else if (ctx->font)
     {
@@ -1241,15 +1241,15 @@ Value dw_text(vm_t *vm, int argc, Value *argv)
     }
     else
     {
-        font = load_defaultFont(ctx, font_size, bold, italic);
+        font = _load_defaultFont(ctx, font_size, bold, italic);
         if (!font)
             vm_error(vm, "Failed to load any font. Please specify a font path.");
     }
 
     int text_w, text_h;
-    get_textDimensions(font, text, &text_w, &text_h);
+    _get_textDimensions(font, text, &text_w, &text_h);
 
-    align_textPosition(text_w, text_h, &x, &y, align);
+    _align_textPosition(text_w, text_h, &x, &y, align);
 
     _transform(ctx, &x, &y);
 
@@ -1289,7 +1289,7 @@ Value dw_text(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value dw_image(vm_t *vm, int argc, Value *argv)
+Value dw_image(VM *vm, int argc, Value *argv)
 {
     // Usage: image(canvas, path, x, y, opts)
     // opts: {w, h, alpha, color, flip_y, angle}
@@ -1306,11 +1306,11 @@ Value dw_image(vm_t *vm, int argc, Value *argv)
     float y = as_number(argv[3]);
 
     // Default options
-    int color = 0xFFFFFF;
+    int color = 0xffffff;
     float img_alpha = -1.0f; // -1 means use context alpha
     int img_w = 0;
     int img_h = 0;
-    bool flip_y = false;
+    bool flip_y = FALSE;
     double angle = 0;
 
     if (argc > 4 && IS_MAP(argv[4]))
@@ -1326,7 +1326,7 @@ Value dw_image(vm_t *vm, int argc, Value *argv)
 
     _transform(ctx, &x, &y);
 
-    _drawImageCacheEntry *image = _load_cachedImage(vm, ctx, path);
+    DrawImageCacheEntry *image = _load_cachedImage(vm, ctx, path);
 
     // Apply resize if specified
     int dst_w = img_w > 0 ? img_w : image->width;
@@ -1351,7 +1351,7 @@ Value dw_image(vm_t *vm, int argc, Value *argv)
 }
 
 // Push current _transform state onto stack
-Value dw_push(vm_t *vm, int argc, Value *argv)
+Value dw_push(VM *vm, int argc, Value *argv)
 {
     // Usage: push(canvas)
 
@@ -1360,7 +1360,7 @@ Value dw_push(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "push() takes a canvas as first argument");
 
     // Create new _transform state
-    _transformState *state = (_transformState *)malloc(sizeof(_transformState));
+    TransformState *state = (TransformState *)malloc(sizeof(TransformState));
     if (!state)
         vm_error(vm, "Out of memory for _transform state");
 
@@ -1373,13 +1373,13 @@ Value dw_push(vm_t *vm, int argc, Value *argv)
     state->alpha = ctx->alpha;
 
     // Push onto stack
-    state->next = (_transformState *)ctx->_transform_stack;
+    state->next = (TransformState *)ctx->_transform_stack;
     ctx->_transform_stack = state;
 
     return NEW_NIL();
 }
 
-Value dw_pop(vm_t *vm, int argc, Value *argv)
+Value dw_pop(VM *vm, int argc, Value *argv)
 {
     // Usage: pop(canvas)
 
@@ -1392,7 +1392,7 @@ Value dw_pop(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "pop() called with no matching push()");
 
     // Pop from stack
-    _transformState *state = (_transformState *)ctx->_transform_stack;
+    TransformState *state = (TransformState *)ctx->_transform_stack;
     ctx->_transform_stack = state->next;
 
     // Restore state
@@ -1408,7 +1408,7 @@ Value dw_pop(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value dw_mouse(vm_t *vm, int argc, Value *argv)
+Value dw_mouse(VM *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
@@ -1417,7 +1417,7 @@ Value dw_mouse(vm_t *vm, int argc, Value *argv)
     int x, y;
     Uint32 buttons = SDL_GetMouseState(&x, &y);
 
-    table_t *table = ht_create(sizeof(Value));
+    HT_Table *table = ht_create(sizeof(Value));
 
     ht_put(table, "x", &NEW_NUM((double)x));
     ht_put(table, "y", &NEW_NUM((double)y));
@@ -1430,7 +1430,7 @@ Value dw_mouse(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(map);
 }
 
-Value dw_cursor(vm_t *vm, int argc, Value *argv)
+Value dw_cursor(VM *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx || argc < 2 || !IS_BOOL(argv[1]))
@@ -1440,7 +1440,7 @@ Value dw_cursor(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value dw_key(vm_t *vm, int argc, Value *argv)
+Value dw_key(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_NUM(argv[1]))
         vm_error(vm, "key() takes a canvas and a key code");
@@ -1457,16 +1457,16 @@ Value dw_key(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(scancode != SDL_SCANCODE_UNKNOWN && state[scancode]);
 }
 
-Value dw_size(vm_t *vm, int argc, Value *argv)
+Value dw_size(VM *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
         return NEW_NIL();
 
-    list_t *list = list_create(sizeof(Value));
+    List *list = list_create(sizeof(Value));
 
-    list_add(list, &NEW_NUM((double)ctx->width));
-    list_add(list, &NEW_NUM((double)ctx->height));
+    _list_add(list, &NEW_NUM((double)ctx->width));
+    _list_add(list, &NEW_NUM((double)ctx->height));
 
     PiList *result = (PiList *)add_obj(vm, new_list(list));
 
@@ -1474,17 +1474,17 @@ Value dw_size(vm_t *vm, int argc, Value *argv)
 }
 
 // Check if window is still running
-Value dw_isRunning(vm_t *vm, int argc, Value *argv)
+Value dw_isRunning(VM *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
 
-    return ctx->running ? NEW_BOOL(true) : NEW_BOOL(false);
+    return ctx->running ? NEW_BOOL(TRUE) : NEW_BOOL(FALSE);
 }
 
 // Manually present the frame
-Value dw_present(vm_t *vm, int argc, Value *argv)
+Value dw_present(VM *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
@@ -1495,7 +1495,7 @@ Value dw_present(vm_t *vm, int argc, Value *argv)
 }
 
 // Add this function to pi_draw.c
-Value dw_animate(vm_t *vm, int argc, Value *argv)
+Value dw_animate(VM *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
@@ -1514,18 +1514,18 @@ Value dw_animate(vm_t *vm, int argc, Value *argv)
 }
 
 // Close the window
-Value dw_close(vm_t *vm, int argc, Value *argv)
+Value dw_close(VM *vm, int argc, Value *argv)
 {
     PiContext *ctx = _get_ctx(argv[0]);
     if (!ctx)
         return NEW_NIL();
 
-    ctx->running = false;
+    ctx->running = FALSE;
     return NEW_NIL();
 }
 
 // Register event handler
-Value dw_on(vm_t *vm, int argc, Value *argv)
+Value dw_on(VM *vm, int argc, Value *argv)
 {
     // Usage: on(canvas, event_type, callback)
     PiContext *ctx = _get_ctx(argv[0]);
@@ -1564,7 +1564,7 @@ Value dw_on(vm_t *vm, int argc, Value *argv)
 }
 
 // Remove event handler
-Value dw_off(vm_t *vm, int argc, Value *argv)
+Value dw_off(VM *vm, int argc, Value *argv)
 {
     // Usage: off(canvas, event_type, [callback])
     PiContext *ctx = _get_ctx(argv[0]);
@@ -1620,7 +1620,7 @@ Value dw_off(vm_t *vm, int argc, Value *argv)
 }
 
 // Poll for event (non-blocking)
-Value dw_poll(vm_t *vm, int argc, Value *argv)
+Value dw_poll(VM *vm, int argc, Value *argv)
 {
     // Usage: poll(canvas) -> event or nil
     PiContext *ctx = _get_ctx(argv[0]);
@@ -1637,7 +1637,7 @@ Value dw_poll(vm_t *vm, int argc, Value *argv)
 }
 
 // Wait for event (blocking)
-Value dw_wait(vm_t *vm, int argc, Value *argv)
+Value dw_wait(VM *vm, int argc, Value *argv)
 {
     // Usage: wait(canvas) -> event
     PiContext *ctx = _get_ctx(argv[0]);
@@ -1661,31 +1661,31 @@ Value dw_wait(vm_t *vm, int argc, Value *argv)
 // Module Registration
 static BuiltinConst draw_const[] = {
     {"COLOR_BLACK", NEW_NUM(0x000000)},
-    {"COLOR_WHITE", NEW_NUM(0xFFFFFF)},
+    {"COLOR_WHITE", NEW_NUM(0xffffff)},
 
     // Primary vivid colors
-    {"COLOR_RED", NEW_NUM(0xFF1744)},
-    {"COLOR_GREEN", NEW_NUM(0x00E676)},
-    {"COLOR_BLUE", NEW_NUM(0x2979FF)},
+    {"COLOR_RED", NEW_NUM(0xff1744)},
+    {"COLOR_GREEN", NEW_NUM(0x00e676)},
+    {"COLOR_BLUE", NEW_NUM(0x2979ff)},
 
     // Secondary vivid colors
-    {"COLOR_YELLOW", NEW_NUM(0xFFEA00)},
-    {"COLOR_MAGENTA", NEW_NUM(0xFF00FF)},
-    {"COLOR_CYAN", NEW_NUM(0x00E5FF)},
+    {"COLOR_YELLOW", NEW_NUM(0xffea00)},
+    {"COLOR_MAGENTA", NEW_NUM(0xff00ff)},
+    {"COLOR_CYAN", NEW_NUM(0x00e5ff)},
 
     // Accent colors
-    {"COLOR_ORANGE", NEW_NUM(0xFF6D00)},
-    {"COLOR_PURPLE", NEW_NUM(0xAA00FF)},
-    {"COLOR_PINK", NEW_NUM(0xFF4081)},
-    {"COLOR_LIME", NEW_NUM(0xC6FF00)},
-    {"COLOR_TEAL", NEW_NUM(0x1DE9B6)},
-    {"COLOR_INDIGO", NEW_NUM(0x536DFE)},
+    {"COLOR_ORANGE", NEW_NUM(0xff6d00)},
+    {"COLOR_PURPLE", NEW_NUM(0xaa00ff)},
+    {"COLOR_PINK", NEW_NUM(0xff4081)},
+    {"COLOR_LIME", NEW_NUM(0xc6ff00)},
+    {"COLOR_TEAL", NEW_NUM(0x1de9b6)},
+    {"COLOR_INDIGO", NEW_NUM(0x536dfe)},
 
-    {"COLOR_BROWN", NEW_NUM(0xBF360C)},
+    {"COLOR_BROWN", NEW_NUM(0xbf360c)},
 
     // Neutral grays
     {"COLOR_GRAY", NEW_NUM(0x757575)},
-    {"COLOR_LIGHT_GRAY", NEW_NUM(0xE0E0E0)},
+    {"COLOR_LIGHT_GRAY", NEW_NUM(0xe0e0e0)},
     {"COLOR_DARK_GRAY", NEW_NUM(0x424242)},
 
     {"COLOR_TRANSPARENT", NEW_NUM(0x00000000)},
@@ -1790,7 +1790,7 @@ static BuiltinFunc draw_funcs[] = {
     {"clear", dw_clear},
     {"pixel", dw_pixel},
     {"line", dw_line},
-    {"triangle", dw_triangle},
+    {"Triangle", dw_triangle},
     {"rect", dw_rect},
     {"polygon", dw_polygon},
     {"circle", dw_circle},

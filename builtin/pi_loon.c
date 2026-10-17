@@ -16,10 +16,10 @@ typedef struct
 {
     const char *text;
     size_t pos, line, column;
-    loon_error_t *error;
-} parser_t;
+    LoonError *error;
+} Parser;
 
-static void _fail(parser_t *p, const char *format, ...)
+static void _fail(Parser *p, const char *format, ...)
 {
     if (p->error && p->error->message[0] == '\0')
     {
@@ -35,9 +35,9 @@ static void _fail(parser_t *p, const char *format, ...)
     }
 }
 
-static char _peek(parser_t *p) { return p->text[p->pos]; }
+static char _peek(Parser *p) { return p->text[p->pos]; }
 
-static char _take(parser_t *p)
+static char _take(Parser *p)
 {
     char c = p->text[p->pos++];
     if (c == '\n')
@@ -50,21 +50,21 @@ static char _take(parser_t *p)
     return c;
 }
 
-static void _spaces(parser_t *p)
+static void _spaces(Parser *p)
 {
     while (_peek(p) == ' ' || _peek(p) == '\t' || _peek(p) == '\r')
         _take(p);
 }
 
-static loon_value_t *_value_new(loon_type_t type)
+static LoonValue *_value_new(LoonType type)
 {
-    loon_value_t *value = calloc(1, sizeof(*value));
+    LoonValue *value = calloc(1, sizeof(*value));
     if (value)
         value->type = type;
     return value;
 }
 
-void loon_free(loon_value_t *value)
+void loon_free(LoonValue *value)
 {
     if (!value)
         return;
@@ -88,28 +88,28 @@ void loon_free(loon_value_t *value)
     free(value);
 }
 
-static bool _append_item(loon_value_t *array, loon_value_t *item)
+static bool _append_item(LoonValue *array, LoonValue *item)
 {
     size_t count = array->as.array.count;
-    loon_value_t **items = realloc(array->as.array.items, (count + 1) * sizeof(*items));
+    LoonValue **items = realloc(array->as.array.items, (count + 1) * sizeof(*items));
     if (!items)
-        return false;
+        return FALSE;
     array->as.array.items = items;
     items[count] = item;
     array->as.array.count++;
-    return true;
+    return TRUE;
 }
 
-static bool _add_member(loon_value_t *object, char *key, loon_value_t *value)
+static bool _add_member(LoonValue *object, char *key, LoonValue *value)
 {
     size_t count = object->as.object.count;
-    loon_member_t *members = realloc(object->as.object.members, (count + 1) * sizeof(*members));
+    LoonMember *members = realloc(object->as.object.members, (count + 1) * sizeof(*members));
     if (!members)
-        return false;
+        return FALSE;
     object->as.object.members = members;
-    members[count] = (loon_member_t){key, value};
+    members[count] = (LoonMember){key, value};
     object->as.object.count++;
-    return true;
+    return TRUE;
 }
 
 static char *_slice(const char *start, size_t length)
@@ -122,7 +122,7 @@ static char *_slice(const char *start, size_t length)
     return result;
 }
 
-static char *_parse_string(parser_t *p)
+static char *_parse_string(Parser *p)
 {
     if (_take(p) != '"')
         return NULL;
@@ -174,14 +174,14 @@ static char *_parse_string(parser_t *p)
     return out ? out : _slice("", 0);
 }
 
-static loon_value_t *_parse_value(parser_t *p);
-static char *_parse_key(parser_t *p);
-static loon_value_t *parse_block(parser_t *p, size_t indent);
-static loon_value_t *parse_braced_object(parser_t *p);
+static LoonValue *_parse_value(Parser *p);
+static char *_parse_key(Parser *p);
+static LoonValue *_parse_block(Parser *p, size_t indent);
+static LoonValue *_parse_BracedObject(Parser *p);
 
-static loon_value_t *parse_inline_array(parser_t *p)
+static LoonValue *_parse_InlineArray(Parser *p)
 {
-    loon_value_t *array = _value_new(LOON_ARRAY);
+    LoonValue *array = _value_new(LOON_ARRAY);
     if (!array)
         return NULL;
     _take(p);
@@ -193,7 +193,7 @@ static loon_value_t *parse_inline_array(parser_t *p)
     }
     while (_peek(p))
     {
-        loon_value_t *item = _parse_value(p);
+        LoonValue *item = _parse_value(p);
         if (!item || !_append_item(array, item))
         {
             loon_free(item);
@@ -220,9 +220,9 @@ static loon_value_t *parse_inline_array(parser_t *p)
     return NULL;
 }
 
-static loon_value_t *parse_inline_object(parser_t *p)
+static LoonValue *_parse_InlineObject(Parser *p)
 {
-    loon_value_t *object = _value_new(LOON_OBJECT);
+    LoonValue *object = _value_new(LOON_OBJECT);
     if (!object)
         return NULL;
     _take(p);
@@ -250,7 +250,7 @@ static loon_value_t *parse_inline_object(parser_t *p)
         }
         _take(p);
         _spaces(p);
-        loon_value_t *item = _parse_value(p);
+        LoonValue *item = _parse_value(p);
         if (!item || !_add_member(object, key, item))
         {
             free(key);
@@ -278,7 +278,7 @@ static loon_value_t *parse_inline_object(parser_t *p)
     return NULL;
 }
 
-static loon_value_t *_parse_value(parser_t *p)
+static LoonValue *_parse_value(Parser *p)
 {
     _spaces(p);
     char c = _peek(p);
@@ -287,7 +287,7 @@ static loon_value_t *_parse_value(parser_t *p)
         char *s = _parse_string(p);
         if (!s)
             return NULL;
-        loon_value_t *v = _value_new(LOON_STRING);
+        LoonValue *v = _value_new(LOON_STRING);
         if (v)
             v->as.string = s;
         else
@@ -295,11 +295,11 @@ static loon_value_t *_parse_value(parser_t *p)
         return v;
     }
     if (c == '[')
-        return parse_inline_array(p);
+        return _parse_InlineArray(p);
     if (c == '{' && p->text[p->pos + 1] == '\n')
-        return parse_braced_object(p);
+        return _parse_BracedObject(p);
     if (c == '{')
-        return parse_inline_object(p);
+        return _parse_InlineObject(p);
     const char *start = p->text + p->pos;
     while (_peek(p) && !isspace((unsigned char)_peek(p)) && _peek(p) != ',' && _peek(p) != ']' && _peek(p) != '}')
         _take(p);
@@ -309,20 +309,20 @@ static loon_value_t *_parse_value(parser_t *p)
         _fail(p, "expected value");
         return NULL;
     }
-    loon_value_t *v = NULL;
+    LoonValue *v = NULL;
     if (length == 4 && strncmp(start, "null", 4) == 0)
         v = _value_new(LOON_NULL);
     else if (length == 4 && strncmp(start, "true", 4) == 0)
     {
         v = _value_new(LOON_BOOL);
         if (v)
-            v->as.boolean = true;
+            v->as.boolean = TRUE;
     }
     else if (length == 5 && strncmp(start, "false", 5) == 0)
     {
         v = _value_new(LOON_BOOL);
         if (v)
-            v->as.boolean = false;
+            v->as.boolean = FALSE;
     }
     else
     {
@@ -342,7 +342,7 @@ static loon_value_t *_parse_value(parser_t *p)
     return v;
 }
 
-static char *_parse_key(parser_t *p)
+static char *_parse_key(Parser *p)
 {
     if (_peek(p) == '"')
         return _parse_string(p);
@@ -358,7 +358,7 @@ static char *_parse_key(parser_t *p)
     return _slice(start, length);
 }
 
-static bool line_indent(parser_t *p, size_t *indent)
+static bool _line_indent(Parser *p, size_t *indent)
 {
     *indent = 0;
     while (_peek(p) == ' ')
@@ -369,25 +369,25 @@ static bool line_indent(parser_t *p, size_t *indent)
     if (_peek(p) == '\t')
     {
         _fail(p, "tabs are not allowed for indentation");
-        return false;
+        return FALSE;
     }
-    return true;
+    return TRUE;
 }
 
-static bool _line_end(parser_t *p)
+static bool _line_end(Parser *p)
 {
     _spaces(p);
     if (_peek(p) == '\n')
     {
         _take(p);
-        return true;
+        return TRUE;
     }
     return _peek(p) == '\0';
 }
 
-static loon_value_t *parse_block_array(parser_t *p, size_t indent)
+static LoonValue *_parse_BlockArray(Parser *p, size_t indent)
 {
-    loon_value_t *array = _value_new(LOON_ARRAY);
+    LoonValue *array = _value_new(LOON_ARRAY);
     if (!array)
         return NULL;
     _take(p); /* [ */
@@ -405,7 +405,7 @@ static loon_value_t *parse_block_array(parser_t *p, size_t indent)
             continue;
         }
         size_t current;
-        if (!line_indent(p, &current))
+        if (!_line_indent(p, &current))
         {
             loon_free(array);
             return NULL;
@@ -444,7 +444,7 @@ static loon_value_t *parse_block_array(parser_t *p, size_t indent)
             }
             return array;
         }
-        loon_value_t *item = _parse_value(p);
+        LoonValue *item = _parse_value(p);
         if (!item || !_line_end(p) || !_append_item(array, item))
         {
             loon_free(item);
@@ -457,9 +457,9 @@ static loon_value_t *parse_block_array(parser_t *p, size_t indent)
     return NULL;
 }
 
-static loon_value_t *parse_table(parser_t *p, size_t indent)
+static LoonValue *_parse_table(Parser *p, size_t indent)
 {
-    loon_value_t *rows = _value_new(LOON_ARRAY);
+    LoonValue *rows = _value_new(LOON_ARRAY);
     char **columns = NULL;
     size_t count = 0;
     if (!rows)
@@ -521,7 +521,7 @@ static loon_value_t *parse_table(parser_t *p, size_t indent)
             continue;
         }
         size_t current;
-        if (!line_indent(p, &current))
+        if (!_line_indent(p, &current))
             goto failed;
         if (current < indent)
         {
@@ -534,12 +534,12 @@ static loon_value_t *parse_table(parser_t *p, size_t indent)
             _fail(p, "expected indentation of %zu spaces", indent);
             goto failed;
         }
-        loon_value_t *row = _value_new(LOON_OBJECT);
+        LoonValue *row = _value_new(LOON_OBJECT);
         if (!row)
             goto failed;
         for (size_t i = 0; i < count; i++)
         {
-            loon_value_t *cell = _parse_value(p);
+            LoonValue *cell = _parse_value(p);
             char *key = _slice(columns[i], strlen(columns[i]));
             if (!cell || !key || !_add_member(row, key, cell))
             {
@@ -585,9 +585,9 @@ failed:
     return NULL;
 }
 
-static loon_value_t *parse_braced_object(parser_t *p)
+static LoonValue *_parse_BracedObject(Parser *p)
 {
-    loon_value_t *object = _value_new(LOON_OBJECT);
+    LoonValue *object = _value_new(LOON_OBJECT);
     size_t field_indent = 0;
     if (!object)
         return NULL;
@@ -606,7 +606,7 @@ static loon_value_t *parse_braced_object(parser_t *p)
             continue;
         }
         size_t current;
-        if (!line_indent(p, &current))
+        if (!_line_indent(p, &current))
         {
             loon_free(object);
             return NULL;
@@ -641,11 +641,11 @@ static loon_value_t *parse_braced_object(parser_t *p)
         }
         _take(p);
         _spaces(p);
-        loon_value_t *item;
+        LoonValue *item;
         if (_peek(p) == '\n')
         {
             _take(p);
-            item = parse_block(p, field_indent + 2);
+            item = _parse_block(p, field_indent + 2);
         }
         else
         {
@@ -669,9 +669,9 @@ static loon_value_t *parse_braced_object(parser_t *p)
     return NULL;
 }
 
-static loon_value_t *parse_block(parser_t *p, size_t indent)
+static LoonValue *_parse_block(Parser *p, size_t indent)
 {
-    loon_value_t *object = _value_new(LOON_OBJECT);
+    LoonValue *object = _value_new(LOON_OBJECT);
     if (!object)
         return NULL;
     while (_peek(p))
@@ -682,7 +682,7 @@ static loon_value_t *parse_block(parser_t *p, size_t indent)
             continue;
         }
         size_t current;
-        if (!line_indent(p, &current))
+        if (!_line_indent(p, &current))
         {
             loon_free(object);
             return NULL;
@@ -706,7 +706,7 @@ static loon_value_t *parse_block(parser_t *p, size_t indent)
         }
         if (_peek(p) == '(')
         {
-            loon_value_t *table = parse_table(p, indent + 2);
+            LoonValue *table = _parse_table(p, indent + 2);
             if (!table || !_add_member(object, _slice("rows", 4), table))
             {
                 loon_free(table);
@@ -723,7 +723,7 @@ static loon_value_t *parse_block(parser_t *p, size_t indent)
         }
         if (_peek(p) == '(')
         {
-            loon_value_t *table = parse_table(p, indent + 2);
+            LoonValue *table = _parse_table(p, indent + 2);
             if (!table || !_add_member(object, key, table))
             {
                 free(key);
@@ -742,7 +742,7 @@ static loon_value_t *parse_block(parser_t *p, size_t indent)
         }
         _take(p);
         _spaces(p);
-        loon_value_t *item;
+        LoonValue *item;
         if (_peek(p) == '\n' || !_peek(p))
         {
             if (_peek(p) == '\n')
@@ -754,9 +754,9 @@ static loon_value_t *parse_block(parser_t *p, size_t indent)
                 loon_free(object);
                 return NULL;
             }
-            parser_t lookahead = *p;
+            Parser lookahead = *p;
             size_t child_indent = 0;
-            if (!line_indent(&lookahead, &child_indent))
+            if (!_line_indent(&lookahead, &child_indent))
             {
                 free(key);
                 loon_free(object);
@@ -765,13 +765,13 @@ static loon_value_t *parse_block(parser_t *p, size_t indent)
             if (child_indent == indent + 2 && _peek(&lookahead) == '[')
             {
                 *p = lookahead;
-                item = parse_block_array(p, indent + 4);
+                item = _parse_BlockArray(p, indent + 4);
             }
             else
-                item = parse_block(p, indent + 2);
+                item = _parse_block(p, indent + 2);
         }
         else if (_peek(p) == '[' && p->text[p->pos + 1] == '\n')
-            item = parse_block_array(p, indent + 2);
+            item = _parse_BlockArray(p, indent + 2);
         else
         {
             item = _parse_value(p);
@@ -796,7 +796,7 @@ static loon_value_t *parse_block(parser_t *p, size_t indent)
     return object;
 }
 
-loon_value_t *loon_parse(const char *source, loon_error_t *error)
+LoonValue *loon_parse(const char *source, LoonError *error)
 {
     if (error)
         memset(error, 0, sizeof(*error));
@@ -806,14 +806,14 @@ loon_value_t *loon_parse(const char *source, loon_error_t *error)
             snprintf(error->message, sizeof(error->message), "source is null");
         return NULL;
     }
-    parser_t p = {.text = source, .line = 1, .column = 1, .error = error};
-    loon_value_t *result;
+    Parser p = {.text = source, .line = 1, .column = 1, .error = error};
+    LoonValue *result;
     if (_peek(&p) == '(')
     {
-        result = parse_table(&p, 2);
+        result = _parse_table(&p, 2);
     }
     else
-        result = parse_block(&p, 0);
+        result = _parse_block(&p, 0);
     if (!result || (error && error->message[0]))
     {
         loon_free(result);
@@ -822,7 +822,7 @@ loon_value_t *loon_parse(const char *source, loon_error_t *error)
     return result;
 }
 
-const loon_value_t *loon_objectGet(const loon_value_t *value, const char *key)
+const LoonValue *loon_objectGet(const LoonValue *value, const char *key)
 {
     if (!value || value->type != LOON_OBJECT || !key)
         return NULL;
@@ -832,7 +832,7 @@ const loon_value_t *loon_objectGet(const loon_value_t *value, const char *key)
     return NULL;
 }
 
-static Value loon_toValue(vm_t *vm, const loon_value_t *value)
+static Value _loon_toValue(VM *vm, const LoonValue *value)
 {
     switch (value->type)
     {
@@ -846,11 +846,11 @@ static Value loon_toValue(vm_t *vm, const loon_value_t *value)
         return NEW_OBJ(add_obj(vm, new_pistring(strdup(value->as.string))));
     case LOON_ARRAY:
     {
-        list_t *items = list_create(sizeof(Value));
+        List *items = list_create(sizeof(Value));
         for (size_t i = 0; items && i < value->as.array.count; i++)
         {
-            Value item = loon_toValue(vm, value->as.array.items[i]);
-            list_add(items, &item);
+            Value item = _loon_toValue(vm, value->as.array.items[i]);
+            _list_add(items, &item);
         }
         return items ? NEW_OBJ(add_obj(vm, new_list(items))) : NEW_NIL();
     }
@@ -859,8 +859,8 @@ static Value loon_toValue(vm_t *vm, const loon_value_t *value)
         PiMap *map = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
         for (size_t i = 0; i < value->as.object.count; i++)
         {
-            loon_member_t *member = &value->as.object.members[i];
-            Value item = loon_toValue(vm, member->value);
+            LoonMember *member = &value->as.object.members[i];
+            Value item = _loon_toValue(vm, member->value);
             map_setValueByKey(map, member->key, item);
         }
         return NEW_OBJ(map);
@@ -869,7 +869,7 @@ static Value loon_toValue(vm_t *vm, const loon_value_t *value)
     return NEW_NIL();
 }
 
-Value loon_parseValue(vm_t *vm, int argc, Value *argv)
+Value loon_parseValue(VM *vm, int argc, Value *argv)
 {
     if (argc != 1 || !IS_STR(argv[0]))
     {
@@ -877,8 +877,8 @@ Value loon_parseValue(vm_t *vm, int argc, Value *argv)
         return NEW_NIL();
     }
 
-    loon_error_t error = {0};
-    loon_value_t *document = loon_parse(AS_CSTRING(argv[0]), &error);
+    LoonError error = {0};
+    LoonValue *document = loon_parse(AS_CSTRING(argv[0]), &error);
     if (!document)
     {
         vm_errorf(vm, "[loon.parse] line %zu, column %zu: %s", error.line,
@@ -886,7 +886,7 @@ Value loon_parseValue(vm_t *vm, int argc, Value *argv)
         return NEW_NIL();
     }
 
-    Value result = loon_toValue(vm, document);
+    Value result = _loon_toValue(vm, document);
     loon_free(document);
     return result;
 }

@@ -13,7 +13,7 @@
 
 // Convert to RGBA32 only if needed; caller must check whether a new surface
 // was allocated (src != returned pointer) and free it after use.
-static SDL_Surface *to_rgba32(SDL_Surface *src)
+static SDL_Surface *_to_rgba32(SDL_Surface *src)
 {
     if (!src)
         return NULL;
@@ -25,7 +25,7 @@ static SDL_Surface *to_rgba32(SDL_Surface *src)
 
 // General convolution using float kernel. Alpha is preserved from src.
 // Border pixels are clamped (edge-extend), not zero-padded.
-static void apply_convolutionRGBA(SDL_Surface *src, SDL_Surface *dst, const float *kernel, int ksize)
+static void _apply_convolutionRGBA(SDL_Surface *src, SDL_Surface *dst, const float *kernel, int ksize)
 {
     int w = src->w;
     int h = src->h;
@@ -85,7 +85,7 @@ static void apply_convolutionRGBA(SDL_Surface *src, SDL_Surface *dst, const floa
     SDL_UnlockSurface(src);
 }
 
-static int clamp_u8(double value)
+static int _clamp_u8(double value)
 {
     if (value < 0.0)
         return 0;
@@ -103,9 +103,9 @@ typedef struct
     int cols;
 } KernelDef;
 
-static const KernelDef *find_kernelDefById(int id);
+static const KernelDef *_find_kernelDefById(int id);
 
-static int copy_builtinKernel(vm_t *vm, const KernelDef *def, double **kernel, int *rows, int *cols)
+static int _copy_builtinKernel(VM *vm, const KernelDef *def, double **kernel, int *rows, int *cols)
 {
     *rows = def->rows;
     *cols = def->cols;
@@ -120,7 +120,7 @@ static int copy_builtinKernel(vm_t *vm, const KernelDef *def, double **kernel, i
     return 1;
 }
 
-static int parse_listKernel(vm_t *vm, Value value, double **kernel, int *rows, int *cols)
+static int _parse_listKernel(VM *vm, Value value, double **kernel, int *rows, int *cols)
 {
     if (!IS_LIST(value))
     {
@@ -136,7 +136,7 @@ static int parse_listKernel(vm_t *vm, Value value, double **kernel, int *rows, i
         return 0;
     }
 
-    Value *first = (Value *)list_getAt(outer->items, 0);
+    Value *first = (Value *)_list_getAt(outer->items, 0);
     if (!first || !IS_LIST(*first))
     {
         vm_error(vm, "[image.filters.filter] kernel list must be nested, e.g. [[0,-1,0],[-1,5,-1],[0,-1,0]].");
@@ -160,7 +160,7 @@ static int parse_listKernel(vm_t *vm, Value value, double **kernel, int *rows, i
 
     for (int r = 0; r < rcount; r++)
     {
-        Value *row_value = (Value *)list_getAt(outer->items, r);
+        Value *row_value = (Value *)_list_getAt(outer->items, r);
         if (!row_value || !IS_LIST(*row_value))
         {
             free(*kernel);
@@ -180,7 +180,7 @@ static int parse_listKernel(vm_t *vm, Value value, double **kernel, int *rows, i
 
         for (int c = 0; c < ccount; c++)
         {
-            Value *cell = (Value *)list_getAt(row->items, c);
+            Value *cell = (Value *)_list_getAt(row->items, c);
             if (!cell || !IS_NUM(*cell))
             {
                 free(*kernel);
@@ -198,7 +198,7 @@ static int parse_listKernel(vm_t *vm, Value value, double **kernel, int *rows, i
 }
 
 // Accepts either a numeric builtin id or a nested pi list [[...], ...].
-static int parse_kernelValue(vm_t *vm, Value value, double **kernel, int *rows, int *cols)
+static int _parse_kernelValue(VM *vm, Value value, double **kernel, int *rows, int *cols)
 {
     *kernel = NULL;
     *rows = 0;
@@ -207,21 +207,21 @@ static int parse_kernelValue(vm_t *vm, Value value, double **kernel, int *rows, 
     if (IS_NUM(value))
     {
         int id = (int)AS_NUM(value);
-        const KernelDef *def = find_kernelDefById(id);
+        const KernelDef *def = _find_kernelDefById(id);
         if (!def)
         {
             vm_error(vm, "[image.filters.filter] unknown builtin kernel id.");
             return 0;
         }
-        return copy_builtinKernel(vm, def, kernel, rows, cols);
+        return _copy_builtinKernel(vm, def, kernel, rows, cols);
     }
 
-    return parse_listKernel(vm, value, kernel, rows, cols);
+    return _parse_listKernel(vm, value, kernel, rows, cols);
 }
 
 // General convolution using double kernel. Alpha is carried through from src.
 // Border pixels are clamped (edge-extend), not zero-padded.
-static void apply_kernelRGBA(SDL_Surface *src, SDL_Surface *dst, const double *kernel, int krows, int kcols)
+static void _apply_kernelRGBA(SDL_Surface *src, SDL_Surface *dst, const double *kernel, int krows, int kcols)
 {
     int w = src->w;
     int h = src->h;
@@ -268,9 +268,9 @@ static void apply_kernelRGBA(SDL_Surface *src, SDL_Surface *dst, const double *k
 
             Uint8 *src_pixel = sp + y * src->pitch + x * 4;
             Uint8 *out = dp + y * dst->pitch + x * 4;
-            out[0] = (Uint8)clamp_u8(sumr);
-            out[1] = (Uint8)clamp_u8(sumg);
-            out[2] = (Uint8)clamp_u8(sumb);
+            out[0] = (Uint8)_clamp_u8(sumr);
+            out[1] = (Uint8)_clamp_u8(sumg);
+            out[2] = (Uint8)_clamp_u8(sumb);
             out[3] = src_pixel[3];
         }
     }
@@ -350,14 +350,14 @@ static const KernelAlias kernel_aliases[] = {
     {"sobely", KERNEL_SOBEL_Y},
 };
 
-static const KernelDef *find_kernelDefById(int id)
+static const KernelDef *_find_kernelDefById(int id)
 {
     if (id < 0 || id >= KERNEL_COUNT)
         return NULL;
     return &builtin_kernels[id];
 }
 
-static int find_kernelId(const char *name)
+static int _find_kernelId(const char *name)
 {
     int count = (int)(sizeof(kernel_aliases) / sizeof(KernelAlias));
     for (int i = 0; i < count; i++)
@@ -370,9 +370,9 @@ static int find_kernelId(const char *name)
 
 // Returns a numeric Value holding the builtin kernel id, which parse_kernelValue
 // can later resolve. This avoids copying kernel data until filter() is called.
-static Value make_namedKernel(vm_t *vm, const char *name)
+static Value _make_namedKernel(VM *vm, const char *name)
 {
-    int id = find_kernelId(name);
+    int id = _find_kernelId(name);
     if (id >= 0)
         return NEW_NUM(id);
 
@@ -380,32 +380,32 @@ static Value make_namedKernel(vm_t *vm, const char *name)
     return NIL_VAL;
 }
 
-static Value make_kernelList(vm_t *vm, const double *values, int rows, int cols)
+static Value _make_kernelList(VM *vm, const double *values, int rows, int cols)
 {
-    list_t *outer_items = list_create(sizeof(Value));
+    List *outer_items = list_create(sizeof(Value));
 
     for (int r = 0; r < rows; r++)
     {
-        list_t *row_items = list_create(sizeof(Value));
+        List *row_items = list_create(sizeof(Value));
         for (int c = 0; c < cols; c++)
         {
             Value cell = NEW_NUM(values[r * cols + c]);
-            list_add(row_items, &cell);
+            _list_add(row_items, &cell);
         }
 
         PiList *row = (PiList *)add_obj(vm, new_list(row_items));
-        row->is_numeric = true;
+        row->is_numeric = TRUE;
 
         Value row_value = NEW_OBJ(row);
-        list_add(outer_items, &row_value);
+        _list_add(outer_items, &row_value);
     }
 
     PiList *outer = (PiList *)add_obj(vm, new_list(outer_items));
-    outer->is_numeric = false;
+    outer->is_numeric = FALSE;
     return NEW_OBJ(outer);
 }
 
-Value im_filter(vm_t *vm, int argc, Value *argv)
+Value im_filter(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_IMAGE(argv[0]))
     {
@@ -416,11 +416,11 @@ Value im_filter(vm_t *vm, int argc, Value *argv)
     double *kernel = NULL;
     int rows = 0;
     int cols = 0;
-    if (!parse_kernelValue(vm, argv[1], &kernel, &rows, &cols))
+    if (!_parse_kernelValue(vm, argv[1], &kernel, &rows, &cols))
         return NIL_VAL;
 
     ObjImage *img = AS_IMAGE(argv[0]);
-    SDL_Surface *src = to_rgba32(img->surface);
+    SDL_Surface *src = _to_rgba32(img->surface);
     bool converted = (src != img->surface);
     SDL_Surface *dst = SDL_CreateRGBSurfaceWithFormat(0, src->w, src->h, 32, SDL_PIXELFORMAT_RGBA32);
     if (!dst)
@@ -432,7 +432,7 @@ Value im_filter(vm_t *vm, int argc, Value *argv)
         return NIL_VAL;
     }
 
-    apply_kernelRGBA(src, dst, kernel, rows, cols);
+    _apply_kernelRGBA(src, dst, kernel, rows, cols);
     free(kernel);
 
     ObjImage *n = new_image(dst);
@@ -442,17 +442,17 @@ Value im_filter(vm_t *vm, int argc, Value *argv)
     return out;
 }
 
-Value im_kernel(vm_t *vm, int argc, Value *argv)
+Value im_kernel(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
     {
         vm_error(vm, "[image.filters.kernel] expects a kernel name string.");
         return NIL_VAL;
     }
-    return make_namedKernel(vm, AS_CSTRING(argv[0]));
+    return _make_namedKernel(vm, AS_CSTRING(argv[0]));
 }
 
-Value im_boxKernel(vm_t *vm, int argc, Value *argv)
+Value im_boxKernel(VM *vm, int argc, Value *argv)
 {
     int size = 3;
     if (argc >= 1 && IS_NUM(argv[0]))
@@ -474,18 +474,18 @@ Value im_boxKernel(vm_t *vm, int argc, Value *argv)
     for (int i = 0; i < count; i++)
         values[i] = v;
 
-    Value result = make_kernelList(vm, values, size, size);
+    Value result = _make_kernelList(vm, values, size, size);
     free(values);
     return result;
 }
 
-Value im_invert(vm_t *vm, int argc, Value *argv)
+Value im_invert(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.filters.invert] expects an image.");
 
     ObjImage *img = AS_IMAGE(argv[0]);
-    SDL_Surface *src = to_rgba32(img->surface);
+    SDL_Surface *src = _to_rgba32(img->surface);
     bool converted = (src != img->surface);
 
     SDL_Surface *dst = SDL_CreateRGBSurfaceWithFormat(0, src->w, src->h, 32, SDL_PIXELFORMAT_RGBA32);
@@ -527,7 +527,7 @@ Value im_invert(vm_t *vm, int argc, Value *argv)
 }
 
 // delta is added to each channel before clamping; positive brightens, negative darkens.
-Value im_brightness(vm_t *vm, int argc, Value *argv)
+Value im_brightness(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE) || !IS_NUM(argv[1]))
         vm_error(vm, "[image.filters.brightness] expects (image, delta).");
@@ -535,7 +535,7 @@ Value im_brightness(vm_t *vm, int argc, Value *argv)
     ObjImage *img = AS_IMAGE(argv[0]);
     double delta = AS_NUM(argv[1]);
 
-    SDL_Surface *src = to_rgba32(img->surface);
+    SDL_Surface *src = _to_rgba32(img->surface);
     bool converted = (src != img->surface);
     SDL_Surface *dst = SDL_CreateRGBSurfaceWithFormat(0, src->w, src->h, 32, SDL_PIXELFORMAT_RGBA32);
     if (!dst)
@@ -578,7 +578,7 @@ Value im_brightness(vm_t *vm, int argc, Value *argv)
 
 // Scales each channel around the midpoint (128): factor > 1 increases contrast,
 // 0 < factor < 1 reduces it, factor = 0 produces a flat grey image.
-Value im_contrast(vm_t *vm, int argc, Value *argv)
+Value im_contrast(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE) || !IS_NUM(argv[1]))
         vm_error(vm, "[image.filters.contrast] expects (image, factor).");
@@ -586,7 +586,7 @@ Value im_contrast(vm_t *vm, int argc, Value *argv)
     ObjImage *img = AS_IMAGE(argv[0]);
     double factor = AS_NUM(argv[1]);
 
-    SDL_Surface *src = to_rgba32(img->surface);
+    SDL_Surface *src = _to_rgba32(img->surface);
     bool converted = (src != img->surface);
     SDL_Surface *dst = SDL_CreateRGBSurfaceWithFormat(0, src->w, src->h, 32, SDL_PIXELFORMAT_RGBA32);
     if (!dst)
@@ -627,7 +627,7 @@ Value im_contrast(vm_t *vm, int argc, Value *argv)
     return out;
 }
 
-Value im_blur(vm_t *vm, int argc, Value *argv)
+Value im_blur(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.filters.blur] expects (image, radius=1).");
@@ -648,7 +648,7 @@ Value im_blur(vm_t *vm, int argc, Value *argv)
         kernel[i] = 1.0f / (float)kcount;
 
     ObjImage *img = AS_IMAGE(argv[0]);
-    SDL_Surface *src = to_rgba32(img->surface);
+    SDL_Surface *src = _to_rgba32(img->surface);
     bool converted = (src != img->surface);
     SDL_Surface *dst = SDL_CreateRGBSurfaceWithFormat(0, src->w, src->h, 32, SDL_PIXELFORMAT_RGBA32);
     if (!dst)
@@ -659,7 +659,7 @@ Value im_blur(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[image.filters.blur] failed to create surface.");
     }
 
-    apply_convolutionRGBA(src, dst, kernel, ksize);
+    _apply_convolutionRGBA(src, dst, kernel, ksize);
 
     free(kernel);
     ObjImage *n = new_image(dst);
@@ -669,7 +669,7 @@ Value im_blur(vm_t *vm, int argc, Value *argv)
     return out;
 }
 
-Value im_sharpen(vm_t *vm, int argc, Value *argv)
+Value im_sharpen(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.filters.sharpen] expects an image.");
@@ -677,7 +677,7 @@ Value im_sharpen(vm_t *vm, int argc, Value *argv)
     float kernel[9] = {0, -1, 0, -1, 5, -1, 0, -1, 0};
 
     ObjImage *img = AS_IMAGE(argv[0]);
-    SDL_Surface *src = to_rgba32(img->surface);
+    SDL_Surface *src = _to_rgba32(img->surface);
     bool converted = (src != img->surface);
     SDL_Surface *dst = SDL_CreateRGBSurfaceWithFormat(0, src->w, src->h, 32, SDL_PIXELFORMAT_RGBA32);
     if (!dst)
@@ -687,7 +687,7 @@ Value im_sharpen(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[image.filters.sharpen] failed to create surface.");
     }
 
-    apply_convolutionRGBA(src, dst, kernel, 3);
+    _apply_convolutionRGBA(src, dst, kernel, 3);
 
     ObjImage *n = new_image(dst);
     Value out = NEW_OBJ(add_obj(vm, (Object *)n));
@@ -698,7 +698,7 @@ Value im_sharpen(vm_t *vm, int argc, Value *argv)
 
 // Produces a grayscale magnitude image. Applies Sobel X and Y separately then
 // combines as sqrt(gx^2 + gy^2), weighted by luminance rather than per channel.
-Value im_sobel(vm_t *vm, int argc, Value *argv)
+Value im_sobel(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.filters.sobel] expects an image.");
@@ -707,7 +707,7 @@ Value im_sobel(vm_t *vm, int argc, Value *argv)
     float ky[9] = {-1, -2, -1, 0, 0, 0, 1, 2, 1};
 
     ObjImage *img = AS_IMAGE(argv[0]);
-    SDL_Surface *src = to_rgba32(img->surface);
+    SDL_Surface *src = _to_rgba32(img->surface);
     bool converted = (src != img->surface);
     int w = src->w, h = src->h;
 
@@ -771,7 +771,7 @@ Value im_sobel(vm_t *vm, int argc, Value *argv)
     return out;
 }
 
-Value im_threshold(vm_t *vm, int argc, Value *argv)
+Value im_threshold(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.filters.threshold] expects (image, thresh=128).");
@@ -781,7 +781,7 @@ Value im_threshold(vm_t *vm, int argc, Value *argv)
         thresh = (int)AS_NUM(argv[1]);
 
     ObjImage *img = AS_IMAGE(argv[0]);
-    SDL_Surface *src = to_rgba32(img->surface);
+    SDL_Surface *src = _to_rgba32(img->surface);
     bool converted = (src != img->surface);
     int w = src->w, h = src->h;
 
@@ -822,7 +822,7 @@ Value im_threshold(vm_t *vm, int argc, Value *argv)
     return out;
 }
 
-static void gaussian_blurGray(const float *in, float *out, int w, int h)
+static void _gaussian_blurGray(const float *in, float *out, int w, int h)
 {
     // 5x5 Gaussian kernel (sigma ≈ 1.0), normalised to sum = 1.
     const float kernel[25] = {
@@ -855,7 +855,7 @@ static void gaussian_blurGray(const float *in, float *out, int w, int h)
     }
 }
 
-static void compute_gradient(const float *gray, float *mag, float *ang, int w, int h)
+static void _compute_gradient(const float *gray, float *mag, float *ang, int w, int h)
 {
     const float kx[9] = {-1, 0, 1, -2, 0, 2, -1, 0, 1};
     const float ky[9] = {-1, -2, -1, 0, 0, 0, 1, 2, 1};
@@ -892,7 +892,7 @@ static void compute_gradient(const float *gray, float *mag, float *ang, int w, i
 
 // Suppress any pixel that is not the local maximum along the gradient direction.
 // The angle is quantised to 4 directions (0°, 45°, 90°, 135°).
-static void non_max_suppression(const float *mag, const float *ang, float *out, int w, int h)
+static void _non_MaxSuppression(const float *mag, const float *ang, float *out, int w, int h)
 {
     for (int y = 0; y < h; y++)
     {
@@ -957,7 +957,7 @@ static void non_max_suppression(const float *mag, const float *ang, float *out, 
 // `low` and `high` are kept only if they touch a strong (>= high) neighbour,
 // pixels below `low` are discarded. Single-pass, so chains of weak pixels
 // are only followed one hop — sufficient for typical images.
-static void hysteresis(float *edges, int w, int h, int low, int high)
+static void _hysteresis(float *edges, int w, int h, int low, int high)
 {
     for (int y = 0; y < h; y++)
     {
@@ -970,7 +970,7 @@ static void hysteresis(float *edges, int w, int h, int low, int high)
             }
             else if (val >= low)
             {
-                bool connected = false;
+                bool connected = FALSE;
                 for (int ky = -1; ky <= 1 && !connected; ky++)
                 {
                     for (int kx = -1; kx <= 1; kx++)
@@ -983,7 +983,7 @@ static void hysteresis(float *edges, int w, int h, int low, int high)
                             continue;
                         if (edges[ny * w + nx] >= high)
                         {
-                            connected = true;
+                            connected = TRUE;
                             break;
                         }
                     }
@@ -998,7 +998,7 @@ static void hysteresis(float *edges, int w, int h, int low, int high)
     }
 }
 
-Value im_canny(vm_t *vm, int argc, Value *argv)
+Value im_canny(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.filters.canny] expects (image, low=50, high=150).");
@@ -1017,7 +1017,7 @@ Value im_canny(vm_t *vm, int argc, Value *argv)
         low = high / 2;
 
     ObjImage *img = AS_IMAGE(argv[0]);
-    SDL_Surface *src_surface = to_rgba32(img->surface);
+    SDL_Surface *src_surface = _to_rgba32(img->surface);
     bool converted = (src_surface != img->surface);
     int w = src_surface->w;
     int h = src_surface->h;
@@ -1053,10 +1053,10 @@ Value im_canny(vm_t *vm, int argc, Value *argv)
     SDL_UnlockSurface(src_surface);
 
     // Pipeline: greyscale -> gaussian blur -> gradient -> NMS -> hysteresis
-    gaussian_blurGray(gray, blur, w, h);
-    compute_gradient(blur, mag, ang, w, h);
-    non_max_suppression(mag, ang, nms, w, h);
-    hysteresis(nms, w, h, low, high);
+    _gaussian_blurGray(gray, blur, w, h);
+    _compute_gradient(blur, mag, ang, w, h);
+    _non_MaxSuppression(mag, ang, nms, w, h);
+    _hysteresis(nms, w, h, low, high);
 
     SDL_Surface *dst = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_RGBA32);
     if (!dst)

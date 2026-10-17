@@ -23,22 +23,22 @@ String *new_string(const char *data)
     return _string;
 }
 
-char *string_get(list_t *list, int index)
+char *string_get(List *list, int index)
 {
     if (!list)
         return NULL;
-    String *_string = (String *)list_getAt(list, index);
+    String *_string = (String *)_list_getAt(list, index);
     return _string ? _string->data : NULL;
 }
 
-void free_strings(list_t *list)
+void free_strings(List *list)
 {
     if (!list)
         return;
 
-    for (int i = 0; i < list_size(list); i++)
+    for (int i = 0; i < LIST_SIZE(list); i++)
     {
-        String *_string = (String *)list_getAt(list, i);
+        String *_string = (String *)_list_getAt(list, i);
         if (_string && _string->data)
         {
             free(_string->data);
