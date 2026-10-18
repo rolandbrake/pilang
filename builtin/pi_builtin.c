@@ -118,14 +118,14 @@ BuiltinModule *builtin_modules[] = {
 #ifndef __EMSCRIPTEN__
     &module_netSocket,
     &module_os,
-    &module_draw,
     &module_plot,
+#endif
+    &module_draw,
     &module_plot3d,
     &module_image,
     &module_imageFilters,
     &module_imageColor,
     &module_audio,
-#endif
     &module_tensor,
 
 };

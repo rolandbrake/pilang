@@ -174,10 +174,7 @@ static const BuiltinModule *find_builtinModule(const char *name)
 #ifdef __EMSCRIPTEN__
 static bool is_browserUnsupportedBuiltin(const char *name)
 {
-    return strcmp(name, "draw") == 0 ||
-           strcmp(name, "plot") == 0 ||
-           strncmp(name, "draw.", 5) == 0 ||
-           strncmp(name, "plot.", 5) == 0;
+    return strcmp(name, "plot") == 0 || strncmp(name, "plot.", 5) == 0;
 }
 #endif
 

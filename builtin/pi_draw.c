@@ -9,6 +9,11 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+EM_JS(void, web_canvas_init, (int w, int h), { const c=Module.canvas; c.width=w;c.height=h; Module.piCtx=c.getContext('2d'); Module.piKeys={};Module.piMouse={x:0,y:0,left:false}; addEventListener('keydown',e=>Module.piKeys[e.keyCode]=true);addEventListener('keyup',e=>Module.piKeys[e.keyCode]=false);c.onmousemove=e=>{const r=c.getBoundingClientRect();Module.piMouse.x=(e.clientX-r.left)*c.width/r.width;Module.piMouse.y=(e.clientY-r.top)*c.height/r.height};c.onmousedown=e=>Module.piMouse.left=e.button===0;c.onmouseup=e=>{if(e.button===0)Module.piMouse.left=false}; });
+EM_JS(void, web_canvas_image, (const char *p,double x,double y,double w,double h,double angle,int flip), { const c=Module.piCtx,path=UTF8ToString(p);Module.piImgs ||= {};let i=Module.piImgs[path];if(!i){i=new Image();i.src=path;Module.piImgs[path]=i}if(!i.complete)return;w=w||i.width;h=h||i.height;c.save();c.translate(x+w/2,y+h/2);c.rotate(angle*Math.PI/180);c.scale(1,flip?-1:1);c.drawImage(i,-w/2,-h/2,w,h);c.restore(); });
+#endif
 
 #include "../common.h"
 #include "pi_builtin.h"
@@ -26,6 +31,40 @@ typedef struct _transformState
 } _transformState;
 
 #define EVENT_QUEUE_CAPACITY 256
+static void _pump_events(vm_t *vm, PiContext *ctx);
+
+#ifdef __EMSCRIPTEN__
+static PiContext *web_loop_context = NULL;
+
+static void web_runFrame(void *arg)
+{
+    PiContext *ctx = arg;
+    vm_t *vm = ctx ? ctx->vm : NULL;
+    if (!ctx || !vm || !ctx->running || ctx->cleaned)
+    {
+        emscripten_cancel_main_loop();
+        if (web_loop_context == ctx)
+            web_loop_context = NULL;
+        return;
+    }
+    _pump_events(vm, ctx);
+    if (ctx->running && !IS_NIL(ctx->frame_callback))
+    {
+        Value args[1] = {NEW_OBJ((Object *)ctx)};
+        call_func(vm, AS_FUN(ctx->frame_callback), 1, args, NEW_NIL());
+    }
+    if (ctx->running)
+        pt3d_redraw_context(ctx);
+    if (!ctx->running)
+        dw_cleanupContext(ctx);
+}
+
+void dw_stopWebLoop(void)
+{
+    if (web_loop_context)
+        dw_cleanupContext(web_loop_context);
+}
+#endif
 
 static char *_draw_strdup(const char *text)
 {
@@ -447,6 +486,13 @@ void dw_cleanupContext(PiContext *ctx)
     // first so both paths are safe even if shutdown is re-entered.
     ctx->cleaned = true;
     ctx->running = false;
+#ifdef __EMSCRIPTEN__
+    if (web_loop_context == ctx)
+    {
+        emscripten_cancel_main_loop();
+        web_loop_context = NULL;
+    }
+#endif
     ctx->frame_callback = NEW_NIL();
     ctx->active_plot3d = NULL;
     ctx->font = NULL;
@@ -568,7 +614,11 @@ static void _pump_events(vm_t *vm, PiContext *ctx)
 {
     SDL_Event sdl_event;
 
+#ifdef __EMSCRIPTEN__
+    while (SDL_PeepEvents(&sdl_event, 1, SDL_GETEVENT, SDL_FIRSTEVENT, SDL_LASTEVENT) > 0)
+#else
     while (SDL_PollEvent(&sdl_event))
+#endif
     {
         bool closing = sdl_event.type == SDL_QUIT ||
                        (sdl_event.type == SDL_WINDOWEVENT &&
@@ -620,6 +670,20 @@ Value dw_canvas(vm_t *vm, int argc, Value *argv)
     }
 
     PiContext *ctx = (PiContext *)new_context();
+#ifdef __EMSCRIPTEN__
+    (void)title;
+    (void)icon_path;
+    web_canvas_init(w, h);
+    ctx->renderer = ctx;
+    ctx->width = w;
+    ctx->height = h;
+    ctx->running = true;
+    ctx->alpha = 1.0f;
+    ctx->sx = 1.0f;
+    ctx->sy = 1.0f;
+    _init_eventSystem(ctx);
+    return NEW_OBJ(add_obj(vm, (Object *)ctx));
+#else
 
     ctx->window = SDL_CreateWindow(title,
                                    SDL_WINDOWPOS_UNDEFINED,
@@ -672,6 +736,7 @@ Value dw_canvas(vm_t *vm, int argc, Value *argv)
     _init_eventSystem(ctx);
 
     return NEW_OBJ(add_obj(vm, (Object *)ctx));
+#endif
 }
 
 Value dw_run(vm_t *vm, int argc, Value *argv)
@@ -680,6 +745,14 @@ Value dw_run(vm_t *vm, int argc, Value *argv)
     if (ctx == NULL)
         vm_error(vm, "run() takes a canvas as first argument");
 
+#ifdef __EMSCRIPTEN__
+    if (web_loop_context && web_loop_context != ctx)
+        dw_stopWebLoop();
+    ctx->vm = vm;
+    web_loop_context = ctx;
+    emscripten_set_main_loop_arg(web_runFrame, ctx, 0, 1);
+    return NEW_NIL();
+#else
     SDL_Event e;
     while (ctx->running)
     {
@@ -707,6 +780,7 @@ Value dw_run(vm_t *vm, int argc, Value *argv)
     dw_cleanupContext(ctx);
 
     return NEW_NIL();
+#endif
 }
 
 Value dw_clear(vm_t *vm, int argc, Value *argv)
@@ -1323,6 +1397,11 @@ Value dw_image(vm_t *vm, int argc, Value *argv)
         if (IS_NUM(rotation))
             angle = AS_NUM(rotation);
     }
+
+#ifdef __EMSCRIPTEN__
+    web_canvas_image(path, x, y, img_w > 0 ? img_w : 0, img_h > 0 ? img_h : 0, angle, flip_y);
+    return NEW_NIL();
+#endif
 
     _transform(ctx, &x, &y);
 

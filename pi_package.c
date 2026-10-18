@@ -9,6 +9,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <direct.h>
 #endif
 
 static char *read_text(const char *path)
@@ -85,6 +86,7 @@ bool package_load(pi_package_t *package, const char *target)
     }
     const loon_value_t *output = config ? required_string(config, "output") : NULL;
     const loon_value_t *icon = NULL;
+    const loon_value_t *files = config ? loon_objectGet(config, "files") : NULL;
     const loon_value_t *console = config ? loon_objectGet(config, "console") : NULL;
     if (!name || !version || !entry || !output || !config || config->type != LOON_OBJECT ||
         !optional_string(config, "icon", &icon) ||
@@ -103,6 +105,29 @@ bool package_load(pi_package_t *package, const char *target)
     package->output = strdup(output->as.string);
     package->icon = icon ? strdup(icon->as.string) : NULL;
     package->console = !console || console->as.boolean;
+    if (files)
+    {
+        if (files->type != LOON_ARRAY)
+        {
+            fprintf(stderr, "Manifest field 'files' must be an array of strings.\n");
+            loon_free(manifest);
+            package_free(package);
+            return false;
+        }
+        package->files = calloc(files->as.array.count, sizeof(char *));
+        package->file_count = files->as.array.count;
+        for (size_t i = 0; package->files && i < package->file_count; i++)
+        {
+            if (files->as.array.items[i]->type != LOON_STRING ||
+                !(package->files[i] = strdup(files->as.array.items[i]->as.string)))
+            {
+                fprintf(stderr, "Manifest field 'files' must be an array of strings.\n");
+                loon_free(manifest);
+                package_free(package);
+                return false;
+            }
+        }
+    }
     loon_free(manifest);
     if (!package->name || !package->version || !package->entry || !package->output ||
         (icon && !package->icon))
@@ -120,6 +145,9 @@ void package_free(pi_package_t *package)
     free(package->entry);
     free(package->output);
     free(package->icon);
+    for (size_t i = 0; i < package->file_count; i++)
+        free(package->files[i]);
+    free(package->files);
     memset(package, 0, sizeof(*package));
 }
 
@@ -138,6 +166,149 @@ static void bundle_error(char *error, size_t error_size, const char *message)
     if (error && error_size)
         snprintf(error, error_size, "%s", message);
 }
+
+#ifdef _WIN32
+static bool web_safePath(const char *path)
+{
+    return path && path[0] && path[0] != '/' && path[0] != '\\' && !strchr(path, ':') && !strstr(path, "..");
+}
+
+static bool web_makeParents(char *path)
+{
+    for (char *p = path + 1; *p; p++)
+        if (*p == '/' || *p == '\\')
+        {
+            char saved = *p;
+            *p = '\0';
+            if (_mkdir(path) != 0 && errno != EEXIST)
+            {
+                *p = saved;
+                return false;
+            }
+            *p = saved;
+        }
+    return true;
+}
+
+static bool web_copyPath(const char *output, const char *source, const char *relative, FILE *index)
+{
+    DWORD attr = GetFileAttributesA(source);
+    if (attr == INVALID_FILE_ATTRIBUTES)
+        return false;
+    if (!(attr & FILE_ATTRIBUTE_DIRECTORY))
+    {
+        char target[MAX_PATH];
+        snprintf(target, sizeof(target), "%s/%s", output, relative);
+        if (!web_makeParents(target))
+            return false;
+        FILE *in = fopen(source, "rb"), *out = in ? fopen(target, "wb") : NULL;
+        bool ok = in && out && copy_file(in, out);
+        if (in)
+            fclose(in);
+        if (out)
+            fclose(out);
+        if (ok)
+            fprintf(index, "\"%s\",", relative);
+        return ok;
+    }
+    char pattern[MAX_PATH];
+    snprintf(pattern, sizeof(pattern), "%s\\\\*", source);
+    WIN32_FIND_DATAA item;
+    HANDLE find = FindFirstFileA(pattern, &item);
+    if (find == INVALID_HANDLE_VALUE)
+        return false;
+    bool ok = true;
+    do
+    {
+        if (!strcmp(item.cFileName, ".") || !strcmp(item.cFileName, ".."))
+            continue;
+        char child_source[MAX_PATH], child_relative[MAX_PATH];
+        snprintf(child_source, sizeof(child_source), "%s\\\\%s", source, item.cFileName);
+        snprintf(child_relative, sizeof(child_relative), "%s/%s", relative, item.cFileName);
+        if (!web_copyPath(output, child_source, child_relative, index))
+        {
+            ok = false;
+            break;
+        }
+    } while (FindNextFileA(find, &item));
+    FindClose(find);
+    return ok;
+}
+
+bool package_web(const char *runtime_path, const pi_package_t *package, char *error, size_t error_size)
+{
+    (void)runtime_path;
+    char root[MAX_PATH];
+    if (!GetModuleFileNameA(NULL, root, sizeof(root)))
+    {
+        bundle_error(error, error_size, "could not locate Pilang runtime");
+        return false;
+    }
+    char *bin = strrchr(root, '\\');
+    if (!bin)
+        return false;
+    *bin = '\0';
+    char *project = strrchr(root, '\\');
+    if (!project)
+        return false;
+    *project = '\0';
+    char command[MAX_PATH + 32];
+    snprintf(command, sizeof(command), "make -C \"%s\" web", root);
+    if (system(command) != 0)
+    {
+        bundle_error(error, error_size, "Emscripten web runtime build failed");
+        return false;
+    }
+    if (_mkdir(package->output) != 0 && errno != EEXIST)
+    {
+        bundle_error(error, error_size, "could not create web output directory");
+        return false;
+    }
+    char html[MAX_PATH];
+    snprintf(html, sizeof(html), "%s/index.html", package->output);
+    FILE *index = fopen(html, "wb");
+    if (!index)
+    {
+        bundle_error(error, error_size, "could not create index.html");
+        return false;
+    }
+    fprintf(index, "<!doctype html><meta charset=\"utf-8\"><title>%s</title><canvas></canvas><script type=\"module\">import createPilang from './pilang.js';const app=await createPilang({canvas:document.querySelector('canvas'),noInitialRun:true});const files=[", package->name);
+    bool ok = web_safePath(package->entry) && web_copyPath(package->output, package->entry, package->entry, index);
+    for (size_t i = 0; ok && i < package->file_count; i++)
+        ok = web_safePath(package->files[i]) && web_copyPath(package->output, package->files[i], package->files[i], index);
+    fprintf(index, "];for(let i=0;i<files.length;i++){const p=files[i],r=await fetch(p),b=new Uint8Array(await r.arrayBuffer());app.FS.mkdirTree('/'+p.split('/').slice(0,-1).join('/'));app.FS.writeFile('/'+p,b);if(i===0)app.ccall('set_source',null,['string'],[new TextDecoder().decode(b)]);}app.ccall('execute_source','number',[],[]);</script>");
+    fclose(index);
+    char js[MAX_PATH], wasm[MAX_PATH], target[MAX_PATH];
+    snprintf(js, sizeof(js), "%s/bin/pilang.js", root);
+    snprintf(wasm, sizeof(wasm), "%s/bin/pilang.wasm", root);
+    snprintf(target, sizeof(target), "%s/pilang.js", package->output);
+    FILE *in = fopen(js, "rb"), *out = in ? fopen(target, "wb") : NULL;
+    ok = ok && in && out && copy_file(in, out);
+    if (in)
+        fclose(in);
+    if (out)
+        fclose(out);
+    snprintf(target, sizeof(target), "%s/pilang.wasm", package->output);
+    in = fopen(wasm, "rb");
+    out = in ? fopen(target, "wb") : NULL;
+    ok = ok && in && out && copy_file(in, out);
+    if (in)
+        fclose(in);
+    if (out)
+        fclose(out);
+    if (!ok)
+        bundle_error(error, error_size, "could not copy web runtime or assets");
+    return ok;
+}
+#else
+bool package_web(const char *runtime_path, const pi_package_t *package, char *error, size_t error_size)
+{
+    (void)runtime_path;
+    (void)package;
+    bundle_error(error, error_size, "web packaging is available from Windows development builds only");
+    return false;
+}
+#endif
 
 #ifdef _WIN32
 static bool set_windowsIcon(const char *executable, const char *icon_path)

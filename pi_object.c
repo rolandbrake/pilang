@@ -653,6 +653,7 @@ Object *new_context(void)
     ctx->userdata = NULL;
     ctx->image_cache = NULL;
     ctx->frame_callback = NEW_NIL();
+    ctx->vm = NULL;
     ctx->_transform_stack = NULL;
     ctx->font = NULL;
     ctx->clip_rect = (SDL_Rect){0, 0, 0, 0};

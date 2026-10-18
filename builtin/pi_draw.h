@@ -11,6 +11,10 @@ Value dw_canvas(vm_t *vm, int argc, Value *argv);
 // Start the application main loop.
 Value dw_run(vm_t *vm, int argc, Value *argv);
 
+#ifdef __EMSCRIPTEN__
+void dw_stopWebLoop(void);
+#endif
+
 // Clear the canvas with the current/background color.
 Value dw_clear(vm_t *vm, int argc, Value *argv);
 

@@ -2,18 +2,12 @@
 #define PI_OBJECT_H
 
 #include <stdint.h>
-#ifndef __EMSCRIPTEN__
 #include <SDL2/SDL.h>
+#ifndef __EMSCRIPTEN__
 #include <SDL2/SDL_mixer.h>
 #include <SDL2/SDL_ttf.h>
 #else
-typedef struct SDL_Rect
-{
-    int x;
-    int y;
-    int w;
-    int h;
-} SDL_Rect;
+typedef struct Mix_Chunk Mix_Chunk;
 #endif
 
 #include "pi_value.h"
@@ -382,7 +376,6 @@ typedef struct
     bool closed;
 } PiSocket;
 
-#ifndef __EMSCRIPTEN__
 typedef struct
 {
     Object object;
@@ -399,13 +392,14 @@ typedef struct
     Uint32 frames;
     Mix_Chunk *chunk;
     int channel;
+    int browser_id;
 } ObjAudio;
 
 ObjAudio *new_audio(SDL_AudioSpec spec, float *samples, Uint32 frames,
                     Mix_Chunk *chunk);
-#endif
 
 struct PiChart3D;
+typedef struct vm_t vm_t;
 
 
 typedef struct PiContext
@@ -427,6 +421,7 @@ typedef struct PiContext
     void *image_cache; /* PiDraw cached SDL textures; owned by builtin/pi_draw.c */
 
     Value frame_callback;
+    vm_t *vm;
 
     SDL_Rect clip_rect; // clipping rectangle
     bool clip_enabled;

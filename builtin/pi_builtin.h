@@ -69,13 +69,11 @@ extern BuiltinModule module_draw;   // draw: 2D canvas (pixel, line, rect, circl
 extern BuiltinModule module_plot;   // plot: 2D plotting (plot, scatter, bar, show, …)
 extern BuiltinModule module_plot3d; // plot3d: 3D plotting (surface, mesh, wireframe, …)
 extern BuiltinModule module_tensor; // tensor: Tensor operations (zeros, ones, shape, …)
-#ifndef __EMSCRIPTEN__
 extern BuiltinModule module_netSocket;
 extern BuiltinModule module_image;        // image: Image loading and manipulation
 extern BuiltinModule module_imageFilters; // image.filters: Convolution, blur, edge detection, …
 extern BuiltinModule module_imageColor;   // image.color: Color space and palette helpers
 extern BuiltinModule module_audio;         // audio: WAV loading and manipulation
-#endif
 
 // Defines a BuiltinModule from local func/const arrays, computing counts via sizeof.
 // const_list must be an array (not a pointer) — passing NULL requires a sentinel workaround.

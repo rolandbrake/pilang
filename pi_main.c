@@ -17,6 +17,7 @@
 #include "pi_module.h"
 #include "pi_package.h"
 #include "pi_vm.h"
+#include "builtin/pi_draw.h"
 
 #ifndef TARGET_FPS
 #define TARGET_FPS 60
@@ -89,6 +90,9 @@ static void browser_errorHandler(const char *message, int line, int column)
 
 static void browser_cleanupExecution(void)
 {
+#ifdef __EMSCRIPTEN__
+    dw_stopWebLoop();
+#endif
     if (vm)
     {
         free_vm(vm);
@@ -1156,17 +1160,17 @@ int main(int argc, char *argv[])
             target = argv[2] + 7;
         else if (argc != 2)
         {
-            fprintf(stderr, "Usage: %s pack [target:win]\n", argv[0]);
+            fprintf(stderr, "Usage: %s pack [target:win|web]\n", argv[0]);
             return 1;
         }
-        if (strcmp(target, "win") != 0)
+        if (strcmp(target, "win") != 0 && strcmp(target, "web") != 0)
         {
             fprintf(stderr, "%sPackaging failed:%s target '%s' is not supported yet.\n",
                     package_color("\033[31m"), package_color("\033[0m"), target);
             return 1;
         }
         pi_package_t package;
-        if (!package_load(&package, "win"))
+        if (!package_load(&package, target))
         {
             fprintf(stderr, "%sPackaging failed:%s package.loon is invalid.\n",
                     package_color("\033[31m"), package_color("\033[0m"));
@@ -1174,13 +1178,17 @@ int main(int argc, char *argv[])
         }
         printf("%sPackaging%s %s %s (%s)\n", package_color("\033[36m"),
                package_color("\033[0m"), package.name, package.version, target);
-        int status = build_file(package.entry);
-        if (status != 0)
+        int status = 0;
+        if (strcmp(target, "win") == 0)
         {
-            fprintf(stderr, "%sPackaging failed:%s could not compile '%s'.\n",
-                    package_color("\033[31m"), package_color("\033[0m"), package.entry);
-            package_free(&package);
-            return status;
+            status = build_file(package.entry);
+            if (status != 0)
+            {
+                fprintf(stderr, "%sPackaging failed:%s could not compile '%s'.\n",
+                        package_color("\033[31m"), package_color("\033[0m"), package.entry);
+                package_free(&package);
+                return status;
+            }
         }
         const char *runtime_path = argv[0];
 #ifdef _WIN32
@@ -1196,7 +1204,10 @@ int main(int argc, char *argv[])
         runtime_path = runtime_path_buffer;
 #endif
         char package_error[256];
-        if (!package_bundle(runtime_path, &package, package_error, sizeof(package_error)))
+        bool packaged = strcmp(target, "web") == 0
+                            ? package_web(runtime_path, &package, package_error, sizeof(package_error))
+                            : package_bundle(runtime_path, &package, package_error, sizeof(package_error));
+        if (!packaged)
         {
             fprintf(stderr, "%sPackaging failed:%s %s\n", package_color("\033[31m"),
                     package_color("\033[0m"), package_error[0] ? package_error : "unknown error");

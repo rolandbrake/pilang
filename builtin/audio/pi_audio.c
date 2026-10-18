@@ -1,3 +1,29 @@
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include "pi_audio.h"
+#include "../pi_builtin.h"
+#include "../../pi_object.h"
+
+EM_JS(int, _web_audio_load, (const char *path), { Module.piAudio ||= []; const a = new Audio(UTF8ToString(path)); Module.piAudio.push(a); return Module.piAudio.length - 1; });
+EM_JS(void, _web_audio_play, (int id), { const a=Module.piAudio&&Module.piAudio[id]; if(a){a.currentTime=0;a.play().catch(()=>{});} });
+EM_JS(void, _web_audio_volume, (int id, double value), { const a=Module.piAudio&&Module.piAudio[id]; if(a)a.volume=value; });
+EM_JS(void, _web_audio_pause, (int id), { const a=Module.piAudio&&Module.piAudio[id]; if(a)a.pause(); });
+EM_JS(void, _web_audio_stop, (int id), { const a=Module.piAudio&&Module.piAudio[id]; if(a){a.pause();a.currentTime=0;} });
+EM_JS(int, _web_audio_playing, (int id), { const a=Module.piAudio&&Module.piAudio[id]; return !!(a&&!a.paused&&!a.ended); });
+
+static ObjAudio *_web_audio(vm_t *vm, Value value) { if (!IS_AUDIO(value)) vm_error(vm, "audio expects a clip"); return AS_AUDIO(value); }
+Value au_load(vm_t *vm,int argc,Value *argv) { if(argc<1||!IS_STRING(argv[0])) vm_error(vm,"[audio.load] expects a file path string."); ObjAudio *a=(ObjAudio *)alloc_object(sizeof(*a),OBJ_AUDIO); a->browser_id=_web_audio_load(AS_CSTRING(argv[0])); return NEW_OBJ(add_obj(vm,(Object *)a)); }
+Value au_play(vm_t *vm,int argc,Value *argv) { _web_audio_play(_web_audio(vm,argv[0])->browser_id); return NEW_BOOL(true); }
+Value au_volume(vm_t *vm,int argc,Value *argv) { if(argc<2||!IS_NUM(argv[1])) vm_error(vm,"[audio.volume] expects a number."); _web_audio_volume(_web_audio(vm,argv[0])->browser_id,AS_NUM(argv[1])); return NEW_NIL(); }
+Value au_pause(vm_t *vm,int argc,Value *argv) { _web_audio_pause(_web_audio(vm,argv[0])->browser_id); return NEW_NIL(); }
+Value au_resume(vm_t *vm,int argc,Value *argv) { _web_audio_play(_web_audio(vm,argv[0])->browser_id); return NEW_NIL(); }
+Value au_stop(vm_t *vm,int argc,Value *argv) { _web_audio_stop(_web_audio(vm,argv[0])->browser_id); return NEW_NIL(); }
+Value au_isPlaying(vm_t *vm,int argc,Value *argv) { return NEW_BOOL(_web_audio_playing(_web_audio(vm,argv[0])->browser_id)); }
+Value au_sampleRate(vm_t *vm,int argc,Value *argv){return NEW_NUM(0);} Value au_channels(vm_t *vm,int argc,Value *argv){return NEW_NUM(0);} Value au_frames(vm_t *vm,int argc,Value *argv){return NEW_NUM(0);} Value au_duration(vm_t *vm,int argc,Value *argv){return NEW_NUM(0);} Value au_format(vm_t *vm,int argc,Value *argv){return NEW_NIL();} Value au_playMusic(vm_t *vm,int argc,Value *argv){return NEW_BOOL(false);} Value au_musicIsPlaying(vm_t *vm,int argc,Value *argv){return NEW_BOOL(false);} Value au_stopMusic(vm_t *vm,int argc,Value *argv){return NEW_BOOL(true);}
+static BuiltinFunc audio_funcs[]={{"load",au_load},{"sample_rate",au_sampleRate},{"channels",au_channels},{"frames",au_frames},{"duration",au_duration},{"format",au_format},{"play",au_play},{"volume",au_volume},{"pause",au_pause},{"resume",au_resume},{"stop",au_stop},{"is_playing",au_isPlaying},{"play_music",au_playMusic},{"music_isPlaying",au_musicIsPlaying},{"stop_music",au_stopMusic}};
+static BuiltinConst audio_consts[] = {};
+DEFINE_BUILTIN_MODULE(module_audio,"audio",audio_funcs,audio_consts);
+#else
 #include <stdlib.h>
 #include <string.h>
 
@@ -323,3 +349,4 @@ static BuiltinFunc audio_funcs[] = {
 static BuiltinConst audio_consts[] = {};
 
 DEFINE_BUILTIN_MODULE(module_audio, "audio", audio_funcs, audio_consts);
+#endif

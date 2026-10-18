@@ -76,7 +76,8 @@ NATIVE_EXTRA_SRCS := \
 	$(AUDIO_SRCS)
 
 NATIVE_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS) $(NATIVE_EXTRA_SRCS)
-WEB_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS)
+WEB_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS) \
+	builtin/pi_draw.c builtin/pi_plot3d.c $(IMAGE_SRCS) $(AUDIO_SRCS)
 
 CSTD ?= -std=c99
 # WARNINGS ?= -Wall -Wextra
@@ -130,17 +131,19 @@ CFLAGS = $(CPPFLAGS) $(WARNINGS) $(CSTD)
 NATIVE_CFLAGS = $(NATIVE_CPPFLAGS) $(WARNINGS) $(CSTD)
 
 EMCC_FLAGS ?= \
-	-s ASYNCIFY \
-	-s ASYNCIFY_STACK_SIZE=524288 \
 	-s ALLOW_MEMORY_GROWTH \
+	-s STACK_SIZE=1MB \
 	-s MODULARIZE=1 \
-	-s EXPORT_NAME=createMyModule \
+	-s EXPORT_NAME=createPilang \
 	-s EXPORT_ES6=1 \
 	-s EXPORTED_FUNCTIONS='["_main","_set_source","_execute_source","_disassemble_source","_stop_execution","_pause_execution","_resume_execution"]' \
-	-s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' \
+	-s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","FS"]' \
 	-Os \
 	-s FULL_ES3=1 \
 	-s OFFSCREEN_FRAMEBUFFER=1 \
+	--use-port=sdl2 \
+	--use-port=sdl2_image:formats=png \
+	--use-port=sdl2_ttf \
 	--shell-file index.html
 
 .PHONY: all debug release static-deps web run test loon-test clean

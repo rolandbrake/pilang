@@ -12,6 +12,8 @@ typedef struct
     char *entry;
     char *output;
     char *icon;
+    char **files;
+    size_t file_count;
     bool console;
 } pi_package_t;
 
@@ -26,6 +28,7 @@ typedef struct
 bool package_load(pi_package_t *package, const char *target);
 void package_free(pi_package_t *package);
 bool package_bundle(const char *runtime_path, const pi_package_t *package, char *error, size_t error_size);
+bool package_web(const char *runtime_path, const pi_package_t *package, char *error, size_t error_size);
 bool package_embeddedOffset(const char *path, uint64_t *offset, bool *console);
 
 #endif
