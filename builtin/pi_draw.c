@@ -13,6 +13,13 @@
 #include <emscripten.h>
 EM_JS(void, _web_canvas_init, (int w, int h), { const c=Module.canvas; c.width=w;c.height=h; Module.piCtx=c.getContext('2d'); Module.piKeys={};Module.piMouse={x:0,y:0,left:false}; addEventListener('keydown',e=>Module.piKeys[e.keyCode]=true);addEventListener('keyup',e=>Module.piKeys[e.keyCode]=false);c.onmousemove=e=>{const r=c.getBoundingClientRect();Module.piMouse.x=(e.clientX-r.left)*c.width/r.width;Module.piMouse.y=(e.clientY-r.top)*c.height/r.height};c.onmousedown=e=>Module.piMouse.left=e.button===0;c.onmouseup=e=>{if(e.button===0)Module.piMouse.left=false}; });
 EM_JS(void, _web_canvas_image, (const char *p,double x,double y,double w,double h,double angle,int flip), { const c=Module.piCtx,path=UTF8ToString(p);Module.piImgs ||= {};let i=Module.piImgs[path];if(!i){i=new Image();i.src=path;Module.piImgs[path]=i}if(!i.complete)return;w=w||i.width;h=h||i.height;c.save();c.translate(x+w/2,y+h/2);c.rotate(angle*Math.PI/180);c.scale(1,flip?-1:1);c.drawImage(i,-w/2,-h/2,w,h);c.restore(); });
+EM_JS(void, _web_canvas_text, (const char *text,double x,double y,int color,int size,int bold,int italic,const char *align,double alpha), { const c=Module.piCtx,a=UTF8ToString(align);c.save();c.globalAlpha=alpha;c.fillStyle='#'+(color>>>0).toString(16).padStart(6,'0').slice(-6);c.font=(bold?"bold ":"")+(italic?"italic ":"")+size+'px sans-serif';c.textBaseline='top';c.textAlign=(a==='center'||a==='middle')?'center':(a==='right'||a==='end')?'right':'left';if(a==='middle')y-=size/2;else if(a==='bottom')y-=size;c.fillText(UTF8ToString(text),x,y);c.restore(); });
+EM_JS(int, _web_mouse_x, (), { return Module.piMouse ? Module.piMouse.x : 0; });
+EM_JS(int, _web_mouse_y, (), { return Module.piMouse ? Module.piMouse.y : 0; });
+EM_JS(int, _web_mouse_left, (), { return Module.piMouse && Module.piMouse.left ? 1 : 0; });
+EM_JS(int, _web_key_down, (int key), { const arrows={1073741903:39,1073741904:37,1073741905:40,1073741906:38};return Module.piKeys && !!Module.piKeys[arrows[key] || key]; });
+EM_JS(void, _web_start_loop, (), { if(Module.piFrameLoop)cancelAnimationFrame(Module.piFrameLoop);const tick=()=>{if(Module._dw_web_runFrame())Module.piFrameLoop=requestAnimationFrame(tick);else Module.piFrameLoop=0};Module.piFrameLoop=requestAnimationFrame(tick); });
+EM_JS(void, _web_stop_loop, (), { if(Module.piFrameLoop){cancelAnimationFrame(Module.piFrameLoop);Module.piFrameLoop=0} });
 #endif
 
 #include "../common.h"
@@ -36,21 +43,27 @@ static void _pump_events(VM *vm, PiContext *ctx);
 #ifdef __EMSCRIPTEN__
 static PiContext *web_loop_context = NULL;
 
-static void _web_runFrame(void *arg)
+static int _web_runFrame(void)
 {
-    PiContext *ctx = arg;
+    PiContext *ctx = web_loop_context;
     VM *vm = ctx ? ctx->vm : NULL;
     if (!ctx || !vm || !ctx->running || ctx->cleaned)
     {
-        emscripten_cancel_main_loop();
         if (web_loop_context == ctx) web_loop_context = NULL;
-        return;
+        return FALSE;
     }
     _pump_events(vm, ctx);
     if (ctx->running && !IS_NIL(ctx->frame_callback))
     {
+        vm->running = TRUE;
         Value args[1] = {NEW_OBJ((Object *)ctx)};
         call_func(vm, AS_FUN(ctx->frame_callback), 1, args, NEW_NIL());
+        if (!vm->running)
+        {
+            dw_cleanupContext(ctx);
+            return FALSE;
+        }
+        vm->running = FALSE;
     }
     if (ctx->running)
     {
@@ -60,13 +73,24 @@ static void _web_runFrame(void *arg)
 #endif
     }
     if (!ctx->running)
+    {
         dw_cleanupContext(ctx);
+        return FALSE;
+    }
+    return TRUE;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int dw_web_runFrame(void)
+{
+    return _web_runFrame();
 }
 
 void dw_stopWebLoop(void)
 {
     if (web_loop_context)
         dw_cleanupContext(web_loop_context);
+    _web_stop_loop();
 }
 #endif
 
@@ -493,8 +517,8 @@ void dw_cleanupContext(PiContext *ctx)
 #ifdef __EMSCRIPTEN__
     if (web_loop_context == ctx)
     {
-        emscripten_cancel_main_loop();
         web_loop_context = NULL;
+        _web_stop_loop();
     }
 #endif
     ctx->frame_callback = NEW_NIL();
@@ -748,9 +772,7 @@ Value dw_run(VM *vm, int argc, Value *argv)
         dw_stopWebLoop();
     ctx->vm = vm;
     web_loop_context = ctx;
-    /* Yield out of execute_source() immediately.  The browser invokes
-       _web_runFrame on subsequent animation frames. */
-    emscripten_set_main_loop_arg(_web_runFrame, ctx, 0, 1);
+    _web_start_loop();
     return NEW_NIL();
 #else
     SDL_Event e;
@@ -1297,6 +1319,13 @@ Value dw_text(VM *vm, int argc, Value *argv)
     if (argc > 4 && IS_MAP(argv[4]))
         _parse_drawOptions(argv[4], &color, &font_path, &font_size, &align, &bold, &italic, NULL, NULL, NULL);
 
+#ifdef __EMSCRIPTEN__
+    _web_canvas_text(text, x, y, color, font_size, bold, italic,
+                     align ? align : "", ctx->alpha);
+    free(text);
+    return NEW_NIL();
+#endif
+
     TTF_Font *font = NULL;
     if (font_path)
     {
@@ -1494,7 +1523,14 @@ Value dw_mouse(VM *vm, int argc, Value *argv)
         vm_error(vm, "mouse() takes a canvas as first argument");
 
     int x, y;
-    Uint32 buttons = SDL_GetMouseState(&x, &y);
+    Uint32 buttons;
+#ifdef __EMSCRIPTEN__
+    x = _web_mouse_x();
+    y = _web_mouse_y();
+    buttons = _web_mouse_left() ? SDL_BUTTON(SDL_BUTTON_LEFT) : 0;
+#else
+    buttons = SDL_GetMouseState(&x, &y);
+#endif
 
     HT_Table *table = ht_create(sizeof(Value));
 
@@ -1524,8 +1560,11 @@ Value dw_key(VM *vm, int argc, Value *argv)
     if (argc < 2 || !IS_NUM(argv[1]))
         vm_error(vm, "key() takes a canvas and a key code");
 
-    const Uint8 *state = SDL_GetKeyboardState(NULL);
     SDL_Keycode keycode = (SDL_Keycode)as_number(argv[1]);
+#ifdef __EMSCRIPTEN__
+    return NEW_BOOL(_web_key_down(keycode));
+#else
+    const Uint8 *state = SDL_GetKeyboardState(NULL);
     SDL_Scancode scancode = SDL_GetScancodeFromKey(keycode);
 
     // Keep the previous raw-scancode API working for existing programs.
@@ -1534,6 +1573,7 @@ Value dw_key(VM *vm, int argc, Value *argv)
         scancode = (SDL_Scancode)keycode;
 
     return NEW_BOOL(scancode != SDL_SCANCODE_UNKNOWN && state[scancode]);
+#endif
 }
 
 Value dw_size(VM *vm, int argc, Value *argv)
