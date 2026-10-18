@@ -1,10 +1,9 @@
 <p align="center">
   <a href="https://pi-lang.netlify.app/">
-    <img src="imgs/pi.png" alt="Pilang logo" width="150">
+    <img src="imgs/pi_logo.png" alt="Pilang logo" width="500">
   </a>
 </p>
 
-<h1 align="center">Pilang</h1>
 
 <p align="center">
   A compact language for turning data, math, and ideas into visible experiments.
