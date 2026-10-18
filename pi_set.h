@@ -18,13 +18,13 @@ typedef struct
 
     int (*hash)(void *data);
     int (*equals)(void *a, void *b);
-} set_t;
+} Set;
 
-set_t *set_create(int (*hash)(void *), int (*equals)(void *, void *));
-void set_add(set_t *set, void *data);
-int set_contains(set_t *set, void *data);
-bool set_has(set_t *set, void *data);
-bool set_remove(set_t *set, void *data);
-void set_free(set_t *set);
+Set *set_create(int (*hash)(void *), int (*equals)(void *, void *));
+void set_add(Set *set, void *data);
+int set_contains(Set *set, void *data);
+bool set_has(Set *set, void *data);
+bool set_remove(Set *set, void *data);
+void set_free(Set *set);
 
 #endif // PI_SET_H

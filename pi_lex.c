@@ -5,16 +5,16 @@
 #include <ctype.h>
 #include "pi_lex.h"
 
-// Create an instance of scanner_t
-scanner_t *scanner;
+// Create an instance of Scanner
+Scanner *scanner;
 
-static void l_error(const char *message)
+static void _l_error(const char *message)
 {
     fprintf(stderr, "Syntax Error: %s at line %d, column %d\n", message, scanner->line, scanner->column);
     exit(1);
 }
 
-static void exponent()
+static void _exponent()
 {
     if (!match_s("eE"))
         return;
@@ -22,7 +22,7 @@ static void exponent()
     match_s("+-");
 
     if (!is_digit(peek(0)))
-        l_error("invalid decimal literal");
+        _l_error("invalid decimal literal");
 
     while (is_digit(peek(0)))
     {
@@ -30,7 +30,7 @@ static void exponent()
         if (peek(0) == '_')
         {
             if (!is_digit(peek(1)))
-                l_error("numeric separator must be followed by a digit");
+                _l_error("numeric separator must be followed by a digit");
             next();
         }
     }
@@ -41,7 +41,7 @@ void init_scanner(char *source)
 {
 
     // Allocate memory for the scanner instance
-    scanner = (scanner_t *)malloc(sizeof(scanner_t));
+    scanner = (Scanner *)malloc(sizeof(Scanner));
 
     scanner->source = source;
 
@@ -55,16 +55,16 @@ void init_scanner(char *source)
 
     scanner->capacity = 128;
 
-    scanner->is_negative = false;
+    scanner->is_negative = FALSE;
 
     scanner->brackets = stack_create(sizeof(int));
 
     // Allocate memory for the tokens array with initial capacity
-    scanner->tokens = (token_t *)malloc(scanner->capacity * sizeof(token_t));
+    scanner->tokens = (Token *)malloc(scanner->capacity * sizeof(Token));
 }
 
 // Function to scan the source code and return tokens
-token_t *scan()
+Token *scan()
 {
     scan_tokens();
     return scanner->tokens;
@@ -124,7 +124,7 @@ void scan_token()
                 }
             }
             if (!match('/'))
-                l_error("Unclosed Comment");
+                _l_error("Unclosed Comment");
             // scanner->start = scanner->current;
         }
         else if (match('='))
@@ -298,7 +298,7 @@ void scan_token()
         }
 
         if (is_AtEnd() && scanner->source[scanner->current - 1] != _ch)
-            l_error("Unterminated String");
+            _l_error("Unterminated String");
 
         add_token(TK_STR);
         break;
@@ -340,7 +340,7 @@ void scan_token()
                     do
                     {
                         if (!is_hexDigit(peek(0)))
-                            l_error("invalid hexadecimal literal");
+                            _l_error("invalid hexadecimal literal");
                         do
                         {
                             scanner->ch = next();
@@ -354,7 +354,7 @@ void scan_token()
                     do
                     {
                         if (!is_octDigit(peek(0)))
-                            l_error("invalid octal literal");
+                            _l_error("invalid octal literal");
                         scanner->ch = next();
                     } while (match('.') || is_digit(peek(0)));
                     add_token(TK_NUM);
@@ -365,7 +365,7 @@ void scan_token()
                     do
                     {
                         if (!is_binDigit(peek(0)))
-                            l_error("invalid binary literal");
+                            _l_error("invalid binary literal");
                         scanner->ch = next();
                     } while (match('.') || is_digit(peek(0)));
                     add_token(TK_NUM);
@@ -379,11 +379,11 @@ void scan_token()
                 }
                 else if (peek(0) == 'e' || peek(0) == 'E')
                 {
-                    exponent();
+                    _exponent();
                     add_token(TK_NUM);
                 }
                 else if (is_digit(peek(0)))
-                    l_error("leading zeros in decimal integer literals are not permitted");
+                    _l_error("leading zeros in decimal integer literals are not permitted");
                 else
                     add_token(TK_NUM);
             }
@@ -394,7 +394,7 @@ void scan_token()
                     if (peek(0) == '_')
                     {
                         if (!is_digit(peek(1)))
-                            l_error("numeric separator must be followed by a digit");
+                            _l_error("numeric separator must be followed by a digit");
                         scanner->ch = next();
                     }
                     scanner->ch = next();
@@ -406,7 +406,7 @@ void scan_token()
                         decimal();
                 }
                 else
-                    exponent();
+                    _exponent();
                 add_token(TK_NUM);
             }
         }
@@ -416,7 +416,7 @@ void scan_token()
                 next();
 
             char *name = substring(scanner->source, scanner->start, scanner->current);
-            tk_type type = find_kw(name);
+            PiTokenType type = find_kw(name);
 
             if (type == TK_INVALID)
                 add_token(TK_ID);
@@ -476,7 +476,7 @@ bool match(char expected)
 }
 
 // Function to add a token to the scanner's token list
-void add_token(tk_type type)
+void add_token(PiTokenType type)
 {
 
     char *start = scanner->source + scanner->start;
@@ -494,14 +494,14 @@ void add_token(tk_type type)
     if (scanner->size >= scanner->capacity)
     {
         scanner->capacity *= 2;
-        scanner->tokens = (token_t *)realloc(scanner->tokens, scanner->capacity * sizeof(token_t));
+        scanner->tokens = (Token *)realloc(scanner->tokens, scanner->capacity * sizeof(Token));
     }
 
     // Create a token and add it directly to the tokens array
-    token_t token = create_token(type, start, length, scanner->line, scanner->column);
+    Token token = create_token(type, start, length, scanner->line, scanner->column);
 
-    token.openAt = -1;
-    token.closeAt = -1;
+    token.open_at = -1;
+    token.close_at = -1;
 
     // Handle bracket tracking
     switch (type)
@@ -510,21 +510,21 @@ void add_token(tk_type type)
     case TK_LBRACE:
     case TK_LBRACKET:
         // Push opening bracket position (token index)
-        stack_push(scanner->brackets, &index);
-        token.openAt = index;
+        _stack_push(scanner->brackets, &index);
+        token.open_at = index;
         break;
 
     case TK_RPAREN:
     case TK_RBRACE:
     case TK_RBRACKET:
     {
-        if (!stack_isEmpty(scanner->brackets))
+        if (!_stack_isEmpty(scanner->brackets))
         {
             // stack stores int values - pop returns pointer to the int slot
-            int open_pos = *(int *)stack_pop(scanner->brackets);
+            int open_pos = *(int *)_stack_pop(scanner->brackets);
 
-            token.openAt = open_pos;
-            scanner->tokens[open_pos].closeAt = index;
+            token.open_at = open_pos;
+            scanner->tokens[open_pos].close_at = index;
         }
         break;
     }
@@ -607,11 +607,11 @@ void decimal()
         if (peek(0) == '_')
         {
             if (!is_digit(peek(1)))
-                l_error("numeric separator must be followed by a digit");
+                _l_error("numeric separator must be followed by a digit");
             next();
         }
     }
-    exponent();
+    _exponent();
 }
 
 bool is_alpha(char ch)

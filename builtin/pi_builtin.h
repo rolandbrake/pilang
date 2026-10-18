@@ -25,7 +25,7 @@
 typedef struct
 {
     char *name;                          // function name as exposed to pi scripts
-    Value (*func)(vm_t *, int, Value *); // native implementation
+    Value (*func)(VM *, int, Value *); // native implementation
 } BuiltinFunc;
 
 typedef struct

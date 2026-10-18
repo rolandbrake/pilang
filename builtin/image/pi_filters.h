@@ -6,17 +6,17 @@
 
 
 
-Value im_invert(vm_t *vm, int argc, Value *argv);
-Value im_brightness(vm_t *vm, int argc, Value *argv);
-Value im_contrast(vm_t *vm, int argc, Value *argv);
-Value im_blur(vm_t *vm, int argc, Value *argv);
-Value im_sharpen(vm_t *vm, int argc, Value *argv);
-Value im_sobel(vm_t *vm, int argc, Value *argv);
-Value im_threshold(vm_t *vm, int argc, Value *argv);
-Value im_canny(vm_t *vm, int argc, Value *argv);
-Value im_filter(vm_t *vm, int argc, Value *argv);
-Value im_kernel(vm_t *vm, int argc, Value *argv);
-Value im_boxKernel(vm_t *vm, int argc, Value *argv);
+Value im_invert(VM *vm, int argc, Value *argv);
+Value im_brightness(VM *vm, int argc, Value *argv);
+Value im_contrast(VM *vm, int argc, Value *argv);
+Value im_blur(VM *vm, int argc, Value *argv);
+Value im_sharpen(VM *vm, int argc, Value *argv);
+Value im_sobel(VM *vm, int argc, Value *argv);
+Value im_threshold(VM *vm, int argc, Value *argv);
+Value im_canny(VM *vm, int argc, Value *argv);
+Value im_filter(VM *vm, int argc, Value *argv);
+Value im_kernel(VM *vm, int argc, Value *argv);
+Value im_boxKernel(VM *vm, int argc, Value *argv);
 
 extern BuiltinModule module_imageFilters;
 

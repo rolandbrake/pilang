@@ -3,12 +3,12 @@
 #include "pi_value.h"
 #include "pi_object.h"
 
-static list_t *_list_alloc(int i_size, int capacity)
+static List *_list_alloc(int i_size, int capacity)
 {
     if (i_size <= 0 || capacity < 0 || capacity > PI_MAX_LIST_SIZE)
         return NULL;
 
-    list_t *list = malloc(sizeof(list_t));
+    List *list = malloc(sizeof(List));
     if (!list)
         return NULL;
 
@@ -25,28 +25,28 @@ static list_t *_list_alloc(int i_size, int capacity)
     return list;
 }
 
-list_t *list_create(int i_size)
+List *list_create(int i_size)
 {
-    list_t *list = _list_alloc(i_size, INIT_CAP);
+    List *list = _list_alloc(i_size, INIT_CAP);
     if (!list)
         error("list create: Out of memory.");
     return list;
 }
 
 /* Pre-sized variant - use when the final size is known (avoids grow cycles). */
-list_t *list_createCap(int i_size, int capacity)
+List *list_createCap(int i_size, int capacity)
 {
     if (capacity < INIT_CAP)
         capacity = INIT_CAP;
     if (capacity > PI_MAX_LIST_SIZE)
         error("List size exceeds the maximum of %d elements.", PI_MAX_LIST_SIZE);
-    list_t *list = _list_alloc(i_size, capacity);
+    List *list = _list_alloc(i_size, capacity);
     if (!list)
         error("list create: Out of memory.");
     return list;
 }
 
-void _list_expand(list_t *list, int new_cap)
+void _list_expand(List *list, int new_cap)
 {
     if (new_cap > PI_MAX_LIST_SIZE)
         error("List size exceeds the maximum of %d elements.", PI_MAX_LIST_SIZE);
@@ -58,12 +58,12 @@ void _list_expand(list_t *list, int new_cap)
     list->capacity = new_cap;
 }
 
-list_t *list_copy(const list_t *list)
+List *list_copy(const List *list)
 {
     /* Allocate exactly as many slots as there are live elements.
        Use INIT_CAP as minimum so small copies can still grow cheaply. */
     int cap = list->size > INIT_CAP ? list->size : INIT_CAP;
-    list_t *copy = list_createCap(list->i_size, cap);
+    List *copy = list_createCap(list->i_size, cap);
 
     if (list->size > 0)
         memcpy(copy->data, list->data, (size_t)list->size * list->i_size);
@@ -72,7 +72,7 @@ list_t *list_copy(const list_t *list)
     return copy;
 }
 
-list_t *list_addAll(list_t *list, const list_t *items)
+List *list_addAll(List *list, const List *items)
 {
     if (!items || items->size == 0)
         return list;
@@ -95,7 +95,7 @@ list_t *list_addAll(list_t *list, const list_t *items)
     return list;
 }
 
-void list_addAt(list_t *list, int index, const void *item)
+void list_addAt(List *list, int index, const void *item)
 {
     if (list->size == list->capacity)
         _list_grow(list);
@@ -109,7 +109,7 @@ void list_addAt(list_t *list, int index, const void *item)
     list->size++;
 }
 
-void list_addFirst(list_t *list, const void *item)
+void list_addFirst(List *list, const void *item)
 {
     if (list->size == list->capacity)
         _list_grow(list);
@@ -123,7 +123,7 @@ void list_addFirst(list_t *list, const void *item)
     list->size++;
 }
 
-void *list_pop(list_t *list)
+void *list_pop(List *list)
 {
     if (list->size == 0)
         error("List is empty.");
@@ -133,7 +133,7 @@ void *list_pop(list_t *list)
     return (char *)list->data + list->size * list->i_size;
 }
 
-void *list_remove(list_t *list, int index)
+void *list_remove(List *list, int index)
 {
     index = get_index(index, list->size);
 
@@ -148,45 +148,45 @@ void *list_remove(list_t *list, int index)
     return target;
 }
 
-list_t *list_map(list_t *list, Value *(*func)(Value *))
+List *list_map(List *list, Value *(*func)(Value *))
 {
     if (!list || !func)
         error("Invalid arguments.");
 
-    list_t *result = list_createCap(list->i_size, list->size > INIT_CAP ? list->size : INIT_CAP);
+    List *result = list_createCap(list->i_size, list->size > INIT_CAP ? list->size : INIT_CAP);
 
     for (int i = 0; i < list->size; i++)
     {
-        Value *item = (Value *)list_getAt(list, i);
+        Value *item = (Value *)_list_getAt(list, i);
         Value *mapped = func(item);
-        list_add(result, mapped);
+        _list_add(result, mapped);
     }
 
     return result;
 }
 
-bool list_isEmpty(list_t *list)
+bool list_isEmpty(List *list)
 {
     return list->size == 0;
 }
 
-void list_clear(list_t *list)
+void list_clear(List *list)
 {
     if (!list)
         return;
     list->size = 0;
 }
 
-void list_print(list_t *list)
+void list_print(List *list)
 {
     for (int i = 0; i < list->size; i++)
     {
-        Value item = *(Value *)list_getAt(list, i);
+        Value item = *(Value *)_list_getAt(list, i);
         printf("[%d] %s\n", i, as_string(item));
     }
 }
 
-void list_free(list_t *list)
+void list_free(List *list)
 {
     if (!list)
         return;

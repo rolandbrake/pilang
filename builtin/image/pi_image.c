@@ -19,8 +19,8 @@ ObjImage *new_image(SDL_Surface *s)
         return NULL;
 
     img->object.type = OBJ_IMAGE;
-    img->object.is_marked = false;
-    img->object.in_gcList = false;
+    img->object.is_marked = FALSE;
+    img->object.in_gcList = FALSE;
     img->object.gc_color = GC_WHITE;
     img->object.next = NULL;
 
@@ -40,7 +40,7 @@ static void _ensure_img()
     }
 }
 
-Value im_load(vm_t *vm, int argc, Value *argv)
+Value im_load(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[image.load] expects a file path string.");
@@ -68,7 +68,7 @@ Value im_load(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, (Object *)img));
 }
 
-Value im_save(vm_t *vm, int argc, Value *argv)
+Value im_save(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE) || !IS_STRING(argv[1]))
         vm_error(vm, "[image.save] expects (image, path).");
@@ -80,10 +80,10 @@ Value im_save(vm_t *vm, int argc, Value *argv)
     if (SDL_SaveBMP(img->surface, path) != 0)
         vm_errorf(vm, "[image.save] failed to save: %s", path);
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value im_width(vm_t *vm, int argc, Value *argv)
+Value im_width(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.width] expects an image.");
@@ -91,7 +91,7 @@ Value im_width(vm_t *vm, int argc, Value *argv)
     return NEW_NUM((double)img->surface->w);
 }
 
-Value im_height(vm_t *vm, int argc, Value *argv)
+Value im_height(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.height] expects an image.");
@@ -99,7 +99,7 @@ Value im_height(vm_t *vm, int argc, Value *argv)
     return NEW_NUM((double)img->surface->h);
 }
 
-Value im_channels(vm_t *vm, int argc, Value *argv)
+Value im_channels(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.channels] expects an image.");
@@ -108,7 +108,7 @@ Value im_channels(vm_t *vm, int argc, Value *argv)
     return NEW_NUM((double)c);
 }
 
-static Uint8 image_alphaAt(SDL_Surface *surface, int x, int y)
+static Uint8 _image_alphaAt(SDL_Surface *surface, int x, int y)
 {
     int bpp = surface->format->BytesPerPixel;
     Uint8 *pixel = (Uint8 *)surface->pixels + y * surface->pitch + x * bpp;
@@ -120,7 +120,7 @@ static Uint8 image_alphaAt(SDL_Surface *surface, int x, int y)
     return a;
 }
 
-Value im_overlaps(vm_t *vm, int argc, Value *argv)
+Value im_overlaps(VM *vm, int argc, Value *argv)
 {
     if (argc < 6 || !IS_IMAGE(argv[0]) || !IS_NUM(argv[1]) || !IS_NUM(argv[2]) ||
         !IS_IMAGE(argv[3]) || !IS_NUM(argv[4]) || !IS_NUM(argv[5]))
@@ -145,20 +145,20 @@ Value im_overlaps(vm_t *vm, int argc, Value *argv)
     int right = right_a < right_b ? right_a : right_b;
     int bottom = bottom_a < bottom_b ? bottom_a : bottom_b;
     if (left >= right || top >= bottom)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
 
     if (SDL_LockSurface(a->surface) != 0 || SDL_LockSurface(b->surface) != 0)
         vm_errorf(vm, "[image.overlaps] failed to lock image: %s", SDL_GetError());
 
-    bool hit = false;
+    bool hit = FALSE;
     for (int y = top; y < bottom && !hit; y++)
     {
         for (int x = left; x < right; x++)
         {
-            if (image_alphaAt(a->surface, x - ax, y - ay) >= threshold &&
-                image_alphaAt(b->surface, x - bx, y - by) >= threshold)
+            if (_image_alphaAt(a->surface, x - ax, y - ay) >= threshold &&
+                _image_alphaAt(b->surface, x - bx, y - by) >= threshold)
             {
-                hit = true;
+                hit = TRUE;
                 break;
             }
         }
@@ -171,7 +171,7 @@ Value im_overlaps(vm_t *vm, int argc, Value *argv)
 
 // Preserves the source pixel format rather than always converting to RGBA32,
 // which matters for palette/indexed surfaces that callers may want to keep as-is.
-static SDL_Surface *create_surfaceSameFormat(SDL_Surface *src, int w, int h)
+static SDL_Surface *_create_surfaceSameFormat(SDL_Surface *src, int w, int h)
 {
     Uint32 fmt = src->format->format;
     int bpp = src->format->BitsPerPixel;
@@ -179,7 +179,7 @@ static SDL_Surface *create_surfaceSameFormat(SDL_Surface *src, int w, int h)
     return dst;
 }
 
-Value im_resize(vm_t *vm, int argc, Value *argv)
+Value im_resize(VM *vm, int argc, Value *argv)
 {
     if (argc < 3 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE) || !IS_NUM(argv[1]) || !IS_NUM(argv[2]))
         vm_error(vm, "[image.resize] expects (image, w, h).");
@@ -188,7 +188,7 @@ Value im_resize(vm_t *vm, int argc, Value *argv)
     int w = (int)AS_NUM(argv[1]);
     int h = (int)AS_NUM(argv[2]);
 
-    SDL_Surface *dst = create_surfaceSameFormat(img->surface, w, h);
+    SDL_Surface *dst = _create_surfaceSameFormat(img->surface, w, h);
     if (!dst)
         vm_error(vm, "[image.resize] failed to create surface.");
 
@@ -204,7 +204,7 @@ Value im_resize(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, (Object *)n));
 }
 
-Value im_crop(vm_t *vm, int argc, Value *argv)
+Value im_crop(VM *vm, int argc, Value *argv)
 {
     if (argc < 5 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE) || !IS_NUM(argv[1]) || !IS_NUM(argv[2]) || !IS_NUM(argv[3]) || !IS_NUM(argv[4]))
         vm_error(vm, "[image.crop] expects (image, x, y, w, h).");
@@ -218,7 +218,7 @@ Value im_crop(vm_t *vm, int argc, Value *argv)
     if (x < 0 || y < 0 || w <= 0 || h <= 0 || x + w > img->surface->w || y + h > img->surface->h)
         vm_error(vm, "[image.crop] invalid rectangle.");
 
-    SDL_Surface *dst = create_surfaceSameFormat(img->surface, w, h);
+    SDL_Surface *dst = _create_surfaceSameFormat(img->surface, w, h);
     if (!dst)
         vm_error(vm, "[image.crop] failed to create surface.");
 
@@ -234,7 +234,7 @@ Value im_crop(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, (Object *)n));
 }
 
-Value im_flip(vm_t *vm, int argc, Value *argv)
+Value im_flip(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE) || !IS_STRING(argv[1]))
         vm_error(vm, "[image.flip] expects (image, \"x\"|\"y\").");
@@ -246,7 +246,7 @@ Value im_flip(vm_t *vm, int argc, Value *argv)
     int h = img->surface->h;
     int bpp = img->surface->format->BytesPerPixel;
 
-    SDL_Surface *dst = create_surfaceSameFormat(img->surface, w, h);
+    SDL_Surface *dst = _create_surfaceSameFormat(img->surface, w, h);
     if (!dst)
         vm_error(vm, "[image.flip] failed to create surface.");
 
@@ -285,14 +285,14 @@ static bool _try_setWindowIcon(SDL_Window *window, const char *path)
 {
     SDL_Surface *icon = IMG_Load(path);
     if (!icon)
-        return false;
+        return FALSE;
 
     SDL_SetWindowIcon(window, icon);
     SDL_FreeSurface(icon);
-    return true;
+    return TRUE;
 }
 
-Value im_show(vm_t *vm, int argc, Value *argv)
+Value im_show(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_IMAGE(argv[0]))
         vm_error(vm, "[image.show] expects an image.");
@@ -360,7 +360,7 @@ Value im_show(vm_t *vm, int argc, Value *argv)
     }
 
     SDL_Event e;
-    bool running = true;
+    bool running = TRUE;
 
     // ~60 fps loop; any key or window close dismisses the window.
     while (running)
@@ -368,9 +368,9 @@ Value im_show(vm_t *vm, int argc, Value *argv)
         while (SDL_PollEvent(&e))
         {
             if (e.type == SDL_QUIT)
-                running = false;
+                running = FALSE;
             else if (e.type == SDL_KEYDOWN)
-                running = false;
+                running = FALSE;
         }
 
         SDL_RenderClear(ren);
@@ -384,10 +384,10 @@ Value im_show(vm_t *vm, int argc, Value *argv)
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(win);
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value im_img2tensor(vm_t *vm, int argc, Value *argv)
+Value im_img2tensor(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_IMAGE))
         vm_error(vm, "[image.img2tensor] expects an image and optional normalize flag.");
@@ -398,7 +398,7 @@ Value im_img2tensor(vm_t *vm, int argc, Value *argv)
     int bpp = img->surface->format->BytesPerPixel;
     int channels = bpp;
 
-    bool normalize = false;
+    bool normalize = FALSE;
     if (argc >= 2)
     {
         if (IS_BOOL(argv[1]))
@@ -457,7 +457,7 @@ Value im_img2tensor(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(tensor);
 }
 
-Value im_tensor2img(vm_t *vm, int argc, Value *argv)
+Value im_tensor2img(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "[image.tensor2img] expects a tensor [h,w,c] and optional normalize flag.");
@@ -472,7 +472,7 @@ Value im_tensor2img(vm_t *vm, int argc, Value *argv)
     if (channels < 1 || channels > 4)
         vm_error(vm, "[image.tensor2img] channels must be 1..4.");
 
-    bool normalize = false;
+    bool normalize = FALSE;
     if (argc >= 2)
     {
         if (IS_BOOL(argv[1]))

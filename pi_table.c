@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include "pi_table.h"
 
-static inline uint32_t next_pow2(uint32_t v)
+static inline uint32_t _next_pow2(uint32_t v)
 {
     if (v == 0)
         return 1;
@@ -20,9 +20,9 @@ static inline uint32_t next_pow2(uint32_t v)
 
 /*
  * append_key - intern a key string into keys_buf.
- * Returns the byte offset of the stored key, or UINT32_MAX on OOM.
+ * Returns the Byte offset of the stored key, or UINT32_MAX on OOM.
  */
-static uint32_t append_key(table_t *table, const char *key)
+static uint32_t _append_key(HT_Table *table, const char *key)
 {
     uint32_t needed = (uint32_t)strlen(key) + 1;
     if (table->keys_used + needed > table->keys_cap)
@@ -45,29 +45,29 @@ static uint32_t append_key(table_t *table, const char *key)
 /*
  * push_order - record slot_idx in insertion-order array.
  */
-static bool push_order(table_t *table, uint32_t slot_idx)
+static bool _push_order(HT_Table *table, uint32_t slot_idx)
 {
     if (table->order_size == table->order_cap)
     {
         uint32_t new_cap = table->order_cap ? table->order_cap * 2 : 8;
         uint32_t *nb = realloc(table->order, new_cap * sizeof(uint32_t));
         if (!nb)
-            return false;
+            return FALSE;
         table->order = nb;
         table->order_cap = new_cap;
     }
     table->order[table->order_size++] = slot_idx;
-    return true;
+    return TRUE;
 }
 
-table_t *ht_create(size_t i_size)
+HT_Table *ht_create(size_t i_size)
 {
-    table_t *table = calloc(1, sizeof(table_t));
+    HT_Table *table = calloc(1, sizeof(HT_Table));
     if (!table)
         return NULL;
 
     table->i_size = i_size;
-    table->item_stride = sizeof(ht_item) + i_size;
+    table->item_stride = sizeof(HT_Item) + i_size;
     table->capacity = HT_INIT_CAP;
 
     table->items = calloc(HT_INIT_CAP, table->item_stride);
@@ -81,7 +81,7 @@ table_t *ht_create(size_t i_size)
     return table;
 }
 
-void ht_free(table_t *table)
+void ht_free(HT_Table *table)
 {
     if (!table)
         return;
@@ -91,12 +91,12 @@ void ht_free(table_t *table)
     free(table);
 }
 
-bool ht_expand(table_t *table)
+bool ht_expand(HT_Table *table)
 {
     uint32_t new_cap = table->capacity * 2;
     char *new_items = calloc(new_cap, table->item_stride);
     if (!new_items)
-        return false;
+        return FALSE;
 
     uint32_t new_mask = new_cap - 1;
     uint32_t new_order_size = 0;
@@ -107,7 +107,7 @@ bool ht_expand(table_t *table)
      */
     for (uint32_t oi = 0; oi < table->order_size; oi++)
     {
-        ht_item *old_slot = HT_SLOT(table, table->order[oi]);
+        HT_Item *old_slot = HT_SLOT(table, table->order[oi]);
         if (!(old_slot->flags & HT_FLAG_LIVE))
             continue; /* tombstone - drop from order */
 
@@ -115,7 +115,7 @@ bool ht_expand(table_t *table)
         uint32_t idx = (uint32_t)(old_slot->hash & new_mask);
         while (1)
         {
-            ht_item *ns = (ht_item *)(new_items + (size_t)idx * table->item_stride);
+            HT_Item *ns = (HT_Item *)(new_items + (size_t)idx * table->item_stride);
             if (!(ns->flags & HT_FLAG_LIVE))
             {
                 /* copy header + inline value in one shot */
@@ -132,26 +132,26 @@ bool ht_expand(table_t *table)
     table->capacity = new_cap;
     table->order_size = new_order_size;
     table->version++;
-    return true;
+    return TRUE;
 }
 
-bool ht_put(table_t *table, const char *key, const void *value)
+bool ht_put(HT_Table *table, const char *key, const void *value)
 {
     /* expand before reaching 75% load */
     if ((table->size + 1) * HT_LOAD_DEN > table->capacity * HT_LOAD_NUM)
     {
         if (!ht_expand(table))
-            return false;
+            return FALSE;
     }
 
-    uint64_t hash = fnv_1a(key);
+    uint64_t hash = _fnv_1a(key);
     uint32_t mask = table->capacity - 1;
     uint32_t idx = (uint32_t)(hash & mask);
     int32_t tomb = -1; /* first tombstone slot seen */
 
     for (;;)
     {
-        ht_item *slot = HT_SLOT(table, idx);
+        HT_Item *slot = HT_SLOT(table, idx);
 
         if (slot->flags & HT_FLAG_LIVE)
         {
@@ -159,9 +159,9 @@ bool ht_put(table_t *table, const char *key, const void *value)
             if (slot->hash == hash &&
                 strcmp(table->keys_buf + slot->key_idx, key) == 0)
             {
-                memcpy(HT_SLOT_VALUE(slot), value, table->i_size);
+                memcpy(HT_SLOTVALUE(slot), value, table->i_size);
                 table->version++;
-                return true;
+                return TRUE;
             }
         }
         else if (slot->flags & HT_FLAG_TOMB)
@@ -179,44 +179,44 @@ bool ht_put(table_t *table, const char *key, const void *value)
 
     /* Insert at tombstone (if any) or empty slot */
     uint32_t insert_idx = (tomb >= 0) ? (uint32_t)tomb : idx;
-    ht_item *slot = HT_SLOT(table, insert_idx);
+    HT_Item *slot = HT_SLOT(table, insert_idx);
 
-    uint32_t key_off = append_key(table, key);
+    uint32_t key_off = _append_key(table, key);
     if (key_off == UINT32_MAX)
-        return false;
+        return FALSE;
 
     slot->hash = hash;
     slot->key_idx = key_off;
     slot->flags = HT_FLAG_LIVE;
-    memcpy(HT_SLOT_VALUE(slot), value, table->i_size);
+    memcpy(HT_SLOTVALUE(slot), value, table->i_size);
 
-    if (!push_order(table, insert_idx))
+    if (!_push_order(table, insert_idx))
     {
         /* rollback: mark slot empty again (key_off wasted but safe) */
         slot->flags = 0;
-        return false;
+        return FALSE;
     }
     table->size++;
     table->version++;
-    return true;
+    return TRUE;
 }
 
-bool ht_set(table_t *table, const char *key, const void *value)
+bool ht_set(HT_Table *table, const char *key, const void *value)
 {
-    uint64_t hash = fnv_1a(key);
+    uint64_t hash = _fnv_1a(key);
     uint32_t mask = table->capacity - 1;
     uint32_t idx = (uint32_t)(hash & mask);
 
     for (;;)
     {
-        ht_item *slot = HT_SLOT(table, idx);
+        HT_Item *slot = HT_SLOT(table, idx);
         if (!(slot->flags & (HT_FLAG_LIVE | HT_FLAG_TOMB)))
-            return false;
+            return FALSE;
         if ((slot->flags & HT_FLAG_LIVE) && slot->hash == hash && strcmp(table->keys_buf + slot->key_idx, key) == 0)
         {
-            memcpy(HT_SLOT_VALUE(slot), value, table->i_size);
+            memcpy(HT_SLOTVALUE(slot), value, table->i_size);
             table->version++;
-            return true;
+            return TRUE;
         }
         idx = (idx + 1) & mask;
     }
@@ -233,20 +233,20 @@ bool ht_set(table_t *table, const char *key, const void *value)
  * next ht_expand). This is almost always fine; keys are short and the buf
  * only grows with unique inserts.
  */
-bool ht_delete(table_t *table, const char *key)
+bool ht_delete(HT_Table *table, const char *key)
 {
     if (!table || !key)
-        return false;
+        return FALSE;
 
-    uint64_t hash = fnv_1a(key);
+    uint64_t hash = _fnv_1a(key);
     uint32_t mask = table->capacity - 1;
     uint32_t idx = (uint32_t)(hash & mask);
 
     for (;;)
     {
-        ht_item *slot = HT_SLOT(table, idx);
+        HT_Item *slot = HT_SLOT(table, idx);
         if (!(slot->flags & (HT_FLAG_LIVE | HT_FLAG_TOMB)))
-            return false; /* empty - key absent */
+            return FALSE; /* empty - key absent */
 
         if ((slot->flags & HT_FLAG_LIVE) && slot->hash == hash && strcmp(table->keys_buf + slot->key_idx, key) == 0)
         {
@@ -266,18 +266,18 @@ bool ht_delete(table_t *table, const char *key)
                     break;
                 }
             }
-            return true;
+            return TRUE;
         }
         idx = (idx + 1) & mask;
     }
 }
 
-bool ht_has(table_t *table, const char *key)
+bool ht_has(HT_Table *table, const char *key)
 {
-    return ht_get(table, key) != NULL;
+    return _ht_get(table, key) != NULL;
 }
 
-int ht_length(table_t *table)
+int ht_length(HT_Table *table)
 {
     return (int)table->size;
 }

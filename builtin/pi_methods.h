@@ -8,14 +8,14 @@
 
 typedef struct
 {
-    o_type type;
+    ObjectType type;
     const char *name;
-    native_func func;
+    NativeFunc func;
     Value cached_bound;
     bool has_cached_bound;
 } NativeMethod;
 
-NativeMethod *pi_nativeMethodFor(o_type type, const char *name);
-void pi_nativeMethodNames(o_type type, char *buffer, size_t size);
+NativeMethod *pi_nativeMethodFor(ObjectType type, const char *name);
+void pi_nativeMethodNames(ObjectType type, char *buffer, size_t size);
 
 #endif // PI_METHODS_H

@@ -15,139 +15,139 @@ char *bin_ops[] = {"+", "-", "*", "/", "%", "&&", "||", "**", "&", "|", "^",
                    "<<", ">>", ">>>", ".", "is"};
 char *unary_ops[] = {"+", "-", "!", "~", "#", "++", "--", "typeof"};
 
-static void program(parser_t *parser);
-static void declaration(parser_t *parser);
-static void var_decl(parser_t *parser, bool is_const);
-static void func_decl(parser_t *parser);
-static void class_decl(parser_t *parser);
-static void statement(parser_t *parser);
-static void expr_state(parser_t *parser);
-static void destructure_ListAssignStatement(parser_t *parser);
-static void destructure_tupleAssignStatement(parser_t *parser);
-static bool is_tupleDestructureAssign(parser_t *parser);
-static void block(parser_t *parser);
-static void if_stmt(parser_t *parser);
-static void switch_stmt(parser_t *parser);
-static void while_stmt(parser_t *parser);
-static void for_stmt(parser_t *parser);
-static void break_stmt(parser_t *parser);
-static void continue_stmt(parser_t *parser);
-static void return_stmt(parser_t *parser);
-static void variable(parser_t *parser, bool is_const);
-static void expr(parser_t *parser);
-static void assignment(parser_t *parser, bool emit_load);
-static void pipeline_expr(parser_t *parser);
-static void cond_expr(parser_t *parser);
-static void or_expr(parser_t *parser);
-static void and_expr(parser_t *parser);
-static void in_expr(parser_t *parser);
-static void range_expr(parser_t *parser);
-static void bitOr_expr(parser_t *parser);
-static void xor_expr(parser_t *parser);
-static void bitAnd_expr(parser_t *parser);
-static void shift_expr(parser_t *parser);
-static void equality_expr(parser_t *parser);
-static void compare_expr(parser_t *parser);
-static void add_expr(parser_t *parser);
-static void dot_expr(parser_t *parser);
-static void mult_expr(parser_t *parser);
-static void exp_expr(parser_t *parser);
-static void member_expr(parser_t *parser);
-static void unary_expr(parser_t *parser);
-static void primary(parser_t *parser);
+static void _program(Parser *parser);
+static void _declaration(Parser *parser);
+static void _var_decl(Parser *parser, bool is_const);
+static void _func_decl(Parser *parser);
+static void _class_decl(Parser *parser);
+static void _statement(Parser *parser);
+static void _expr_state(Parser *parser);
+static void _destructure_ListAssignStatement(Parser *parser);
+static void _destructure_tupleAssignStatement(Parser *parser);
+static bool _is_tupleDestructureAssign(Parser *parser);
+static void _block(Parser *parser);
+static void _if_stmt(Parser *parser);
+static void _switch_stmt(Parser *parser);
+static void _while_stmt(Parser *parser);
+static void _for_stmt(Parser *parser);
+static void _break_stmt(Parser *parser);
+static void _continue_stmt(Parser *parser);
+static void _return_stmt(Parser *parser);
+static void _variable(Parser *parser, bool is_const);
+static void _expr(Parser *parser);
+static void _assignment(Parser *parser, bool emit_load);
+static void _pipeline_expr(Parser *parser);
+static void _cond_expr(Parser *parser);
+static void _or_expr(Parser *parser);
+static void _and_expr(Parser *parser);
+static void _in_expr(Parser *parser);
+static void _range_expr(Parser *parser);
+static void _bitOr_expr(Parser *parser);
+static void _xor_expr(Parser *parser);
+static void _bitAnd_expr(Parser *parser);
+static void _shift_expr(Parser *parser);
+static void _equality_expr(Parser *parser);
+static void _compare_expr(Parser *parser);
+static void _add_expr(Parser *parser);
+static void _dot_expr(Parser *parser);
+static void _mult_expr(Parser *parser);
+static void _exp_expr(Parser *parser);
+static void _member_expr(Parser *parser);
+static void _unary_expr(Parser *parser);
+static void _primary(Parser *parser);
 
-static void emit_spreadListLiteral(parser_t *parser);
-static void emit_spreadMapLiteral(parser_t *parser);
-static void emit_classMap(parser_t *parser, const char *class_name, const char *parent_name);
+static void _emit_spreadListLiteral(Parser *parser);
+static void _emit_spreadMapLiteral(Parser *parser);
+static void _emit_classMap(Parser *parser, const char *class_name, const char *parent_name);
 
-static void emit_nilReturn(compiler_t *comp)
+static void _emit_nilReturn(Compiler *comp)
 {
     emit(comp, OP_RETURN_NIL);
 }
 
-static void emit_defaultReturn(compiler_t *comp)
+static void _emit_defaultReturn(Compiler *comp)
 {
-    emit_nilReturn(comp);
+    _emit_nilReturn(comp);
 }
 
-static void emit_listComprehension(parser_t *parser);
-static int emit_literalFill(parser_t *parser, double previous, double endpoint, token_t token);
+static void _emit_listComprehension(Parser *parser);
+static int _emit_literalFill(Parser *parser, double _previous, double endpoint, Token token);
 
-static bool call_hasSpreadArgs(parser_t *parser);
+static bool _call_hasSpreadArgs(Parser *parser);
 
-static bool list_hasSpreadItems(parser_t *parser);
-static bool list_isComprehension(parser_t *parser);
+static bool _list_hasSpreadItems(Parser *parser);
+static bool _list_isComprehension(Parser *parser);
 
-static bool map_hasSpreadItems(parser_t *parser);
-static bool is_mapEntry(parser_t *parser);
-static void emit_setLiteral(parser_t *parser);
-static bool has_accessContinuation(parser_t *parser, token_t token);
+static bool _map_hasSpreadItems(Parser *parser);
+static bool _is_mapEntry(Parser *parser);
+static void _emit_setLiteral(Parser *parser);
+static bool _has_accessContinuation(Parser *parser, Token token);
 
-static token_t peek(parser_t *parser);
-static token_t peek_next(parser_t *parser);
-static token_t previous(parser_t *parser);
-static bool check(parser_t *parser, tk_type type);
-static bool match(parser_t *parser, tk_type type);
-static token_t consume(parser_t *parser, tk_type type, const char *message);
-static void advance(parser_t *parser);
-void set_pos(parser_t *parser, token_t token);
-static bool is_functionLiteral(parser_t *parser, int index);
-static bool is_objectLiteral(parser_t *parser, int index);
-static char *get_pendingFunctionName(parser_t *parser);
-static bool numeric_literalSegment(parser_t *parser, int start, int end, double *value);
-static double consume_fillEndpoint(parser_t *parser);
+static Token _peek(Parser *parser);
+static Token _peek_next(Parser *parser);
+static Token _previous(Parser *parser);
+static bool _check(Parser *parser, PiTokenType type);
+static bool _match(Parser *parser, PiTokenType type);
+static Token _consume(Parser *parser, PiTokenType type, const char *message);
+static void _advance(Parser *parser);
+void set_pos(Parser *parser, Token token);
+static bool _is_functionLiteral(Parser *parser, int index);
+static bool _is_objectLiteral(Parser *parser, int index);
+static char *_get_pendingFunctionName(Parser *parser);
+static bool _numeric_literalSegment(Parser *parser, int start, int end, double *value);
+static double _consume_fillEndpoint(Parser *parser);
 
 typedef struct
 {
     int start;
     int end;
-} segment_t;
+} Segment;
 
 #define MAX_PIPELINE_STAGES 64
 #define MAX_PIPELINE_ARGS 64
 
 typedef struct
 {
-    token_t op;
-    segment_t callee;
-    segment_t args[MAX_PIPELINE_ARGS];
+    Token op;
+    Segment callee;
+    Segment args[MAX_PIPELINE_ARGS];
     int arg_count;
-} pipeline_stage_t;
+} PipelineStage;
 
 typedef struct
 {
-    segment_t input;
-    pipeline_stage_t stages[MAX_PIPELINE_STAGES];
+    Segment input;
+    PipelineStage stages[MAX_PIPELINE_STAGES];
     int stage_count;
-} pipeline_t;
+} Pipeline;
 
 typedef struct
 {
-    token_t name;
-    segment_t iterable;
-} comp_iter_t;
+    Token name;
+    Segment iterable;
+} ComprehensionIterator;
 
 typedef struct
 {
-    segment_t result;
-    segment_t iterators;
-    segment_t conditions;
+    Segment result;
+    Segment iterators;
+    Segment conditions;
     int end_index;
     bool has_conditions;
-} list_comp_t;
+} ListComprehension;
 
-static bool is_functionLiteral(parser_t *parser, int index)
+static bool _is_functionLiteral(Parser *parser, int index)
 {
-    tk_type type = parser->tokens[index].type;
+    PiTokenType type = parser->tokens[index].type;
 
     if (type == TK_FUN)
-        return true;
+        return TRUE;
 
     if (type == TK_ID && parser->tokens[index + 1].type == TK_RARROW)
-        return true;
+        return TRUE;
 
     if (type != TK_LPAREN)
-        return false;
+        return FALSE;
 
     int depth = 1;
 
@@ -162,15 +162,15 @@ static bool is_functionLiteral(parser_t *parser, int index)
             return parser->tokens[i + 1].type == TK_RARROW;
     }
 
-    return false;
+    return FALSE;
 }
 
-static bool is_objectLiteral(parser_t *parser, int index)
+static bool _is_objectLiteral(Parser *parser, int index)
 {
     return parser->tokens[index].type == TK_LBRACE;
 }
 
-static char *get_pendingFunctionName(parser_t *parser)
+static char *_get_pendingFunctionName(Parser *parser)
 {
     char *name = parser->fun_name;
 
@@ -179,12 +179,12 @@ static char *get_pendingFunctionName(parser_t *parser)
     return name ? strdup(name) : NULL;
 }
 
-static bool is_integerLiteralValue(double value)
+static bool _is_integerLiteralValue(double value)
 {
     return isfinite(value) && floor(value) == value;
 }
 
-static void emit_numberLiteralConst(parser_t *parser, double value)
+static void _emit_numberLiteralConst(Parser *parser, double value)
 {
     char descr[64];
     snprintf(descr, sizeof(descr), "%.15g", value);
@@ -193,16 +193,16 @@ static void emit_numberLiteralConst(parser_t *parser, double value)
     emit_16u(parser->comp, OP_LOAD_CONST, descr, index);
 }
 
-static int emit_literalFill(parser_t *parser, double previous, double endpoint, token_t token)
+static int _emit_literalFill(Parser *parser, double _previous, double endpoint, Token token)
 {
-    if (!is_integerLiteralValue(previous) || !is_integerLiteralValue(endpoint))
+    if (!_is_integerLiteralValue(_previous) || !_is_integerLiteralValue(endpoint))
         p_error("Fill expansion requires integer numeric literal endpoints.",
                 token.line, token.column);
 
-    int step = previous <= endpoint ? 1 : -1;
+    int step = _previous <= endpoint ? 1 : -1;
     int count = 0;
 
-    for (double value = previous + step;
+    for (double value = _previous + step;
          step > 0 ? value <= endpoint : value >= endpoint;
          value += step)
     {
@@ -210,19 +210,19 @@ static int emit_literalFill(parser_t *parser, double previous, double endpoint, 
             p_error("Fill expansion is too large for one literal.",
                     token.line, token.column);
 
-        emit_numberLiteralConst(parser, value);
+        _emit_numberLiteralConst(parser, value);
         count++;
     }
 
     return count;
 }
 
-static bool numeric_literalSegment(parser_t *parser, int start, int end, double *value)
+static bool _numeric_literalSegment(Parser *parser, int start, int end, double *value)
 {
     if (start + 1 == end && parser->tokens[start].type == TK_NUM)
     {
         *value = tk_double(parser->tokens[start]);
-        return true;
+        return TRUE;
     }
 
     if (start + 2 == end &&
@@ -231,35 +231,35 @@ static bool numeric_literalSegment(parser_t *parser, int start, int end, double 
     {
         double number = tk_double(parser->tokens[start + 1]);
         *value = parser->tokens[start + 1].is_negative ? number : -number;
-        return true;
+        return TRUE;
     }
 
-    return false;
+    return FALSE;
 }
 
-static double consume_fillEndpoint(parser_t *parser)
+static double _consume_fillEndpoint(Parser *parser)
 {
-    bool negative = match(parser, TK_MINUS);
-    token_t token = consume(parser, TK_NUM, "Expect integer numeric literal after ', ...,'.");
+    bool negative = _match(parser, TK_MINUS);
+    Token token = _consume(parser, TK_NUM, "Expect integer numeric literal after ', ...,'.");
     double value = tk_double(token);
     return negative ? -value : value;
 }
 
-static void emit_spreadListLiteral(parser_t *parser)
+static void _emit_spreadListLiteral(Parser *parser)
 {
     emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
     int source_count = 0;
     int pending_items = 0;
 
-    if (match(parser, TK_RBRACKET))
+    if (_match(parser, TK_RBRACKET))
         return;
 
     do
     {
-        if (check(parser, TK_RBRACKET))
+        if (_check(parser, TK_RBRACKET))
             break;
 
-        if (match(parser, TK_ELLIPSIS))
+        if (_match(parser, TK_ELLIPSIS))
         {
             if (pending_items > 0)
             {
@@ -267,28 +267,28 @@ static void emit_spreadListLiteral(parser_t *parser)
                 pending_items = 0;
                 source_count++;
             }
-            cond_expr(parser);
+            _cond_expr(parser);
             source_count++;
         }
         else
         {
-            cond_expr(parser);
+            _cond_expr(parser);
             pending_items++;
         }
-    } while (match(parser, TK_COMMA));
+    } while (_match(parser, TK_COMMA));
 
-    consume(parser, TK_RBRACKET, "Expect ']' at the end of list literal.");
+    _consume(parser, TK_RBRACKET, "Expect ']' at the end of list literal.");
     if (pending_items > 0)
     {
         emit_16u(parser->comp, OP_PUSH_LIST, "", pending_items);
         source_count++;
     }
     if (source_count > 255)
-        p_error("List literal cannot contain more than 255 spread segments.", peek(parser).line, peek(parser).column);
+        p_error("List literal cannot contain more than 255 spread segments.", _peek(parser).line, _peek(parser).column);
     emit_8u(parser->comp, OP_LIST_EXTEND, "", source_count);
 }
 
-static bool call_hasSpreadArgs(parser_t *parser)
+static bool _call_hasSpreadArgs(Parser *parser)
 {
     int index = parser->current;
     int paren_depth = 1;   // The parentheses of the function call
@@ -297,7 +297,7 @@ static bool call_hasSpreadArgs(parser_t *parser)
 
     while (parser->tokens[index].type != TK_EOF)
     {
-        token_t token = parser->tokens[index++];
+        Token token = parser->tokens[index++];
 
         switch (token.type)
         {
@@ -307,7 +307,7 @@ static bool call_hasSpreadArgs(parser_t *parser)
         case TK_RPAREN:
             paren_depth--;
             if (paren_depth == 0)
-                return false;
+                return FALSE;
             break;
         case TK_LBRACKET:
             bracket_depth++;
@@ -325,17 +325,17 @@ static bool call_hasSpreadArgs(parser_t *parser)
             break;
         case TK_ELLIPSIS:
             if (paren_depth == 1 && bracket_depth == 0 && brace_depth == 0)
-                return true;
+                return TRUE;
             break;
         default:
             break;
         }
     }
 
-    return false;
+    return FALSE;
 }
 
-static bool list_hasSpreadItems(parser_t *parser)
+static bool _list_hasSpreadItems(Parser *parser)
 {
     int index = parser->current;
     int paren_depth = 0;
@@ -344,7 +344,7 @@ static bool list_hasSpreadItems(parser_t *parser)
 
     while (parser->tokens[index].type != TK_EOF)
     {
-        token_t token = parser->tokens[index++];
+        Token token = parser->tokens[index++];
 
         switch (token.type)
         {
@@ -361,7 +361,7 @@ static bool list_hasSpreadItems(parser_t *parser)
         case TK_RBRACKET:
             bracket_depth--;
             if (bracket_depth == 0)
-                return false;
+                return FALSE;
             break;
         case TK_LBRACE:
             brace_depth++;
@@ -375,7 +375,7 @@ static bool list_hasSpreadItems(parser_t *parser)
             {
                 if (parser->tokens[index].type == TK_COMMA)
                     break;
-                return true;
+                return TRUE;
             }
             break;
         default:
@@ -383,10 +383,10 @@ static bool list_hasSpreadItems(parser_t *parser)
         }
     }
 
-    return false;
+    return FALSE;
 }
 
-static bool map_hasSpreadItems(parser_t *parser)
+static bool _map_hasSpreadItems(Parser *parser)
 {
     int index = parser->current;
     int paren_depth = 0;
@@ -395,7 +395,7 @@ static bool map_hasSpreadItems(parser_t *parser)
 
     while (parser->tokens[index].type != TK_EOF)
     {
-        token_t token = parser->tokens[index++];
+        Token token = parser->tokens[index++];
 
         switch (token.type)
         {
@@ -419,14 +419,14 @@ static bool map_hasSpreadItems(parser_t *parser)
         case TK_RBRACE:
             brace_depth--;
             if (brace_depth == 0)
-                return false;
+                return FALSE;
             break;
         case TK_ELLIPSIS:
             if (paren_depth == 0 && bracket_depth == 0 && brace_depth == 1)
             {
                 if (parser->tokens[index].type == TK_COMMA)
                     break;
-                return true;
+                return TRUE;
             }
             break;
         default:
@@ -434,15 +434,15 @@ static bool map_hasSpreadItems(parser_t *parser)
         }
     }
 
-    return false;
+    return FALSE;
 }
 
-static bool is_mapEntry(parser_t *parser)
+static bool _is_mapEntry(Parser *parser)
 {
-    if (check(parser, TK_ELLIPSIS))
-        return true;
+    if (_check(parser, TK_ELLIPSIS))
+        return TRUE;
 
-    token_t token = peek(parser);
+    Token token = _peek(parser);
     switch (token.type)
     {
     case TK_STR:
@@ -451,59 +451,59 @@ static bool is_mapEntry(parser_t *parser)
     case TK_FALSE:
     case TK_TRUE:
     {
-        token_t next_token = parser->tokens[parser->current + 1];
+        Token next_token = parser->tokens[parser->current + 1];
         return next_token.type == TK_COLON || next_token.type == TK_LPAREN;
     }
     default:
-        return false;
+        return FALSE;
     }
 }
 
-static void emit_setLiteral(parser_t *parser)
+static void _emit_setLiteral(Parser *parser)
 {
     int size = 0;
-    if (check(parser, TK_RBRACE))
+    if (_check(parser, TK_RBRACE))
     {
-        consume(parser, TK_RBRACE, "Expect '}' at the end of set literal.");
+        _consume(parser, TK_RBRACE, "Expect '}' at the end of set literal.");
         emit_16u(parser->comp, OP_PUSH_SET, "", 0);
         return;
     }
 
     do
     {
-        if (check(parser, TK_RBRACE))
+        if (_check(parser, TK_RBRACE))
             break;
 
         int item_start = parser->current;
-        cond_expr(parser);
+        _cond_expr(parser);
         size++;
 
         double previous_number = 0;
-        bool previous_is_number = numeric_literalSegment(parser, item_start, parser->current,
+        bool previous_is_number = _numeric_literalSegment(parser, item_start, parser->current,
                                                          &previous_number);
 
-        while (check(parser, TK_COMMA) && peek_next(parser).type == TK_ELLIPSIS)
+        while (_check(parser, TK_COMMA) && _peek_next(parser).type == TK_ELLIPSIS)
         {
-            consume(parser, TK_COMMA, "Expect ',' before '...' in set fill expansion.");
-            consume(parser, TK_ELLIPSIS, "Expect '...' in set fill expansion.");
-            token_t ellipsis = previous(parser);
+            _consume(parser, TK_COMMA, "Expect ',' before '...' in set fill expansion.");
+            _consume(parser, TK_ELLIPSIS, "Expect '...' in set fill expansion.");
+            Token ellipsis = _previous(parser);
             if (!previous_is_number)
                 p_error("Fill expansion requires an integer numeric literal before ', ...,'.",
                         ellipsis.line, ellipsis.column);
 
-            consume(parser, TK_COMMA, "Expect ',' after '...' in set fill expansion.");
-            double endpoint = consume_fillEndpoint(parser);
-            size += emit_literalFill(parser, previous_number, endpoint, ellipsis);
+            _consume(parser, TK_COMMA, "Expect ',' after '...' in set fill expansion.");
+            double endpoint = _consume_fillEndpoint(parser);
+            size += _emit_literalFill(parser, previous_number, endpoint, ellipsis);
             previous_number = endpoint;
-            previous_is_number = true;
+            previous_is_number = TRUE;
         }
-    } while (match(parser, TK_COMMA));
+    } while (_match(parser, TK_COMMA));
 
-    consume(parser, TK_RBRACE, "Expect '}' at the end of set literal.");
+    _consume(parser, TK_RBRACE, "Expect '}' at the end of set literal.");
     emit_16u(parser->comp, OP_PUSH_SET, "", size);
 }
 
-static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
+static bool _scan_listComprehension(Parser *parser, ListComprehension *comp)
 {
     int index = parser->current;
     int paren_depth = 0;
@@ -515,7 +515,7 @@ static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
 
     while (parser->tokens[index].type != TK_EOF)
     {
-        token_t token = parser->tokens[index];
+        Token token = parser->tokens[index];
 
         switch (token.type)
         {
@@ -534,7 +534,7 @@ static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
             if (bracket_depth == 0)
             {
                 if (first_colon == -1)
-                    return false;
+                    return FALSE;
 
                 comp->result.start = parser->current;
                 comp->result.end = first_colon;
@@ -544,7 +544,7 @@ static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
                 comp->conditions.end = index;
                 comp->has_conditions = second_colon != -1;
                 comp->end_index = index;
-                return true;
+                return TRUE;
             }
             break;
         case TK_LBRACE:
@@ -579,46 +579,46 @@ static bool scan_listComprehension(parser_t *parser, list_comp_t *comp)
         index++;
     }
 
-    return false;
+    return FALSE;
 }
 
-static bool list_isComprehension(parser_t *parser)
+static bool _list_isComprehension(Parser *parser)
 {
-    list_comp_t comp;
+    ListComprehension comp;
 
-    return scan_listComprehension(parser, &comp);
+    return _scan_listComprehension(parser, &comp);
 }
 
-static void compile_segmentExpr(parser_t *parser, segment_t segment, const char *message)
+static void _compile_segmentExpr(Parser *parser, Segment segment, const char *message)
 {
     if (segment.start >= segment.end)
     {
-        token_t token = parser->tokens[segment.start];
+        Token token = parser->tokens[segment.start];
         p_error(message, token.line, token.column);
     }
 
     int saved = parser->current;
 
-    token_t saved_end = parser->tokens[segment.end];
+    Token saved_end = parser->tokens[segment.end];
 
     parser->current = segment.start;
 
     parser->tokens[segment.end].type = TK_EOF;
 
-    pipeline_expr(parser);
+    _pipeline_expr(parser);
 
     parser->tokens[segment.end] = saved_end;
 
     if (parser->current != segment.end)
     {
-        token_t token = parser->tokens[parser->current];
+        Token token = parser->tokens[parser->current];
         p_error(message, token.line, token.column);
     }
 
     parser->current = saved;
 }
 
-static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t *iters, int max_iters)
+static int _parse_compIterators(Parser *parser, Segment segment, ComprehensionIterator *iters, int max_iters)
 {
     int index = segment.start;
     int count = 0;
@@ -627,17 +627,17 @@ static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t 
     {
         if (count >= max_iters)
         {
-            token_t token = parser->tokens[index];
+            Token token = parser->tokens[index];
             p_errorf(token.line, token.column, "Too many iterators in list comprehension.");
         }
 
-        token_t name = parser->tokens[index++];
+        Token name = parser->tokens[index++];
         if (name.type != TK_ID)
             p_errorf(name.line, name.column, "Expect iterator variable name in list comprehension.");
 
         if (index >= segment.end || parser->tokens[index].type != TK_IN)
         {
-            token_t token = parser->tokens[index < segment.end ? index : segment.end - 1];
+            Token token = parser->tokens[index < segment.end ? index : segment.end - 1];
             p_errorf(token.line, token.column, "Expect 'in' after iterator variable in list comprehension.");
         }
         index++;
@@ -649,7 +649,7 @@ static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t 
 
         while (index < segment.end)
         {
-            token_t token = parser->tokens[index];
+            Token token = parser->tokens[index];
             if (token.type == TK_COMMA && paren_depth == 0 && bracket_depth == 0 && brace_depth == 0)
                 break;
 
@@ -698,7 +698,7 @@ static int parse_compIterators(parser_t *parser, segment_t segment, comp_iter_t 
     return count;
 }
 
-static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *conds, int max_conds)
+static int _parse_compConditions(Parser *parser, Segment segment, Segment *conds, int max_conds)
 {
     if (segment.start >= segment.end)
         return 0;
@@ -710,7 +710,7 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
     {
         if (count >= max_conds)
         {
-            token_t token = parser->tokens[index];
+            Token token = parser->tokens[index];
             p_errorf(token.line, token.column, "Too many conditions in list comprehension.");
         }
 
@@ -721,7 +721,7 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
 
         while (index < segment.end)
         {
-            token_t token = parser->tokens[index];
+            Token token = parser->tokens[index];
             if (token.type == TK_COMMA && paren_depth == 0 && bracket_depth == 0 && brace_depth == 0)
                 break;
 
@@ -766,9 +766,9 @@ static int parse_compConditions(parser_t *parser, segment_t segment, segment_t *
     return count;
 }
 
-static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
-                               comp_iter_t *iters, int iter_count,
-                               segment_t *conds, int cond_count,
+static void _emit_listCompLoops(Parser *parser, ListComprehension *comp,
+                               ComprehensionIterator *iters, int iter_count,
+                               Segment *conds, int cond_count,
                                int iter_index, int acc_slot)
 {
     if (iter_index == iter_count)
@@ -779,12 +779,12 @@ static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
 
         for (int i = 0; i < cond_count; i++)
         {
-            compile_segmentExpr(parser, conds[i], "Invalid list comprehension condition.");
+            _compile_segmentExpr(parser, conds[i], "Invalid list comprehension condition.");
             // Emit a jump if false instruction to jump over the list comprehension expression if the condition is false
             jumps[jump_count++] = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
         }
 
-        compile_segmentExpr(parser, comp->result, "Invalid list comprehension expression.");
+        _compile_segmentExpr(parser, comp->result, "Invalid list comprehension expression.");
         emit_8u(parser->comp, OP_COMP_APPEND, "<comp>", acc_slot);
 
         for (int i = 0; i < jump_count; i++)
@@ -792,11 +792,11 @@ static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
         return;
     }
 
-    token_t iter_token = iters[iter_index].name;
+    Token iter_token = iters[iter_index].name;
 
     set_pos(parser, parser->tokens[iters[iter_index].iterable.start]);
 
-    compile_segmentExpr(parser, iters[iter_index].iterable, "Invalid list comprehension iterator expression.");
+    _compile_segmentExpr(parser, iters[iter_index].iterable, "Invalid list comprehension iterator expression.");
     emit(parser->comp, OP_PUSH_ITER);
 
     set_pos(parser, iter_token);
@@ -805,9 +805,9 @@ static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
 
     push_scope(parser->comp);
     add_variable(parser->comp, token_value(iter_token));
-    push_loop(parser->comp, address - 2, true);
+    push_loop(parser->comp, address - 2, TRUE);
 
-    emit_listCompLoops(parser, comp, iters, iter_count, conds, cond_count, iter_index + 1, acc_slot);
+    _emit_listCompLoops(parser, comp, iters, iter_count, conds, cond_count, iter_index + 1, acc_slot);
 
     pop_scope(parser->comp);
     pop_loop(parser->comp, address - 2);
@@ -815,20 +815,20 @@ static void emit_listCompLoops(parser_t *parser, list_comp_t *comp,
     patch_jump(parser->comp, address);
 }
 
-static void emit_listComprehension(parser_t *parser)
+static void _emit_listComprehension(Parser *parser)
 {
-    list_comp_t comp;
-    if (!scan_listComprehension(parser, &comp))
+    ListComprehension comp;
+    if (!_scan_listComprehension(parser, &comp))
         return;
 
-    comp_iter_t iters[16];
-    segment_t conds[32];
-    int iter_count = parse_compIterators(parser, comp.iterators, iters, 16);
-    int cond_count = comp.has_conditions ? parse_compConditions(parser, comp.conditions, conds, 32) : 0;
+    ComprehensionIterator iters[16];
+    Segment conds[32];
+    int iter_count = _parse_compIterators(parser, comp.iterators, iters, 16);
+    int cond_count = comp.has_conditions ? _parse_compConditions(parser, comp.conditions, conds, 32) : 0;
 
     if (iter_count == 0)
     {
-        token_t token = parser->tokens[comp.iterators.start];
+        Token token = parser->tokens[comp.iterators.start];
         p_errorf(token.line, token.column, "List comprehension requires at least one iterator.");
     }
 
@@ -840,189 +840,189 @@ static void emit_listComprehension(parser_t *parser)
     int acc_slot = get_local(parser->comp, hidden_name);
     emit_8u(parser->comp, OP_COMP_BEGIN, "<comp>", acc_slot);
 
-    emit_listCompLoops(parser, &comp, iters, iter_count, conds, cond_count, 0, acc_slot);
+    _emit_listCompLoops(parser, &comp, iters, iter_count, conds, cond_count, 0, acc_slot);
 
     emit(parser->comp, OP_COMP_END);
     remove_locals(parser->comp, 1);
     parser->current = comp.end_index;
-    consume(parser, TK_RBRACKET, "Expect ']' after list comprehension.");
+    _consume(parser, TK_RBRACKET, "Expect ']' after list comprehension.");
 }
 
-static token_t peek(parser_t *parser)
+static Token _peek(Parser *parser)
 {
     return parser->tokens[parser->current];
 }
 
-static token_t peek_next(parser_t *parser)
+static Token _peek_next(Parser *parser)
 {
     return parser->tokens[parser->current + 1];
 }
 
-static bool is_atEnd(parser_t *parser)
+static bool _is_atEnd(Parser *parser)
 {
-    return peek(parser).type == TK_EOF;
+    return _peek(parser).type == TK_EOF;
 }
 
-static token_t previous(parser_t *parser)
+static Token _previous(Parser *parser)
 {
     return parser->tokens[parser->current - 1];
 }
 
-static bool is_delimiter(token_t token)
+static bool _is_delimiter(Token token)
 {
     return token.type == TK_SEMICOLON;
 }
 
-static token_t next(parser_t *parser)
+static Token _next(Parser *parser)
 {
-    if (!is_atEnd(parser))
+    if (!_is_atEnd(parser))
     {
         parser->current++;
 
-        token_t tok = peek(parser);
-        if (!is_delimiter(tok))
+        Token tok = _peek(parser);
+        if (!_is_delimiter(tok))
             parser->last = tok;
     }
-    return previous(parser);
+    return _previous(parser);
 }
 
-static bool check(parser_t *parser, tk_type type)
+static bool _check(Parser *parser, PiTokenType type)
 {
-    return !is_atEnd(parser) && peek(parser).type == type;
+    return !_is_atEnd(parser) && _peek(parser).type == type;
 }
 
-static bool match_n(parser_t *parser, int t_count, ...)
+static bool _match_n(Parser *parser, int t_count, ...)
 {
     va_list args;
     va_start(args, t_count);
 
     for (int i = 0; i < t_count; i++)
     {
-        tk_type type = va_arg(args, tk_type);
-        if (check(parser, type))
+        PiTokenType type = va_arg(args, PiTokenType);
+        if (_check(parser, type))
         {
-            next(parser);
+            _next(parser);
             va_end(args);
-            return true;
+            return TRUE;
         }
     }
     va_end(args);
-    return false;
+    return FALSE;
 }
 
-static bool match(parser_t *parser, tk_type type)
+static bool _match(Parser *parser, PiTokenType type)
 {
-    if (check(parser, type))
+    if (_check(parser, type))
     {
-        next(parser);
-        return true;
+        _next(parser);
+        return TRUE;
     }
-    return false;
+    return FALSE;
 }
 
-static bool is_listDestructureAssign(parser_t *parser)
+static bool _is_listDestructureAssign(Parser *parser)
 {
-    if (!check(parser, TK_LBRACKET))
-        return false;
+    if (!_check(parser, TK_LBRACKET))
+        return FALSE;
 
     int current = parser->current;
-    next(parser);
+    _next(parser);
 
-    if (check(parser, TK_RBRACKET))
+    if (_check(parser, TK_RBRACKET))
     {
         parser->current = current;
-        return false;
+        return FALSE;
     }
 
-    while (true)
+    while (TRUE)
     {
-        if (!check(parser, TK_ID))
+        if (!_check(parser, TK_ID))
         {
             parser->current = current;
-            return false;
+            return FALSE;
         }
-        next(parser);
+        _next(parser);
 
-        if (!match(parser, TK_COMMA))
+        if (!_match(parser, TK_COMMA))
             break;
     }
 
-    bool is_assign = match(parser, TK_RBRACKET) && check(parser, TK_ASSIGN);
+    bool _is_assign = _match(parser, TK_RBRACKET) && _check(parser, TK_ASSIGN);
     parser->current = current;
-    return is_assign;
+    return _is_assign;
 }
 
-static bool is_tupleDestructureAssign(parser_t *parser)
+static bool _is_tupleDestructureAssign(Parser *parser)
 {
-    if (!check(parser, TK_LPAREN))
-        return false;
+    if (!_check(parser, TK_LPAREN))
+        return FALSE;
 
     int current = parser->current;
-    next(parser);
+    _next(parser);
 
-    if (!check(parser, TK_ID))
+    if (!_check(parser, TK_ID))
     {
         parser->current = current;
-        return false;
+        return FALSE;
     }
-    next(parser);
+    _next(parser);
 
-    bool has_comma = false;
-    while (match(parser, TK_COMMA))
+    bool has_comma = FALSE;
+    while (_match(parser, TK_COMMA))
     {
-        has_comma = true;
-        if (check(parser, TK_RPAREN))
+        has_comma = TRUE;
+        if (_check(parser, TK_RPAREN))
             break;
-        if (!check(parser, TK_ID))
+        if (!_check(parser, TK_ID))
         {
             parser->current = current;
-            return false;
+            return FALSE;
         }
-        next(parser);
+        _next(parser);
     }
 
-    bool is_assign = has_comma && match(parser, TK_RPAREN) && check(parser, TK_ASSIGN);
+    bool _is_assign = has_comma && _match(parser, TK_RPAREN) && _check(parser, TK_ASSIGN);
     parser->current = current;
-    return is_assign;
+    return _is_assign;
 }
 
-static bool check_n(parser_t *parser, int t_count, ...)
+static bool _check_n(Parser *parser, int t_count, ...)
 {
-    if (is_atEnd(parser))
-        return false;
+    if (_is_atEnd(parser))
+        return FALSE;
     va_list args;
     va_start(args, t_count);
     for (int i = 0; i < t_count; i++)
     {
-        tk_type type = va_arg(args, tk_type);
-        if (peek(parser).type == type)
+        PiTokenType type = va_arg(args, PiTokenType);
+        if (_peek(parser).type == type)
         {
             va_end(args);
-            return true;
+            return TRUE;
         }
     }
     va_end(args);
-    return false;
+    return FALSE;
 }
 
-static token_t consume(parser_t *parser, tk_type type, const char *message)
+static Token _consume(Parser *parser, PiTokenType type, const char *message)
 {
-    if (check(parser, type))
+    if (_check(parser, type))
     {
-        token_t token = next(parser);
+        Token token = _next(parser);
         return token;
     }
     else if (message != NULL)
-        p_error(message, peek(parser).line, peek(parser).column);
+        p_error(message, _peek(parser).line, _peek(parser).column);
     else
-        p_error("Unexpected token", peek(parser).line, peek(parser).column);
+        p_error("Unexpected token", _peek(parser).line, _peek(parser).column);
 
     if (global_errorHandler)
     {
-        token_t token = peek(parser);
+        Token token = _peek(parser);
 
-        while (!is_atEnd(parser))
-            advance(parser);
+        while (!_is_atEnd(parser))
+            _advance(parser);
 
         return token;
     }
@@ -1030,35 +1030,35 @@ static token_t consume(parser_t *parser, tk_type type, const char *message)
     exit(EXIT_FAILURE);
 }
 
-static void advance(parser_t *parser)
+static void _advance(Parser *parser)
 {
-    if (!is_atEnd(parser))
+    if (!_is_atEnd(parser))
         parser->current++;
 }
 
-static void skip(parser_t *parser, int steps)
+static void _skip(Parser *parser, int steps)
 {
     parser->current += steps;
 }
 
-static bool consume_ifExist(parser_t *parser, int t_count, ...)
+static bool _consume_ifExist(Parser *parser, int t_count, ...)
 {
-    bool consumed = false;
+    bool consumed = FALSE;
     va_list args;
     va_start(args, t_count);
 
-    while (true)
+    while (TRUE)
     {
-        bool matched = false;
+        bool matched = FALSE;
 
         for (int i = 0; i < t_count; ++i)
         {
-            tk_type type = va_arg(args, tk_type);
-            if (check(parser, type))
+            PiTokenType type = va_arg(args, PiTokenType);
+            if (_check(parser, type))
             {
-                advance(parser);
-                consumed = true;
-                matched = true;
+                _advance(parser);
+                consumed = TRUE;
+                matched = TRUE;
                 break;
             }
         }
@@ -1074,73 +1074,73 @@ static bool consume_ifExist(parser_t *parser, int t_count, ...)
     return consumed;
 }
 
-void set_pos(parser_t *parser, token_t token)
+void set_pos(Parser *parser, Token token)
 {
     parser->comp->current_line = token.line;
 
     parser->comp->current_col = token.column;
 }
 
-static bool is_lineBreak(parser_t *parser)
+static bool _is_lineBreak(Parser *parser)
 {
-    return previous(parser).line < peek(parser).line || peek(parser).type == TK_EOF;
+    return _previous(parser).line < _peek(parser).line || _peek(parser).type == TK_EOF;
 }
 
-bool need_delimiter(parser_t *parser)
+bool need_delimiter(Parser *parser)
 {
-    if (!consume_ifExist(parser, 1, TK_SEMICOLON))
+    if (!_consume_ifExist(parser, 1, TK_SEMICOLON))
     {
-        if (!is_lineBreak(parser))
+        if (!_is_lineBreak(parser))
         {
-            if (!check(parser, TK_RBRACE))
-                return true;
+            if (!_check(parser, TK_RBRACE))
+                return TRUE;
         }
     }
 
-    return false;
+    return FALSE;
 }
-static bool is_assign(parser_t *parser)
+static bool _is_assign(Parser *parser)
 {
     if (parser->is_store &&
         (parser->force_store ||
-         check_n(parser, 11, TK_ASSIGN, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_DIV_ASSIGN, TK_MULT_ASSIGN,
+         _check_n(parser, 11, TK_ASSIGN, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_DIV_ASSIGN, TK_MULT_ASSIGN,
                  TK_MOD_ASSIGN, TK_BITOR_ASSIGN, TK_XOR_ASSIGN, TK_BITAND_ASSIGN, TK_INCR, TK_DECR)))
     {
-        parser->is_store = false;
-        parser->force_store = false;
-        return true;
+        parser->is_store = FALSE;
+        parser->force_store = FALSE;
+        return TRUE;
     }
 
-    return false;
+    return FALSE;
 }
 
-static bool has_accessContinuation(parser_t *parser, token_t token)
+static bool _has_accessContinuation(Parser *parser, Token token)
 {
-    return peek(parser).line == token.line &&
-           check_n(parser, 3, TK_DOT, TK_LBRACKET, TK_LPAREN);
+    return _peek(parser).line == token.line &&
+           _check_n(parser, 3, TK_DOT, TK_LBRACKET, TK_LPAREN);
 }
 
-static bool is_memberAssignment(parser_t *parser, token_t token)
+static bool _is_memberAssignment(Parser *parser, Token token)
 {
     bool is_chained_access = parser->is_store && parser->force_store &&
-                             has_accessContinuation(parser, token);
-    return !is_chained_access && is_assign(parser);
+                             _has_accessContinuation(parser, token);
+    return !is_chained_access && _is_assign(parser);
 }
 
-void mark_tokens(parser_t *parser, int start, int end)
+void mark_tokens(Parser *parser, int start, int end)
 {
     // Iterate over the range of tokens and mark them as skipped
     for (int i = start; i < end; i++)
-        parser->tokens[i].skip = true;
+        parser->tokens[i].skip = TRUE;
 }
 
-static void skip_letDecl(parser_t *parser)
+static void _skip_letDecl(Parser *parser)
 {
     int depth = 0;
 
-    while (!is_atEnd(parser))
+    while (!_is_atEnd(parser))
     {
-        token_t tok = peek(parser);
+        Token tok = _peek(parser);
 
         switch (tok.type)
         {
@@ -1159,30 +1159,30 @@ static void skip_letDecl(parser_t *parser)
             break;
         }
 
-        if (depth == 0 && (tok.type == TK_SEMICOLON || is_lineBreak(parser)))
+        if (depth == 0 && (tok.type == TK_SEMICOLON || _is_lineBreak(parser)))
         {
             if (tok.type == TK_SEMICOLON)
-                next(parser);
+                _next(parser);
             break;
         }
 
-        next(parser);
+        _next(parser);
     }
 }
 
-parser_t *init_parser(compiler_t *comp, token_t *tokens, ParserMode mode)
+Parser *init_parser(Compiler *comp, Token *tokens, ParserMode mode)
 {
-    parser_t *parser = (parser_t *)malloc(sizeof(parser_t));
+    Parser *parser = (Parser *)malloc(sizeof(Parser));
 
     parser->tokens = tokens;
 
-    parser->access = false;
+    parser->access = FALSE;
     parser->current = 0;
-    parser->is_store = false;
-    parser->force_store = false;
-    parser->is_return = false;
-    parser->has_walrus = false;
-    parser->object_member = false;
+    parser->is_store = FALSE;
+    parser->force_store = FALSE;
+    parser->is_return = FALSE;
+    parser->has_walrus = FALSE;
+    parser->object_member = FALSE;
     parser->fun_name = NULL;
     parser->object_name = NULL;
     parser->instance_field_names = NULL;
@@ -1193,14 +1193,14 @@ parser_t *init_parser(compiler_t *comp, token_t *tokens, ParserMode mode)
 
     parser->mode = mode;
     if (mode == MODE_REPL)
-        parser->comp->is_repl = true;
+        parser->comp->is_repl = TRUE;
 
-    parser->had_error = false;
+    parser->had_error = FALSE;
 
     return parser;
 }
 
-void parse(parser_t *parser)
+void parse(Parser *parser)
 {
     if (parser->mode == MODE_REPL)
     {
@@ -1209,13 +1209,13 @@ void parse(parser_t *parser)
         //     expr_state(parser);
 
         // In REPL mode, parse a full declaration (fun, class, let, or expression)
-        if (!is_atEnd(parser))
-            declaration(parser);
+        if (!_is_atEnd(parser))
+            _declaration(parser);
     }
     else
     {
         // In file mode, parse the entire program.
-        program(parser);
+        _program(parser);
     }
 
     emit(parser->comp, OP_HALT);
@@ -1225,117 +1225,117 @@ void parse(parser_t *parser)
     ht_put(parser->comp->instrs, "<global>", parser->comp->current->instrs);
 }
 
-static void declarations(parser_t *parser)
+static void _declarations(Parser *parser)
 {
     int depth = 0;
 
     // First pass: Hoist functions and collect globals
-    while (!is_atEnd(parser))
+    while (!_is_atEnd(parser))
     {
         // Track block depth to ignore inner declarations
-        if (check(parser, TK_LBRACE))
+        if (_check(parser, TK_LBRACE))
             depth++;
-        else if (check(parser, TK_RBRACE))
+        else if (_check(parser, TK_RBRACE))
             depth--;
 
         // Skip inner block declarations
         if (depth > 0)
         {
-            next(parser);
+            _next(parser);
             continue;
         }
 
-        if (match(parser, TK_FUN) && !match(parser, TK_LPAREN))
+        if (_match(parser, TK_FUN) && !_match(parser, TK_LPAREN))
         {
             int start = parser->current - 1;
-            func_decl(parser);
+            _func_decl(parser);
             int end = parser->current;
             mark_tokens(parser, start, end);
         }
-        else if (match(parser, TK_LET) || match(parser, TK_CONST))
-            skip_letDecl(parser);
+        else if (_match(parser, TK_LET) || _match(parser, TK_CONST))
+            _skip_letDecl(parser);
         else
-            next(parser);
+            _next(parser);
     }
 
     parser->current = 0;
 
     // Second pass: Parse remaining code (skipping processed tokens)
-    while (!is_atEnd(parser))
+    while (!_is_atEnd(parser))
     {
         if (parser->tokens[parser->current].skip)
-            next(parser);
+            _next(parser);
         else
             // statement(parser); // Parse remaining statements
-            declaration(parser);
+            _declaration(parser);
     }
 }
 
-static void program(parser_t *parser)
+static void _program(Parser *parser)
 {
-    declarations(parser);
+    _declarations(parser);
 }
 
-static void declaration(parser_t *parser)
+static void _declaration(Parser *parser)
 {
-    if (match(parser, TK_LET))
-        var_decl(parser, false);
-    else if (match(parser, TK_CONST))
-        var_decl(parser, true);
-    else if (match(parser, TK_FUN))
-        func_decl(parser);
-    else if (match(parser, TK_CLASS))
-        class_decl(parser);
+    if (_match(parser, TK_LET))
+        _var_decl(parser, FALSE);
+    else if (_match(parser, TK_CONST))
+        _var_decl(parser, TRUE);
+    else if (_match(parser, TK_FUN))
+        _func_decl(parser);
+    else if (_match(parser, TK_CLASS))
+        _class_decl(parser);
     else
     {
-        statement(parser); // Parse as a statement
-        parser->is_return = false;
+        _statement(parser); // Parse as a statement
+        parser->is_return = FALSE;
     }
 }
 
-static void var_decl(parser_t *parser, bool is_const)
+static void _var_decl(Parser *parser, bool is_const)
 {
     do
     {
-        variable(parser, is_const);
-    } while (match(parser, TK_COMMA));
-    consume_ifExist(parser, 1, TK_SEMICOLON);
+        _variable(parser, is_const);
+    } while (_match(parser, TK_COMMA));
+    _consume_ifExist(parser, 1, TK_SEMICOLON);
 }
 
-static void variable(parser_t *parser, bool is_const)
+static void _variable(Parser *parser, bool is_const)
 {
-    token_t token = consume(parser, TK_ID, "Expect variable name");
+    Token token = _consume(parser, TK_ID, "Expect variable name");
     char *name = token_value(token);
-    bool reserved_local_function = false;
+    bool reserved_local_function = FALSE;
 
     // parser->comp->name = strdup(name);
 
-    if (match(parser, TK_ASSIGN))
+    if (_match(parser, TK_ASSIGN))
     {
         char *prev_fun = parser->fun_name;
         char *prev_obj = parser->object_name;
-        bool function_literal = is_functionLiteral(parser, parser->current);
+        bool function_literal = _is_functionLiteral(parser, parser->current);
 
         if (function_literal && is_localScope(parser->comp))
         {
             emit(parser->comp, OP_PUSH_NIL);
             add_localConst(parser->comp, name, is_const);
-            reserved_local_function = true;
+            reserved_local_function = TRUE;
         }
 
         if (function_literal)
             parser->fun_name = name;
-        if (is_objectLiteral(parser, parser->current))
+        if (_is_objectLiteral(parser, parser->current))
             parser->object_name = name;
 
         if (reserved_local_function)
         {
-            cond_expr(parser);
+            _cond_expr(parser);
             store_variableInit(parser->comp, name);
         }
         else
         {
-            assignment(parser, true);
+            _assignment(parser, TRUE);
         }
 
         parser->fun_name = prev_fun;
@@ -1349,26 +1349,26 @@ static void variable(parser_t *parser, bool is_const)
         add_variableConst(parser->comp, name, is_const);
 }
 
-static list_t *param_list(parser_t *parser)
+static List *_param_list(Parser *parser)
 {
     int size = 0;
-    token_t name;
-    list_t *params = list_create(sizeof(String));
+    Token name;
+    List *params = list_create(sizeof(String));
 
-    set_pos(parser, previous(parser));
+    set_pos(parser, _previous(parser));
 
-    if (!check(parser, TK_RPAREN))
+    if (!_check(parser, TK_RPAREN))
     {
         do
         {
             if (size >= 32)
-                p_error("Can't have more than 32 parameters.", peek(parser).line, peek(parser).column);
+                p_error("Can't have more than 32 parameters.", _peek(parser).line, _peek(parser).column);
 
-            name = consume(parser, TK_ID, "Expect parameter name.");
-            list_add(params, new_string(token_value(name)));
+            name = _consume(parser, TK_ID, "Expect parameter name.");
+            _list_add(params, new_string(token_value(name)));
 
             // TODO: Handle default values check in the future
-            if (match(parser, TK_ASSIGN))
+            if (_match(parser, TK_ASSIGN))
             {
                 /*
                  * Compile defaults as zero-argument functions. Function
@@ -1376,7 +1376,7 @@ static list_t *param_list(parser_t *parser)
                  * would run it before preceding imports and initializers.
                  */
                 push_function(parser->comp, "<default>");
-                expr(parser);
+                _expr(parser);
                 emit(parser->comp, OP_RETURN);
                 pop_function(parser->comp, 0);
             }
@@ -1385,29 +1385,29 @@ static list_t *param_list(parser_t *parser)
 
             size++;
 
-        } while (match(parser, TK_COMMA));
+        } while (_match(parser, TK_COMMA));
     }
 
     return params;
 }
 
-static void emit_spreadMapLiteral(parser_t *parser)
+static void _emit_spreadMapLiteral(Parser *parser)
 {
     emit_16u(parser->comp, OP_PUSH_MAP, "", 0);
     int source_count = 0;
     int pending_entries = 0;
 
-    if (match(parser, TK_RBRACE))
+    if (_match(parser, TK_RBRACE))
     {
         return;
     }
 
     do
     {
-        if (check(parser, TK_RBRACE))
+        if (_check(parser, TK_RBRACE))
             break;
 
-        if (match(parser, TK_ELLIPSIS))
+        if (_match(parser, TK_ELLIPSIS))
         {
             if (pending_entries > 0)
             {
@@ -1415,7 +1415,7 @@ static void emit_spreadMapLiteral(parser_t *parser)
                 pending_entries = 0;
                 source_count++;
             }
-            cond_expr(parser);
+            _cond_expr(parser);
             source_count++;
             continue;
         }
@@ -1423,20 +1423,20 @@ static void emit_spreadMapLiteral(parser_t *parser)
         char *key;
         int index = 0;
 
-        if (match_n(parser, 5, TK_STR, TK_ID, TK_NUM, TK_FALSE, TK_TRUE))
+        if (_match_n(parser, 5, TK_STR, TK_ID, TK_NUM, TK_FALSE, TK_TRUE))
         {
-            key = tk_string(previous(parser));
+            key = tk_string(_previous(parser));
             index = store_stringConst(parser->comp, key);
         }
         else
-            p_error("Unexpected key expression.", peek(parser).line, peek(parser).column);
+            p_error("Unexpected key expression.", _peek(parser).line, _peek(parser).column);
 
-        if (match(parser, TK_LPAREN))
+        if (_match(parser, TK_LPAREN))
         {
-            list_t *params = param_list(parser);
-            int size = list_size(params);
-            consume(parser, TK_RPAREN, "Expect ')' before function body.");
-            consume(parser, TK_LBRACE, "Expect '{' before function body.");
+            List *params = _param_list(parser);
+            int size = LIST_SIZE(params);
+            _consume(parser, TK_RPAREN, "Expect ')' before function body.");
+            _consume(parser, TK_LBRACE, "Expect '{' before function body.");
 
             push_function(parser->comp, key);
             parser->comp->current->param_names = params;
@@ -1449,44 +1449,44 @@ static void emit_spreadMapLiteral(parser_t *parser)
             add_local(parser->comp, "args");
             add_local(parser->comp, "kw_args");
 
-            if (match(parser, TK_RBRACE))
+            if (_match(parser, TK_RBRACE))
             {
-                emit_defaultReturn(parser->comp);
+                _emit_defaultReturn(parser->comp);
             }
             else
             {
-                while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
-                    declaration(parser);
+                while (!_check(parser, TK_RBRACE) && !_is_atEnd(parser))
+                    _declaration(parser);
 
                 if (!parser->is_return)
                 {
-                    emit_defaultReturn(parser->comp);
+                    _emit_defaultReturn(parser->comp);
 
-                    parser->is_return = false;
+                    parser->is_return = FALSE;
                 }
             }
 
-            parser->is_return = false;
+            parser->is_return = FALSE;
             pop_function(parser->comp, size);
-            consume(parser, TK_RBRACE, "Expect '}' after function body.");
+            _consume(parser, TK_RBRACE, "Expect '}' after function body.");
         }
         else
         {
             if (strcmp(key, "constructor") == 0)
-                p_error("Constructor is a reserved keyword.", peek(parser).line, peek(parser).column);
-            consume(parser, TK_COLON, "Expect ':' after object key expression.");
+                p_error("Constructor is a reserved keyword.", _peek(parser).line, _peek(parser).column);
+            _consume(parser, TK_COLON, "Expect ':' after object key expression.");
             char *prev_obj = parser->object_name;
             parser->object_name = NULL;
-            cond_expr(parser);
+            _cond_expr(parser);
             parser->object_name = prev_obj;
         }
 
         emit_16u(parser->comp, OP_LOAD_CONST, key, index);
         free(key);
         pending_entries++;
-    } while (match(parser, TK_COMMA) && !check(parser, TK_RBRACE));
+    } while (_match(parser, TK_COMMA) && !_check(parser, TK_RBRACE));
 
-    consume(parser, TK_RBRACE, "Expect '}' at the end of map literal.");
+    _consume(parser, TK_RBRACE, "Expect '}' at the end of map literal.");
     if (pending_entries > 0)
     {
         emit_16u(parser->comp, OP_PUSH_MAP, "", pending_entries);
@@ -1495,16 +1495,16 @@ static void emit_spreadMapLiteral(parser_t *parser)
     if (source_count > 0)
     {
         if (source_count > 255)
-            p_error("Map literal cannot contain more than 255 spread segments.", peek(parser).line, peek(parser).column);
+            p_error("Map literal cannot contain more than 255 spread segments.", _peek(parser).line, _peek(parser).column);
         emit_8u(parser->comp, OP_MAP_EXTEND, "", source_count);
     }
 }
 
-static void emit_classMap(parser_t *parser, const char *class_name, const char *parent_name)
+static void _emit_classMap(Parser *parser, const char *class_name, const char *parent_name)
 {
     char *prev_obj = parser->object_name;
-    table_t *prev_field_names = parser->instance_field_names;
-    list_t *prev_fields = parser->instance_fields;
+    HT_Table *prev_field_names = parser->instance_field_names;
+    List *prev_fields = parser->instance_fields;
     parser->object_name = (char *)class_name;
     parser->instance_field_names = ht_create(sizeof(uint16_t));
     parser->instance_fields = list_create(sizeof(char *));
@@ -1512,18 +1512,18 @@ static void emit_classMap(parser_t *parser, const char *class_name, const char *
     push_object(parser->comp);
 
     int size = 0;
-    while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
+    while (!_check(parser, TK_RBRACE) && !_is_atEnd(parser))
     {
-        token_t key_tok = consume(parser, TK_ID, "Expect class member name.");
+        Token key_tok = _consume(parser, TK_ID, "Expect class member name.");
         char *key = token_value(key_tok);
         int index = store_stringConst(parser->comp, key);
 
-        if (match(parser, TK_LPAREN))
+        if (_match(parser, TK_LPAREN))
         {
-            list_t *params = param_list(parser);
-            int param_count = list_size(params);
-            consume(parser, TK_RPAREN, "Expect ')' before method body.");
-            consume(parser, TK_LBRACE, "Expect '{' before method body.");
+            List *params = _param_list(parser);
+            int param_count = LIST_SIZE(params);
+            _consume(parser, TK_RPAREN, "Expect ')' before method body.");
+            _consume(parser, TK_LBRACE, "Expect '{' before method body.");
 
             push_function(parser->comp, key);
             parser->comp->current->param_names = params;
@@ -1535,42 +1535,42 @@ static void emit_classMap(parser_t *parser, const char *class_name, const char *
             add_local(parser->comp, "args");
             add_local(parser->comp, "kw_args");
 
-            if (match(parser, TK_RBRACE))
+            if (_match(parser, TK_RBRACE))
             {
-                emit_defaultReturn(parser->comp);
+                _emit_defaultReturn(parser->comp);
             }
             else
             {
-                while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
-                    declaration(parser);
+                while (!_check(parser, TK_RBRACE) && !_is_atEnd(parser))
+                    _declaration(parser);
 
                 if (!parser->is_return)
                 {
-                    emit_defaultReturn(parser->comp);
+                    _emit_defaultReturn(parser->comp);
                 }
             }
 
-            parser->is_return = false;
+            parser->is_return = FALSE;
             pop_function(parser->comp, param_count);
-            consume(parser, TK_RBRACE, "Expect '}' after method body.");
+            _consume(parser, TK_RBRACE, "Expect '}' after method body.");
         }
         else
         {
             if (strcmp(key, "constructor") == 0)
-                p_error("Constructor is a reserved keyword.", peek(parser).line, peek(parser).column);
+                p_error("Constructor is a reserved keyword.", _peek(parser).line, _peek(parser).column);
 
-            consume(parser, TK_ASSIGN, "Expect '=' after static class member name.");
+            _consume(parser, TK_ASSIGN, "Expect '=' after static class member name.");
 
             bool prev_object_member = parser->object_member;
             char *prev_fun = parser->fun_name;
             char *member_prev_obj = parser->object_name;
-            parser->object_member = true;
+            parser->object_member = TRUE;
             parser->object_name = NULL;
 
-            if (is_functionLiteral(parser, parser->current))
+            if (_is_functionLiteral(parser, parser->current))
                 parser->fun_name = key;
 
-            cond_expr(parser);
+            _cond_expr(parser);
             parser->object_member = prev_object_member;
             parser->fun_name = prev_fun;
             parser->object_name = member_prev_obj;
@@ -1580,21 +1580,21 @@ static void emit_classMap(parser_t *parser, const char *class_name, const char *
         free(key);
         size++;
 
-        bool had_comma = consume_ifExist(parser, 1, TK_COMMA);
+        bool had_comma = _consume_ifExist(parser, 1, TK_COMMA);
         if (!had_comma && need_delimiter(parser))
-            p_error("Expected delimiter between class members.", peek(parser).line, peek(parser).column);
+            p_error("Expected delimiter between class members.", _peek(parser).line, _peek(parser).column);
     }
 
-    consume(parser, TK_RBRACE, "Expect '}' after class body.");
+    _consume(parser, TK_RBRACE, "Expect '}' after class body.");
     pop_object(parser->comp);
 
     /* PUSH_CLASS consumes member pairs followed by the class name and
        superclass.  Object is resolved normally, so a missing superclass is
        represented by the language-level Object value. */
-    int field_count = list_size(parser->instance_fields);
+    int field_count = LIST_SIZE(parser->instance_fields);
     for (int i = 0; i < field_count; i++)
     {
-        char *field_name = *(char **)list_getAt(parser->instance_fields, i);
+        char *field_name = *(char **)_list_getAt(parser->instance_fields, i);
         int field_index = store_stringConst(parser->comp, field_name);
         emit_16u(parser->comp, OP_LOAD_CONST, field_name, field_index);
     }
@@ -1611,41 +1611,41 @@ static void emit_classMap(parser_t *parser, const char *class_name, const char *
     parser->object_name = prev_obj;
 }
 
-static void class_decl(parser_t *parser)
+static void _class_decl(Parser *parser)
 {
-    token_t name_tok = consume(parser, TK_ID, "Expect class name.");
+    Token name_tok = _consume(parser, TK_ID, "Expect class name.");
     char *class_name = token_value(name_tok);
     char *parent_name = "Object";
 
-    if (match(parser, TK_COLON))
+    if (_match(parser, TK_COLON))
     {
-        token_t parent_tok = consume(parser, TK_ID, "Expect parent class name after ':'.");
+        Token parent_tok = _consume(parser, TK_ID, "Expect parent class name after ':'.");
         parent_name = token_value(parent_tok);
     }
 
-    consume(parser, TK_LBRACE, "Expect '{' before class body.");
+    _consume(parser, TK_LBRACE, "Expect '{' before class body.");
 
-    emit_classMap(parser, class_name, parent_name);
+    _emit_classMap(parser, class_name, parent_name);
     add_variable(parser->comp, class_name);
 }
-static void func_decl(parser_t *parser)
+static void _func_decl(Parser *parser)
 {
-    token_t token = previous(parser);
+    Token token = _previous(parser);
 
-    if (match(parser, TK_ID))
+    if (_match(parser, TK_ID))
     {
-        token_t id_token = previous(parser);
+        Token id_token = _previous(parser);
         char *name = token_value(id_token);
 
         if (is_localScope(parser->comp))
             add_local(parser->comp, name);
 
-        consume(parser, TK_LPAREN, "Expect '(' after function name.");
-        list_t *params = param_list(parser);
-        int size = list_size(params);
-        consume(parser, TK_RPAREN, "Expect ')' before function body.");
-        consume(parser, TK_LBRACE, "Expect '{' before function body.");
-        token = previous(parser);
+        _consume(parser, TK_LPAREN, "Expect '(' after function name.");
+        List *params = _param_list(parser);
+        int size = LIST_SIZE(params);
+        _consume(parser, TK_RPAREN, "Expect ')' before function body.");
+        _consume(parser, TK_LBRACE, "Expect '{' before function body.");
+        token = _previous(parser);
 
         push_function(parser->comp, name);
         parser->comp->current->param_names = params;
@@ -1655,39 +1655,39 @@ static void func_decl(parser_t *parser)
         add_local(parser->comp, "args");
         add_local(parser->comp, "kw_args");
 
-        bool hit_finalReturn = false;
+        bool hit_finalReturn = FALSE;
 
-        while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
+        while (!_check(parser, TK_RBRACE) && !_is_atEnd(parser))
         {
             if (hit_finalReturn)
             {
-                token_t _token = peek(parser);
+                Token _token = _peek(parser);
                 p_errorf(_token.line, _token.column,
                          "Unreachable code after final return statement");
             }
 
-            if (check(parser, TK_RETURN))
+            if (_check(parser, TK_RETURN))
             {
-                declaration(parser);
-                hit_finalReturn = true;
+                _declaration(parser);
+                hit_finalReturn = TRUE;
                 continue;
             }
 
-            declaration(parser);
+            _declaration(parser);
         }
 
         // Implicit return if no return seen
         if (!parser->is_return)
         {
             //  Important: Mark where the implicit return comes from
-            token_t rbrace = peek(parser);
+            Token rbrace = _peek(parser);
             set_pos(parser, rbrace);
-            emit_nilReturn(parser->comp);
+            _emit_nilReturn(parser->comp);
         }
 
-        parser->is_return = false;
+        parser->is_return = FALSE;
 
-        consume(parser, TK_RBRACE, "Expect '}' after function body.");
+        _consume(parser, TK_RBRACE, "Expect '}' after function body.");
 
         pop_function(parser->comp, size);
 
@@ -1701,16 +1701,16 @@ static void func_decl(parser_t *parser)
     else
         p_error("Expect function name", token.line, token.column);
 
-    consume_ifExist(parser, 1, TK_SEMICOLON);
+    _consume_ifExist(parser, 1, TK_SEMICOLON);
 }
 
-static void debug(parser_t *parser)
+static void _debug(Parser *parser)
 {
     emit(parser->comp, OP_DEBUG);
-    consume_ifExist(parser, 1, TK_SEMICOLON);
+    _consume_ifExist(parser, 1, TK_SEMICOLON);
 }
 
-static char *import_joinParts(token_t *parts, int count)
+static char *_import_joinParts(Token *parts, int count)
 {
     int total = 0;
     for (int i = 0; i < count; i++)
@@ -1733,16 +1733,16 @@ static char *import_joinParts(token_t *parts, int count)
     return path;
 }
 
-static void emit_importModule(parser_t *parser, token_t *parts, int count)
+static void _emit_importModule(Parser *parser, Token *parts, int count)
 {
-    char *module_path = import_joinParts(parts, count);
+    char *module_path = _import_joinParts(parts, count);
     int module_index = store_stringConst(parser->comp, module_path);
     emit_16u(parser->comp, OP_LOAD_CONST, module_path, module_index);
     free(module_path);
     emit(parser->comp, OP_IMPORT);
 }
 
-static void emit_importBinding(parser_t *parser, token_t export_tok, token_t alias_tok)
+static void _emit_importBinding(Parser *parser, Token export_tok, Token alias_tok)
 {
     char *alias_name = token_value(alias_tok);
     int export_index = store_tokenConst(parser->comp, export_tok);
@@ -1754,74 +1754,74 @@ static void emit_importBinding(parser_t *parser, token_t export_tok, token_t ali
     free(alias_name);
 }
 
-static void emit_importAlias(parser_t *parser, token_t alias_tok)
+static void _emit_importAlias(Parser *parser, Token alias_tok)
 {
     char *alias_name = token_value(alias_tok);
     store_variable(parser->comp, alias_name);
     free(alias_name);
 }
 
-static void import_item(parser_t *parser)
+static void _import_item(Parser *parser)
 {
-    token_t parts[256];
+    Token parts[256];
     int count = 0;
-    bool import_all = false;
-    bool import_braced = false;
-    bool has_alias = false;
-    token_t alias_tok;
+    bool import_all = FALSE;
+    bool import_braced = FALSE;
+    bool has_alias = FALSE;
+    Token alias_tok;
 
-    parts[count++] = consume(parser, TK_ID, "Expect module name after 'import'.");
+    parts[count++] = _consume(parser, TK_ID, "Expect module name after 'import'.");
 
-    while (match(parser, TK_DOT))
+    while (_match(parser, TK_DOT))
     {
-        if (check(parser, TK_MULT))
+        if (_check(parser, TK_MULT))
         {
-            next(parser);
-            import_all = true;
+            _next(parser);
+            import_all = TRUE;
             break;
         }
 
-        if (check(parser, TK_LBRACE))
+        if (_check(parser, TK_LBRACE))
         {
-            import_braced = true;
+            import_braced = TRUE;
             break;
         }
 
         if (count >= 256)
-            p_error("Import path is too long.", peek(parser).line, peek(parser).column);
-        parts[count++] = consume(parser, TK_ID, "Expect identifier after '.'.");
+            p_error("Import path is too long.", _peek(parser).line, _peek(parser).column);
+        parts[count++] = _consume(parser, TK_ID, "Expect identifier after '.'.");
     }
 
-    if (!import_all && !import_braced && match(parser, TK_COLON))
+    if (!import_all && !import_braced && _match(parser, TK_COLON))
     {
-        alias_tok = consume(parser, TK_ID, "Expect alias name after ':'.");
-        has_alias = true;
+        alias_tok = _consume(parser, TK_ID, "Expect alias name after ':'.");
+        has_alias = TRUE;
 
-        if (match(parser, TK_DOT))
+        if (_match(parser, TK_DOT))
         {
-            if (check(parser, TK_MULT))
+            if (_check(parser, TK_MULT))
             {
-                next(parser);
-                import_all = true;
+                _next(parser);
+                import_all = TRUE;
             }
-            else if (check(parser, TK_LBRACE))
+            else if (_check(parser, TK_LBRACE))
             {
-                import_braced = true;
+                import_braced = TRUE;
             }
             else
             {
-                p_error("Expect '*' or '{' after aliased import selector.", peek(parser).line, peek(parser).column);
+                p_error("Expect '*' or '{' after aliased import selector.", _peek(parser).line, _peek(parser).column);
             }
         }
     }
 
     if (import_all)
     {
-        emit_importModule(parser, parts, count);
+        _emit_importModule(parser, parts, count);
         if (has_alias)
         {
             emit(parser->comp, OP_DUP_TOP);
-            emit_importAlias(parser, alias_tok);
+            _emit_importAlias(parser, alias_tok);
         }
         emit(parser->comp, OP_IMPORT_ALL);
         return;
@@ -1829,27 +1829,27 @@ static void import_item(parser_t *parser)
 
     if (import_braced)
     {
-        emit_importModule(parser, parts, count); // leaves module on stack
+        _emit_importModule(parser, parts, count); // leaves module on stack
         if (has_alias)
         {
             emit(parser->comp, OP_DUP_TOP);
-            emit_importAlias(parser, alias_tok);
+            _emit_importAlias(parser, alias_tok);
         }
 
-        consume(parser, TK_LBRACE, "Expect '{' after module path.");
+        _consume(parser, TK_LBRACE, "Expect '{' after module path.");
         do
         {
-            token_t export_tok = consume(parser, TK_ID, "Expect export name inside import list.");
-            token_t alias_tok = export_tok;
-            if (match(parser, TK_COLON))
-                alias_tok = consume(parser, TK_ID, "Expect alias name after ':'.");
+            Token export_tok = _consume(parser, TK_ID, "Expect export name inside import list.");
+            Token alias_tok = export_tok;
+            if (_match(parser, TK_COLON))
+                alias_tok = _consume(parser, TK_ID, "Expect alias name after ':'.");
 
             emit(parser->comp, OP_DUP_TOP);
-            emit_importBinding(parser, export_tok, alias_tok);
+            _emit_importBinding(parser, export_tok, alias_tok);
 
-        } while (match(parser, TK_COMMA));
+        } while (_match(parser, TK_COMMA));
 
-        consume(parser, TK_RBRACE, "Expect '}' after import list.");
+        _consume(parser, TK_RBRACE, "Expect '}' after import list.");
         emit(parser->comp, OP_POP); // discard module left on stack
         return;
     }
@@ -1859,21 +1859,21 @@ static void import_item(parser_t *parser)
         // import module:alias
         if (count == 1)
         {
-            emit_importModule(parser, parts, count);
-            emit_importAlias(parser, alias_tok);
+            _emit_importModule(parser, parts, count);
+            _emit_importAlias(parser, alias_tok);
             return;
         }
 
         // import path.to.mod.elem:alias
-        token_t export_tok = parts[count - 1];
+        Token export_tok = parts[count - 1];
 
-        emit_importModule(parser, parts, count - 1);
-        emit_importBinding(parser, export_tok, alias_tok);
+        _emit_importModule(parser, parts, count - 1);
+        _emit_importBinding(parser, export_tok, alias_tok);
         return;
     }
 
     // Plain module import: bind to a same-name export, else the module.
-    emit_importModule(parser, parts, count);
+    _emit_importModule(parser, parts, count);
     char *binding_name = token_value(parts[count - 1]);
     int name_index = store_tokenConst(parser->comp, parts[count - 1]);
     emit_16u(parser->comp, OP_LOAD_CONST, binding_name, name_index);
@@ -1882,85 +1882,85 @@ static void import_item(parser_t *parser)
     free(binding_name);
 }
 
-static void import_stmt(parser_t *parser)
+static void _import_stmt(Parser *parser)
 {
-    token_t tok = previous(parser); // 'import'
+    Token tok = _previous(parser); // 'import'
     set_pos(parser, tok);
 
     do
     {
-        import_item(parser);
-    } while (match(parser, TK_COMMA));
+        _import_item(parser);
+    } while (_match(parser, TK_COMMA));
 
-    consume_ifExist(parser, 1, TK_SEMICOLON);
+    _consume_ifExist(parser, 1, TK_SEMICOLON);
 }
 
-static void statement(parser_t *parser)
+static void _statement(Parser *parser)
 {
-    if (is_listDestructureAssign(parser))
-        destructure_ListAssignStatement(parser);
-    else if (is_tupleDestructureAssign(parser))
-        destructure_tupleAssignStatement(parser);
-    else if (match(parser, TK_LBRACE))
+    if (_is_listDestructureAssign(parser))
+        _destructure_ListAssignStatement(parser);
+    else if (_is_tupleDestructureAssign(parser))
+        _destructure_tupleAssignStatement(parser);
+    else if (_match(parser, TK_LBRACE))
     {
         // Look ahead to check if it's an object literal (key: value format)
         int current = parser->current;
 
-        if (match_n(parser, 5, TK_STR, TK_ID, TK_NUM, TK_FALSE, TK_TRUE) && match(parser, TK_COLON))
+        if (_match_n(parser, 5, TK_STR, TK_ID, TK_NUM, TK_FALSE, TK_TRUE) && _match(parser, TK_COLON))
         {
             parser->current = current - 1;
-            primary(parser);
+            _primary(parser);
         }
         else
         {
             // Otherwise, parse as a block
             parser->current = current;
-            block(parser);
+            _block(parser);
         }
     }
-    else if (match(parser, TK_IF))
-        if_stmt(parser);
-    else if (match(parser, TK_SWITCH))
-        switch_stmt(parser);
-    else if (match(parser, TK_WHILE))
-        while_stmt(parser);
-    else if (match(parser, TK_FOR))
-        for_stmt(parser);
-    else if (match(parser, TK_BREAK))
-        break_stmt(parser);
-    else if (match(parser, TK_CONTINUE))
-        continue_stmt(parser);
-    else if (match(parser, TK_RETURN))
-        return_stmt(parser);
-    else if (match(parser, TK_DEBUG))
-        debug(parser);
-    else if (match(parser, TK_IMPORT))
-        import_stmt(parser);
+    else if (_match(parser, TK_IF))
+        _if_stmt(parser);
+    else if (_match(parser, TK_SWITCH))
+        _switch_stmt(parser);
+    else if (_match(parser, TK_WHILE))
+        _while_stmt(parser);
+    else if (_match(parser, TK_FOR))
+        _for_stmt(parser);
+    else if (_match(parser, TK_BREAK))
+        _break_stmt(parser);
+    else if (_match(parser, TK_CONTINUE))
+        _continue_stmt(parser);
+    else if (_match(parser, TK_RETURN))
+        _return_stmt(parser);
+    else if (_match(parser, TK_DEBUG))
+        _debug(parser);
+    else if (_match(parser, TK_IMPORT))
+        _import_stmt(parser);
     else
-        expr_state(parser);
+        _expr_state(parser);
 
     // parser->is_return = false;
 }
 
-static void destructure_ListAssignStatement(parser_t *parser)
+static void _destructure_ListAssignStatement(Parser *parser)
 {
-    list_t *targets = list_create(sizeof(char *));
-    consume(parser, TK_LBRACKET, "Expect '[' to start destructuring assignment.");
+    List *targets = list_create(sizeof(char *));
+    _consume(parser, TK_LBRACKET, "Expect '[' to start destructuring assignment.");
     do
     {
-        token_t name_tok = consume(parser, TK_ID, "Expect identifier in destructuring assignment.");
+        Token name_tok = _consume(parser, TK_ID, "Expect identifier in destructuring assignment.");
         char *name = token_value(name_tok);
-        list_add(targets, &name);
-    } while (match(parser, TK_COMMA));
+        _list_add(targets, &name);
+    } while (_match(parser, TK_COMMA));
 
-    consume(parser, TK_RBRACKET, "Expect ']' after destructuring targets.");
-    consume(parser, TK_ASSIGN, "Expect '=' after destructuring targets.");
-    expr(parser);
+    _consume(parser, TK_RBRACKET, "Expect ']' after destructuring targets.");
+    _consume(parser, TK_ASSIGN, "Expect '=' after destructuring targets.");
+    _expr(parser);
 
-    int size = list_size(targets);
+    int size = LIST_SIZE(targets);
     for (int i = 0; i < size; i++)
     {
-        char *name = *(char **)list_getAt(targets, i);
+        char *name = *(char **)_list_getAt(targets, i);
         int index = store_const(parser->comp, NEW_NUM(i));
 
         emit(parser->comp, OP_DUP_TOP);
@@ -1972,28 +1972,28 @@ static void destructure_ListAssignStatement(parser_t *parser)
     emit(parser->comp, OP_POP);
 
     if (need_delimiter(parser))
-        p_error("Expected delemiter between statements.", peek(parser).line, peek(parser).column);
+        p_error("Expected delemiter between statements.", _peek(parser).line, _peek(parser).column);
 }
 
-static void destructure_tupleAssignStatement(parser_t *parser)
+static void _destructure_tupleAssignStatement(Parser *parser)
 {
-    list_t *targets = list_create(sizeof(char *));
-    consume(parser, TK_LPAREN, "Expect '(' to start tuple destructuring assignment.");
+    List *targets = list_create(sizeof(char *));
+    _consume(parser, TK_LPAREN, "Expect '(' to start tuple destructuring assignment.");
     do
     {
-        token_t name_tok = consume(parser, TK_ID, "Expect identifier in tuple destructuring assignment.");
+        Token name_tok = _consume(parser, TK_ID, "Expect identifier in tuple destructuring assignment.");
         char *name = token_value(name_tok);
-        list_add(targets, &name);
-    } while (match(parser, TK_COMMA) && !check(parser, TK_RPAREN));
+        _list_add(targets, &name);
+    } while (_match(parser, TK_COMMA) && !_check(parser, TK_RPAREN));
 
-    consume(parser, TK_RPAREN, "Expect ')' after tuple destructuring targets.");
-    consume(parser, TK_ASSIGN, "Expect '=' after tuple destructuring targets.");
-    expr(parser);
+    _consume(parser, TK_RPAREN, "Expect ')' after tuple destructuring targets.");
+    _consume(parser, TK_ASSIGN, "Expect '=' after tuple destructuring targets.");
+    _expr(parser);
 
-    int size = list_size(targets);
+    int size = LIST_SIZE(targets);
     for (int i = 0; i < size; i++)
     {
-        char *name = *(char **)list_getAt(targets, i);
+        char *name = *(char **)_list_getAt(targets, i);
         int index = store_const(parser->comp, NEW_NUM(i));
 
         emit(parser->comp, OP_DUP_TOP);
@@ -2005,10 +2005,10 @@ static void destructure_tupleAssignStatement(parser_t *parser)
     emit(parser->comp, OP_POP);
 
     if (need_delimiter(parser))
-        p_error("Expected delemiter between statements.", peek(parser).line, peek(parser).column);
+        p_error("Expected delemiter between statements.", _peek(parser).line, _peek(parser).column);
 }
 
-static void store_pairFromTop(parser_t *parser, char *first, char *second)
+static void _store_pairFromTop(Parser *parser, char *first, char *second)
 {
     char *targets[2] = {first, second};
     for (int i = 0; i < 2; i++)
@@ -2021,33 +2021,33 @@ static void store_pairFromTop(parser_t *parser, char *first, char *second)
     }
 }
 
-static void block(parser_t *parser)
+static void _block(Parser *parser)
 {
     push_scope(parser->comp);
 
-    while (!check(parser, TK_RBRACE) && !is_atEnd(parser) && !parser->is_return)
-        declaration(parser);
+    while (!_check(parser, TK_RBRACE) && !_is_atEnd(parser) && !parser->is_return)
+        _declaration(parser);
 
-    if (parser->is_return && !check(parser, TK_RBRACE))
-        p_error("Unreachable code after return statement.", peek(parser).line, peek(parser).column);
+    if (parser->is_return && !_check(parser, TK_RBRACE))
+        p_error("Unreachable code after return statement.", _peek(parser).line, _peek(parser).column);
 
-    parser->is_return = false;
+    parser->is_return = FALSE;
 
     pop_scope(parser->comp);
 
-    consume(parser, TK_RBRACE, "Expect '}' after block.");
+    _consume(parser, TK_RBRACE, "Expect '}' after block.");
 }
 
-static void condition(parser_t *parser)
+static void _condition(Parser *parser)
 {
     // Parentheses are ordinary grouping expressions. Parsing the complete
     // condition here lets `(a == true) && b == false` continue after `)`.
-    pipeline_expr(parser);
+    _pipeline_expr(parser);
 }
-static void if_stmt(parser_t *parser)
+static void _if_stmt(Parser *parser)
 {
-    token_t start = peek(parser); // capture for accurate position
-    condition(parser);
+    Token start = _peek(parser); // capture for accurate position
+    _condition(parser);
 
     bool constant_condition;
     if (last_constantCondition(parser->comp, &constant_condition))
@@ -2056,42 +2056,42 @@ static void if_stmt(parser_t *parser)
 
         if (constant_condition)
         {
-            if (match(parser, TK_LBRACE))
-                block(parser);
+            if (_match(parser, TK_LBRACE))
+                _block(parser);
             else
             {
-                statement(parser);
-                parser->is_return = false;
+                _statement(parser);
+                parser->is_return = FALSE;
             }
 
-            if (match(parser, TK_ELSE))
+            if (_match(parser, TK_ELSE))
             {
-                bool previous_lookup = look_up(parser->comp, true);
-                if (match(parser, TK_LBRACE))
-                    block(parser);
+                bool previous_lookup = look_up(parser->comp, TRUE);
+                if (_match(parser, TK_LBRACE))
+                    _block(parser);
                 else
-                    statement(parser);
+                    _statement(parser);
                 look_up(parser->comp, previous_lookup);
-                parser->is_return = false;
+                parser->is_return = FALSE;
             }
         }
         else
         {
-            bool previous_lookup = look_up(parser->comp, true);
-            if (match(parser, TK_LBRACE))
-                block(parser);
+            bool previous_lookup = look_up(parser->comp, TRUE);
+            if (_match(parser, TK_LBRACE))
+                _block(parser);
             else
-                statement(parser);
+                _statement(parser);
             look_up(parser->comp, previous_lookup);
-            parser->is_return = false;
+            parser->is_return = FALSE;
 
-            if (match(parser, TK_ELSE))
+            if (_match(parser, TK_ELSE))
             {
-                if (match(parser, TK_LBRACE))
-                    block(parser);
+                if (_match(parser, TK_LBRACE))
+                    _block(parser);
                 else
-                    statement(parser);
-                parser->is_return = false;
+                    _statement(parser);
+                parser->is_return = FALSE;
             }
         }
         return;
@@ -2100,63 +2100,63 @@ static void if_stmt(parser_t *parser)
     set_pos(parser, start);
     int then_jump = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
 
-    if (match(parser, TK_LBRACE))
-        block(parser);
+    if (_match(parser, TK_LBRACE))
+        _block(parser);
     else
     {
-        statement(parser);
-        parser->is_return = false;
+        _statement(parser);
+        parser->is_return = FALSE;
     }
 
     int end_jumps[256];
     int jump_count = 0;
 
-    if (check(parser, TK_ELIF) || check(parser, TK_ELSE))
+    if (_check(parser, TK_ELIF) || _check(parser, TK_ELSE))
     {
-        set_pos(parser, peek(parser));
+        set_pos(parser, _peek(parser));
         end_jumps[jump_count++] = emit_16u(parser->comp, OP_JUMP, "", 0);
     }
 
     patch_jump(parser->comp, then_jump);
 
-    while (match(parser, TK_ELIF))
+    while (_match(parser, TK_ELIF))
     {
-        token_t elif_tok = previous(parser);
-        condition(parser);
+        Token elif_tok = _previous(parser);
+        _condition(parser);
 
         set_pos(parser, elif_tok);
         then_jump = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
 
-        if (match(parser, TK_LBRACE))
-            block(parser);
+        if (_match(parser, TK_LBRACE))
+            _block(parser);
         else
         {
-            statement(parser);
-            parser->is_return = false;
+            _statement(parser);
+            parser->is_return = FALSE;
         }
 
-        if (check(parser, TK_ELIF) || check(parser, TK_ELSE))
+        if (_check(parser, TK_ELIF) || _check(parser, TK_ELSE))
         {
-            set_pos(parser, peek(parser));
+            set_pos(parser, _peek(parser));
             end_jumps[jump_count++] = emit_16u(parser->comp, OP_JUMP, "", 0);
         }
 
         patch_jump(parser->comp, then_jump);
     }
 
-    if (match(parser, TK_ELSE))
+    if (_match(parser, TK_ELSE))
     {
-        token_t else_tok = previous(parser);
+        Token else_tok = _previous(parser);
         set_pos(parser, else_tok);
 
         patch_jump(parser->comp, then_jump);
 
-        if (match(parser, TK_LBRACE))
-            block(parser);
+        if (_match(parser, TK_LBRACE))
+            _block(parser);
         else
         {
-            statement(parser);
-            parser->is_return = false;
+            _statement(parser);
+            parser->is_return = FALSE;
         }
     }
     else
@@ -2166,28 +2166,28 @@ static void if_stmt(parser_t *parser)
         patch_jump(parser->comp, end_jumps[i]);
 }
 
-static void switch_branchBody(parser_t *parser)
+static void _switch_branchBody(Parser *parser)
 {
-    if (match(parser, TK_LBRACE))
-        block(parser);
+    if (_match(parser, TK_LBRACE))
+        _block(parser);
     else
     {
-        statement(parser);
-        parser->is_return = false;
+        _statement(parser);
+        parser->is_return = FALSE;
     }
 }
 
-static bool is_defaultSwitchCase(parser_t *parser)
+static bool _is_defaultSwitchCase(Parser *parser)
 {
-    if (!check(parser, TK_ID))
-        return false;
+    if (!_check(parser, TK_ID))
+        return FALSE;
 
-    token_t token = peek(parser);
+    Token token = _peek(parser);
     return token.length == 1 && token.start[0] == '_' &&
            parser->tokens[parser->current + 1].type == TK_COLON;
 }
 
-static int find_switchCaseColon(parser_t *parser)
+static int _find_switchCaseColon(Parser *parser)
 {
     int index = parser->current;
     int paren_depth = 0;
@@ -2197,7 +2197,7 @@ static int find_switchCaseColon(parser_t *parser)
 
     while (parser->tokens[index].type != TK_EOF)
     {
-        token_t token = parser->tokens[index];
+        Token token = parser->tokens[index];
 
         switch (token.type)
         {
@@ -2247,15 +2247,15 @@ static int find_switchCaseColon(parser_t *parser)
     return -1;
 }
 
-static bool switch_literalEquality(parser_t *parser, int subject_start, int subject_end,
-                                   segment_t condition, int *constant_index)
+static bool _switch_literalEquality(Parser *parser, int subject_start, int subject_end,
+                                   Segment _condition, int *constant_index)
 {
-    int condition_length = condition.end - condition.start;
+    int condition_length = _condition.end - _condition.start;
 
     /* A literal case implicitly compares against the switch subject. */
     if (condition_length == 1)
     {
-        token_t literal = parser->tokens[condition.start];
+        Token literal = parser->tokens[_condition.start];
         switch (literal.type)
         {
         case TK_NUM:
@@ -2266,25 +2266,25 @@ static bool switch_literalEquality(parser_t *parser, int subject_start, int subj
         case TK_INF:
         case TK_NAN:
             *constant_index = store_tokenConst(parser->comp, literal);
-            return true;
+            return TRUE;
         default:
-            return false;
+            return FALSE;
         }
     }
 
     /* Preserve the explicit form: subject == literal. */
     if (subject_end != subject_start + 1 || condition_length != 3)
-        return false;
+        return FALSE;
 
-    token_t subject = parser->tokens[subject_start];
-    token_t left = parser->tokens[condition.start];
-    token_t op = parser->tokens[condition.start + 1];
-    token_t literal = parser->tokens[condition.start + 2];
+    Token subject = parser->tokens[subject_start];
+    Token left = parser->tokens[_condition.start];
+    Token op = parser->tokens[_condition.start + 1];
+    Token literal = parser->tokens[_condition.start + 2];
 
     if (subject.type != TK_ID || left.type != TK_ID || op.type != TK_EQUAL ||
         subject.length != left.length ||
         strncmp(subject.start, left.start, subject.length) != 0)
-        return false;
+        return FALSE;
 
     switch (literal.type)
     {
@@ -2296,80 +2296,80 @@ static bool switch_literalEquality(parser_t *parser, int subject_start, int subj
     case TK_INF:
     case TK_NAN:
         *constant_index = store_tokenConst(parser->comp, literal);
-        return true;
+        return TRUE;
     default:
-        return false;
+        return FALSE;
     }
 }
 
-static void switch_stmt(parser_t *parser)
+static void _switch_stmt(Parser *parser)
 {
-    token_t switch_tok = previous(parser);
-    bool condition_switch = check(parser, TK_LBRACE);
+    Token switch_tok = _previous(parser);
+    bool condition_switch = _check(parser, TK_LBRACE);
 
     int subject_start = -1;
     int subject_end = -1;
-    bool subject_on_stack = false;
+    bool subject_on_stack = FALSE;
     if (!condition_switch)
     {
         set_pos(parser, switch_tok);
         subject_start = parser->current;
-        expr(parser);
+        _expr(parser);
         subject_end = parser->current;
-        subject_on_stack = true;
+        subject_on_stack = TRUE;
     }
 
-    consume(parser, TK_LBRACE, "Expect '{' before switch cases.");
+    _consume(parser, TK_LBRACE, "Expect '{' before switch cases.");
 
     int end_jumps[256];
     int jump_count = 0;
-    bool has_case = false;
-    bool has_default = false;
+    bool has_case = FALSE;
+    bool has_default = FALSE;
 
-    while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
+    while (!_check(parser, TK_RBRACE) && !_is_atEnd(parser))
     {
         if (has_default)
             p_error("Default switch case '_' must be the last case.",
-                    peek(parser).line, peek(parser).column);
+                    _peek(parser).line, _peek(parser).column);
 
-        has_case = true;
+        has_case = TRUE;
 
-        if (is_defaultSwitchCase(parser))
+        if (_is_defaultSwitchCase(parser))
         {
-            has_default = true;
-            next(parser); // _
-            consume(parser, TK_COLON, "Expect ':' after switch default case.");
+            has_default = TRUE;
+            _next(parser); // _
+            _consume(parser, TK_COLON, "Expect ':' after switch default case.");
             if (subject_on_stack)
             {
                 emit(parser->comp, OP_POP);
-                subject_on_stack = false;
+                subject_on_stack = FALSE;
             }
-            switch_branchBody(parser);
+            _switch_branchBody(parser);
             break;
         }
 
-        int colon_index = find_switchCaseColon(parser);
+        int colon_index = _find_switchCaseColon(parser);
         if (colon_index < 0)
             p_error("Expect ':' after switch case condition.",
-                    peek(parser).line, peek(parser).column);
+                    _peek(parser).line, _peek(parser).column);
 
-        token_t case_tok = peek(parser);
-        segment_t condition = {parser->current, colon_index};
+        Token case_tok = _peek(parser);
+        Segment _condition = {parser->current, colon_index};
         int constant_index = -1;
         bool fast_equality = subject_on_stack &&
-                             switch_literalEquality(parser, subject_start, subject_end,
-                                                    condition, &constant_index);
+                             _switch_literalEquality(parser, subject_start, subject_end,
+                                                    _condition, &constant_index);
         if (!fast_equality)
         {
             if (subject_on_stack)
             {
                 emit(parser->comp, OP_POP);
-                subject_on_stack = false;
+                subject_on_stack = FALSE;
             }
-            compile_segmentExpr(parser, condition, "Invalid switch case condition.");
+            _compile_segmentExpr(parser, _condition, "Invalid switch case condition.");
         }
         parser->current = colon_index;
-        consume(parser, TK_COLON, "Expect ':' after switch case condition.");
+        _consume(parser, TK_COLON, "Expect ':' after switch case condition.");
 
         set_pos(parser, case_tok);
         int next_case_jump;
@@ -2378,7 +2378,7 @@ static void switch_stmt(parser_t *parser)
         else
             next_case_jump = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
 
-        switch_branchBody(parser);
+        _switch_branchBody(parser);
         if (jump_count >= 256)
             p_error("Too many switch cases.", case_tok.line, case_tok.column);
 
@@ -2393,7 +2393,7 @@ static void switch_stmt(parser_t *parser)
         p_error("Switch statement requires at least one case.",
                 switch_tok.line, switch_tok.column);
 
-    consume(parser, TK_RBRACE, "Expect '}' after switch cases.");
+    _consume(parser, TK_RBRACE, "Expect '}' after switch cases.");
 
     if (subject_on_stack)
         emit(parser->comp, OP_POP);
@@ -2401,51 +2401,51 @@ static void switch_stmt(parser_t *parser)
     for (int i = 0; i < jump_count; i++)
         patch_jump(parser->comp, end_jumps[i]);
 
-    parser->is_return = false;
+    parser->is_return = FALSE;
 }
 
-static void while_stmt(parser_t *parser)
+static void _while_stmt(Parser *parser)
 {
     int jump = code_size(parser->comp);
 
-    token_t cond_start = peek(parser);
+    Token cond_start = _peek(parser);
 
-    condition(parser);
+    _condition(parser);
 
     set_pos(parser, cond_start);
 
     // Emit a conditional jump instruction to exit the loop if the condition is false
     int address = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
 
-    push_loop(parser->comp, jump, false);
+    push_loop(parser->comp, jump, FALSE);
 
-    if (match(parser, TK_LBRACE))
-        block(parser);
+    if (_match(parser, TK_LBRACE))
+        _block(parser);
     else
     {
-        statement(parser);
-        parser->is_return = false;
+        _statement(parser);
+        parser->is_return = FALSE;
     }
 
     pop_loop(parser->comp, jump);
     patch_jump(parser->comp, address);
 }
 
-static void for_stmt(parser_t *parser)
+static void _for_stmt(Parser *parser)
 {
-    bool has_parens = match(parser, TK_LPAREN);
+    bool has_parens = _match(parser, TK_LPAREN);
 
-    token_t first = consume(parser, TK_ID, "Invalid for-loop left-hand side. Expect identifier.");
-    token_t second = {0};
-    bool has_pair = false;
+    Token first = _consume(parser, TK_ID, "Invalid for-loop left-hand side. Expect identifier.");
+    Token second = {0};
+    bool has_pair = FALSE;
 
-    if (match(parser, TK_COMMA))
+    if (_match(parser, TK_COMMA))
     {
-        has_pair = true;
-        second = consume(parser, TK_ID, "Expect identifier after ',' in for-loop left-hand side.");
+        has_pair = TRUE;
+        second = _consume(parser, TK_ID, "Expect identifier after ',' in for-loop left-hand side.");
     }
 
-    consume(parser, TK_IN, "Expect 'in' keyword after loop variable.");
+    _consume(parser, TK_IN, "Expect 'in' keyword after loop variable.");
 
     push_scope(parser->comp);
     add_variable(parser->comp, token_value(first));
@@ -2458,11 +2458,11 @@ static void for_stmt(parser_t *parser)
         set_pos(parser, second);
     }
 
-    token_t cond_tok = peek(parser);
-    cond_expr(parser);
+    Token cond_tok = _peek(parser);
+    _cond_expr(parser);
 
     if (has_parens)
-        consume(parser, TK_RPAREN, "Expect ')' after iterable expression.");
+        _consume(parser, TK_RPAREN, "Expect ')' after iterable expression.");
 
     set_pos(parser, cond_tok); // associate with iterable expression
     emit(parser->comp, OP_PUSH_ITER);
@@ -2472,25 +2472,25 @@ static void for_stmt(parser_t *parser)
 
     if (has_pair)
     {
-        store_pairFromTop(parser, token_value(first), token_value(second));
+        _store_pairFromTop(parser, token_value(first), token_value(second));
     }
     else
     {
         store_variable(parser->comp, token_value(first));
     }
-    push_loop(parser->comp, address - 2, true);
+    push_loop(parser->comp, address - 2, TRUE);
 
-    if (match(parser, TK_LBRACE))
+    if (_match(parser, TK_LBRACE))
     {
-        while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
-            declaration(parser);
+        while (!_check(parser, TK_RBRACE) && !_is_atEnd(parser))
+            _declaration(parser);
 
-        consume(parser, TK_RBRACE, "Expect '}' after block.");
+        _consume(parser, TK_RBRACE, "Expect '}' after block.");
     }
     else
     {
-        statement(parser);
-        parser->is_return = false;
+        _statement(parser);
+        parser->is_return = FALSE;
     }
 
     pop_scope(parser->comp);
@@ -2498,9 +2498,9 @@ static void for_stmt(parser_t *parser)
     patch_jumpWithFlags(parser->comp, address, has_pair ? OP_LOOP_TARGET_PAIR_FLAG : 0);
 }
 
-static void break_stmt(parser_t *parser)
+static void _break_stmt(Parser *parser)
 {
-    token_t tok = previous(parser); // 'break' token
+    Token tok = _previous(parser); // 'break' token
     set_pos(parser, tok);
 
     if (!in_loop(parser->comp))
@@ -2514,15 +2514,15 @@ static void break_stmt(parser_t *parser)
     push_break(parser->comp, emit_jump(parser->comp, 0));
 
     // Mark this point as a return-like exit to check for unreachable code
-    parser->is_return = true;
+    parser->is_return = TRUE;
 
     if (need_delimiter(parser))
         p_error("Expected delimiter or newline after 'break'.", tok.line, tok.column);
 }
 
-static void continue_stmt(parser_t *parser)
+static void _continue_stmt(Parser *parser)
 {
-    token_t tok = previous(parser); // 'continue' token
+    Token tok = _previous(parser); // 'continue' token
     set_pos(parser, tok);
 
     if (!in_loop(parser->comp))
@@ -2533,46 +2533,46 @@ static void continue_stmt(parser_t *parser)
     emit_pop(parser->comp, loop_depth(parser->comp) + (for_loop ? 0 : 1));
     emit_jump(parser->comp, address - code_size(parser->comp));
 
-    parser->is_return = true;
+    parser->is_return = TRUE;
 
     if (need_delimiter(parser))
         p_error("Expected delemiter or newline after 'continue'.", tok.line, tok.column);
 }
 
-static void return_stmt(parser_t *parser)
+static void _return_stmt(Parser *parser)
 {
-    token_t tok = previous(parser); // 'return' token
+    Token tok = _previous(parser); // 'return' token
     set_pos(parser, tok);
-    bool emitted_return = false;
+    bool emitted_return = FALSE;
 
-    if (match(parser, TK_SEMICOLON) || is_lineBreak(parser))
+    if (_match(parser, TK_SEMICOLON) || _is_lineBreak(parser))
     {
-        emit_nilReturn(parser->comp);
-        emitted_return = true;
+        _emit_nilReturn(parser->comp);
+        emitted_return = TRUE;
     }
     else
-        expr(parser); // return with value
+        _expr(parser); // return with value
 
     if (!emitted_return)
         emit(parser->comp, OP_RETURN);
-    parser->is_return = true;
+    parser->is_return = TRUE;
 
     if (need_delimiter(parser))
         p_error("Expected delemiter or newline after return.", tok.line, tok.column);
 }
 
-static void expr_state(parser_t *parser)
+static void _expr_state(Parser *parser)
 {
 
-    token_t token = peek(parser);
+    Token token = _peek(parser);
     int start_line = token.line;
-    bool prev_lookUp, is_assign = false;
+    bool prev_lookUp, _is_assign = FALSE;
     int current = parser->current;
 
     if (token.type == TK_ID)
     {
-        token_t op_token = parser->tokens[current + 1];
-        token_t after = parser->tokens[current + 2];
+        Token op_token = parser->tokens[current + 1];
+        Token after = parser->tokens[current + 2];
         bool standalone_postfix = op_token.line == token.line &&
                                   (op_token.type == TK_INCR || op_token.type == TK_DECR) &&
                                   (after.line != token.line ||
@@ -2593,38 +2593,38 @@ static void expr_state(parser_t *parser)
             store_variable(parser->comp, name);
 
             free(name);
-            skip(parser, 2);
+            _skip(parser, 2);
 
             if (need_delimiter(parser))
-                p_error("Expected delemiter between statements.", peek(parser).line, peek(parser).column);
+                p_error("Expected delemiter between statements.", _peek(parser).line, _peek(parser).column);
             return;
         }
     }
 
     if (token.type == TK_LPAREN)
     {
-        prev_lookUp = look_up(parser->comp, true);
-        primary(parser);
+        prev_lookUp = look_up(parser->comp, TRUE);
+        _primary(parser);
         look_up(parser->comp, prev_lookUp);
         parser->current = current;
     }
 
     current = parser->current;
 
-    prev_lookUp = look_up(parser->comp, true);
+    prev_lookUp = look_up(parser->comp, TRUE);
 
-    cond_expr(parser);
-    token = peek(parser);
+    _cond_expr(parser);
+    token = _peek(parser);
     if (token.line == start_line && token.type >= TK_ASSIGN && token.type <= TK_MOD_ASSIGN)
-        is_assign = true;
+        _is_assign = TRUE;
     look_up(parser->comp, prev_lookUp);
 
     parser->current = current;
 
-    expr(parser);
+    _expr(parser);
 
     // The assignment expression is handled separately
-    if (!is_assign)
+    if (!_is_assign)
     {
         if (parser->comp->is_repl)
             emit(parser->comp, OP_PRINT);
@@ -2634,17 +2634,17 @@ static void expr_state(parser_t *parser)
 
     // Check for statement separation
     if (need_delimiter(parser))
-        p_error("Expected delemiter between statements.", peek(parser).line, peek(parser).column);
+        p_error("Expected delemiter between statements.", _peek(parser).line, _peek(parser).column);
 }
 
-static void expr(parser_t *parser)
+static void _expr(Parser *parser)
 {
-    assignment(parser, false);
+    _assignment(parser, FALSE);
 }
 
-static assign_t *init_assign(int left, int right, tk_type op)
+static Assignment *_init_assign(int left, int right, PiTokenType op)
 {
-    assign_t *assign = malloc(sizeof(assign_t));
+    Assignment *assign = malloc(sizeof(Assignment));
 
     assign->left = left;
     assign->right = right;
@@ -2653,54 +2653,54 @@ static assign_t *init_assign(int left, int right, tk_type op)
     return assign;
 }
 
-static void assignment(parser_t *parser, bool emit_load)
+static void _assignment(Parser *parser, bool emit_load)
 {
-    tk_type op;
-    pistack_t *assigns = stack_create(sizeof(assign_t));
+    PiTokenType op;
+    PiStack *assigns = stack_create(sizeof(Assignment));
     int left = parser->current, right;
-    bool prev_lookUp = look_up(parser->comp, true);
+    bool prev_lookUp = look_up(parser->comp, TRUE);
 
     // First pass: collect assignments in the stack without emitting bytecode
     // This is done to handle the case where there are multiple assignments in
     // a single expression, e.g. "a = b = c = d = 0".
-    cond_expr(parser);
-    while (match_n(parser, 9, TK_ASSIGN, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_DIV_ASSIGN, TK_MULT_ASSIGN,
+    _cond_expr(parser);
+    while (_match_n(parser, 9, TK_ASSIGN, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_DIV_ASSIGN, TK_MULT_ASSIGN,
                    TK_MOD_ASSIGN, TK_BITOR_ASSIGN, TK_XOR_ASSIGN, TK_BITAND_ASSIGN))
     {
 
-        op = previous(parser).type;
+        op = _previous(parser).type;
 
         right = parser->current;
 
-        stack_push(assigns, init_assign(left, right, op));
+        _stack_push(assigns, _init_assign(left, right, op));
 
-        pipeline_expr(parser);
+        _pipeline_expr(parser);
         left = right;
     }
 
     look_up(parser->comp, prev_lookUp);
 
-    if (stack_isEmpty(assigns))
+    if (_stack_isEmpty(assigns))
     {
         parser->current = left;
-        pipeline_expr(parser); // Re-evaluate as a non-assignment expression
+        _pipeline_expr(parser); // Re-evaluate as a non-assignment expression
     }
     else
     {
         int current = parser->current;
-        assign_t *assign;
+        Assignment *assign;
 
         // Second pass: pop each assignment and generate bytecode
-        while (!stack_isEmpty(assigns))
+        while (!_stack_isEmpty(assigns))
         {
 
-            assign = stack_pop(assigns);
+            assign = _stack_pop(assigns);
 
             op = assign->op;
             left = assign->left;
             right = assign->right;
 
-            token_t lhs = parser->tokens[left];
+            Token lhs = parser->tokens[left];
 
             if (parser->tokens[left].type != TK_ID)
                 p_error("Invalid assignment target", parser->tokens[left].line, parser->tokens[left].column);
@@ -2712,19 +2712,19 @@ static void assignment(parser_t *parser, bool emit_load)
             {
                 // Load LHS for compound assignments
                 parser->current = left;
-                cond_expr(parser);
+                _cond_expr(parser);
             }
 
             parser->current = right;
             char *prev_fun = parser->fun_name;
             char *prev_obj = parser->object_name;
 
-            if (op == TK_ASSIGN && is_functionLiteral(parser, right))
+            if (op == TK_ASSIGN && _is_functionLiteral(parser, right))
                 parser->fun_name = token_value(lhs);
-            if (op == TK_ASSIGN && is_objectLiteral(parser, right))
+            if (op == TK_ASSIGN && _is_objectLiteral(parser, right))
                 parser->object_name = token_value(lhs);
 
-            pipeline_expr(parser);
+            _pipeline_expr(parser);
             parser->fun_name = prev_fun;
             parser->object_name = prev_obj;
 
@@ -2762,8 +2762,8 @@ static void assignment(parser_t *parser, bool emit_load)
             }
 
             parser->current = left;
-            parser->is_store = true;
-            cond_expr(parser);
+            parser->is_store = TRUE;
+            _cond_expr(parser);
 
             // free(assign);
         }
@@ -2771,25 +2771,25 @@ static void assignment(parser_t *parser, bool emit_load)
         if (emit_load)
         {
             parser->current = left;
-            cond_expr(parser);
+            _cond_expr(parser);
         }
 
         parser->current = current;
     }
 }
 
-static bool is_pipelineBoundary(parser_t *parser, int index, int start,
+static bool _is_pipelineBoundary(Parser *parser, int index, int start,
                                 int paren_depth, int bracket_depth, int brace_depth)
 {
     if (paren_depth != 0 || bracket_depth != 0 || brace_depth != 0)
-        return false;
+        return FALSE;
 
-    token_t token = parser->tokens[index];
+    Token token = parser->tokens[index];
     if (token.type == TK_PIPELINE)
-        return true;
+        return TRUE;
 
     if (index > start && token.line > parser->tokens[index - 1].line)
-        return true;
+        return TRUE;
 
     switch (token.type)
     {
@@ -2800,13 +2800,13 @@ static bool is_pipelineBoundary(parser_t *parser, int index, int start,
     case TK_RPAREN:
     case TK_RBRACKET:
     case TK_RBRACE:
-        return true;
+        return TRUE;
     default:
-        return false;
+        return FALSE;
     }
 }
 
-static int find_pipelineStageEnd(parser_t *parser, int start)
+static int _find_pipelineStageEnd(Parser *parser, int start)
 {
     int paren_depth = 0;
     int bracket_depth = 0;
@@ -2815,7 +2815,7 @@ static int find_pipelineStageEnd(parser_t *parser, int start)
     int index = start;
     for (; parser->tokens[index].type != TK_EOF; index++)
     {
-        if (is_pipelineBoundary(parser, index, start, paren_depth, bracket_depth, brace_depth))
+        if (_is_pipelineBoundary(parser, index, start, paren_depth, bracket_depth, brace_depth))
             return index;
 
         switch (parser->tokens[index].type)
@@ -2849,20 +2849,20 @@ static int find_pipelineStageEnd(parser_t *parser, int start)
     return index;
 }
 
-static int find_pipelineCallParen(parser_t *parser, int start, int end)
+static int _find_pipelineCallParen(Parser *parser, int start, int end)
 {
     if (end <= start || parser->tokens[end - 1].type != TK_RPAREN)
         return -1;
 
     for (int index = start; index < end; index++)
-        if (parser->tokens[index].type == TK_LPAREN && parser->tokens[index].closeAt == end - 1)
+        if (parser->tokens[index].type == TK_LPAREN && parser->tokens[index].close_at == end - 1)
             return index;
 
     return -1;
 }
 
-static int split_pipelineArgs(parser_t *parser, int start, int end,
-                              segment_t *args, int max_args)
+static int _split_pipelineArgs(Parser *parser, int start, int end,
+                              Segment *args, int max_args)
 {
     int count = 0;
     int arg_start = start;
@@ -2873,7 +2873,7 @@ static int split_pipelineArgs(parser_t *parser, int start, int end,
     for (int index = start; index <= end; index++)
     {
         bool at_end = index == end;
-        token_t token = at_end ? parser->tokens[end] : parser->tokens[index];
+        Token token = at_end ? parser->tokens[end] : parser->tokens[index];
 
         if (!at_end)
         {
@@ -2927,7 +2927,7 @@ static int split_pipelineArgs(parser_t *parser, int start, int end,
                 p_error("Pipeline stage calls do not support named arguments yet.",
                         parser->tokens[arg_start].line, parser->tokens[arg_start].column);
 
-            args[count++] = (segment_t){arg_start, index};
+            args[count++] = (Segment){arg_start, index};
             arg_start = index + 1;
         }
     }
@@ -2935,25 +2935,25 @@ static int split_pipelineArgs(parser_t *parser, int start, int end,
     return count;
 }
 
-static void parse_pipelineStage(parser_t *parser, pipeline_stage_t *stage)
+static void _parse_pipelineStage(Parser *parser, PipelineStage *stage)
 {
     int start = parser->current;
-    int end = find_pipelineStageEnd(parser, start);
+    int end = _find_pipelineStageEnd(parser, start);
 
     if (start >= end)
         p_error("Expect pipeline stage after '=>'.",
                 parser->tokens[start].line, parser->tokens[start].column);
 
-    int call_paren = find_pipelineCallParen(parser, start, end);
+    int call_paren = _find_pipelineCallParen(parser, start, end);
     if (call_paren >= 0)
     {
-        stage->callee = (segment_t){start, call_paren};
-        stage->arg_count = split_pipelineArgs(parser, call_paren + 1, end - 1,
+        stage->callee = (Segment){start, call_paren};
+        stage->arg_count = _split_pipelineArgs(parser, call_paren + 1, end - 1,
                                               stage->args, MAX_PIPELINE_ARGS);
     }
     else
     {
-        stage->callee = (segment_t){start, end};
+        stage->callee = (Segment){start, end};
         stage->arg_count = 0;
     }
 
@@ -2964,32 +2964,32 @@ static void parse_pipelineStage(parser_t *parser, pipeline_stage_t *stage)
     parser->current = end;
 }
 
-static void emit_pipelineNested(parser_t *parser, pipeline_t *pipe, int stage_index)
+static void _emit_pipelineNested(Parser *parser, Pipeline *pipe, int stage_index)
 {
-    pipeline_stage_t *stage = &pipe->stages[stage_index];
+    PipelineStage *stage = &pipe->stages[stage_index];
 
-    compile_segmentExpr(parser, stage->callee, "Invalid pipeline stage callable.");
+    _compile_segmentExpr(parser, stage->callee, "Invalid pipeline stage callable.");
 
     if (stage_index == 0)
-        compile_segmentExpr(parser, pipe->input, "Invalid pipeline input expression.");
+        _compile_segmentExpr(parser, pipe->input, "Invalid pipeline input expression.");
     else
-        emit_pipelineNested(parser, pipe, stage_index - 1);
+        _emit_pipelineNested(parser, pipe, stage_index - 1);
 
     for (int i = 0; i < stage->arg_count; i++)
-        compile_segmentExpr(parser, stage->args[i], "Invalid pipeline stage argument.");
+        _compile_segmentExpr(parser, stage->args[i], "Invalid pipeline stage argument.");
 
-    token_t callee = parser->tokens[stage->callee.start];
+    Token callee = parser->tokens[stage->callee.start];
     set_pos(parser, stage->op);
     emit_8u(parser->comp, OP_CALL_FUNCTION, token_value(callee), (uint8_t)(stage->arg_count + 1));
 }
 
-static void pipeline_expr(parser_t *parser)
+static void _pipeline_expr(Parser *parser)
 {
     int start = parser->current;
-    bool prev_lookUp = look_up(parser->comp, true);
+    bool prev_lookUp = look_up(parser->comp, TRUE);
 
-    cond_expr(parser);
-    bool has_pipeline = check(parser, TK_PIPELINE);
+    _cond_expr(parser);
+    bool has_pipeline = _check(parser, TK_PIPELINE);
     int first_pipeline = parser->current;
 
     look_up(parser->comp, prev_lookUp);
@@ -2997,98 +2997,98 @@ static void pipeline_expr(parser_t *parser)
 
     if (!has_pipeline)
     {
-        cond_expr(parser);
+        _cond_expr(parser);
         return;
     }
 
-    pipeline_t pipe = {0};
-    pipe.input = (segment_t){start, first_pipeline};
+    Pipeline pipe = {0};
+    pipe.input = (Segment){start, first_pipeline};
     parser->current = first_pipeline;
 
-    while (match(parser, TK_PIPELINE))
+    while (_match(parser, TK_PIPELINE))
     {
         if (pipe.stage_count >= MAX_PIPELINE_STAGES)
             p_error("Too many pipeline stages.",
-                    previous(parser).line, previous(parser).column);
+                    _previous(parser).line, _previous(parser).column);
 
-        pipeline_stage_t *stage = &pipe.stages[pipe.stage_count++];
-        stage->op = previous(parser);
-        parse_pipelineStage(parser, stage);
+        PipelineStage *stage = &pipe.stages[pipe.stage_count++];
+        stage->op = _previous(parser);
+        _parse_pipelineStage(parser, stage);
     }
 
-    emit_pipelineNested(parser, &pipe, pipe.stage_count - 1);
+    _emit_pipelineNested(parser, &pipe, pipe.stage_count - 1);
 }
 
-static void cond_expr(parser_t *parser)
+static void _cond_expr(Parser *parser)
 {
 
-    or_expr(parser);
+    _or_expr(parser);
 
-    if (match(parser, TK_QUESTION))
+    if (_match(parser, TK_QUESTION))
     {
         int then_jump = emit_16u(parser->comp, OP_JUMP_IF_FALSE, "", 0);
 
         // Sync current token for better runtime error info
-        set_pos(parser, peek(parser));
+        set_pos(parser, _peek(parser));
 
-        cond_expr(parser);
+        _cond_expr(parser);
 
-        consume(parser, TK_COLON, "Expect ':' after '?'");
+        _consume(parser, TK_COLON, "Expect ':' after '?'");
         int else_jump = emit_16u(parser->comp, OP_JUMP, "", 0);
 
         patch_jump(parser->comp, then_jump);
 
-        cond_expr(parser);
+        _cond_expr(parser);
 
         patch_jump(parser->comp, else_jump);
     }
 }
 
-static void or_expr(parser_t *parser)
+static void _or_expr(Parser *parser)
 {
-    and_expr(parser);
-    while (match(parser, TK_OR))
+    _and_expr(parser);
+    while (_match(parser, TK_OR))
     {
-        token_t op_token = previous(parser);
-        and_expr(parser);
+        Token op_token = _previous(parser);
+        _and_expr(parser);
         set_pos(parser, op_token);
         emit_8u(parser->comp, OP_BINARY, bin_ops[6], 6);
     }
 }
 
-static void and_expr(parser_t *parser)
+static void _and_expr(Parser *parser)
 {
-    in_expr(parser);
-    while (match(parser, TK_AND))
+    _in_expr(parser);
+    while (_match(parser, TK_AND))
     {
-        token_t op_token = previous(parser);
-        in_expr(parser);
+        Token op_token = _previous(parser);
+        _in_expr(parser);
         set_pos(parser, op_token);
         emit_8u(parser->comp, OP_BINARY, bin_ops[5], 5);
     }
 }
 
-static void in_expr(parser_t *parser)
+static void _in_expr(Parser *parser)
 {
-    range_expr(parser);
-    while (match(parser, TK_IN))
+    _range_expr(parser);
+    while (_match(parser, TK_IN))
     {
-        token_t op_token = previous(parser);
-        range_expr(parser);
+        Token op_token = _previous(parser);
+        _range_expr(parser);
         set_pos(parser, op_token);
         emit_8u(parser->comp, OP_COMPARE, comp_ops[6], 6);
     }
 }
 
-static void range_expr(parser_t *parser)
+static void _range_expr(Parser *parser)
 {
-    bitOr_expr(parser);
-    if (match(parser, TK_DBDOTS))
+    _bitOr_expr(parser);
+    if (_match(parser, TK_DBDOTS))
     {
-        token_t op_token = previous(parser);
-        bitOr_expr(parser);
-        if (match(parser, TK_COLON))
-            expr(parser);
+        Token op_token = _previous(parser);
+        _bitOr_expr(parser);
+        if (_match(parser, TK_COLON))
+            _expr(parser);
         else
             emit(parser->comp, OP_PUSH_NIL);
         set_pos(parser, op_token);
@@ -3096,51 +3096,51 @@ static void range_expr(parser_t *parser)
     }
 }
 
-static void bitOr_expr(parser_t *parser)
+static void _bitOr_expr(Parser *parser)
 {
-    xor_expr(parser);
-    while (match(parser, TK_BITOR))
+    _xor_expr(parser);
+    while (_match(parser, TK_BITOR))
     {
-        token_t op_token = previous(parser);
-        xor_expr(parser);
+        Token op_token = _previous(parser);
+        _xor_expr(parser);
         set_pos(parser, op_token);
         emit_8u(parser->comp, OP_BINARY, bin_ops[9], 9);
     }
 }
 
-static void xor_expr(parser_t *parser)
+static void _xor_expr(Parser *parser)
 {
-    bitAnd_expr(parser);
-    while (match(parser, TK_XOR))
+    _bitAnd_expr(parser);
+    while (_match(parser, TK_XOR))
     {
-        token_t op_token = previous(parser);
-        bitAnd_expr(parser);
+        Token op_token = _previous(parser);
+        _bitAnd_expr(parser);
         set_pos(parser, op_token);
         emit_8u(parser->comp, OP_BINARY, bin_ops[10], 10);
     }
 }
 
-static void bitAnd_expr(parser_t *parser)
+static void _bitAnd_expr(Parser *parser)
 {
-    shift_expr(parser);
-    while (match(parser, TK_BITAND))
+    _shift_expr(parser);
+    while (_match(parser, TK_BITAND))
     {
-        token_t op_token = previous(parser);
-        shift_expr(parser);
+        Token op_token = _previous(parser);
+        _shift_expr(parser);
         set_pos(parser, op_token);
         emit_8u(parser->comp, OP_BINARY, bin_ops[8], 8);
     }
 }
 
-static void shift_expr(parser_t *parser)
+static void _shift_expr(Parser *parser)
 {
-    equality_expr(parser);
+    _equality_expr(parser);
 
-    while (match_n(parser, 3, TK_LSHIFT, TK_RSHIFT, TK_URSHIFT))
+    while (_match_n(parser, 3, TK_LSHIFT, TK_RSHIFT, TK_URSHIFT))
     {
-        tk_type op = previous(parser).type;
-        token_t op_token = previous(parser);
-        equality_expr(parser);
+        PiTokenType op = _previous(parser).type;
+        Token op_token = _previous(parser);
+        _equality_expr(parser);
         set_pos(parser, op_token);
 
         switch (op)
@@ -3160,14 +3160,14 @@ static void shift_expr(parser_t *parser)
     }
 }
 
-static void equality_expr(parser_t *parser)
+static void _equality_expr(Parser *parser)
 {
-    compare_expr(parser);
-    while (match_n(parser, 3, TK_NOT_EQUAL, TK_EQUAL, TK_IS))
+    _compare_expr(parser);
+    while (_match_n(parser, 3, TK_NOT_EQUAL, TK_EQUAL, TK_IS))
     {
-        tk_type op = previous(parser).type;
-        token_t op_token = previous(parser);
-        compare_expr(parser);
+        PiTokenType op = _previous(parser).type;
+        Token op_token = _previous(parser);
+        _compare_expr(parser);
         set_pos(parser, op_token);
 
         if (op == TK_NOT_EQUAL)
@@ -3184,30 +3184,30 @@ static void equality_expr(parser_t *parser)
     }
 }
 
-static void compare_expr(parser_t *parser)
+static void _compare_expr(Parser *parser)
 {
-    add_expr(parser);
+    _add_expr(parser);
 
     int last_value_pos = -1;
     int comparison_count = 0;
 
-    while (match_n(parser, 6, TK_EQUAL, TK_NOT_EQUAL, TK_GREATER,
+    while (_match_n(parser, 6, TK_EQUAL, TK_NOT_EQUAL, TK_GREATER,
                    TK_LESS, TK_GREATER_EQUAL, TK_LESS_EQUAL))
     {
-        tk_type op = previous(parser).type;
-        token_t op_token = previous(parser);
+        PiTokenType op = _previous(parser).type;
+        Token op_token = _previous(parser);
 
         if (last_value_pos != -1)
         {
             // Rewind and reparse the previous right-hand side (e.g., `b`)
             parser->current = last_value_pos;
-            add_expr(parser); // push `b` again
-            next(parser);     // advance past the operator
+            _add_expr(parser); // push `b` again
+            _next(parser);     // advance past the operator
         }
 
         // Save position before parsing the next expression (e.g., `c`)
         last_value_pos = parser->current;
-        add_expr(parser); // parse right-hand side
+        _add_expr(parser); // parse right-hand side
         set_pos(parser, op_token);
 
         int op_index = -1;
@@ -3243,14 +3243,14 @@ static void compare_expr(parser_t *parser)
     }
 }
 
-static void add_expr(parser_t *parser)
+static void _add_expr(Parser *parser)
 {
-    dot_expr(parser);
-    while (match_n(parser, 2, TK_PLUS, TK_MINUS))
+    _dot_expr(parser);
+    while (_match_n(parser, 2, TK_PLUS, TK_MINUS))
     {
 
-        token_t op = previous(parser);
-        dot_expr(parser);
+        Token op = _previous(parser);
+        _dot_expr(parser);
         set_pos(parser, op);
         if (op.type == TK_PLUS)
             emit_8u(parser->comp, OP_BINARY, bin_ops[0], 0);
@@ -3259,25 +3259,25 @@ static void add_expr(parser_t *parser)
     }
 }
 
-static void dot_expr(parser_t *parser)
+static void _dot_expr(Parser *parser)
 {
-    mult_expr(parser);
-    while (match(parser, TK_DOT_PROD))
+    _mult_expr(parser);
+    while (_match(parser, TK_DOT_PROD))
     {
-        token_t op = previous(parser);
-        mult_expr(parser);
+        Token op = _previous(parser);
+        _mult_expr(parser);
         set_pos(parser, op);
         emit_8u(parser->comp, OP_BINARY, bin_ops[14], 14);
     }
 }
 
-static void mult_expr(parser_t *parser)
+static void _mult_expr(Parser *parser)
 {
-    exp_expr(parser);
-    while (match_n(parser, 3, TK_MULT, TK_DIV, TK_MOD))
+    _exp_expr(parser);
+    while (_match_n(parser, 3, TK_MULT, TK_DIV, TK_MOD))
     {
-        token_t op = previous(parser);
-        exp_expr(parser);
+        Token op = _previous(parser);
+        _exp_expr(parser);
         set_pos(parser, op);
         switch (op.type)
         {
@@ -3296,43 +3296,43 @@ static void mult_expr(parser_t *parser)
     }
 }
 
-static void exp_expr(parser_t *parser)
+static void _exp_expr(Parser *parser)
 {
-    unary_expr(parser);
-    while (match(parser, TK_POWER))
+    _unary_expr(parser);
+    while (_match(parser, TK_POWER))
     {
-        token_t op = previous(parser);
-        exp_expr(parser);
+        Token op = _previous(parser);
+        _exp_expr(parser);
         set_pos(parser, op);
         emit_8u(parser->comp, OP_BINARY, bin_ops[7], 7);
     }
 }
 
-static void unary_expr(parser_t *parser)
+static void _unary_expr(Parser *parser)
 {
-    tk_type op;
+    PiTokenType op;
     int current;
 
-    if (match_n(parser, 8, TK_PLUS, TK_MINUS, TK_NOT, TK_BITNEG, TK_HASH, TK_INCR, TK_DECR, TK_TYPEOF))
+    if (_match_n(parser, 8, TK_PLUS, TK_MINUS, TK_NOT, TK_BITNEG, TK_HASH, TK_INCR, TK_DECR, TK_TYPEOF))
     {
-        op = previous(parser).type;
-        token_t op_token = previous(parser);
+        op = _previous(parser).type;
+        Token op_token = _previous(parser);
 
         // Handle negative number literals directly
-        if (op == TK_MINUS && peek(parser).type == TK_NUM)
+        if (op == TK_MINUS && _peek(parser).type == TK_NUM)
         {
-            parser->tokens[parser->current].is_negative = true;
-            member_expr(parser);
+            parser->tokens[parser->current].is_negative = TRUE;
+            _member_expr(parser);
             return;
         }
 
         if (op == TK_INCR || op == TK_DECR)
         {
             current = parser->current;
-            member_expr(parser);
+            _member_expr(parser);
             set_pos(parser, op_token);
 
-            token_t target = previous(parser);
+            Token target = _previous(parser);
 
             if (target.type == TK_NUM || target.type == TK_STR || target.type == TK_TRUE ||
                 target.type == TK_FALSE || target.type == TK_NIL)
@@ -3346,11 +3346,11 @@ static void unary_expr(parser_t *parser)
             emit(parser->comp, OP_DUP_TOP);
 
             parser->current = current;
-            parser->is_store = true;
-            parser->force_store = true;
-            member_expr(parser);
-            parser->is_store = false;
-            parser->force_store = false;
+            parser->is_store = TRUE;
+            parser->force_store = TRUE;
+            _member_expr(parser);
+            parser->is_store = FALSE;
+            parser->force_store = FALSE;
         }
         else
         {
@@ -3378,7 +3378,7 @@ static void unary_expr(parser_t *parser)
             default:
                 break;
             }
-            unary_expr(parser);
+            _unary_expr(parser);
             set_pos(parser, op_token);
             if (type != -1)
                 emit_8u(parser->comp, OP_UNARY, unary_ops[type], type);
@@ -3387,14 +3387,14 @@ static void unary_expr(parser_t *parser)
     else
     {
         current = parser->current;
-        member_expr(parser);
-        token_t operand = previous(parser);
+        _member_expr(parser);
+        Token operand = _previous(parser);
 
         // Handle post-increment / post-decrement
-        if (match_n(parser, 2, TK_INCR, TK_DECR))
+        if (_match_n(parser, 2, TK_INCR, TK_DECR))
         {
-            op = previous(parser).type;
-            token_t op_token = previous(parser);
+            op = _previous(parser).type;
+            Token op_token = _previous(parser);
 
             if (op_token.line != operand.line)
             {
@@ -3416,47 +3416,47 @@ static void unary_expr(parser_t *parser)
                 emit_8u(parser->comp, OP_UNARY, unary_ops[type], type);
 
                 parser->current = current;
-                parser->is_store = true;
-                member_expr(parser);
-                advance(parser);
+                parser->is_store = TRUE;
+                _member_expr(parser);
+                _advance(parser);
 
-                parser->is_store = false;
+                parser->is_store = FALSE;
             }
         }
     }
 }
 
-static bool slice_expr(parser_t *parser)
+static bool _slice_expr(Parser *parser)
 {
     int index;
-    bool is_slice = false;
-    token_t token = peek(parser);
+    bool is_slice = FALSE;
+    Token token = _peek(parser);
 
-    if (check(parser, TK_COLON))
+    if (_check(parser, TK_COLON))
     {
         // Missing start: emit INFINITY so get_slice's isinf() check fires.
         emit_16u(parser->comp, OP_LOAD_CONST, "inf", 1);
-        is_slice = true;
-        next(parser); // consume the leading ':'
+        is_slice = TRUE;
+        _next(parser); // consume the leading ':'
     }
     else
-        cond_expr(parser);
+        _cond_expr(parser);
 
     // FIX: flip operands so match() is only called when is_slice is false
-    if (is_slice || match(parser, TK_COLON))
+    if (is_slice || _match(parser, TK_COLON))
     {
-        is_slice = true;
-        token = previous(parser);
+        is_slice = TRUE;
+        token = _previous(parser);
 
-        if (!check(parser, TK_RBRACKET) && !check(parser, TK_COLON) && !check(parser, TK_COMMA))
-            cond_expr(parser);
+        if (!_check(parser, TK_RBRACKET) && !_check(parser, TK_COLON) && !_check(parser, TK_COMMA))
+            _cond_expr(parser);
         else
             emit_16u(parser->comp, OP_LOAD_CONST, "inf", 1); // missing end: INFINITY
 
-        if (match(parser, TK_COLON))
+        if (_match(parser, TK_COLON))
         {
-            if (!check(parser, TK_RBRACKET) && !check(parser, TK_COMMA))
-                cond_expr(parser);
+            if (!_check(parser, TK_RBRACKET) && !_check(parser, TK_COMMA))
+                _cond_expr(parser);
             else
             {
                 index = store_const(parser->comp, NEW_NUM(1));
@@ -3475,36 +3475,36 @@ static bool slice_expr(parser_t *parser)
     return is_slice;
 }
 
-static void register_instanceField(parser_t *parser, char *name)
+static void _register_instanceField(Parser *parser, char *name)
 {
     if (!parser->instance_field_names || ht_has(parser->instance_field_names, name))
         return;
 
-    int count = list_size(parser->instance_fields);
+    int count = LIST_SIZE(parser->instance_fields);
     if (count >= UINT16_MAX)
-        p_error("Class has too many instance fields.", peek(parser).line, peek(parser).column);
+        p_error("Class has too many instance fields.", _peek(parser).line, _peek(parser).column);
     uint16_t index = (uint16_t)count;
     ht_put(parser->instance_field_names, name, &index);
-    list_add(parser->instance_fields, &name);
+    _list_add(parser->instance_fields, &name);
 }
 
-static void member_expr(parser_t *parser)
+static void _member_expr(Parser *parser)
 {
-    primary(parser);
-    bool direct_access = true;
+    _primary(parser);
+    bool direct_access = TRUE;
 
-    while (true)
+    while (TRUE)
     {
-        token_t token = previous(parser);
+        Token token = _previous(parser);
 
-        if (token.line < peek(parser).line)
+        if (token.line < _peek(parser).line)
             break;
 
         set_pos(parser, token);
-        if (match(parser, TK_DOT))
+        if (_match(parser, TK_DOT))
         {
             // Handle property access using dot notation
-            token_t name = consume(parser, TK_ID, "Expect property name after '.'");
+            Token name = _consume(parser, TK_ID, "Expect property name after '.'");
 
             bool super_constructor = token.type == TK_SUPER ||
                                      (parser->current >= 3 &&
@@ -3513,11 +3513,11 @@ static void member_expr(parser_t *parser)
                 p_error("Call the superclass constructor with super(...), not super.constructor(...).",
                         name.line, name.column);
 
-            bool assign = is_memberAssignment(parser, name);
+            bool assign = _is_memberAssignment(parser, name);
             char *member_name = token_value(name);
             if (assign && direct_access && parser->instance_field_names &&
                 token.type == TK_ID && strcmp(tk_string(token), "this") == 0)
-                register_instanceField(parser, member_name);
+                _register_instanceField(parser, member_name);
 
             int index = store_tokenConst(parser->comp, name);
 
@@ -3526,34 +3526,34 @@ static void member_expr(parser_t *parser)
             else
                 emit_16u(parser->comp, OP_GET_MEMBER, token_value(name), index);
 
-            direct_access = false;
+            direct_access = FALSE;
         }
 
         // Handle property access using bracket notation and slicing for lists and tensors
-        else if (match(parser, TK_LBRACKET))
+        else if (_match(parser, TK_LBRACKET))
         {
-            slice_expr(parser);
+            _slice_expr(parser);
 
-            if (check(parser, TK_COMMA))
+            if (_check(parser, TK_COMMA))
             {
                 /*  Tensor indexing: tensor[i, j:k, m, ...]  */
                 int ndim = 1;
-                while (match(parser, TK_COMMA))
+                while (_match(parser, TK_COMMA))
                 {
-                    if (check(parser, TK_RBRACKET))
+                    if (_check(parser, TK_RBRACKET))
                         break; /* trailing comma */
 
                     if (ndim >= MAX_TENSOR_DIMS)
                         p_error("Too many tensor dimensions",
-                                peek(parser).line, peek(parser).column);
+                                _peek(parser).line, _peek(parser).column);
 
-                    slice_expr(parser); /* return value discarded, VM checks at runtime */
+                    _slice_expr(parser); /* return value discarded, VM checks at runtime */
                     ndim++;
                 }
 
                 // Check for chained access before deciding whether this is an assignment to a tensor element or just an access
-                consume(parser, TK_RBRACKET, "Expect ']' after tensor index");
-                bool assign = is_memberAssignment(parser, previous(parser));
+                _consume(parser, TK_RBRACKET, "Expect ']' after tensor index");
+                bool assign = _is_memberAssignment(parser, _previous(parser));
 
                 /* VM pops ndim values and checks each at runtime for slice vs index */
                 emit_8u(parser->comp, assign ? OP_TENSOR_SET : OP_TENSOR_GET, "", (uint8_t)ndim);
@@ -3561,20 +3561,20 @@ static void member_expr(parser_t *parser)
             else
             {
                 /*  List / 1-D indexing: list[i] or list[a:b:c]  */
-                consume(parser, TK_RBRACKET, "Expect ']' after index");
+                _consume(parser, TK_RBRACKET, "Expect ']' after index");
                 // Always emit GET_ITEM or SET_ITEM - the slice object is already on the stack
-                bool assign = is_memberAssignment(parser, previous(parser));
+                bool assign = _is_memberAssignment(parser, _previous(parser));
                 emit(parser->comp, assign ? OP_SET_ITEM : OP_GET_ITEM);
             }
         }
 
         // handle function call
-        else if (match(parser, TK_LPAREN))
+        else if (_match(parser, TK_LPAREN))
         {
             int args = 0;
             int named = 0;
-            bool saw_named = false;
-            bool saw_spread = call_hasSpreadArgs(parser);
+            bool saw_named = FALSE;
+            bool saw_spread = _call_hasSpreadArgs(parser);
 
             if (token.type == TK_SUPER)
             {
@@ -3582,21 +3582,21 @@ static void member_expr(parser_t *parser)
                 emit_16u(parser->comp, OP_GET_MEMBER, "constructor", ctor_index);
             }
 
-            if (!check(parser, TK_RPAREN))
+            if (!_check(parser, TK_RPAREN))
             {
                 int spread_source_count = 0;
                 int pending_args = 0;
-                bool spread_args_finalized = false;
+                bool spread_args_finalized = FALSE;
                 if (saw_spread)
                     emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
 
                 do
                 {
-                    if (match(parser, TK_ELLIPSIS))
+                    if (_match(parser, TK_ELLIPSIS))
                     {
                         if (saw_named)
                         {
-                            token_t err = previous(parser);
+                            Token err = _previous(parser);
                             p_errorf(err.line, err.column,
                                      "Positional arguments must come before named arguments.");
                         }
@@ -3607,17 +3607,17 @@ static void member_expr(parser_t *parser)
                             pending_args = 0;
                             spread_source_count++;
                         }
-                        expr(parser);
+                        _expr(parser);
                         spread_source_count++;
                     }
-                    else if (check(parser, TK_ID) && peek_next(parser).type == TK_ASSIGN)
+                    else if (_check(parser, TK_ID) && _peek_next(parser).type == TK_ASSIGN)
                     {
-                        token_t key_tok = consume(parser, TK_ID, "Expect identifier for named argument.");
-                        token_t eq_tok = consume(parser, TK_ASSIGN, "Expect '=' after named argument.");
+                        Token key_tok = _consume(parser, TK_ID, "Expect identifier for named argument.");
+                        Token eq_tok = _consume(parser, TK_ASSIGN, "Expect '=' after named argument.");
                         (void)eq_tok;
 
                         if (!saw_named)
-                            saw_named = true;
+                            saw_named = TRUE;
 
                         if (saw_spread && !spread_args_finalized)
                         {
@@ -3630,7 +3630,7 @@ static void member_expr(parser_t *parser)
                             if (spread_source_count > 255)
                                 p_error("Spread argument list cannot contain more than 255 sources.", key_tok.line, key_tok.column);
                             emit_8u(parser->comp, OP_LIST_EXTEND, "", spread_source_count);
-                            spread_args_finalized = true;
+                            spread_args_finalized = TRUE;
                         }
 
                         if (named >= 256)
@@ -3639,7 +3639,7 @@ static void member_expr(parser_t *parser)
                         char *key = token_value(key_tok);
                         named++;
 
-                        expr(parser); // parse value
+                        _expr(parser); // parse value
 
                         int index = store_stringConst(parser->comp, key);
                         emit_16u(parser->comp, OP_LOAD_CONST, key, index);
@@ -3649,17 +3649,17 @@ static void member_expr(parser_t *parser)
                     {
                         if (saw_named)
                         {
-                            token_t err = peek(parser);
+                            Token err = _peek(parser);
                             p_errorf(err.line, err.column,
                                      "Positional arguments must come before named arguments.");
                         }
-                        expr(parser);
+                        _expr(parser);
                         if (saw_spread)
                             pending_args++;
                         else
                             args++;
                     }
-                } while (match(parser, TK_COMMA));
+                } while (_match(parser, TK_COMMA));
 
                 if (saw_spread && !spread_args_finalized)
                 {
@@ -3670,11 +3670,11 @@ static void member_expr(parser_t *parser)
                         spread_source_count++;
                     }
                     if (spread_source_count > 255)
-                        p_error("Spread argument list cannot contain more than 255 sources.", peek(parser).line, peek(parser).column);
+                        p_error("Spread argument list cannot contain more than 255 sources.", _peek(parser).line, _peek(parser).column);
                     emit_8u(parser->comp, OP_LIST_EXTEND, "", spread_source_count);
                 }
             }
-            consume(parser, TK_RPAREN, "Expect ')' after function call");
+            _consume(parser, TK_RPAREN, "Expect ')' after function call");
             set_pos(parser, token);
             char *name = strcmp(token_value(token), ")") == 0 ? "<FUN>" : token_value(token);
             if (named > 0)
@@ -3699,52 +3699,52 @@ static void member_expr(parser_t *parser)
     }
 }
 
-static void arrow_func(parser_t *parser)
+static void _arrow_func(Parser *parser)
 {
-    if (match(parser, TK_LBRACE))
+    if (_match(parser, TK_LBRACE))
     {
-        token_t token = previous(parser);
+        Token token = _previous(parser);
 
-        if (check(parser, TK_RBRACE))
+        if (_check(parser, TK_RBRACE))
         {
             set_pos(parser, token);
 
-            emit_defaultReturn(parser->comp);
-            parser->is_return = true;
+            _emit_defaultReturn(parser->comp);
+            parser->is_return = TRUE;
         }
         else
         {
-            while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
-                declaration(parser);
+            while (!_check(parser, TK_RBRACE) && !_is_atEnd(parser))
+                _declaration(parser);
         }
 
         if (!parser->is_return)
         {
-            token_t token = peek(parser);
+            Token token = _peek(parser);
 
             set_pos(parser, token);
 
-            emit_defaultReturn(parser->comp);
-            parser->is_return = false;
+            _emit_defaultReturn(parser->comp);
+            parser->is_return = FALSE;
         }
 
-        token_t rbrace = consume(parser, TK_RBRACE, "Expect '}' after function body.");
+        Token rbrace = _consume(parser, TK_RBRACE, "Expect '}' after function body.");
         set_pos(parser, rbrace);
     }
     else
     {
-        token_t token = peek(parser);
-        expr(parser);
+        Token token = _peek(parser);
+        _expr(parser);
 
         set_pos(parser, token);
         emit(parser->comp, OP_RETURN);
     }
 }
-static void primary(parser_t *parser)
+static void _primary(Parser *parser)
 {
-    if (match_n(parser, 7, TK_NUM, TK_STR, TK_TRUE, TK_FALSE, TK_NIL, TK_INF, TK_NAN))
+    if (_match_n(parser, 7, TK_NUM, TK_STR, TK_TRUE, TK_FALSE, TK_NIL, TK_INF, TK_NAN))
     {
-        token_t token = previous(parser);
+        Token token = _previous(parser);
         set_pos(parser, token);
 
         if (token.type == TK_NAN)
@@ -3757,94 +3757,94 @@ static void primary(parser_t *parser)
             emit_16u(parser->comp, OP_LOAD_CONST, token_value(token), index);
         }
     }
-    else if (match(parser, TK_LPAREN))
+    else if (_match(parser, TK_LPAREN))
     {
         int _current = parser->current;
-        set_pos(parser, previous(parser));
+        set_pos(parser, _previous(parser));
 
         if (is_lookUp(parser->comp))
         {
             // Lookahead mode: scan past the parenthesized expression without emitting
             // Empty parens () are valid in lookahead - just skip past them
-            if (check(parser, TK_RPAREN))
+            if (_check(parser, TK_RPAREN))
             {
-                next(parser);
-                if (match(parser, TK_RARROW))
+                _next(parser);
+                if (_match(parser, TK_RARROW))
                 {
-                    if (match(parser, TK_LBRACE))
+                    if (_match(parser, TK_LBRACE))
                     {
                         int depth = 1;
-                        while (depth > 0 && !is_atEnd(parser))
+                        while (depth > 0 && !_is_atEnd(parser))
                         {
-                            if (check(parser, TK_RBRACE))
+                            if (_check(parser, TK_RBRACE))
                                 depth--;
-                            else if (check(parser, TK_LBRACE))
+                            else if (_check(parser, TK_LBRACE))
                                 depth++;
                             if (depth == 0)
                                 break;
-                            next(parser);
+                            _next(parser);
                         }
                         if (depth != 0)
-                            p_error("Unmatched '{' in arrow function.", peek(parser).line, peek(parser).column);
-                        consume(parser, TK_RBRACE, "Expect '}' after arrow function.");
+                            p_error("Unmatched '{' in arrow function.", _peek(parser).line, _peek(parser).column);
+                        _consume(parser, TK_RBRACE, "Expect '}' after arrow function.");
                     }
                     else
-                        expr(parser);
+                        _expr(parser);
                 }
                 return;
             }
 
             // Scan past the contents of the parens
             int depth = 1;
-            while (depth > 0 && !is_atEnd(parser))
+            while (depth > 0 && !_is_atEnd(parser))
             {
-                if (check(parser, TK_RPAREN))
+                if (_check(parser, TK_RPAREN))
                     depth--;
-                else if (check(parser, TK_LPAREN))
+                else if (_check(parser, TK_LPAREN))
                     depth++;
-                next(parser);
+                _next(parser);
             }
 
             if (depth != 0)
-                p_error("Unmatched '(' in grouping expression.", peek(parser).line, peek(parser).column);
+                p_error("Unmatched '(' in grouping expression.", _peek(parser).line, _peek(parser).column);
 
-            if (match(parser, TK_RARROW))
+            if (_match(parser, TK_RARROW))
             {
-                if (match(parser, TK_LBRACE))
+                if (_match(parser, TK_LBRACE))
                 {
                     depth = 1;
-                    while (depth > 0 && !is_atEnd(parser))
+                    while (depth > 0 && !_is_atEnd(parser))
                     {
-                        if (check(parser, TK_RBRACE))
+                        if (_check(parser, TK_RBRACE))
                             depth--;
-                        else if (check(parser, TK_LBRACE))
+                        else if (_check(parser, TK_LBRACE))
                             depth++;
                         if (depth == 0)
                             break;
-                        next(parser);
+                        _next(parser);
                     }
                     if (depth != 0)
-                        p_error("Unmatched '{' in arrow function.", peek(parser).line, peek(parser).column);
-                    consume(parser, TK_RBRACE, "Expect '}' after arrow function.");
+                        p_error("Unmatched '{' in arrow function.", _peek(parser).line, _peek(parser).column);
+                    _consume(parser, TK_RBRACE, "Expect '}' after arrow function.");
                 }
                 else
-                    expr(parser);
+                    _expr(parser);
             }
         }
         else
         {
             // Empty tuple: ()
-            if (check(parser, TK_RPAREN))
+            if (_check(parser, TK_RPAREN))
             {
-                consume(parser, TK_RPAREN, "Expect ')' after empty tuple.");
+                _consume(parser, TK_RPAREN, "Expect ')' after empty tuple.");
 
                 // Check for arrow function: () -> ...
-                if (match(parser, TK_RARROW))
+                if (_match(parser, TK_RARROW))
                 {
                     bool method_value = parser->object_member;
-                    parser->object_member = false;
-                    push_function(parser->comp, get_pendingFunctionName(parser));
-                    list_t *empty_params = list_create(sizeof(String));
+                    parser->object_member = FALSE;
+                    push_function(parser->comp, _get_pendingFunctionName(parser));
+                    List *empty_params = list_create(sizeof(String));
                     parser->comp->current->param_names = empty_params;
 
                     if (method_value)
@@ -3852,7 +3852,7 @@ static void primary(parser_t *parser)
                     add_local(parser->comp, "args");
                     add_local(parser->comp, "kw_args");
 
-                    arrow_func(parser);
+                    _arrow_func(parser);
 
                     pop_function(parser->comp, 0);
                     parser->object_member = method_value;
@@ -3866,23 +3866,23 @@ static void primary(parser_t *parser)
             }
 
             // Scan ahead to determine whether this is an arrow function
-            while (!check(parser, TK_RPAREN))
-                next(parser);
+            while (!_check(parser, TK_RPAREN))
+                _next(parser);
 
-            next(parser);
+            _next(parser);
 
-            if (match(parser, TK_RARROW))
+            if (_match(parser, TK_RARROW))
             {
                 //  Arrow function: (params) -> body
                 parser->current = _current;
-                list_t *params = param_list(parser);
-                int size = list_size(params);
-                consume(parser, TK_RPAREN, "Expect ')' after expression.");
-                consume(parser, TK_RARROW, "Expect '->' after function parameters.");
+                List *params = _param_list(parser);
+                int size = LIST_SIZE(params);
+                _consume(parser, TK_RPAREN, "Expect ')' after expression.");
+                _consume(parser, TK_RARROW, "Expect '->' after function parameters.");
 
                 bool method_value = parser->object_member;
-                parser->object_member = false;
-                push_function(parser->comp, get_pendingFunctionName(parser));
+                parser->object_member = FALSE;
+                push_function(parser->comp, _get_pendingFunctionName(parser));
                 parser->comp->current->param_names = params;
 
                 if (method_value)
@@ -3892,7 +3892,7 @@ static void primary(parser_t *parser)
                 add_local(parser->comp, "args");
                 add_local(parser->comp, "kw_args");
 
-                arrow_func(parser);
+                _arrow_func(parser);
 
                 pop_function(parser->comp, size);
                 parser->object_member = method_value;
@@ -3902,9 +3902,9 @@ static void primary(parser_t *parser)
                 //  Grouped expression or tuple literal
                 parser->current = _current;
 
-                cond_expr(parser);
+                _cond_expr(parser);
 
-                if (match(parser, TK_COMMA))
+                if (_match(parser, TK_COMMA))
                 {
                     // At least one comma means tuple literal.
                     // (expr,)  is a single-element tuple.
@@ -3912,97 +3912,97 @@ static void primary(parser_t *parser)
                     // A trailing comma after the last element is allowed.
                     int size = 1;
                     double previous_number = 0;
-                    bool previous_is_number = numeric_literalSegment(parser, _current, parser->current - 1,
+                    bool previous_is_number = _numeric_literalSegment(parser, _current, parser->current - 1,
                                                                      &previous_number);
-                    while (!check(parser, TK_RPAREN) && !is_atEnd(parser))
+                    while (!_check(parser, TK_RPAREN) && !_is_atEnd(parser))
                     {
-                        if (match(parser, TK_ELLIPSIS))
+                        if (_match(parser, TK_ELLIPSIS))
                         {
-                            token_t ellipsis = previous(parser);
+                            Token ellipsis = _previous(parser);
                             if (!previous_is_number)
                                 p_error("Fill expansion requires an integer numeric literal before ', ...,'.",
                                         ellipsis.line, ellipsis.column);
 
-                            consume(parser, TK_COMMA, "Expect ',' after '...' in tuple fill expansion.");
-                            double endpoint = consume_fillEndpoint(parser);
-                            size += emit_literalFill(parser, previous_number, endpoint, ellipsis);
+                            _consume(parser, TK_COMMA, "Expect ',' after '...' in tuple fill expansion.");
+                            double endpoint = _consume_fillEndpoint(parser);
+                            size += _emit_literalFill(parser, previous_number, endpoint, ellipsis);
                             previous_number = endpoint;
-                            previous_is_number = true;
-                            if (!match(parser, TK_COMMA))
+                            previous_is_number = TRUE;
+                            if (!_match(parser, TK_COMMA))
                                 break;
                             continue;
                         }
 
                         int item_start = parser->current;
-                        cond_expr(parser);
+                        _cond_expr(parser);
                         size++;
-                        previous_is_number = numeric_literalSegment(parser, item_start, parser->current,
+                        previous_is_number = _numeric_literalSegment(parser, item_start, parser->current,
                                                                     &previous_number);
-                        if (!match(parser, TK_COMMA))
+                        if (!_match(parser, TK_COMMA))
                             break;
                     }
-                    consume(parser, TK_RPAREN, "Expect ')' after tuple literal.");
+                    _consume(parser, TK_RPAREN, "Expect ')' after tuple literal.");
                     emit_16u(parser->comp, OP_PUSH_TUPLE, "", size);
                 }
                 else
                 {
                     //  Grouped expression: (expr) -
-                    consume(parser, TK_RPAREN, "Expect ')' after expression.");
+                    _consume(parser, TK_RPAREN, "Expect ')' after expression.");
                 }
             }
         }
     }
-    else if (match(parser, TK_SUPER))
+    else if (_match(parser, TK_SUPER))
     {
-        if (check(parser, TK_DOT) &&
+        if (_check(parser, TK_DOT) &&
             parser->tokens[parser->current + 1].type == TK_ID &&
             strcmp(tk_string(parser->tokens[parser->current + 1]), "constructor") == 0)
             p_error("Call the superclass constructor with super(...), not super.constructor(...).",
-                    previous(parser).line, previous(parser).column);
-        set_pos(parser, previous(parser));
+                    _previous(parser).line, _previous(parser).column);
+        set_pos(parser, _previous(parser));
         emit(parser->comp, OP_LOAD_SUPER);
     }
-    else if (match(parser, TK_ID))
+    else if (_match(parser, TK_ID))
     {
-        char *name = tk_string(previous(parser));
-        set_pos(parser, previous(parser));
+        char *name = tk_string(_previous(parser));
+        set_pos(parser, _previous(parser));
 
         // Lookahead: skip arrow function body without emitting
-        if (is_lookUp(parser->comp) && match(parser, TK_RARROW))
+        if (is_lookUp(parser->comp) && _match(parser, TK_RARROW))
         {
-            if (match(parser, TK_LBRACE))
+            if (_match(parser, TK_LBRACE))
             {
                 int depth = 1;
-                while (depth > 0 && !is_atEnd(parser))
+                while (depth > 0 && !_is_atEnd(parser))
                 {
-                    if (check(parser, TK_RBRACE))
+                    if (_check(parser, TK_RBRACE))
                         depth--;
-                    else if (check(parser, TK_LBRACE))
+                    else if (_check(parser, TK_LBRACE))
                         depth++;
                     if (depth == 0)
                         break;
-                    next(parser);
+                    _next(parser);
                 }
                 if (depth != 0)
-                    p_error("Unmatched '{' in arrow function.", peek(parser).line, peek(parser).column);
-                consume(parser, TK_RBRACE, "Expect '}' after arrow function.");
+                    p_error("Unmatched '{' in arrow function.", _peek(parser).line, _peek(parser).column);
+                _consume(parser, TK_RBRACE, "Expect '}' after arrow function.");
             }
             else
-                expr(parser);
+                _expr(parser);
 
             return;
         }
 
         // Single-param arrow function: name -> body
-        if (match(parser, TK_RARROW))
+        if (_match(parser, TK_RARROW))
         {
             emit(parser->comp, OP_PUSH_NIL);
 
             bool method_value = parser->object_member;
-            parser->object_member = false;
-            push_function(parser->comp, get_pendingFunctionName(parser));
-            list_t *single_params = list_create(sizeof(String));
-            list_add(single_params, new_string(name));
+            parser->object_member = FALSE;
+            push_function(parser->comp, _get_pendingFunctionName(parser));
+            List *single_params = list_create(sizeof(String));
+            _list_add(single_params, new_string(name));
             parser->comp->current->param_names = single_params;
 
             if (method_value)
@@ -4011,21 +4011,21 @@ static void primary(parser_t *parser)
             add_local(parser->comp, "args");
             add_local(parser->comp, "kw_args");
 
-            arrow_func(parser);
+            _arrow_func(parser);
 
             pop_function(parser->comp, 1);
             parser->object_member = method_value;
         }
         // Walrus operator: name <- expr
-        else if (match(parser, TK_LARROW))
+        else if (_match(parser, TK_LARROW))
         {
             if (parser->has_walrus)
                 p_error("Chained '<-' operators are not allowed",
-                        peek(parser).line, peek(parser).column);
+                        _peek(parser).line, _peek(parser).column);
 
-            parser->has_walrus = true;
-            cond_expr(parser);
-            parser->has_walrus = false;
+            parser->has_walrus = TRUE;
+            _cond_expr(parser);
+            parser->has_walrus = FALSE;
 
             emit(parser->comp, OP_DUP_TOP);
             store_variable(parser->comp, name);
@@ -4034,107 +4034,107 @@ static void primary(parser_t *parser)
         else
         {
             bool is_chained_access = parser->is_store && parser->force_store &&
-                                     peek(parser).line == previous(parser).line &&
-                                     check_n(parser, 3, TK_DOT, TK_LBRACKET, TK_LPAREN);
+                                     _peek(parser).line == _previous(parser).line &&
+                                     _check_n(parser, 3, TK_DOT, TK_LBRACKET, TK_LPAREN);
 
             if (is_object(parser->comp) && strcmp(name, "super") == 0)
             {
                 emit(parser->comp, OP_LOAD_SUPER);
                 return;
             }
-            if (!is_chained_access && is_assign(parser))
+            if (!is_chained_access && _is_assign(parser))
                 store_variable(parser->comp, name);
             else
                 load_variable(parser->comp, name);
         }
     }
-    else if (match(parser, TK_LBRACKET))
+    else if (_match(parser, TK_LBRACKET))
     {
         int size = 0;
-        set_pos(parser, previous(parser));
+        set_pos(parser, _previous(parser));
 
-        if (match(parser, TK_RBRACKET))
+        if (_match(parser, TK_RBRACKET))
             emit_16u(parser->comp, OP_PUSH_LIST, "", 0);
 
-        else if (list_isComprehension(parser))
-            emit_listComprehension(parser);
+        else if (_list_isComprehension(parser))
+            _emit_listComprehension(parser);
 
-        else if (list_hasSpreadItems(parser))
-            emit_spreadListLiteral(parser);
+        else if (_list_hasSpreadItems(parser))
+            _emit_spreadListLiteral(parser);
 
         else
         {
             do
             {
-                if (!check(parser, TK_RBRACKET))
+                if (!_check(parser, TK_RBRACKET))
                 {
                     int item_start = parser->current;
-                    cond_expr(parser);
+                    _cond_expr(parser);
                     size++;
                     double previous_number = 0;
-                    bool previous_is_number = numeric_literalSegment(parser, item_start, parser->current,
+                    bool previous_is_number = _numeric_literalSegment(parser, item_start, parser->current,
                                                                      &previous_number);
 
-                    while (check(parser, TK_COMMA) && peek_next(parser).type == TK_ELLIPSIS)
+                    while (_check(parser, TK_COMMA) && _peek_next(parser).type == TK_ELLIPSIS)
                     {
-                        consume(parser, TK_COMMA, "Expect ',' before '...' in list fill expansion.");
-                        consume(parser, TK_ELLIPSIS, "Expect '...' in list fill expansion.");
-                        token_t ellipsis = previous(parser);
+                        _consume(parser, TK_COMMA, "Expect ',' before '...' in list fill expansion.");
+                        _consume(parser, TK_ELLIPSIS, "Expect '...' in list fill expansion.");
+                        Token ellipsis = _previous(parser);
                         if (!previous_is_number)
                             p_error("Fill expansion requires an integer numeric literal before ', ...,'.",
                                     ellipsis.line, ellipsis.column);
 
-                        consume(parser, TK_COMMA, "Expect ',' after '...' in list fill expansion.");
-                        double endpoint = consume_fillEndpoint(parser);
-                        size += emit_literalFill(parser, previous_number, endpoint, ellipsis);
+                        _consume(parser, TK_COMMA, "Expect ',' after '...' in list fill expansion.");
+                        double endpoint = _consume_fillEndpoint(parser);
+                        size += _emit_literalFill(parser, previous_number, endpoint, ellipsis);
                         previous_number = endpoint;
-                        previous_is_number = true;
+                        previous_is_number = TRUE;
                     }
                 }
                 else
                     break; // trailing comma
-            } while (match(parser, TK_COMMA));
-            consume(parser, TK_RBRACKET, "Expect ']' at the end of list literal.");
+            } while (_match(parser, TK_COMMA));
+            _consume(parser, TK_RBRACKET, "Expect ']' at the end of list literal.");
             emit_16u(parser->comp, OP_PUSH_LIST, "", size);
         }
     }
-    else if (match(parser, TK_LBRACE))
+    else if (_match(parser, TK_LBRACE))
     {
-        set_pos(parser, previous(parser));
+        set_pos(parser, _previous(parser));
         if (is_lookUp(parser->comp))
         {
             int depth = 1;
-            while (depth > 0 && !is_atEnd(parser))
+            while (depth > 0 && !_is_atEnd(parser))
             {
-                if (check(parser, TK_LBRACE))
+                if (_check(parser, TK_LBRACE))
                     depth++;
-                else if (check(parser, TK_RBRACE))
+                else if (_check(parser, TK_RBRACE))
                     depth--;
-                next(parser);
+                _next(parser);
                 if (depth == 0)
                     break;
             }
             if (depth != 0)
-                p_error("Unmatched '}' in map.", peek(parser).line, peek(parser).column);
+                p_error("Unmatched '}' in map.", _peek(parser).line, _peek(parser).column);
             return;
         }
 
-        if (match(parser, TK_RBRACE))
+        if (_match(parser, TK_RBRACE))
         {
             push_object(parser->comp);
             pop_object(parser->comp);
             emit_16u(parser->comp, OP_PUSH_MAP, "", 0);
         }
-        else if (!is_mapEntry(parser) && !map_hasSpreadItems(parser))
+        else if (!_is_mapEntry(parser) && !_map_hasSpreadItems(parser))
         {
-            emit_setLiteral(parser);
+            _emit_setLiteral(parser);
         }
         else
         {
             push_object(parser->comp);
-            if (map_hasSpreadItems(parser))
+            if (_map_hasSpreadItems(parser))
             {
-                emit_spreadMapLiteral(parser);
+                _emit_spreadMapLiteral(parser);
                 pop_object(parser->comp);
             }
             else
@@ -4144,23 +4144,23 @@ static void primary(parser_t *parser)
                 int size = 0;
                 do
                 {
-                    if (match_n(parser, 5, TK_STR, TK_ID, TK_NUM, TK_FALSE, TK_TRUE))
+                    if (_match_n(parser, 5, TK_STR, TK_ID, TK_NUM, TK_FALSE, TK_TRUE))
                     {
-                        key = tk_string(previous(parser));
+                        key = tk_string(_previous(parser));
                         index = store_stringConst(parser->comp, key);
                     }
                     else
                     {
-                        p_error("Unexpected key expression.", peek(parser).line, peek(parser).column);
+                        p_error("Unexpected key expression.", _peek(parser).line, _peek(parser).column);
                     }
 
-                    if (match(parser, TK_LPAREN))
+                    if (_match(parser, TK_LPAREN))
                     {
                         // Method shorthand: { key(params) { body } }
-                        list_t *params = param_list(parser);
-                        int param_size = list_size(params);
-                        consume(parser, TK_RPAREN, "Expect ')' before function body.");
-                        consume(parser, TK_LBRACE, "Expect '{' before function body.");
+                        List *params = _param_list(parser);
+                        int param_size = LIST_SIZE(params);
+                        _consume(parser, TK_RPAREN, "Expect ')' before function body.");
+                        _consume(parser, TK_LBRACE, "Expect '{' before function body.");
 
                         push_function(parser->comp, key);
                         parser->comp->current->param_names = params;
@@ -4173,42 +4173,42 @@ static void primary(parser_t *parser)
                         add_local(parser->comp, "args");
                         add_local(parser->comp, "kw_args");
 
-                        if (match(parser, TK_RBRACE))
+                        if (_match(parser, TK_RBRACE))
                         {
-                            emit_defaultReturn(parser->comp);
+                            _emit_defaultReturn(parser->comp);
                         }
                         else
                         {
-                            while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
-                                declaration(parser);
+                            while (!_check(parser, TK_RBRACE) && !_is_atEnd(parser))
+                                _declaration(parser);
 
                             if (!parser->is_return)
                             {
-                                emit_defaultReturn(parser->comp);
-                                parser->is_return = false;
+                                _emit_defaultReturn(parser->comp);
+                                parser->is_return = FALSE;
                             }
                         }
 
-                        parser->is_return = false;
+                        parser->is_return = FALSE;
                         pop_function(parser->comp, param_size);
-                        consume(parser, TK_RBRACE, "Expect '}' after function body.");
+                        _consume(parser, TK_RBRACE, "Expect '}' after function body.");
                     }
                     else
                     {
                         if (strcmp(key, "constructor") == 0)
-                            p_error("Constructor is a reserved keyword.", peek(parser).line, peek(parser).column);
-                        consume(parser, TK_COLON, "Expect ':' after object key expression.");
+                            p_error("Constructor is a reserved keyword.", _peek(parser).line, _peek(parser).column);
+                        _consume(parser, TK_COLON, "Expect ':' after object key expression.");
 
                         bool prev_object_member = parser->object_member;
                         char *prev_fun = parser->fun_name;
                         char *prev_obj = parser->object_name;
-                        parser->object_member = true;
+                        parser->object_member = TRUE;
                         parser->object_name = NULL;
 
-                        if (is_functionLiteral(parser, parser->current))
+                        if (_is_functionLiteral(parser, parser->current))
                             parser->fun_name = key;
 
-                        cond_expr(parser);
+                        _cond_expr(parser);
                         parser->object_member = prev_object_member;
                         parser->fun_name = prev_fun;
                         parser->object_name = prev_obj;
@@ -4217,64 +4217,64 @@ static void primary(parser_t *parser)
                     emit_16u(parser->comp, OP_LOAD_CONST, key, index);
                     free(key);
                     size++;
-                } while (match(parser, TK_COMMA) && !check(parser, TK_RBRACE));
+                } while (_match(parser, TK_COMMA) && !_check(parser, TK_RBRACE));
 
-                consume(parser, TK_RBRACE, "Expect '}' at the end of map literal.");
+                _consume(parser, TK_RBRACE, "Expect '}' at the end of map literal.");
                 pop_object(parser->comp);
                 emit_16u(parser->comp, OP_PUSH_MAP, "", size);
             }
         }
     }
     // Anonymous function expressions: fun(params) { body }
-    else if (match(parser, TK_FUN))
+    else if (_match(parser, TK_FUN))
     {
-        set_pos(parser, previous(parser));
+        set_pos(parser, _previous(parser));
 
         if (is_lookUp(parser->comp))
         {
             int depth = 0;
 
-            consume(parser, TK_LPAREN, "Expect '(' after function name.");
+            _consume(parser, TK_LPAREN, "Expect '(' after function name.");
 
             depth = 1;
-            while (depth > 0 && !is_atEnd(parser))
+            while (depth > 0 && !_is_atEnd(parser))
             {
-                if (check(parser, TK_LPAREN))
+                if (_check(parser, TK_LPAREN))
                     depth++;
-                else if (check(parser, TK_RPAREN))
+                else if (_check(parser, TK_RPAREN))
                     depth--;
-                next(parser);
+                _next(parser);
             }
             if (depth != 0)
-                p_error("Unmatched '(' in anonymous function.", peek(parser).line, peek(parser).column);
+                p_error("Unmatched '(' in anonymous function.", _peek(parser).line, _peek(parser).column);
 
-            consume(parser, TK_LBRACE, "Expect '{' before function body.");
+            _consume(parser, TK_LBRACE, "Expect '{' before function body.");
 
             depth = 1;
-            while (depth > 0 && !is_atEnd(parser))
+            while (depth > 0 && !_is_atEnd(parser))
             {
-                if (check(parser, TK_LBRACE))
+                if (_check(parser, TK_LBRACE))
                     depth++;
-                else if (check(parser, TK_RBRACE))
+                else if (_check(parser, TK_RBRACE))
                     depth--;
-                next(parser);
+                _next(parser);
             }
             if (depth != 0)
-                p_error("Unmatched '{' in anonymous function.", peek(parser).line, peek(parser).column);
+                p_error("Unmatched '{' in anonymous function.", _peek(parser).line, _peek(parser).column);
 
             return;
         }
-        compiler_t *comp = parser->comp;
+        Compiler *comp = parser->comp;
         // Function expressions do not have their name set until we parse the parameter list, since the name may be needed for recursion within the function body. So we use a placeholder name for now and set the actual name after parsing the parameters.
-        consume(parser, TK_LPAREN, "Expect '(' after function name.");
-        list_t *params = param_list(parser);
-        int size = list_size(params);
-        consume(parser, TK_RPAREN, "Expect ')' before function body.");
-        consume(parser, TK_LBRACE, "Expect '{' before function body.");
+        _consume(parser, TK_LPAREN, "Expect '(' after function name.");
+        List *params = _param_list(parser);
+        int size = LIST_SIZE(params);
+        _consume(parser, TK_RPAREN, "Expect ')' before function body.");
+        _consume(parser, TK_LBRACE, "Expect '{' before function body.");
 
         bool method_value = parser->object_member;
-        parser->object_member = false;
-        push_function(comp, get_pendingFunctionName(parser));
+        parser->object_member = FALSE;
+        push_function(comp, _get_pendingFunctionName(parser));
         comp->current->param_names = params;
 
         if (method_value)
@@ -4284,34 +4284,34 @@ static void primary(parser_t *parser)
         add_local(comp, "args");
         add_local(comp, "kw_args");
 
-        if (check(parser, TK_RBRACE))
+        if (_check(parser, TK_RBRACE))
         {
-            emit_defaultReturn(comp);
-            parser->is_return = true;
+            _emit_defaultReturn(comp);
+            parser->is_return = TRUE;
         }
         else
         {
-            while (!check(parser, TK_RBRACE) && !is_atEnd(parser))
-                declaration(parser);
+            while (!_check(parser, TK_RBRACE) && !_is_atEnd(parser))
+                _declaration(parser);
 
             if (!parser->is_return)
             {
-                emit_defaultReturn(comp);
-                parser->is_return = true;
+                _emit_defaultReturn(comp);
+                parser->is_return = TRUE;
             }
         }
 
         pop_function(comp, size);
-        parser->is_return = false;
+        parser->is_return = FALSE;
         parser->object_member = method_value;
 
-        consume(parser, TK_RBRACE, "Expect '}' after function body.");
+        _consume(parser, TK_RBRACE, "Expect '}' after function body.");
     }
     else
-        p_error("Expect expression.", previous(parser).line, previous(parser).column);
+        p_error("Expect expression.", _previous(parser).line, _previous(parser).column);
 }
 
-void free_parser(parser_t *parser)
+void free_parser(Parser *parser)
 {
     free(parser->tokens);
     free(parser);

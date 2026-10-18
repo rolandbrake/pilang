@@ -18,8 +18,8 @@ typedef enum
  */
 typedef struct
 {
-    token_t *tokens; // Array of tokens being parsed.
-    token_t last;    // Last token parsed.
+    Token *tokens; // Array of tokens being parsed.
+    Token last;    // Last token parsed.
     int current;     // Current token index being parsed.
     bool access;     // Flag indicating whether access to variables is allowed.
     bool is_store;   // Flag indicating whether a store operation is in progress.
@@ -28,23 +28,23 @@ typedef struct
     bool is_assign;  // Flag indicating whether an assignment is in progress.
     bool has_walrus; // Flag indicating whether a walrus operator is in progress.
     bool object_member; // True only while parsing a direct object-literal value expression.
-    tk_type op;      // Type of operator being parsed (e.g. TK_PLUS, TK_MINUS, etc.).
+    PiTokenType op;      // Type of operator being parsed (e.g. TK_PLUS, TK_MINUS, etc.).
 
     // Compiler associated with the parser
-    compiler_t *comp;
+    Compiler *comp;
 
     bool is_return;
     char *fun_name; // (pending functoin name) Inferred name for the next direct function literal RHS.
     char *object_name; // Inferred name for the next direct object-literal RHS.
 
-    table_t *instance_field_names;
-    list_t *instance_fields;
+    HT_Table *instance_field_names;
+    List *instance_fields;
 
     ParserMode mode; // The current parsing mode (file or REPL).
 
     bool had_error; // Flag indicating if an error has occurred during parsing.
 
-} parser_t;
+} Parser;
 
 /**
  * Assignment operation structure.
@@ -53,12 +53,12 @@ typedef struct
 {
     int left;   // Index of the left-hand side of the assignment.
     int right;  // Index of the right-hand side of the assignment.
-    tk_type op; // Type of the assignment operator (e.g. TK_ASSIGN, TK_PLUS_EQUAL, etc.).
+    PiTokenType op; // Type of the assignment operator (e.g. TK_ASSIGN, TK_PLUS_EQUAL, etc.).
 
-} assign_t;
+} Assignment;
 
-parser_t *init_parser(compiler_t *comp, token_t *tokens, ParserMode mode);
-void parse(parser_t *parser);
-void free_parser(parser_t *parser);
+Parser *init_parser(Compiler *comp, Token *tokens, ParserMode mode);
+void parse(Parser *parser);
+void free_parser(Parser *parser);
 
 #endif

@@ -5,9 +5,9 @@
 #include <stdarg.h>
 #ifndef __EMSCRIPTEN__
 #include <signal.h>
-typedef sig_atomic_t interrupt_flag_t;
+typedef sig_atomic_t InterruptFlag;
 #else
-typedef int interrupt_flag_t;
+typedef int InterruptFlag;
 #endif
 
 #include "pi_compiler.h"
@@ -60,10 +60,10 @@ typedef int interrupt_flag_t;
         instr_pc = pc;                      \
         VM_SYNC_PC();                       \
         if (vm->gc_requested)               \
-            gc_collect(vm);                 \
+            _gc_collect(vm);                \
         if (interrupt_requested)            \
         {                                   \
-            vm->running = false;            \
+            vm->running = FALSE;            \
             goto L_VM_DONE;                 \
         }                                   \
         if (!vm->running)                   \
@@ -94,11 +94,11 @@ typedef int interrupt_flag_t;
 #define INTERRUPT_CHECK_STEPS 4096
 #define VM_SAFEPOINT_STEPS 8192
 
-#define TO_PRIM(vm, v, is_str) (IS_MAP(v) ? to_primitive(vm, v, is_str) : (v))
+#define TO_PRIM(vm, v, is_str) (IS_MAP(v) ? _to_primitive(vm, v, is_str) : (v))
 
 // For non-MAP values this is zero cost — just returns the value itself
-#define TO_PRIM_NUM(v) (IS_MAP(v) ? to_primitive(vm, v, false) : (v))
-#define TO_PRIM_STR(v) (IS_MAP(v) ? to_primitive(vm, v, true) : (v))
+#define TO_PRIM_NUM(v) (IS_MAP(v) ? _to_primitive(vm, v, FALSE) : (v))
+#define TO_PRIM_STR(v) (IS_MAP(v) ? _to_primitive(vm, v, TRUE) : (v))
 
 // for frequent stack operations:
 #define PUSH(v) (vm->stack[vm->sp++] = (v))
@@ -111,7 +111,7 @@ typedef struct
     int bp;         // Function base pointer active when the frame was opened.
 } CompFrame;
 
-typedef struct vm_t
+typedef struct VM
 {
     int pc;       // Program Counter: Points to the current instruction being executed.
     int sp;       // Stack Pointer: Tracks the top of the stack.
@@ -121,16 +121,16 @@ typedef struct vm_t
 
     Value stack[STACK_MAX]; // Operand stack for storing temporary values and function calls.
 
-    // pistack_t *frames; // Call stack frames, storing function call contexts.
+    // PiStack *frames; // Call stack frames, storing function call contexts.
 
     Frame frames[STACK_MAX]; // Call stack frames, storing function call contexts.
     int frame_sp;
 
-    list_t *code;      // PiList of bytecode instructions.
-    list_t *constants; // PiList of constant values used in the program.
-    list_t *names;     // PiList of variable/function names for identifier lookup.
+    List *code;      // PiList of bytecode instructions.
+    List *constants; // PiList of constant values used in the program.
+    List *names;     // PiList of variable/function names for identifier lookup.
 
-    table_t *globals;          // Hash table storing global variables.
+    HT_Table *globals;          // Hash table storing global variables.
     GlobalCache *global_cache; // resolved globals for the active code unit
 
     Object *objects; // Linked list of dynamically allocated objects (for garbage collection).
@@ -144,7 +144,7 @@ typedef struct vm_t
     // UpValue *openUpvalues[STACK_MAX]; // Stack of open upvalues used in nested functions.
     // int upvalue_sp;
 
-    UpValue *openUpvalues; // linked list of open upvalues used in nested functions.
+    UpValue *open_upvalues; // linked list of open upvalues used in nested functions.
 
     bool running;         // Flag indicating whether the VM is currently executing code.
     pthread_mutex_t lock; // Mutex for thread synchronization.
@@ -158,41 +158,41 @@ typedef struct vm_t
     size_t next_gc_bytes; // Heap size at which the next collection is requested.
     bool gc_requested; // A safe-point collection is pending.
 
-    table_t *instrs;        // PiList of instruction metadata
-    instr_t *current_instr; // Source metadata for the opcode currently executing.
+    HT_Table *instrs;        // PiList of instruction metadata
+    Instruction *current_instr; // Source metadata for the opcode currently executing.
 
-    list_t *gc_stack;
+    List *gc_stack;
 
     int obj_count;
 
-    table_t *modules;      // Hash table to store loaded modules by name
-    struct px_project_build *project_build; // Optional validated .px project build
+    HT_Table *modules;      // Hash table to store loaded modules by name
+    struct PX_ProjectBuild *project_build; // Optional validated .px project build
     char *current_path;    // Current working directory for resolving relative imports
     PiClass *object_class; // Root class for the class/instance model
 
-} vm_t;
+} VM;
 
-extern volatile interrupt_flag_t interrupt_requested;
+extern volatile InterruptFlag interrupt_requested;
 
-vm_t *init_vm(compiler_t *comp, const char *entry_name, bool is_main);
-void vm_reset(vm_t *vm, compiler_t *comp);
+VM *init_vm(Compiler *comp, const char *entry_name, bool is_main);
+void vm_reset(VM *vm, Compiler *comp);
 
-Object *add_obj(vm_t *vm, Object *obj);
-void vm_run(vm_t *vm);
+Object *add_obj(VM *vm, Object *obj);
+void vm_run(VM *vm);
 
-void push_frame(vm_t *vm, Frame *frame);
-Frame *pop_frame(vm_t *vm);
+void push_frame(VM *vm, Frame *frame);
+Frame *pop_frame(VM *vm);
 
-void vm_error(vm_t *vm, const char *message);
-void vm_errorf(vm_t *vm, const char *fmt, ...);
-Value vm_callMethodNoArgs(vm_t *vm, Value receiver, const char *name);
+void vm_error(VM *vm, const char *message);
+void vm_errorf(VM *vm, const char *fmt, ...);
+Value vm_callMethodNoArgs(VM *vm, Value receiver, const char *name);
 
 // keyword arguments for native builtin functions
-Value vm_kwargs(vm_t *vm);
-bool vm_hasKwarg(vm_t *vm, const char *name);
-bool vm_getKwarg(vm_t *vm, const char *name, Value *out);
-Value vm_getKwargOr(vm_t *vm, const char *name, Value fallback);
+Value vm_kwargs(VM *vm);
+bool vm_hasKwarg(VM *vm, const char *name);
+bool vm_getKwarg(VM *vm, const char *name, Value *out);
+Value vm_getKwargOr(VM *vm, const char *name, Value fallback);
 
-void free_vm(vm_t *vm);
+void free_vm(VM *vm);
 
 #endif // PI_VM_H

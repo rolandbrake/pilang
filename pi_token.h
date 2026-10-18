@@ -118,7 +118,7 @@ typedef enum
     TK_IMPORT,
     TK_EOF,
     TK_INVALID,
-} tk_type;
+} PiTokenType;
 
 /* number of reserved words */
 #define NUM_RESERVED (cast_int(TK_MATCH - FIRST_RESERVED + 1))
@@ -127,39 +127,39 @@ typedef enum
 typedef struct
 {
     char *name;   // key
-    tk_type type; // value
-} keyword_t;
+    PiTokenType type; // value
+} Keyword;
 
-extern keyword_t keywords[KW_NUM];
+extern Keyword keywords[KW_NUM];
 
 typedef struct
 {
-    tk_type type;
+    PiTokenType type;
     char *start;
     int length;
     int line;
     int column;
-    int openAt;
-    int closeAt;
+    int open_at;
+    int close_at;
     bool is_negative; // Flag indicating whether the current token is a negative number.
     bool skip; // Flag indicating whether the current token should be skipped.
-} token_t;
+} Token;
 
 extern const char *token_names[];
 
-token_t create_token(tk_type type, char *start, int length, int line, int column);
-tk_type token_type(token_t token);
-char *token_value(token_t token);
+Token create_token(PiTokenType type, char *start, int length, int line, int column);
+PiTokenType token_type(Token token);
+char *token_value(Token token);
 
-int token_line(token_t token);
-int token_column(token_t token);
+int token_line(Token token);
+int token_column(Token token);
 
-const char *token_toString(token_t token);
+const char *token_toString(Token token);
 
-tk_type find_kw(const char *name);
+PiTokenType find_kw(const char *name);
 
-double tk_double(const token_t token);
-char *tk_string(const token_t token);
-bool tk_bool(const token_t token);
+double tk_double(const Token token);
+char *tk_string(const Token token);
+bool tk_bool(const Token token);
 
 #endif

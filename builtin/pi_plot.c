@@ -13,7 +13,7 @@
 
 #include "pi_builtin.h"
 
-static TTF_Font *get_openFont(int size)
+static TTF_Font *_get_openFont(int size)
 {
     static int ttf_ready;
     if (!ttf_ready)
@@ -41,7 +41,7 @@ static TTF_Font *get_openFont(int size)
     return NULL;
 }
 
-static void set_drawColor(SDL_Renderer *r, int rgb, Uint8 a)
+static void _set_drawColor(SDL_Renderer *r, int rgb, Uint8 a)
 {
     Uint8 R = (Uint8)((rgb >> 16) & 255);
     Uint8 G = (Uint8)((rgb >> 8) & 255);
@@ -49,7 +49,7 @@ static void set_drawColor(SDL_Renderer *r, int rgb, Uint8 a)
     SDL_SetRenderDrawColor(r, R, G, B, a);
 }
 
-static int palette_color(int series_index)
+static int _palette_color(int series_index)
 {
     static int pal[] = {
         0x2e86ab,
@@ -67,7 +67,7 @@ static int palette_color(int series_index)
 static const int plot_left_margin = 100;
 static const int plot_margin = 80;
 
-static int clamp_int(int value, int lo, int hi)
+static int _clamp_int(int value, int lo, int hi)
 {
     if (value < lo)
         return lo;
@@ -76,7 +76,7 @@ static int clamp_int(int value, int lo, int hi)
     return value;
 }
 
-static PiChart *chart_from(vm_t *vm, Value v0)
+static PiChart *_chart_from(VM *vm, Value v0)
 {
     if (IS_CHART(v0))
         return AS_CHART(v0);
@@ -86,7 +86,7 @@ static PiChart *chart_from(vm_t *vm, Value v0)
 }
 
 /* The renderer stores line data as lists; accept 1D tensors at the API edge. */
-static Value plot_numericList(vm_t *vm, Value value)
+static Value _plot_numericList(VM *vm, Value value)
 {
     if (IS_LIST(value))
         return value;
@@ -94,42 +94,42 @@ static Value plot_numericList(vm_t *vm, Value value)
         return NEW_NIL();
 
     PiTensor *tensor = AS_TENSOR(value);
-    list_t *items = list_create(VALUE_SIZE);
+    List *items = list_create(VALUE_SIZE);
     for (int i = 0; i < tensor->size; i++)
     {
         Value item = NEW_NUM(tensor_getFlat(tensor, i));
-        list_add(items, &item);
+        _list_add(items, &item);
     }
     return NEW_OBJ(add_obj(vm, new_list(items)));
 }
 
-static double list_min(list_t *lst)
+static double _list_min(List *lst)
 {
     double m = INFINITY;
     int n = LIST_SIZE(lst);
     for (int i = 0; i < n; i++)
     {
-        double v = AS_NUM(*(Value *)list_getAt(lst, i));
+        double v = AS_NUM(*(Value *)_list_getAt(lst, i));
         if (v < m)
             m = v;
     }
     return m;
 }
 
-static double list_max(list_t *lst)
+static double _list_max(List *lst)
 {
     double m = -INFINITY;
     int n = LIST_SIZE(lst);
     for (int i = 0; i < n; i++)
     {
-        double v = AS_NUM(*(Value *)list_getAt(lst, i));
+        double v = AS_NUM(*(Value *)_list_getAt(lst, i));
         if (v > m)
             m = v;
     }
     return m;
 }
 
-static void map_xy(PiChart *chart, double x, double y, int W, int H, int xmargin, int ymargin, int *px, int *py)
+static void _map_xy(PiChart *chart, double x, double y, int W, int H, int xmargin, int ymargin, int *px, int *py)
 {
     double x0 = chart->xmin, x1 = chart->xmax, y0 = chart->ymin, y1 = chart->ymax;
     if (x1 <= x0)
@@ -140,23 +140,23 @@ static void map_xy(PiChart *chart, double x, double y, int W, int H, int xmargin
     *py = H - ymargin - (int)((y - y0) / (y1 - y0) * (H - 2 * ymargin));
 }
 
-static Value make_kindSeries(vm_t *vm, PiChart *chart, const char *kind, list_t *tail)
+static Value _make_kindSeries(VM *vm, PiChart *chart, const char *kind, List *tail)
 {
-    list_t *parts = list_create(VALUE_SIZE);
+    List *parts = list_create(VALUE_SIZE);
     Value vk = NEW_OBJ(add_obj(vm, new_pistring(strdup(kind))));
-    list_add(parts, &vk);
+    _list_add(parts, &vk);
     int n = LIST_SIZE(tail);
     for (int i = 0; i < n; i++)
     {
-        Value *c = (Value *)list_getAt(tail, i);
-        list_add(parts, c);
+        Value *c = (Value *)_list_getAt(tail, i);
+        _list_add(parts, c);
     }
 
     // wrap in a list and add to chart->series
     Object *lo = new_list(parts);
     add_obj(vm, lo);
     Value v = NEW_OBJ(lo);
-    list_add(chart->series, &v);
+    _list_add(chart->series, &v);
 
     list_free(tail);
     return NEW_OBJ((Object *)chart);
@@ -171,7 +171,7 @@ enum TextFlags
     TEXT_VERTICAL = 1 << 3
 };
 
-static void draw_text(SDL_Renderer *r, TTF_Font *font, const char *text,
+static void _draw_text(SDL_Renderer *r, TTF_Font *font, const char *text,
                       int x, int y, int rgb, int flags)
 {
     if (!font || !text)
@@ -257,7 +257,7 @@ cleanup:
     TTF_SetFontStyle(font, old_style);
 }
 
-static void measure_text(TTF_Font *font, const char *text, int flags, int *w, int *h)
+static void _measure_text(TTF_Font *font, const char *text, int flags, int *w, int *h)
 {
     if (w)
         *w = 0;
@@ -274,24 +274,24 @@ static void measure_text(TTF_Font *font, const char *text, int flags, int *w, in
     TTF_SetFontStyle(font, old_style);
 }
 
-static void chart_computeBounds(PiChart *c)
+static void _chart_computeBounds(PiChart *c)
 {
     if (c->has_bounds)
         return;
 
     double xmin = INFINITY, xmax = -INFINITY, ymin = INFINITY, ymax = -INFINITY;
-    int ns = list_size(c->series);
+    int ns = LIST_SIZE(c->series);
 
     for (int si = 0; si < ns; si++)
     {
-        Value *series_val = (Value *)list_getAt(c->series, si);
+        Value *series_val = (Value *)_list_getAt(c->series, si);
         if (!series_val || !IS_LIST(*series_val))
             continue;
         PiList *sl = AS_LIST(*series_val);
-        list_t *items = sl->items;
+        List *items = sl->items;
         if (LIST_SIZE(items) < 1)
             continue;
-        Value *k0 = (Value *)list_getAt(items, 0);
+        Value *k0 = (Value *)_list_getAt(items, 0);
         if (!k0 || !IS_STRING(*k0))
             continue;
         const char *kind = AS_CSTRING(*k0);
@@ -300,15 +300,15 @@ static void chart_computeBounds(PiChart *c)
         {
             if (LIST_SIZE(items) < 3)
                 continue;
-            PiList *xl = AS_LIST(*(Value *)list_getAt(items, 1));
-            PiList *yl = AS_LIST(*(Value *)list_getAt(items, 2));
+            PiList *xl = AS_LIST(*(Value *)_list_getAt(items, 1));
+            PiList *yl = AS_LIST(*(Value *)_list_getAt(items, 2));
             int n = LIST_SIZE(xl->items);
             if (n != LIST_SIZE(yl->items))
                 continue;
             for (int i = 0; i < n; i++)
             {
-                Value *vx = (Value *)list_getAt(xl->items, i);
-                Value *vy = (Value *)list_getAt(yl->items, i);
+                Value *vx = (Value *)_list_getAt(xl->items, i);
+                Value *vy = (Value *)_list_getAt(yl->items, i);
                 if (!IS_NUM(*vx) || !IS_NUM(*vy))
                     continue;
                 double x = AS_NUM(*vx), y = AS_NUM(*vy);
@@ -326,7 +326,7 @@ static void chart_computeBounds(PiChart *c)
         {
             if (LIST_SIZE(items) < 3)
                 continue;
-            PiList *yl = AS_LIST(*(Value *)list_getAt(items, 2));
+            PiList *yl = AS_LIST(*(Value *)_list_getAt(items, 2));
             int n = LIST_SIZE(yl->items);
             if (n == 0)
                 continue;
@@ -335,7 +335,7 @@ static void chart_computeBounds(PiChart *c)
             ymin = fmin(ymin, 0.0);
             for (int i = 0; i < n; i++)
             {
-                Value *vy = (Value *)list_getAt(yl->items, i);
+                Value *vy = (Value *)_list_getAt(yl->items, i);
                 if (!IS_NUM(*vy))
                     continue;
                 double y = AS_NUM(*vy);
@@ -347,11 +347,11 @@ static void chart_computeBounds(PiChart *c)
         {
             if (LIST_SIZE(items) < 2)
                 continue;
-            PiList *dl = AS_LIST(*(Value *)list_getAt(items, 1));
+            PiList *dl = AS_LIST(*(Value *)_list_getAt(items, 1));
             int bins = 10;
             if (LIST_SIZE(items) > 2)
             {
-                Value *vb = (Value *)list_getAt(items, 2);
+                Value *vb = (Value *)_list_getAt(items, 2);
                 if (IS_NUM(*vb))
                     bins = (int)AS_NUM(*vb);
             }
@@ -360,8 +360,8 @@ static void chart_computeBounds(PiChart *c)
             int nd = LIST_SIZE(dl->items);
             if (nd < 1)
                 continue;
-            double lo = list_min(dl->items);
-            double hi = list_max(dl->items);
+            double lo = _list_min(dl->items);
+            double hi = _list_max(dl->items);
             if (hi <= lo)
                 hi = lo + 1e-9;
             double *counts = (double *)calloc((size_t)bins, sizeof(double));
@@ -369,7 +369,7 @@ static void chart_computeBounds(PiChart *c)
                 continue;
             for (int i = 0; i < nd; i++)
             {
-                Value *v = (Value *)list_getAt(dl->items, i);
+                Value *v = (Value *)_list_getAt(dl->items, i);
                 if (!IS_NUM(*v))
                     continue;
                 double x = AS_NUM(*v);
@@ -392,17 +392,17 @@ static void chart_computeBounds(PiChart *c)
         }
         else if (!strcmp(kind, "quiver") || !strcmp(kind, "streamplot"))
         {
-            if (LIST_SIZE(items) >= 5 && IS_LIST(*(Value *)list_getAt(items, 1)))
+            if (LIST_SIZE(items) >= 5 && IS_LIST(*(Value *)_list_getAt(items, 1)))
             {
-                PiList *xl = AS_LIST(*(Value *)list_getAt(items, 1));
-                PiList *yl = AS_LIST(*(Value *)list_getAt(items, 2));
+                PiList *xl = AS_LIST(*(Value *)_list_getAt(items, 1));
+                PiList *yl = AS_LIST(*(Value *)_list_getAt(items, 2));
                 int n = LIST_SIZE(xl->items);
                 if (LIST_SIZE(yl->items) < n)
                     n = LIST_SIZE(yl->items);
                 for (int i = 0; i < n; i++)
                 {
-                    Value *vx = (Value *)list_getAt(xl->items, i);
-                    Value *vy = (Value *)list_getAt(yl->items, i);
+                    Value *vx = (Value *)_list_getAt(xl->items, i);
+                    Value *vy = (Value *)_list_getAt(yl->items, i);
                     if (!IS_NUM(*vx) || !IS_NUM(*vy))
                         continue;
                     double x = AS_NUM(*vx), y = AS_NUM(*vy);
@@ -413,11 +413,11 @@ static void chart_computeBounds(PiChart *c)
                 }
             }
             else if (LIST_SIZE(items) >= 3 &&
-                     IS_TENSOR(*(Value *)list_getAt(items, 1)) &&
-                     IS_TENSOR(*(Value *)list_getAt(items, 2)))
+                     IS_TENSOR(*(Value *)_list_getAt(items, 1)) &&
+                     IS_TENSOR(*(Value *)_list_getAt(items, 2)))
             {
-                PiTensor *U = AS_TENSOR(*(Value *)list_getAt(items, 1));
-                PiTensor *V = AS_TENSOR(*(Value *)list_getAt(items, 2));
+                PiTensor *U = AS_TENSOR(*(Value *)_list_getAt(items, 1));
+                PiTensor *V = AS_TENSOR(*(Value *)_list_getAt(items, 2));
                 int rows = U->rows < V->rows ? U->rows : V->rows;
                 int cols = U->cols < V->cols ? U->cols : V->cols;
                 xmin = fmin(xmin, 0.0);
@@ -430,7 +430,7 @@ static void chart_computeBounds(PiChart *c)
         {
             if (LIST_SIZE(items) < 2)
                 continue;
-            Value *mv = (Value *)list_getAt(items, 1);
+            Value *mv = (Value *)_list_getAt(items, 1);
             if (!IS_TENSOR(*mv) || AS_TENSOR(*mv)->ndim != 2)
                 continue;
             PiTensor *M = AS_TENSOR(*mv);
@@ -443,7 +443,7 @@ static void chart_computeBounds(PiChart *c)
         {
             if (LIST_SIZE(items) < 2)
                 continue;
-            Value *mv = (Value *)list_getAt(items, 1);
+            Value *mv = (Value *)_list_getAt(items, 1);
             if (IS_TENSOR(*mv))
             {
                 PiTensor *M = AS_TENSOR(*mv);
@@ -491,7 +491,7 @@ static void chart_computeBounds(PiChart *c)
     }
 }
 
-static void format_axisLabel(char *buffer, size_t size, double value)
+static void _format_axisLabel(char *buffer, size_t size, double value)
 {
     const double eps = 1e-14;
     if (fabs(value) < eps)
@@ -508,7 +508,7 @@ static void format_axisLabel(char *buffer, size_t size, double value)
         snprintf(buffer, size, "%.2f", value);
 }
 
-static int adaptive_tickCount(int plot_span)
+static int _adaptive_tickCount(int plot_span)
 {
     if (plot_span < 110)
         return 2;
@@ -519,15 +519,15 @@ static int adaptive_tickCount(int plot_span)
     return 6;
 }
 
-static void draw_axisTicks(SDL_Renderer *r, PiChart *chart, TTF_Font *font, int W, int H, int xmargin, int ymargin)
+static void _draw_axisTicks(SDL_Renderer *r, PiChart *chart, TTF_Font *font, int W, int H, int xmargin, int ymargin)
 {
     if (!font)
         return;
 
-    set_drawColor(r, 0x000000, 255);
+    _set_drawColor(r, 0x000000, 255);
 
-    int x_ticks = adaptive_tickCount(W - xmargin - ymargin);
-    int y_ticks = adaptive_tickCount(H - 2 * ymargin);
+    int x_ticks = _adaptive_tickCount(W - xmargin - ymargin);
+    int y_ticks = _adaptive_tickCount(H - 2 * ymargin);
     int label_gap = ymargin < 56 ? 5 : 8;
     int y_label_gap = xmargin < 70 ? 8 : 16;
 
@@ -536,15 +536,15 @@ static void draw_axisTicks(SDL_Renderer *r, PiChart *chart, TTF_Font *font, int 
         double t = (double)i / x_ticks;
         double x_val = chart->xmin + t * (chart->xmax - chart->xmin - 1e-2);
         int px, py0, py1;
-        map_xy(chart, x_val, chart->ymin, W, H, xmargin, ymargin, &px, &py0);
-        map_xy(chart, x_val, chart->ymin - (chart->ymax - chart->ymin) * 0.02, W, H, xmargin, ymargin, &px, &py1);
+        _map_xy(chart, x_val, chart->ymin, W, H, xmargin, ymargin, &px, &py0);
+        _map_xy(chart, x_val, chart->ymin - (chart->ymax - chart->ymin) * 0.02, W, H, xmargin, ymargin, &px, &py1);
         SDL_RenderDrawLine(r, px, py0, px, py0 + 6);
 
         char label[32];
-        format_axisLabel(label, sizeof(label), x_val);
+        _format_axisLabel(label, sizeof(label), x_val);
         int tw, th;
-        measure_text(font, label, TEXT_BOLD, &tw, &th);
-        draw_text(r, font, label, px - tw / 2, py0 + label_gap, 0x555555, TEXT_BOLD);
+        _measure_text(font, label, TEXT_BOLD, &tw, &th);
+        _draw_text(r, font, label, px - tw / 2, py0 + label_gap, 0x555555, TEXT_BOLD);
     }
 
     for (int i = 0; i <= y_ticks; i++)
@@ -552,19 +552,19 @@ static void draw_axisTicks(SDL_Renderer *r, PiChart *chart, TTF_Font *font, int 
         double t = (double)i / y_ticks;
         double y_val = chart->ymin + t * (chart->ymax - chart->ymin);
         int px0, py, px1;
-        map_xy(chart, chart->xmin, y_val, W, H, xmargin, ymargin, &px0, &py);
-        map_xy(chart, chart->xmin - (chart->xmax - chart->xmin) * 0.02, y_val, W, H, xmargin, ymargin, &px1, &py);
+        _map_xy(chart, chart->xmin, y_val, W, H, xmargin, ymargin, &px0, &py);
+        _map_xy(chart, chart->xmin - (chart->xmax - chart->xmin) * 0.02, y_val, W, H, xmargin, ymargin, &px1, &py);
         SDL_RenderDrawLine(r, px0 - 6, py, px0, py);
 
         char label[32];
-        format_axisLabel(label, sizeof(label), y_val);
+        _format_axisLabel(label, sizeof(label), y_val);
         int tw, th;
-        measure_text(font, label, TEXT_BOLD, &tw, &th);
-        draw_text(r, font, label, px0 - tw - y_label_gap, py, 0x555555, TEXT_CENTER_Y | TEXT_BOLD);
+        _measure_text(font, label, TEXT_BOLD, &tw, &th);
+        _draw_text(r, font, label, px0 - tw - y_label_gap, py, 0x555555, TEXT_CENTER_Y | TEXT_BOLD);
     }
 }
 
-static void draw_filledBorderedCircle(SDL_Renderer *r,
+static void _draw_filledBorderedCircle(SDL_Renderer *r,
                                       int cx, int cy,
                                       int radius,
                                       int fill_color,
@@ -573,7 +573,7 @@ static void draw_filledBorderedCircle(SDL_Renderer *r,
     // ------------------------
     // FILLED CIRCLE (SPAN FILL)
     // ------------------------
-    set_drawColor(r, fill_color, 220);
+    _set_drawColor(r, fill_color, 220);
 
     int x = 0;
     int y = radius;
@@ -603,7 +603,7 @@ static void draw_filledBorderedCircle(SDL_Renderer *r,
     // ------------------------
     // BORDER (MIDPOINT CIRCLE)
     // ------------------------
-    set_drawColor(r, border_color, 255);
+    _set_drawColor(r, border_color, 255);
 
     x = 0;
     y = radius;
@@ -634,7 +634,7 @@ static void draw_filledBorderedCircle(SDL_Renderer *r,
     }
 }
 
-static void heatmap_rgb_magma(double t, Uint8 *R, Uint8 *G, Uint8 *B)
+static void _heatmap_RgbMagma(double t, Uint8 *R, Uint8 *G, Uint8 *B)
 {
     t = fmax(0.0, fmin(1.0, t));
     double r_stops[] = {0.001462, 0.258228, 0.554815, 0.852315, 0.987154};
@@ -650,7 +650,7 @@ static void heatmap_rgb_magma(double t, Uint8 *R, Uint8 *G, Uint8 *B)
     *B = (Uint8)((b_stops[idx] * (1.0 - frac) + b_stops[idx + 1] * frac) * 255);
 }
 
-static void heatmap_rgb_plasma(double t, Uint8 *R, Uint8 *G, Uint8 *B)
+static void _heatmap_RgbPlasma(double t, Uint8 *R, Uint8 *G, Uint8 *B)
 {
     t = fmax(0.0, fmin(1.0, t));
     double r_stops[] = {0.050383, 0.385441, 0.782950, 0.959703, 0.940015};
@@ -666,7 +666,7 @@ static void heatmap_rgb_plasma(double t, Uint8 *R, Uint8 *G, Uint8 *B)
     *B = (Uint8)((b_stops[idx] * (1.0 - frac) + b_stops[idx + 1] * frac) * 255);
 }
 
-static void heatmap_rgb_inferno(double t, Uint8 *R, Uint8 *G, Uint8 *B)
+static void _heatmap_RgbInferno(double t, Uint8 *R, Uint8 *G, Uint8 *B)
 {
     t = fmax(0.0, fmin(1.0, t));
     double r_stops[] = {0.001462, 0.285341, 0.680024, 0.942433, 0.988362};
@@ -682,7 +682,7 @@ static void heatmap_rgb_inferno(double t, Uint8 *R, Uint8 *G, Uint8 *B)
     *B = (Uint8)((b_stops[idx] * (1.0 - frac) + b_stops[idx + 1] * frac) * 255);
 }
 
-static void heatmap_rgb_viridis(double t, Uint8 *R, Uint8 *G, Uint8 *B)
+static void _heatmap_RgbViridis(double t, Uint8 *R, Uint8 *G, Uint8 *B)
 {
     t = fmax(0.0, fmin(1.0, t));
     double r_stops[] = {0.267004, 0.229739, 0.312916, 0.575593, 0.993248};
@@ -699,25 +699,25 @@ static void heatmap_rgb_viridis(double t, Uint8 *R, Uint8 *G, Uint8 *B)
 }
 
 static int current_colormap = 0;
-static void heatmap_rgb(double t, Uint8 *R, Uint8 *G, Uint8 *B)
+static void _heatmap_rgb(double t, Uint8 *R, Uint8 *G, Uint8 *B)
 {
     switch (current_colormap)
     {
     case 1:
-        heatmap_rgb_plasma(t, R, G, B);
+        _heatmap_RgbPlasma(t, R, G, B);
         break;
     case 2:
-        heatmap_rgb_inferno(t, R, G, B);
+        _heatmap_RgbInferno(t, R, G, B);
         break;
     case 3:
-        heatmap_rgb_magma(t, R, G, B);
+        _heatmap_RgbMagma(t, R, G, B);
         break;
     default:
-        heatmap_rgb_viridis(t, R, G, B);
+        _heatmap_RgbViridis(t, R, G, B);
     }
 }
 
-static void draw_colorBar(SDL_Renderer *r, PiChart *chart, double zmin, double zmax,
+static void _draw_colorBar(SDL_Renderer *r, PiChart *chart, double zmin, double zmax,
                           int W, int H, int margin, int x_pos, int y_top, int y_bottom, int width)
 {
     if (zmax <= zmin)
@@ -736,16 +736,16 @@ static void draw_colorBar(SDL_Renderer *r, PiChart *chart, double zmin, double z
             t = 1;
 
         Uint8 R, G, B;
-        heatmap_rgb(t, &R, &G, &B);
+        _heatmap_rgb(t, &R, &G, &B);
         SDL_SetRenderDrawColor(r, R, G, B, 255);
         SDL_RenderDrawLine(r, x_pos, y_top + y, x_pos + width, y_top + y);
     }
 
-    set_drawColor(r, 0x333333, 255);
+    _set_drawColor(r, 0x333333, 255);
     SDL_Rect border = {x_pos, y_top, width, height};
     SDL_RenderDrawRect(r, &border);
 
-    TTF_Font *font = get_openFont(10);
+    TTF_Font *font = _get_openFont(10);
     if (font)
     {
         int num_ticks = 5;
@@ -764,14 +764,14 @@ static void draw_colorBar(SDL_Renderer *r, PiChart *chart, double zmin, double z
             else
                 snprintf(label, sizeof(label), "%.2f", value);
 
-            draw_text(r, font, label, x_pos + width + 8, y_pos - 5, 0x444444, TEXT_NONE);
+            _draw_text(r, font, label, x_pos + width + 8, y_pos - 5, 0x444444, TEXT_NONE);
         }
 
-        draw_text(r, font, "Value", x_pos + width / 2 - 15, y_top - 20, 0x444444, TEXT_NONE);
+        _draw_text(r, font, "Value", x_pos + width / 2 - 15, y_top - 20, 0x444444, TEXT_NONE);
     }
 }
 
-Value pt_chart(vm_t *vm, int argc, Value *argv)
+Value pt_chart(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CONTEXT(argv[0]))
         return NIL_VAL;
@@ -779,7 +779,7 @@ Value pt_chart(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, new_chart(ctx)));
 }
 
-Value pt_func(vm_t *vm, int argc, Value *argv)
+Value pt_func(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -788,7 +788,7 @@ Value pt_func(vm_t *vm, int argc, Value *argv)
     }
     if (argc < 3 || !IS_FUN(argv[2]))
         return NIL_VAL;
-    Value x_values = plot_numericList(vm, argv[1]);
+    Value x_values = _plot_numericList(vm, argv[1]);
     if (IS_NIL(x_values))
         return NIL_VAL;
     PiChart *chart = AS_CHART(argv[0]);
@@ -799,11 +799,11 @@ Value pt_func(vm_t *vm, int argc, Value *argv)
     if (num_points < 1)
         return NIL_VAL;
 
-    list_t *y_list = list_create(VALUE_SIZE);
+    List *y_list = list_create(VALUE_SIZE);
 
     for (int i = 0; i < num_points; i++)
     {
-        Value *vx = (Value *)list_getAt(x_list->items, i);
+        Value *vx = (Value *)_list_getAt(x_list->items, i);
         if (!IS_NUM(*vx))
             continue;
 
@@ -813,12 +813,12 @@ Value pt_func(vm_t *vm, int argc, Value *argv)
 
         if (IS_NUM(result))
         {
-            list_add(y_list, &result);
+            _list_add(y_list, &result);
         }
         else
         {
             Value nan_val = NEW_NAN();
-            list_add(y_list, &nan_val);
+            _list_add(y_list, &nan_val);
         }
     }
 
@@ -826,19 +826,19 @@ Value pt_func(vm_t *vm, int argc, Value *argv)
     add_obj(vm, y_obj);
     Value vy_list = NEW_OBJ(y_obj);
 
-    list_t *tail = list_create(VALUE_SIZE);
-    list_add(tail, &x_values);
-    list_add(tail, &vy_list);
+    List *tail = list_create(VALUE_SIZE);
+    _list_add(tail, &x_values);
+    _list_add(tail, &vy_list);
 
     if (argc > 3 && IS_NUM(argv[3]))
     {
         Value vcolor = argv[3];
-        list_add(tail, &vcolor);
+        _list_add(tail, &vcolor);
     }
-    return make_kindSeries(vm, chart, "line", tail);
+    return _make_kindSeries(vm, chart, "line", tail);
 }
 
-Value pt_scatter(vm_t *vm, int argc, Value *argv)
+Value pt_scatter(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -848,31 +848,31 @@ Value pt_scatter(vm_t *vm, int argc, Value *argv)
     if (argc < 3 || !IS_LIST(argv[1]) || !IS_LIST(argv[2]))
         return NIL_VAL;
     PiChart *chart = AS_CHART(argv[0]);
-    list_t *tail = list_create(VALUE_SIZE);
-    list_add(tail, &argv[1]);
-    list_add(tail, &argv[2]);
+    List *tail = list_create(VALUE_SIZE);
+    _list_add(tail, &argv[1]);
+    _list_add(tail, &argv[2]);
     if (argc > 3)
     {
         if (IS_NUM(argv[3]))
         {
             Value vcolor = argv[3];
-            list_add(tail, &vcolor);
+            _list_add(tail, &vcolor);
         }
         else if (IS_STRING(argv[3]))
         {
             Value vshape = argv[3];
-            list_add(tail, &vshape);
+            _list_add(tail, &vshape);
         }
     }
     if (argc > 4 && IS_STRING(argv[4]))
     {
         Value vshape = argv[4];
-        list_add(tail, &vshape);
+        _list_add(tail, &vshape);
     }
-    return make_kindSeries(vm, chart, "scatter", tail);
+    return _make_kindSeries(vm, chart, "scatter", tail);
 }
 
-Value pt_line(vm_t *vm, int argc, Value *argv)
+Value pt_line(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -886,23 +886,23 @@ Value pt_line(vm_t *vm, int argc, Value *argv)
 
     if (argc < 3)
         return NIL_VAL;
-    Value x_values = plot_numericList(vm, argv[1]);
-    Value y_values = plot_numericList(vm, argv[2]);
+    Value x_values = _plot_numericList(vm, argv[1]);
+    Value y_values = _plot_numericList(vm, argv[2]);
     if (IS_NIL(x_values) || IS_NIL(y_values))
         return NIL_VAL;
     PiChart *chart = AS_CHART(argv[0]);
-    list_t *tail = list_create(VALUE_SIZE);
-    list_add(tail, &x_values);
-    list_add(tail, &y_values);
+    List *tail = list_create(VALUE_SIZE);
+    _list_add(tail, &x_values);
+    _list_add(tail, &y_values);
     if (argc > 3 && IS_NUM(argv[3]))
     {
         Value vcolor = argv[3];
-        list_add(tail, &vcolor);
+        _list_add(tail, &vcolor);
     }
-    return make_kindSeries(vm, chart, "line", tail);
+    return _make_kindSeries(vm, chart, "line", tail);
 }
 
-Value pt_bar(vm_t *vm, int argc, Value *argv)
+Value pt_bar(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -912,18 +912,18 @@ Value pt_bar(vm_t *vm, int argc, Value *argv)
     if (argc < 3 || !IS_LIST(argv[1]) || !IS_LIST(argv[2]))
         return NIL_VAL;
     PiChart *chart = AS_CHART(argv[0]);
-    list_t *tail = list_create(VALUE_SIZE);
-    list_add(tail, &argv[1]);
-    list_add(tail, &argv[2]);
+    List *tail = list_create(VALUE_SIZE);
+    _list_add(tail, &argv[1]);
+    _list_add(tail, &argv[2]);
     if (argc > 3 && IS_NUM(argv[3]))
     {
         Value vcolor = argv[3];
-        list_add(tail, &vcolor);
+        _list_add(tail, &vcolor);
     }
-    return make_kindSeries(vm, chart, "bar", tail);
+    return _make_kindSeries(vm, chart, "bar", tail);
 }
 
-Value pt_hist(vm_t *vm, int argc, Value *argv)
+Value pt_hist(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -933,22 +933,22 @@ Value pt_hist(vm_t *vm, int argc, Value *argv)
     if (argc < 2 || !IS_LIST(argv[1]))
         return NIL_VAL;
     PiChart *chart = AS_CHART(argv[0]);
-    list_t *tail = list_create(VALUE_SIZE);
-    list_add(tail, &argv[1]);
+    List *tail = list_create(VALUE_SIZE);
+    _list_add(tail, &argv[1]);
     if (argc > 2 && IS_NUM(argv[2]))
     {
         Value vb = argv[2];
-        list_add(tail, &vb);
+        _list_add(tail, &vb);
     }
     if (argc > 3 && IS_NUM(argv[3]))
     {
         Value vcolor = argv[3];
-        list_add(tail, &vcolor);
+        _list_add(tail, &vcolor);
     }
-    return make_kindSeries(vm, chart, "hist", tail);
+    return _make_kindSeries(vm, chart, "hist", tail);
 }
 
-Value pt_step(vm_t *vm, int argc, Value *argv)
+Value pt_step(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -958,18 +958,18 @@ Value pt_step(vm_t *vm, int argc, Value *argv)
     if (argc < 3 || !IS_LIST(argv[1]) || !IS_LIST(argv[2]))
         return NIL_VAL;
     PiChart *chart = AS_CHART(argv[0]);
-    list_t *tail = list_create(VALUE_SIZE);
-    list_add(tail, &argv[1]);
-    list_add(tail, &argv[2]);
+    List *tail = list_create(VALUE_SIZE);
+    _list_add(tail, &argv[1]);
+    _list_add(tail, &argv[2]);
     if (argc > 3 && IS_NUM(argv[3]))
     {
         Value vcolor = argv[3];
-        list_add(tail, &vcolor);
+        _list_add(tail, &vcolor);
     }
-    return make_kindSeries(vm, chart, "step", tail);
+    return _make_kindSeries(vm, chart, "step", tail);
 }
 
-Value pt_imshow(vm_t *vm, int argc, Value *argv)
+Value pt_imshow(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -999,12 +999,12 @@ Value pt_imshow(vm_t *vm, int argc, Value *argv)
     }
 
     PiChart *chart = AS_CHART(argv[0]);
-    list_t *tail = list_create(VALUE_SIZE);
-    list_add(tail, &argv[1]);
-    return make_kindSeries(vm, chart, "imshow", tail);
+    List *tail = list_create(VALUE_SIZE);
+    _list_add(tail, &argv[1]);
+    return _make_kindSeries(vm, chart, "imshow", tail);
 }
 
-Value pt_heatmap(vm_t *vm, int argc, Value *argv)
+Value pt_heatmap(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -1017,12 +1017,12 @@ Value pt_heatmap(vm_t *vm, int argc, Value *argv)
         return NIL_VAL;
     }
     PiChart *chart = AS_CHART(argv[0]);
-    list_t *tail = list_create(VALUE_SIZE);
-    list_add(tail, &argv[1]);
-    return make_kindSeries(vm, chart, "heatmap", tail);
+    List *tail = list_create(VALUE_SIZE);
+    _list_add(tail, &argv[1]);
+    return _make_kindSeries(vm, chart, "heatmap", tail);
 }
 
-Value pt_contour(vm_t *vm, int argc, Value *argv)
+Value pt_contour(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -1035,22 +1035,22 @@ Value pt_contour(vm_t *vm, int argc, Value *argv)
         return NIL_VAL;
     }
     PiChart *chart = AS_CHART(argv[0]);
-    list_t *tail = list_create(VALUE_SIZE);
-    list_add(tail, &argv[1]);
+    List *tail = list_create(VALUE_SIZE);
+    _list_add(tail, &argv[1]);
     if (argc > 2 && IS_NUM(argv[2]))
     {
         Value levels = argv[2];
-        list_add(tail, &levels);
+        _list_add(tail, &levels);
     }
     if (argc > 3 && IS_NUM(argv[3]))
     {
         Value color = argv[3];
-        list_add(tail, &color);
+        _list_add(tail, &color);
     }
-    return make_kindSeries(vm, chart, "contour", tail);
+    return _make_kindSeries(vm, chart, "contour", tail);
 }
 
-Value pt_quiver(vm_t *vm, int argc, Value *argv)
+Value pt_quiver(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -1069,16 +1069,16 @@ Value pt_quiver(vm_t *vm, int argc, Value *argv)
     }
 
     PiChart *chart = AS_CHART(argv[0]);
-    list_t *tail = list_create(VALUE_SIZE);
+    List *tail = list_create(VALUE_SIZE);
     int max_arg = argc;
     if (max_arg > 6)
         max_arg = 6;
     for (int i = 1; i < max_arg; i++)
-        list_add(tail, &argv[i]);
-    return make_kindSeries(vm, chart, "quiver", tail);
+        _list_add(tail, &argv[i]);
+    return _make_kindSeries(vm, chart, "quiver", tail);
 }
 
-Value pt_streamplot(vm_t *vm, int argc, Value *argv)
+Value pt_streamplot(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -1096,16 +1096,16 @@ Value pt_streamplot(vm_t *vm, int argc, Value *argv)
     }
 
     PiChart *chart = AS_CHART(argv[0]);
-    list_t *tail = list_create(VALUE_SIZE);
+    List *tail = list_create(VALUE_SIZE);
     int max_arg = argc;
     if (max_arg > 6)
         max_arg = 6;
     for (int i = 1; i < max_arg; i++)
-        list_add(tail, &argv[i]);
-    return make_kindSeries(vm, chart, "streamplot", tail);
+        _list_add(tail, &argv[i]);
+    return _make_kindSeries(vm, chart, "streamplot", tail);
 }
 
-Value pt_title(vm_t *vm, int argc, Value *argv)
+Value pt_title(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -1121,7 +1121,7 @@ Value pt_title(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)chart);
 }
 
-Value pt_xlabel(vm_t *vm, int argc, Value *argv)
+Value pt_xlabel(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -1137,7 +1137,7 @@ Value pt_xlabel(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)chart);
 }
 
-Value pt_ylabel(vm_t *vm, int argc, Value *argv)
+Value pt_ylabel(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -1153,7 +1153,7 @@ Value pt_ylabel(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)chart);
 }
 
-Value pt_grid(vm_t *vm, int argc, Value *argv)
+Value pt_grid(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -1167,7 +1167,7 @@ Value pt_grid(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)chart);
 }
 
-Value pt_axes(vm_t *vm, int argc, Value *argv)
+Value pt_axes(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -1181,7 +1181,7 @@ Value pt_axes(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)chart);
 }
 
-Value pt_tick(vm_t *vm, int argc, Value *argv)
+Value pt_tick(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -1195,7 +1195,7 @@ Value pt_tick(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)chart);
 }
 
-Value pt_legend(vm_t *vm, int argc, Value *argv)
+Value pt_legend(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -1206,8 +1206,8 @@ Value pt_legend(vm_t *vm, int argc, Value *argv)
         return NIL_VAL;
 
     PiChart *chart = AS_CHART(argv[0]);
-    list_t *tail = list_create(VALUE_SIZE);
-    list_add(tail, &argv[1]);
+    List *tail = list_create(VALUE_SIZE);
+    _list_add(tail, &argv[1]);
 
     double legend_x = -1.0;
     double legend_y = -1.0;
@@ -1217,22 +1217,22 @@ Value pt_legend(vm_t *vm, int argc, Value *argv)
     if (argc >= 4 && IS_NUM(argv[3]))
         legend_y = AS_NUM(argv[3]);
 
-    list_t *pos_list = list_create(VALUE_SIZE);
+    List *pos_list = list_create(VALUE_SIZE);
     Value vx = NEW_NUM(legend_x);
     Value vy = NEW_NUM(legend_y);
-    list_add(pos_list, &vx);
-    list_add(pos_list, &vy);
+    _list_add(pos_list, &vx);
+    _list_add(pos_list, &vy);
 
     Object *pos_obj = new_list(pos_list);
     add_obj(vm, pos_obj);
     Value pos_val = NEW_OBJ(pos_obj);
 
-    list_add(tail, &pos_val);
+    _list_add(tail, &pos_val);
 
-    return make_kindSeries(vm, chart, "legend", tail);
+    return _make_kindSeries(vm, chart, "legend", tail);
 }
 
-static int subplot_rect(int canvas_w, int canvas_h, int rows, int cols, int index, SDL_Rect *out)
+static int _subplot_rect(int canvas_w, int canvas_h, int rows, int cols, int index, SDL_Rect *out)
 {
     if (!out || rows <= 0 || cols <= 0 || index < 1 || index > rows * cols)
         return 0;
@@ -1241,7 +1241,7 @@ static int subplot_rect(int canvas_w, int canvas_h, int rows, int cols, int inde
     int row = idx / cols;
     int col = idx % cols;
     int min_side = canvas_w < canvas_h ? canvas_w : canvas_h;
-    int gap = (rows > 1 || cols > 1) ? clamp_int(min_side / 160, 2, 6) : 0;
+    int gap = (rows > 1 || cols > 1) ? _clamp_int(min_side / 160, 2, 6) : 0;
 
     int cell_w = (canvas_w - gap * (cols + 1)) / cols;
     int cell_h = (canvas_h - gap * (rows + 1)) / rows;
@@ -1255,12 +1255,12 @@ static int subplot_rect(int canvas_w, int canvas_h, int rows, int cols, int inde
     return 1;
 }
 
-static int chart_has_subplot(PiChart *chart)
+static int _chart_HasSubplot(PiChart *chart)
 {
     return chart && (chart->subplot_rows > 1 || chart->subplot_cols > 1);
 }
 
-Value pt_subplot(vm_t *vm, int argc, Value *argv)
+Value pt_subplot(VM *vm, int argc, Value *argv)
 {
     if (argc < 4 || !IS_CHART(argv[0]) || !IS_NUM(argv[1]) || !IS_NUM(argv[2]) || !IS_NUM(argv[3]))
     {
@@ -1285,9 +1285,9 @@ Value pt_subplot(vm_t *vm, int argc, Value *argv)
     return argv[0];
 }
 
-static int series_color(list_t *items, int default_color);
+static int _series_color(List *items, int default_color);
 
-static int is_legendDrawableKind(const char *kind)
+static int _is_legendDrawableKind(const char *kind)
 {
     return !strcmp(kind, "scatter") ||
            !strcmp(kind, "line") ||
@@ -1301,39 +1301,39 @@ static int is_legendDrawableKind(const char *kind)
            !strcmp(kind, "streamplot");
 }
 
-static int legend_seriesColor(PiChart *chart, int legend_index)
+static int _legend_seriesColor(PiChart *chart, int legend_index)
 {
     int plotted_index = 0;
-    int ns = list_size(chart->series);
+    int ns = LIST_SIZE(chart->series);
 
     for (int si = 0; si < ns; si++)
     {
-        Value *series_val = (Value *)list_getAt(chart->series, si);
+        Value *series_val = (Value *)_list_getAt(chart->series, si);
         if (!series_val || !IS_LIST(*series_val))
             continue;
 
-        list_t *items = AS_LIST(*series_val)->items;
+        List *items = AS_LIST(*series_val)->items;
         if (LIST_SIZE(items) < 1)
             continue;
 
-        Value *k0 = (Value *)list_getAt(items, 0);
+        Value *k0 = (Value *)_list_getAt(items, 0);
         if (!k0 || !IS_STRING(*k0))
             continue;
 
         const char *kind = AS_CSTRING(*k0);
-        if (!is_legendDrawableKind(kind))
+        if (!_is_legendDrawableKind(kind))
             continue;
 
         if (plotted_index == legend_index)
-            return series_color(items, palette_color(plotted_index));
+            return _series_color(items, _palette_color(plotted_index));
 
         plotted_index++;
     }
 
-    return palette_color(legend_index);
+    return _palette_color(legend_index);
 }
 
-static void draw_legend(DrawContext *dc, list_t *items,
+static void _draw_legend(DrawContext *dc, List *items,
                         int border_left, int border_top,
                         int border_right, int border_bottom,
                         int has_heatmap, PiTensor *heatmap_matrix,
@@ -1343,7 +1343,7 @@ static void draw_legend(DrawContext *dc, list_t *items,
         return;
     SDL_Renderer *r = dc->r;
 
-    PiList *leg = AS_LIST(*(Value *)list_getAt(items, 1));
+    PiList *leg = AS_LIST(*(Value *)_list_getAt(items, 1));
     int ln = LIST_SIZE(leg->items);
 
     const int swatch_size = 10;
@@ -1356,12 +1356,12 @@ static void draw_legend(DrawContext *dc, list_t *items,
     int max_label_width = 0;
     for (int li = 0; li < ln; li++)
     {
-        Value *lv = (Value *)list_getAt(leg->items, li);
+        Value *lv = (Value *)_list_getAt(leg->items, li);
         if (!lv || !IS_STRING(*lv))
             continue;
 
         int tw, th;
-        measure_text(legend_font, AS_CSTRING(*lv), TEXT_NONE, &tw, &th);
+        _measure_text(legend_font, AS_CSTRING(*lv), TEXT_NONE, &tw, &th);
         if (tw > max_label_width)
             max_label_width = tw;
     }
@@ -1369,11 +1369,11 @@ static void draw_legend(DrawContext *dc, list_t *items,
     double legend_x = -1.0, legend_y = -1.0;
     if (LIST_SIZE(items) >= 3)
     {
-        PiList *pos = AS_LIST(*(Value *)list_getAt(items, 2));
+        PiList *pos = AS_LIST(*(Value *)_list_getAt(items, 2));
         if (LIST_SIZE(pos->items) >= 2)
         {
-            Value *px = (Value *)list_getAt(pos->items, 0);
-            Value *py = (Value *)list_getAt(pos->items, 1);
+            Value *px = (Value *)_list_getAt(pos->items, 0);
+            Value *py = (Value *)_list_getAt(pos->items, 1);
             if (IS_NUM(*px))
                 legend_x = AS_NUM(*px);
             if (IS_NUM(*py))
@@ -1397,7 +1397,7 @@ static void draw_legend(DrawContext *dc, list_t *items,
         else
         {
             int px_tmp, py_tmp;
-            map_xy(dc->chart, legend_x, legend_y, dc->W, dc->H, dc->margin, dc->ymargin, &px_tmp, &py_tmp);
+            _map_xy(dc->chart, legend_x, legend_y, dc->W, dc->H, dc->margin, dc->ymargin, &px_tmp, &py_tmp);
             legend_x_pos = px_tmp;
             legend_y_pos = py_tmp - legend_height / 2;
         }
@@ -1412,7 +1412,7 @@ static void draw_legend(DrawContext *dc, list_t *items,
         else
         {
             int px_tmp, py_tmp;
-            map_xy(dc->chart, legend_x, dc->chart->ymax, dc->W, dc->H, dc->margin, dc->ymargin, &px_tmp, &py_tmp);
+            _map_xy(dc->chart, legend_x, dc->chart->ymax, dc->W, dc->H, dc->margin, dc->ymargin, &px_tmp, &py_tmp);
             legend_x_pos = px_tmp;
             legend_y_pos = py_tmp + 10;
         }
@@ -1427,7 +1427,7 @@ static void draw_legend(DrawContext *dc, list_t *items,
         else
         {
             int px_tmp, py_tmp;
-            map_xy(dc->chart, dc->chart->xmax, legend_y, dc->W, dc->H, dc->margin, dc->ymargin, &px_tmp, &py_tmp);
+            _map_xy(dc->chart, dc->chart->xmax, legend_y, dc->W, dc->H, dc->margin, dc->ymargin, &px_tmp, &py_tmp);
             legend_x_pos = px_tmp - legend_width - 10;
             legend_y_pos = py_tmp - legend_height / 2;
         }
@@ -1448,48 +1448,48 @@ static void draw_legend(DrawContext *dc, list_t *items,
         legend_y_pos = border_bottom - legend_height - 10;
 
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
-    set_drawColor(r, 0xffffff, 220);
+    _set_drawColor(r, 0xffffff, 220);
     SDL_Rect legend_bg = {legend_x_pos, legend_y_pos, legend_width, legend_height};
     SDL_RenderFillRect(r, &legend_bg);
-    set_drawColor(r, 0x000000, 255);
+    _set_drawColor(r, 0x000000, 255);
     SDL_RenderDrawRect(r, &legend_bg);
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
 
     for (int li = 0; li < ln; li++)
     {
-        Value *lv = (Value *)list_getAt(leg->items, li);
+        Value *lv = (Value *)_list_getAt(leg->items, li);
         if (!IS_STRING(*lv))
             continue;
 
         int row_y = legend_y_pos + pad + li * row_height;
-        int c = legend_seriesColor(dc->chart, li);
-        set_drawColor(r, c, 255);
+        int c = _legend_seriesColor(dc->chart, li);
+        _set_drawColor(r, c, 255);
         SDL_Rect sq = {legend_x_pos + pad, row_y + (row_height - swatch_size) / 2, swatch_size, swatch_size};
         SDL_RenderFillRect(r, &sq);
-        set_drawColor(r, 0x000000, 255);
+        _set_drawColor(r, 0x000000, 255);
         SDL_RenderDrawRect(r, &sq);
         if (legend_font)
-            draw_text(r, legend_font, AS_CSTRING(*lv),
+            _draw_text(r, legend_font, AS_CSTRING(*lv),
                       legend_x_pos + pad + swatch_size + swatch_gap, row_y + row_height / 2, 0x333333, TEXT_CENTER_Y);
     }
 }
 
-static int series_color(list_t *items, int default_color)
+static int _series_color(List *items, int default_color)
 {
     if (LIST_SIZE(items) >= 4)
     {
-        Value *vc = (Value *)list_getAt(items, 3);
+        Value *vc = (Value *)_list_getAt(items, 3);
         if (vc && IS_NUM(*vc))
             return (int)AS_NUM(*vc);
     }
     return default_color;
 }
 
-static char series_shape(list_t *items)
+static char _series_shape(List *items)
 {
     if (LIST_SIZE(items) >= 5)
     {
-        Value *vs = (Value *)list_getAt(items, 4);
+        Value *vs = (Value *)_list_getAt(items, 4);
         if (vs && IS_STRING(*vs))
         {
             const char *s = AS_CSTRING(*vs);
@@ -1498,7 +1498,7 @@ static char series_shape(list_t *items)
     }
     if (LIST_SIZE(items) >= 4)
     {
-        Value *vs = (Value *)list_getAt(items, 3);
+        Value *vs = (Value *)_list_getAt(items, 3);
         if (vs && IS_STRING(*vs))
         {
             const char *s = AS_CSTRING(*vs);
@@ -1508,28 +1508,28 @@ static char series_shape(list_t *items)
     return 'o';
 }
 
-static void draw_scatter(DrawContext *dc, list_t *items)
+static void _draw_scatter(DrawContext *dc, List *items)
 {
     if (LIST_SIZE(items) < 3)
         return;
 
-    PiList *xl = AS_LIST(*(Value *)list_getAt(items, 1));
-    PiList *yl = AS_LIST(*(Value *)list_getAt(items, 2));
+    PiList *xl = AS_LIST(*(Value *)_list_getAt(items, 1));
+    PiList *yl = AS_LIST(*(Value *)_list_getAt(items, 2));
     int n = LIST_SIZE(xl->items);
 
-    int col = series_color(items, dc->col);
-    char shape = series_shape(items);
+    int col = _series_color(items, dc->col);
+    char shape = _series_shape(items);
 
     for (int i = 0; i < n; i++)
     {
-        Value *vx = (Value *)list_getAt(xl->items, i);
-        Value *vy = (Value *)list_getAt(yl->items, i);
+        Value *vx = (Value *)_list_getAt(xl->items, i);
+        Value *vy = (Value *)_list_getAt(yl->items, i);
 
         if (!IS_NUM(*vx) || !IS_NUM(*vy))
             continue;
 
         int px, py;
-        map_xy(dc->chart,
+        _map_xy(dc->chart,
                AS_NUM(*vx),
                AS_NUM(*vy),
                dc->W, dc->H,
@@ -1539,7 +1539,7 @@ static void draw_scatter(DrawContext *dc, list_t *items)
 
         if (shape == 'x')
         {
-            set_drawColor(dc->r, col, 255);
+            _set_drawColor(dc->r, col, 255);
 
             int len = 3; // smaller arms (was 6)
             int w = 1;   // thin stroke
@@ -1562,40 +1562,40 @@ static void draw_scatter(DrawContext *dc, list_t *items)
         }
         else if (shape == 's')
         {
-            set_drawColor(dc->r, col, 220);
+            _set_drawColor(dc->r, col, 220);
             SDL_Rect rect = {px - 5, py - 5, 10, 10};
             SDL_RenderFillRect(dc->r, &rect);
-            set_drawColor(dc->r, 0x000000, 255);
+            _set_drawColor(dc->r, 0x000000, 255);
             SDL_RenderDrawRect(dc->r, &rect);
         }
         else
         {
-            draw_filledBorderedCircle(dc->r, px, py, 5, col, 0x000000);
+            _draw_filledBorderedCircle(dc->r, px, py, 5, col, 0x000000);
         }
     }
 }
 
-static void draw_line(DrawContext *dc, list_t *items)
+static void _draw_line(DrawContext *dc, List *items)
 {
     if (LIST_SIZE(items) < 3)
         return;
-    PiList *xl = AS_LIST(*(Value *)list_getAt(items, 1));
-    PiList *yl = AS_LIST(*(Value *)list_getAt(items, 2));
+    PiList *xl = AS_LIST(*(Value *)_list_getAt(items, 1));
+    PiList *yl = AS_LIST(*(Value *)_list_getAt(items, 2));
     int n = LIST_SIZE(xl->items);
     for (int i = 0; i < n - 1; i++)
     {
-        Value *vx0 = (Value *)list_getAt(xl->items, i);
-        Value *vy0 = (Value *)list_getAt(yl->items, i);
-        Value *vx1 = (Value *)list_getAt(xl->items, i + 1);
-        Value *vy1 = (Value *)list_getAt(yl->items, i + 1);
+        Value *vx0 = (Value *)_list_getAt(xl->items, i);
+        Value *vy0 = (Value *)_list_getAt(yl->items, i);
+        Value *vx1 = (Value *)_list_getAt(xl->items, i + 1);
+        Value *vy1 = (Value *)_list_getAt(yl->items, i + 1);
         if (!IS_NUM(*vx0) || !IS_NUM(*vy0) || !IS_NUM(*vx1) || !IS_NUM(*vy1))
             continue;
         int p0x, p0y, p1x, p1y;
-        map_xy(dc->chart, AS_NUM(*vx0), AS_NUM(*vy0), dc->W, dc->H, dc->margin, dc->ymargin, &p0x, &p0y);
-        map_xy(dc->chart, AS_NUM(*vx1), AS_NUM(*vy1), dc->W, dc->H, dc->margin, dc->ymargin, &p1x, &p1y);
+        _map_xy(dc->chart, AS_NUM(*vx0), AS_NUM(*vy0), dc->W, dc->H, dc->margin, dc->ymargin, &p0x, &p0y);
+        _map_xy(dc->chart, AS_NUM(*vx1), AS_NUM(*vy1), dc->W, dc->H, dc->margin, dc->ymargin, &p1x, &p1y);
 
-        int col = series_color(items, dc->col);
-        set_drawColor(dc->r, col, 255);
+        int col = _series_color(items, dc->col);
+        _set_drawColor(dc->r, col, 255);
 
         // Draw three slightly offset lines to create thickness = 2
         SDL_RenderDrawLine(dc->r, p0x, p0y, p1x, p1y);
@@ -1604,28 +1604,28 @@ static void draw_line(DrawContext *dc, list_t *items)
     }
 }
 
-static void draw_step(DrawContext *dc, list_t *items)
+static void _draw_step(DrawContext *dc, List *items)
 {
     if (LIST_SIZE(items) < 3)
         return;
-    PiList *xl = AS_LIST(*(Value *)list_getAt(items, 1));
-    PiList *yl = AS_LIST(*(Value *)list_getAt(items, 2));
+    PiList *xl = AS_LIST(*(Value *)_list_getAt(items, 1));
+    PiList *yl = AS_LIST(*(Value *)_list_getAt(items, 2));
     int n = LIST_SIZE(xl->items);
     for (int i = 0; i < n - 1; i++)
     {
-        Value *vx0 = (Value *)list_getAt(xl->items, i);
-        Value *vy0 = (Value *)list_getAt(yl->items, i);
-        Value *vx1 = (Value *)list_getAt(xl->items, i + 1);
-        Value *vy1 = (Value *)list_getAt(yl->items, i + 1);
+        Value *vx0 = (Value *)_list_getAt(xl->items, i);
+        Value *vy0 = (Value *)_list_getAt(yl->items, i);
+        Value *vx1 = (Value *)_list_getAt(xl->items, i + 1);
+        Value *vy1 = (Value *)_list_getAt(yl->items, i + 1);
         if (!IS_NUM(*vx0) || !IS_NUM(*vy0) || !IS_NUM(*vx1) || !IS_NUM(*vy1))
             continue;
         int p0x, p0y, p1x, p1y, p2x, p2y;
-        map_xy(dc->chart, AS_NUM(*vx0), AS_NUM(*vy0), dc->W, dc->H, dc->margin, dc->ymargin, &p0x, &p0y);
-        map_xy(dc->chart, AS_NUM(*vx1), AS_NUM(*vy0), dc->W, dc->H, dc->margin, dc->ymargin, &p1x, &p1y);
-        map_xy(dc->chart, AS_NUM(*vx1), AS_NUM(*vy1), dc->W, dc->H, dc->margin, dc->ymargin, &p2x, &p2y);
+        _map_xy(dc->chart, AS_NUM(*vx0), AS_NUM(*vy0), dc->W, dc->H, dc->margin, dc->ymargin, &p0x, &p0y);
+        _map_xy(dc->chart, AS_NUM(*vx1), AS_NUM(*vy0), dc->W, dc->H, dc->margin, dc->ymargin, &p1x, &p1y);
+        _map_xy(dc->chart, AS_NUM(*vx1), AS_NUM(*vy1), dc->W, dc->H, dc->margin, dc->ymargin, &p2x, &p2y);
 
-        int col = series_color(items, dc->col);
-        set_drawColor(dc->r, col, 255);
+        int col = _series_color(items, dc->col);
+        _set_drawColor(dc->r, col, 255);
 
         // Horizontal segment
         SDL_RenderDrawLine(dc->r, p0x, p0y, p1x, p1y);
@@ -1639,48 +1639,48 @@ static void draw_step(DrawContext *dc, list_t *items)
     }
 }
 
-static void draw_bar(DrawContext *dc, list_t *items)
+static void _draw_bar(DrawContext *dc, List *items)
 {
     if (LIST_SIZE(items) < 3)
         return;
-    PiList *xl = AS_LIST(*(Value *)list_getAt(items, 1));
-    PiList *yl = AS_LIST(*(Value *)list_getAt(items, 2));
+    PiList *xl = AS_LIST(*(Value *)_list_getAt(items, 1));
+    PiList *yl = AS_LIST(*(Value *)_list_getAt(items, 2));
     int n = LIST_SIZE(yl->items);
     (void)xl;
     for (int i = 0; i < n; i++)
     {
-        Value *vy = (Value *)list_getAt(yl->items, i);
+        Value *vy = (Value *)_list_getAt(yl->items, i);
         if (!IS_NUM(*vy))
             continue;
         double yi = AS_NUM(*vy);
         double xleft = (double)i - 0.4;
         double xright = (double)i + 0.4;
         int ax0, ay0, ax1, ay1, bx0, ay1b;
-        map_xy(dc->chart, xleft, 0, dc->W, dc->H, dc->margin, dc->ymargin, &ax0, &ay0);
-        map_xy(dc->chart, xright, 0, dc->W, dc->H, dc->margin, dc->ymargin, &ax1, &ay1);
-        map_xy(dc->chart, xleft, yi, dc->W, dc->H, dc->margin, dc->ymargin, &bx0, &ay1b);
+        _map_xy(dc->chart, xleft, 0, dc->W, dc->H, dc->margin, dc->ymargin, &ax0, &ay0);
+        _map_xy(dc->chart, xright, 0, dc->W, dc->H, dc->margin, dc->ymargin, &ax1, &ay1);
+        _map_xy(dc->chart, xleft, yi, dc->W, dc->H, dc->margin, dc->ymargin, &bx0, &ay1b);
         SDL_Rect rect = {ax0, ay1b, ax1 - ax0, ay0 - ay1b};
         if (rect.w < 1)
             rect.w = 1;
         if (rect.h < 1)
             rect.h = 1;
-        int col = series_color(items, dc->col);
-        set_drawColor(dc->r, col, 220);
+        int col = _series_color(items, dc->col);
+        _set_drawColor(dc->r, col, 220);
         SDL_RenderFillRect(dc->r, &rect);
-        set_drawColor(dc->r, 0x000000, 255);
+        _set_drawColor(dc->r, 0x000000, 255);
         SDL_RenderDrawRect(dc->r, &rect);
     }
 }
 
-static void draw_hist(DrawContext *dc, list_t *items)
+static void _draw_hist(DrawContext *dc, List *items)
 {
     if (LIST_SIZE(items) < 2)
         return;
-    PiList *dl = AS_LIST(*(Value *)list_getAt(items, 1));
+    PiList *dl = AS_LIST(*(Value *)_list_getAt(items, 1));
     int bins = 10;
     if (LIST_SIZE(items) > 2)
     {
-        Value *vb = (Value *)list_getAt(items, 2);
+        Value *vb = (Value *)_list_getAt(items, 2);
         if (IS_NUM(*vb))
             bins = (int)AS_NUM(*vb);
     }
@@ -1690,8 +1690,8 @@ static void draw_hist(DrawContext *dc, list_t *items)
     if (nd < 1)
         return;
 
-    double lo = list_min(dl->items);
-    double hi = list_max(dl->items);
+    double lo = _list_min(dl->items);
+    double hi = _list_max(dl->items);
     if (hi <= lo)
         hi = lo + 1e-9;
 
@@ -1700,7 +1700,7 @@ static void draw_hist(DrawContext *dc, list_t *items)
         return;
     for (int i = 0; i < nd; i++)
     {
-        Value *v = (Value *)list_getAt(dl->items, i);
+        Value *v = (Value *)_list_getAt(dl->items, i);
         if (!IS_NUM(*v))
             continue;
         double x = AS_NUM(*v);
@@ -1718,24 +1718,24 @@ static void draw_hist(DrawContext *dc, list_t *items)
         double x1 = lo + (hi - lo) * (b + 1) / bins;
         double h = counts[b];
         int ax0, ay0, ax1, bx0, by1;
-        map_xy(dc->chart, x0, 0, dc->W, dc->H, dc->margin, dc->ymargin, &ax0, &ay0);
-        map_xy(dc->chart, x1, 0, dc->W, dc->H, dc->margin, dc->ymargin, &ax1, &ay0);
-        map_xy(dc->chart, x0, h, dc->W, dc->H, dc->margin, dc->ymargin, &bx0, &by1);
+        _map_xy(dc->chart, x0, 0, dc->W, dc->H, dc->margin, dc->ymargin, &ax0, &ay0);
+        _map_xy(dc->chart, x1, 0, dc->W, dc->H, dc->margin, dc->ymargin, &ax1, &ay0);
+        _map_xy(dc->chart, x0, h, dc->W, dc->H, dc->margin, dc->ymargin, &bx0, &by1);
         SDL_Rect rect = {ax0, by1, ax1 - ax0, ay0 - by1};
         if (rect.w < 1)
             rect.w = 1;
         if (rect.h < 1)
             rect.h = 1;
-        int col = series_color(items, dc->col);
-        set_drawColor(dc->r, col, 220);
+        int col = _series_color(items, dc->col);
+        _set_drawColor(dc->r, col, 220);
         SDL_RenderFillRect(dc->r, &rect);
-        set_drawColor(dc->r, 0x000000, 255);
+        _set_drawColor(dc->r, 0x000000, 255);
         SDL_RenderDrawRect(dc->r, &rect);
     }
     free(counts);
 }
 
-static void draw_heatmap(DrawContext *dc, list_t *items,
+static void _draw_heatmap(DrawContext *dc, List *items,
                          int heatmap_start_x, int heatmap_start_y,
                          int heatmap_width, int heatmap_height,
                          double cell_size,
@@ -1743,7 +1743,7 @@ static void draw_heatmap(DrawContext *dc, list_t *items,
 {
     if (LIST_SIZE(items) < 2)
         return;
-    Value *mv = (Value *)list_getAt(items, 1);
+    Value *mv = (Value *)_list_getAt(items, 1);
     if (!IS_TENSOR(*mv) || AS_TENSOR(*mv)->ndim != 2)
         return;
     PiTensor *M = AS_TENSOR(*mv);
@@ -1779,7 +1779,7 @@ static void draw_heatmap(DrawContext *dc, list_t *items,
             if (t > 1)
                 t = 1;
             Uint8 Rc, Gc, Bc;
-            heatmap_rgb(t, &Rc, &Gc, &Bc);
+            _heatmap_rgb(t, &Rc, &Gc, &Bc);
             SDL_SetRenderDrawColor(dc->r, Rc, Gc, Bc, 255);
             SDL_Rect rect = {
                 heatmap_start_x + (int)(col * cell_size),
@@ -1792,7 +1792,7 @@ static void draw_heatmap(DrawContext *dc, list_t *items,
 
     if (dc->chart->show_grid && cell_size > 10)
     {
-        set_drawColor(dc->r, 0xffffff, 180);
+        _set_drawColor(dc->r, 0xffffff, 180);
         for (int col = 1; col < M->cols; col++)
         {
             int x = heatmap_start_x + (int)(col * cell_size);
@@ -1807,22 +1807,22 @@ static void draw_heatmap(DrawContext *dc, list_t *items,
 
     int color_bar_x = border_right + 15;
     int color_bar_width = 25;
-    draw_colorBar(dc->r, dc->chart, zmin, zmax, dc->W, dc->H, dc->margin,
+    _draw_colorBar(dc->r, dc->chart, zmin, zmax, dc->W, dc->H, dc->margin,
                   color_bar_x, border_top, border_bottom, color_bar_width);
 
-    TTF_Font *small_font = get_openFont(10);
+    TTF_Font *small_font = _get_openFont(10);
     if (small_font)
     {
-        draw_text(dc->r, small_font, "Value",
+        _draw_text(dc->r, small_font, "Value",
                   color_bar_x + color_bar_width / 2,
                   (border_top + border_bottom) / 2, 0x444444, TEXT_VERTICAL | TEXT_BOLD);
         TTF_CloseFont(small_font);
     }
 }
 
-static void tensor_minmax(PiTensor *M, double *zmin, double *zmax);
+static void _tensor_minmax(PiTensor *M, double *zmin, double *zmax);
 
-static Uint8 imshow_channel(double value, double scale)
+static Uint8 _imshow_channel(double value, double scale)
 {
     double v = value * scale;
     if (v < 0.0)
@@ -1832,7 +1832,7 @@ static Uint8 imshow_channel(double value, double scale)
     return (Uint8)lrint(v);
 }
 
-static double tensor_imageScale(PiTensor *M)
+static double _tensor_imageScale(PiTensor *M)
 {
     double max_abs = 0.0;
     for (int i = 0; i < M->size; i++)
@@ -1844,12 +1844,12 @@ static double tensor_imageScale(PiTensor *M)
     return max_abs <= 1.0 ? 255.0 : 1.0;
 }
 
-static void draw_imshowTensor2D(DrawContext *dc, PiTensor *M,
+static void _draw_imshowTensor2D(DrawContext *dc, PiTensor *M,
                                 int start_x, int start_y, int width, int height,
                                 int border_right, int border_top, int border_bottom)
 {
     double zmin, zmax;
-    tensor_minmax(M, &zmin, &zmax);
+    _tensor_minmax(M, &zmin, &zmax);
 
     int idx[2];
     for (int row = 0; row < M->rows; row++)
@@ -1871,7 +1871,7 @@ static void draw_imshowTensor2D(DrawContext *dc, PiTensor *M,
                 t = 1.0;
 
             Uint8 R, G, B;
-            heatmap_rgb(t, &R, &G, &B);
+            _heatmap_rgb(t, &R, &G, &B);
             SDL_SetRenderDrawColor(dc->r, R, G, B, 255);
 
             int x0 = start_x + (int)((double)col * width / M->cols);
@@ -1887,7 +1887,7 @@ static void draw_imshowTensor2D(DrawContext *dc, PiTensor *M,
     if (dc->chart->show_grid && M->rows <= 80 && M->cols <= 80 && width / M->cols > 4 && height / M->rows > 4)
     {
         SDL_SetRenderDrawBlendMode(dc->r, SDL_BLENDMODE_BLEND);
-        set_drawColor(dc->r, 0xffffff, 95);
+        _set_drawColor(dc->r, 0xffffff, 95);
         for (int col = 1; col < M->cols; col++)
         {
             int x = start_x + (int)((double)col * width / M->cols);
@@ -1903,11 +1903,11 @@ static void draw_imshowTensor2D(DrawContext *dc, PiTensor *M,
 
     int color_bar_width = width < 160 ? 18 : 25;
     int color_bar_x = border_right + (width < 160 ? 8 : 15);
-    draw_colorBar(dc->r, dc->chart, zmin, zmax, dc->W, dc->H, dc->margin,
+    _draw_colorBar(dc->r, dc->chart, zmin, zmax, dc->W, dc->H, dc->margin,
                   color_bar_x, border_top, border_bottom, color_bar_width);
 }
 
-static void draw_imshowTensorImage(DrawContext *dc, PiTensor *M,
+static void _draw_imshowTensorImage(DrawContext *dc, PiTensor *M,
                                    int start_x, int start_y, int width, int height)
 {
     int rows = M->shape[0];
@@ -1916,7 +1916,7 @@ static void draw_imshowTensorImage(DrawContext *dc, PiTensor *M,
     if (rows <= 0 || cols <= 0 || channels <= 0)
         return;
 
-    double scale = tensor_imageScale(M);
+    double scale = _tensor_imageScale(M);
     int idx[3];
     for (int row = 0; row < rows; row++)
     {
@@ -1932,7 +1932,7 @@ static void draw_imshowTensorImage(DrawContext *dc, PiTensor *M,
             Uint8 R = 0, G = 0, B = 0, A = 255;
 
             idx[2] = 0;
-            R = imshow_channel(tensor_get(M, idx), scale);
+            R = _imshow_channel(tensor_get(M, idx), scale);
             if (channels == 1)
             {
                 G = R;
@@ -1941,13 +1941,13 @@ static void draw_imshowTensorImage(DrawContext *dc, PiTensor *M,
             else
             {
                 idx[2] = 1;
-                G = imshow_channel(tensor_get(M, idx), scale);
+                G = _imshow_channel(tensor_get(M, idx), scale);
                 idx[2] = 2;
-                B = channels >= 3 ? imshow_channel(tensor_get(M, idx), scale) : 0;
+                B = channels >= 3 ? _imshow_channel(tensor_get(M, idx), scale) : 0;
                 if (channels >= 4)
                 {
                     idx[2] = 3;
-                    A = imshow_channel(tensor_get(M, idx), scale);
+                    A = _imshow_channel(tensor_get(M, idx), scale);
                 }
             }
 
@@ -1966,7 +1966,7 @@ static void draw_imshowTensorImage(DrawContext *dc, PiTensor *M,
     SDL_SetRenderDrawBlendMode(dc->r, SDL_BLENDMODE_NONE);
 }
 
-static void draw_imshowImage(DrawContext *dc, ObjImage *img,
+static void _draw_imshowImage(DrawContext *dc, ObjImage *img,
                              int start_x, int start_y, int width, int height)
 {
     if (!img || !img->surface)
@@ -1981,28 +1981,28 @@ static void draw_imshowImage(DrawContext *dc, ObjImage *img,
     SDL_DestroyTexture(tex);
 }
 
-static void draw_imshow(DrawContext *dc, list_t *items,
+static void _draw_imshow(DrawContext *dc, List *items,
                         int start_x, int start_y, int width, int height,
                         int border_right, int border_top, int border_bottom)
 {
     if (LIST_SIZE(items) < 2 || width <= 0 || height <= 0)
         return;
 
-    Value *mv = (Value *)list_getAt(items, 1);
+    Value *mv = (Value *)_list_getAt(items, 1);
     if (IS_TENSOR(*mv))
     {
         PiTensor *M = AS_TENSOR(*mv);
         if (M->ndim == 2)
-            draw_imshowTensor2D(dc, M, start_x, start_y, width, height,
+            _draw_imshowTensor2D(dc, M, start_x, start_y, width, height,
                                 border_right, border_top, border_bottom);
         else if (M->ndim == 3)
-            draw_imshowTensorImage(dc, M, start_x, start_y, width, height);
+            _draw_imshowTensorImage(dc, M, start_x, start_y, width, height);
     }
     else if (IS_IMAGE(*mv))
-        draw_imshowImage(dc, AS_IMAGE(*mv), start_x, start_y, width, height);
+        _draw_imshowImage(dc, AS_IMAGE(*mv), start_x, start_y, width, height);
 }
 
-static void draw_gridAxisTicks(SDL_Renderer *r, TTF_Font *font,
+static void _draw_gridAxisTicks(SDL_Renderer *r, TTF_Font *font,
                                int border_left, int border_top,
                                int border_right, int border_bottom,
                                int rows, int cols,
@@ -2011,8 +2011,8 @@ static void draw_gridAxisTicks(SDL_Renderer *r, TTF_Font *font,
     if (rows <= 0 || cols <= 0 || cell_width <= 0.0 || cell_height <= 0.0)
         return;
 
-    int x_count = adaptive_tickCount(border_right - border_left);
-    int y_count = adaptive_tickCount(border_bottom - border_top);
+    int x_count = _adaptive_tickCount(border_right - border_left);
+    int y_count = _adaptive_tickCount(border_bottom - border_top);
     if (x_count > 5)
         x_count = 5;
     if (y_count > 5)
@@ -2024,7 +2024,7 @@ static void draw_gridAxisTicks(SDL_Renderer *r, TTF_Font *font,
     if (y_step < 1)
         y_step = 1;
 
-    set_drawColor(r, 0xffffff, 255);
+    _set_drawColor(r, 0xffffff, 255);
     SDL_Rect bottom_band = {
         border_left - 1,
         border_bottom + 1,
@@ -2040,7 +2040,7 @@ static void draw_gridAxisTicks(SDL_Renderer *r, TTF_Font *font,
     if (left_band.w > 0)
         SDL_RenderFillRect(r, &left_band);
 
-    set_drawColor(r, 0x333333, 255);
+    _set_drawColor(r, 0x333333, 255);
 
     for (int col = 0; col < cols; col += x_step)
     {
@@ -2052,13 +2052,13 @@ static void draw_gridAxisTicks(SDL_Renderer *r, TTF_Font *font,
         if (font)
         {
             int tw, th;
-            measure_text(font, label, TEXT_NONE, &tw, &th);
+            _measure_text(font, label, TEXT_NONE, &tw, &th);
             int lx = x - tw / 2;
             if (lx < border_left)
                 lx = border_left;
             if (lx + tw > border_right)
                 lx = border_right - tw;
-            draw_text(r, font, label, lx, border_bottom + 8, 0x111111, TEXT_NONE);
+            _draw_text(r, font, label, lx, border_bottom + 8, 0x111111, TEXT_NONE);
         }
     }
 
@@ -2072,13 +2072,13 @@ static void draw_gridAxisTicks(SDL_Renderer *r, TTF_Font *font,
         if (font)
         {
             int tw, th;
-            measure_text(font, label, TEXT_NONE, &tw, &th);
+            _measure_text(font, label, TEXT_NONE, &tw, &th);
             int lx = x - tw / 2;
             if (lx < border_left)
                 lx = border_left;
             if (lx + tw > border_right)
                 lx = border_right - tw;
-            draw_text(r, font, label, lx, border_bottom + 8, 0x111111, TEXT_NONE);
+            _draw_text(r, font, label, lx, border_bottom + 8, 0x111111, TEXT_NONE);
         }
     }
 
@@ -2092,11 +2092,11 @@ static void draw_gridAxisTicks(SDL_Renderer *r, TTF_Font *font,
         if (font)
         {
             int tw, th;
-            measure_text(font, label, TEXT_NONE, &tw, &th);
+            _measure_text(font, label, TEXT_NONE, &tw, &th);
             int lx = border_left - tw - 9;
             if (lx < 2)
                 lx = 2;
-            draw_text(r, font, label, lx, y, 0x111111, TEXT_CENTER_Y);
+            _draw_text(r, font, label, lx, y, 0x111111, TEXT_CENTER_Y);
         }
     }
 
@@ -2110,16 +2110,16 @@ static void draw_gridAxisTicks(SDL_Renderer *r, TTF_Font *font,
         if (font)
         {
             int tw, th;
-            measure_text(font, label, TEXT_NONE, &tw, &th);
+            _measure_text(font, label, TEXT_NONE, &tw, &th);
             int lx = border_left - tw - 9;
             if (lx < 2)
                 lx = 2;
-            draw_text(r, font, label, lx, y, 0x111111, TEXT_CENTER_Y);
+            _draw_text(r, font, label, lx, y, 0x111111, TEXT_CENTER_Y);
         }
     }
 }
 
-static int tensor_value(PiTensor *M, int row, int col, double *out)
+static int _tensor_value(PiTensor *M, int row, int col, double *out)
 {
     if (!M || row < 0 || col < 0 || row >= M->rows || col >= M->cols)
         return 0;
@@ -2128,7 +2128,7 @@ static int tensor_value(PiTensor *M, int row, int col, double *out)
     return 1;
 }
 
-static void tensor_minmax(PiTensor *M, double *zmin, double *zmax)
+static void _tensor_minmax(PiTensor *M, double *zmin, double *zmax)
 {
     *zmin = INFINITY;
     *zmax = -INFINITY;
@@ -2152,7 +2152,7 @@ static void tensor_minmax(PiTensor *M, double *zmin, double *zmax)
         *zmax = *zmin + 1e-9;
 }
 
-static int contour_interp(double level, double a, double b, double *t)
+static int _contour_interp(double level, double a, double b, double *t)
 {
     double d = b - a;
     if (fabs(d) < 1e-12)
@@ -2163,7 +2163,7 @@ static int contour_interp(double level, double a, double b, double *t)
     return *t >= 0.0 && *t <= 1.0;
 }
 
-static void map_gridPoint(PiTensor *M, double x, double y,
+static void _map_gridPoint(PiTensor *M, double x, double y,
                           int start_x, int start_y, int width, int height,
                           int *px, int *py)
 {
@@ -2173,19 +2173,19 @@ static void map_gridPoint(PiTensor *M, double x, double y,
     *py = start_y + (int)lrint((y / max_y) * height);
 }
 
-static void draw_softLine(SDL_Renderer *r, int x0, int y0, int x1, int y1)
+static void _draw_softLine(SDL_Renderer *r, int x0, int y0, int x1, int y1)
 {
     SDL_RenderDrawLine(r, x0, y0, x1, y1);
     SDL_RenderDrawLine(r, x0 + 1, y0, x1 + 1, y1);
     SDL_RenderDrawLine(r, x0, y0 + 1, x1, y1 + 1);
 }
 
-static void draw_contour(DrawContext *dc, list_t *items,
+static void _draw_contour(DrawContext *dc, List *items,
                          int start_x, int start_y, int width, int height)
 {
     if (LIST_SIZE(items) < 2)
         return;
-    Value *mv = (Value *)list_getAt(items, 1);
+    Value *mv = (Value *)_list_getAt(items, 1);
     if (!IS_TENSOR(*mv) || AS_TENSOR(*mv)->ndim != 2)
         return;
     PiTensor *M = AS_TENSOR(*mv);
@@ -2195,24 +2195,24 @@ static void draw_contour(DrawContext *dc, list_t *items,
     int levels = 16;
     if (LIST_SIZE(items) >= 3)
     {
-        Value *lv = (Value *)list_getAt(items, 2);
+        Value *lv = (Value *)_list_getAt(items, 2);
         if (lv && IS_NUM(*lv))
             levels = (int)AS_NUM(*lv);
     }
     if (levels < 1)
         levels = 1;
 
-    int col = series_color(items, dc->col);
+    int col = _series_color(items, dc->col);
     if (LIST_SIZE(items) >= 4)
     {
-        Value *cv = (Value *)list_getAt(items, 3);
+        Value *cv = (Value *)_list_getAt(items, 3);
         if (cv && IS_NUM(*cv))
             col = (int)AS_NUM(*cv);
     }
-    set_drawColor(dc->r, col, 255);
+    _set_drawColor(dc->r, col, 255);
 
     double zmin, zmax;
-    tensor_minmax(M, &zmin, &zmax);
+    _tensor_minmax(M, &zmin, &zmax);
 
     SDL_Rect clip = {start_x + 1, start_y + 1, width - 1, height - 1};
     if (clip.w <= 0 || clip.h <= 0)
@@ -2228,12 +2228,12 @@ static void draw_contour(DrawContext *dc, list_t *items,
         {
             double color_t = (double)(li - 1) / (levels > 1 ? levels - 1 : 1);
             Uint8 R, G, B;
-            heatmap_rgb(color_t, &R, &G, &B);
+            _heatmap_rgb(color_t, &R, &G, &B);
             SDL_SetRenderDrawColor(dc->r, R, G, B, 230);
         }
         else
         {
-            set_drawColor(dc->r, col, 230);
+            _set_drawColor(dc->r, col, 230);
         }
 
         for (int row = 0; row < M->rows - 1; row++)
@@ -2241,32 +2241,32 @@ static void draw_contour(DrawContext *dc, list_t *items,
             for (int c = 0; c < M->cols - 1; c++)
             {
                 double z00, z10, z11, z01;
-                tensor_value(M, row, c, &z00);
-                tensor_value(M, row, c + 1, &z10);
-                tensor_value(M, row + 1, c + 1, &z11);
-                tensor_value(M, row + 1, c, &z01);
+                _tensor_value(M, row, c, &z00);
+                _tensor_value(M, row, c + 1, &z10);
+                _tensor_value(M, row + 1, c + 1, &z11);
+                _tensor_value(M, row + 1, c, &z01);
 
                 double xs[4], ys[4];
                 int count = 0;
                 double t;
-                if (contour_interp(level, z00, z10, &t)) { xs[count] = c + t;     ys[count++] = row; }
-                if (contour_interp(level, z10, z11, &t)) { xs[count] = c + 1;     ys[count++] = row + t; }
-                if (contour_interp(level, z01, z11, &t)) { xs[count] = c + t;     ys[count++] = row + 1; }
-                if (contour_interp(level, z00, z01, &t)) { xs[count] = c;         ys[count++] = row + t; }
+                if (_contour_interp(level, z00, z10, &t)) { xs[count] = c + t;     ys[count++] = row; }
+                if (_contour_interp(level, z10, z11, &t)) { xs[count] = c + 1;     ys[count++] = row + t; }
+                if (_contour_interp(level, z01, z11, &t)) { xs[count] = c + t;     ys[count++] = row + 1; }
+                if (_contour_interp(level, z00, z01, &t)) { xs[count] = c;         ys[count++] = row + t; }
 
                 if (count >= 2)
                 {
                     int p0x, p0y, p1x, p1y;
-                    map_gridPoint(M, xs[0], ys[0], start_x, start_y, width, height, &p0x, &p0y);
-                    map_gridPoint(M, xs[1], ys[1], start_x, start_y, width, height, &p1x, &p1y);
-                    draw_softLine(dc->r, p0x, p0y, p1x, p1y);
+                    _map_gridPoint(M, xs[0], ys[0], start_x, start_y, width, height, &p0x, &p0y);
+                    _map_gridPoint(M, xs[1], ys[1], start_x, start_y, width, height, &p1x, &p1y);
+                    _draw_softLine(dc->r, p0x, p0y, p1x, p1y);
                 }
                 if (count == 4)
                 {
                     int p0x, p0y, p1x, p1y;
-                    map_gridPoint(M, xs[2], ys[2], start_x, start_y, width, height, &p0x, &p0y);
-                    map_gridPoint(M, xs[3], ys[3], start_x, start_y, width, height, &p1x, &p1y);
-                    draw_softLine(dc->r, p0x, p0y, p1x, p1y);
+                    _map_gridPoint(M, xs[2], ys[2], start_x, start_y, width, height, &p0x, &p0y);
+                    _map_gridPoint(M, xs[3], ys[3], start_x, start_y, width, height, &p1x, &p1y);
+                    _draw_softLine(dc->r, p0x, p0y, p1x, p1y);
                 }
             }
         }
@@ -2275,7 +2275,7 @@ static void draw_contour(DrawContext *dc, list_t *items,
     SDL_RenderSetClipRect(dc->r, NULL);
 }
 
-static void draw_arrow_line(SDL_Renderer *r, int x0, int y0, int x1, int y1)
+static void _draw_ArrowLine(SDL_Renderer *r, int x0, int y0, int x1, int y1)
 {
     SDL_RenderDrawLine(r, x0, y0, x1, y1);
     double a = atan2((double)y1 - y0, (double)x1 - x0);
@@ -2288,24 +2288,24 @@ static void draw_arrow_line(SDL_Renderer *r, int x0, int y0, int x1, int y1)
     SDL_RenderDrawLine(r, x1, y1, ax2, ay2);
 }
 
-static int vector_seriesColor(list_t *items, int default_color)
+static int _vector_seriesColor(List *items, int default_color)
 {
-    if (LIST_SIZE(items) >= 6 && IS_LIST(*(Value *)list_getAt(items, 1)))
+    if (LIST_SIZE(items) >= 6 && IS_LIST(*(Value *)_list_getAt(items, 1)))
     {
-        Value *vc = (Value *)list_getAt(items, 5);
+        Value *vc = (Value *)_list_getAt(items, 5);
         if (vc && IS_NUM(*vc))
             return (int)AS_NUM(*vc);
     }
     else if (LIST_SIZE(items) >= 4)
     {
-        Value *vc = (Value *)list_getAt(items, 3);
+        Value *vc = (Value *)_list_getAt(items, 3);
         if (vc && IS_NUM(*vc))
             return (int)AS_NUM(*vc);
     }
     return default_color;
 }
 
-static void draw_vectorSegment(DrawContext *dc, double x, double y, double u, double v,
+static void _draw_vectorSegment(DrawContext *dc, double x, double y, double u, double v,
                                double max_mag, double base_len, int stream_mode)
 {
     double mag = sqrt(u * u + v * v);
@@ -2313,8 +2313,8 @@ static void draw_vectorSegment(DrawContext *dc, double x, double y, double u, do
         return;
 
     int x0, y0, xdir, ydir;
-    map_xy(dc->chart, x, y, dc->W, dc->H, dc->margin, dc->ymargin, &x0, &y0);
-    map_xy(dc->chart, x + u / mag, y + v / mag, dc->W, dc->H, dc->margin, dc->ymargin, &xdir, &ydir);
+    _map_xy(dc->chart, x, y, dc->W, dc->H, dc->margin, dc->ymargin, &x0, &y0);
+    _map_xy(dc->chart, x + u / mag, y + v / mag, dc->W, dc->H, dc->margin, dc->ymargin, &xdir, &ydir);
 
     double dx = (double)xdir - x0;
     double dy = (double)ydir - y0;
@@ -2336,14 +2336,14 @@ static void draw_vectorSegment(DrawContext *dc, double x, double y, double u, do
         SDL_RenderDrawLine(dc->r, xa, ya, x1, y1);
     }
     else
-        draw_arrow_line(dc->r, x0, y0, x1, y1);
+        _draw_ArrowLine(dc->r, x0, y0, x1, y1);
 }
 
-static void draw_vector_field(DrawContext *dc, list_t *items, int stream_mode,
+static void _draw_VectorField(DrawContext *dc, List *items, int stream_mode,
                               int border_left, int border_top, int border_right, int border_bottom)
 {
-    int col = vector_seriesColor(items, dc->col);
-    set_drawColor(dc->r, col, 255);
+    int col = _vector_seriesColor(items, dc->col);
+    _set_drawColor(dc->r, col, 255);
 
     SDL_Rect clip = {border_left + 1, border_top + 1,
                      (border_right - border_left) - 2,
@@ -2355,12 +2355,12 @@ static void draw_vector_field(DrawContext *dc, list_t *items, int stream_mode,
     double plot_w = (double)(border_right - border_left);
     double plot_h = (double)(border_bottom - border_top);
 
-    if (LIST_SIZE(items) >= 5 && IS_LIST(*(Value *)list_getAt(items, 1)))
+    if (LIST_SIZE(items) >= 5 && IS_LIST(*(Value *)_list_getAt(items, 1)))
     {
-        PiList *xl = AS_LIST(*(Value *)list_getAt(items, 1));
-        PiList *yl = AS_LIST(*(Value *)list_getAt(items, 2));
-        PiList *ul = AS_LIST(*(Value *)list_getAt(items, 3));
-        PiList *vl = AS_LIST(*(Value *)list_getAt(items, 4));
+        PiList *xl = AS_LIST(*(Value *)_list_getAt(items, 1));
+        PiList *yl = AS_LIST(*(Value *)_list_getAt(items, 2));
+        PiList *ul = AS_LIST(*(Value *)_list_getAt(items, 3));
+        PiList *vl = AS_LIST(*(Value *)_list_getAt(items, 4));
         int n = LIST_SIZE(xl->items);
         if (LIST_SIZE(yl->items) < n) n = LIST_SIZE(yl->items);
         if (LIST_SIZE(ul->items) < n) n = LIST_SIZE(ul->items);
@@ -2369,8 +2369,8 @@ static void draw_vector_field(DrawContext *dc, list_t *items, int stream_mode,
         double max_mag = 0.0;
         for (int i = 0; i < n; i++)
         {
-            Value *vu = (Value *)list_getAt(ul->items, i);
-            Value *vv = (Value *)list_getAt(vl->items, i);
+            Value *vu = (Value *)_list_getAt(ul->items, i);
+            Value *vv = (Value *)_list_getAt(vl->items, i);
             if (!IS_NUM(*vu) || !IS_NUM(*vv))
                 continue;
             double u = AS_NUM(*vu), v = AS_NUM(*vv);
@@ -2387,14 +2387,14 @@ static void draw_vector_field(DrawContext *dc, list_t *items, int stream_mode,
 
         for (int i = 0; i < n; i++)
         {
-            Value *vx = (Value *)list_getAt(xl->items, i);
-            Value *vy = (Value *)list_getAt(yl->items, i);
-            Value *vu = (Value *)list_getAt(ul->items, i);
-            Value *vv = (Value *)list_getAt(vl->items, i);
+            Value *vx = (Value *)_list_getAt(xl->items, i);
+            Value *vy = (Value *)_list_getAt(yl->items, i);
+            Value *vu = (Value *)_list_getAt(ul->items, i);
+            Value *vv = (Value *)_list_getAt(vl->items, i);
             if (!IS_NUM(*vx) || !IS_NUM(*vy) || !IS_NUM(*vu) || !IS_NUM(*vv))
                 continue;
             double x = AS_NUM(*vx), y = AS_NUM(*vy), u = AS_NUM(*vu), v = AS_NUM(*vv);
-            draw_vectorSegment(dc, x, y, u, v, max_mag, base_len, stream_mode);
+            _draw_vectorSegment(dc, x, y, u, v, max_mag, base_len, stream_mode);
         }
         SDL_RenderSetClipRect(dc->r, NULL);
         return;
@@ -2402,8 +2402,8 @@ static void draw_vector_field(DrawContext *dc, list_t *items, int stream_mode,
 
     if (LIST_SIZE(items) >= 3)
     {
-        Value *uv = (Value *)list_getAt(items, 1);
-        Value *vv = (Value *)list_getAt(items, 2);
+        Value *uv = (Value *)_list_getAt(items, 1);
+        Value *vv = (Value *)_list_getAt(items, 2);
         if (!IS_TENSOR(*uv) || !IS_TENSOR(*vv))
         {
             SDL_RenderSetClipRect(dc->r, NULL);
@@ -2449,7 +2449,7 @@ static void draw_vector_field(DrawContext *dc, list_t *items, int stream_mode,
                 idx[1] = c;
                 double u = tensor_get(U, idx);
                 double v = tensor_get(V, idx);
-                draw_vectorSegment(dc, c, row, u, v, max_mag, base_len, stream_mode);
+                _draw_vectorSegment(dc, c, row, u, v, max_mag, base_len, stream_mode);
             }
         }
     }
@@ -2457,7 +2457,7 @@ static void draw_vector_field(DrawContext *dc, list_t *items, int stream_mode,
     SDL_RenderSetClipRect(dc->r, NULL);
 }
 
-Value pt_show(vm_t *vm, int argc, Value *argv)
+Value pt_show(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_CHART(argv[0]))
     {
@@ -2475,40 +2475,40 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
     SDL_RenderGetViewport(r, &old_viewport);
 
     SDL_Rect viewport;
-    if (!subplot_rect(ctx->width, ctx->height,
+    if (!_subplot_rect(ctx->width, ctx->height,
                       chart->subplot_rows, chart->subplot_cols, chart->subplot_index,
                       &viewport))
         return NIL_VAL;
 
-    int is_subplot = chart_has_subplot(chart);
+    int is_subplot = _chart_HasSubplot(chart);
     if (is_subplot && !ctx->plot_subplots_cleared)
     {
         SDL_RenderSetViewport(r, NULL);
         SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
         SDL_RenderClear(r);
-        ctx->plot_subplots_cleared = true;
+        ctx->plot_subplots_cleared = TRUE;
     }
 
     SDL_RenderSetViewport(r, &viewport);
 
     int W = viewport.w, H = viewport.h;
     int font_scale = W < H ? W : H;
-    int tick_size = clamp_int(font_scale / 34, 8, 11);
-    int label_size = clamp_int(font_scale / 24, 10, 16);
-    int title_size = clamp_int(font_scale / 22, 11, 18);
-    int legend_size = clamp_int(font_scale / 30, 9, 12);
+    int tick_size = _clamp_int(font_scale / 34, 8, 11);
+    int label_size = _clamp_int(font_scale / 24, 10, 16);
+    int title_size = _clamp_int(font_scale / 22, 11, 18);
+    int legend_size = _clamp_int(font_scale / 30, 9, 12);
 
-    int left_margin = clamp_int(W / 5, 38, plot_left_margin);
-    int margin = clamp_int(H / 7, 34, plot_margin);
+    int left_margin = _clamp_int(W / 5, 38, plot_left_margin);
+    int margin = _clamp_int(H / 7, 34, plot_margin);
     if (W - left_margin - margin < 90)
     {
-        left_margin = clamp_int(W / 6, 30, 58);
-        margin = clamp_int(W / 12, 24, 42);
+        left_margin = _clamp_int(W / 6, 30, 58);
+        margin = _clamp_int(W / 12, 24, 42);
     }
     if (H - 2 * margin < 80)
-        margin = clamp_int(H / 8, 22, 40);
+        margin = _clamp_int(H / 8, 22, 40);
 
-    chart_computeBounds(chart);
+    _chart_computeBounds(chart);
 
     SDL_SetRenderDrawColor(r, 255, 255, 255, 255);
     if (is_subplot)
@@ -2521,17 +2521,17 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
         SDL_RenderClear(r);
     }
 
-    TTF_Font *title_font = get_openFont(title_size);
-    TTF_Font *label_font = get_openFont(label_size);
-    TTF_Font *tick_font = get_openFont(tick_size);
-    TTF_Font *legend_font = get_openFont(legend_size);
+    TTF_Font *title_font = _get_openFont(title_size);
+    TTF_Font *label_font = _get_openFont(label_size);
+    TTF_Font *tick_font = _get_openFont(tick_size);
+    TTF_Font *legend_font = _get_openFont(legend_size);
 
     if (chart->title && title_font)
-        draw_text(r, title_font, chart->title, W / 2, margin > 48 ? 15 : 6, 0x222222, TEXT_CENTER_X);
+        _draw_text(r, title_font, chart->title, W / 2, margin > 48 ? 15 : 6, 0x222222, TEXT_CENTER_X);
     if (chart->xlabel && label_font)
-        draw_text(r, label_font, chart->xlabel, W / 2, H - margin + (margin > 48 ? 35 : 22), 0x333333, TEXT_CENTER_X);
+        _draw_text(r, label_font, chart->xlabel, W / 2, H - margin + (margin > 48 ? 35 : 22), 0x333333, TEXT_CENTER_X);
     if (chart->ylabel && label_font)
-        draw_text(r, label_font, chart->ylabel, left_margin > 70 ? 25 : 12, H / 2, 0x333333, TEXT_VERTICAL | TEXT_CENTER_Y);
+        _draw_text(r, label_font, chart->ylabel, left_margin > 70 ? 25 : 12, H / 2, 0x333333, TEXT_VERTICAL | TEXT_CENTER_Y);
 
     // detect grid plots
     int has_grid_plot = 0;
@@ -2539,15 +2539,15 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
     PiTensor *grid_matrix = NULL;
     int grid_rows = 0, grid_cols = 0;
 
-    for (int si = 0; si < list_size(chart->series); si++)
+    for (int si = 0; si < LIST_SIZE(chart->series); si++)
     {
-        Value *sv = (Value *)list_getAt(chart->series, si);
+        Value *sv = (Value *)_list_getAt(chart->series, si);
         if (!sv || !IS_LIST(*sv))
             continue;
-        list_t *items = AS_LIST(*sv)->items;
+        List *items = AS_LIST(*sv)->items;
         if (LIST_SIZE(items) < 1)
             continue;
-        Value *k0 = (Value *)list_getAt(items, 0);
+        Value *k0 = (Value *)_list_getAt(items, 0);
         if (!k0 || !IS_STRING(*k0))
             continue;
         const char *kind = AS_CSTRING(*k0);
@@ -2556,7 +2556,7 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
             has_grid_plot = 1;
             if (LIST_SIZE(items) >= 2)
             {
-                Value *mv = (Value *)list_getAt(items, 1);
+                Value *mv = (Value *)_list_getAt(items, 1);
                 if (IS_TENSOR(*mv) && AS_TENSOR(*mv)->ndim == 2)
                 {
                     grid_matrix = AS_TENSOR(*mv);
@@ -2572,7 +2572,7 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
             grid_fill_plot = 1;
             if (LIST_SIZE(items) >= 2)
             {
-                Value *mv = (Value *)list_getAt(items, 1);
+                Value *mv = (Value *)_list_getAt(items, 1);
                 if (IS_TENSOR(*mv))
                 {
                     PiTensor *M = AS_TENSOR(*mv);
@@ -2643,8 +2643,8 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
     }
     else
     {
-        map_xy(chart, chart->xmin, chart->ymax, W, H, left_margin, margin, &border_left, &border_top);
-        map_xy(chart, chart->xmax, chart->ymin, W, H, left_margin, margin, &border_right, &border_bottom);
+        _map_xy(chart, chart->xmin, chart->ymax, W, H, left_margin, margin, &border_left, &border_top);
+        _map_xy(chart, chart->xmax, chart->ymin, W, H, left_margin, margin, &border_right, &border_bottom);
     }
 
     SDL_Rect border_rect = {border_left, border_top,
@@ -2652,13 +2652,13 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
                             border_bottom - border_top};
 
     // Lightly tint the plot area while keeping labels and margins white.
-    set_drawColor(r, 0xf7f7f7, 255);
+    _set_drawColor(r, 0xf7f7f7, 255);
     SDL_RenderFillRect(r, &border_rect);
 
     // Draw border (single rectangle, all sides same thickness)
     if (!has_grid_plot)
     {
-        set_drawColor(r, 0x333333, 255);
+        _set_drawColor(r, 0x333333, 255);
         SDL_RenderDrawRect(r, &border_rect);
     }
 
@@ -2669,7 +2669,7 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
     {
         if (!has_grid_plot && chart->show_ticks)
         {
-            draw_axisTicks(r, chart, tick_font, W, H, left_margin, margin);
+            _draw_axisTicks(r, chart, tick_font, W, H, left_margin, margin);
         }
     }
 
@@ -2686,17 +2686,17 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
         if (inner_rect.w > 0 && inner_rect.h > 0)
         {
             SDL_RenderSetClipRect(r, &inner_rect);
-            set_drawColor(r, 0xe0e0e0, 200);
+            _set_drawColor(r, 0xe0e0e0, 200);
             for (int g = 1; g < 10; g++)
             {
                 double tx = chart->xmin + (chart->xmax - chart->xmin) * g / 10.0;
                 double ty = chart->ymin + (chart->ymax - chart->ymin) * g / 10.0;
                 int px0, py0, px1, py1;
-                map_xy(chart, tx, chart->ymin, W, H, left_margin, margin, &px0, &py0);
-                map_xy(chart, tx, chart->ymax, W, H, left_margin, margin, &px1, &py1);
+                _map_xy(chart, tx, chart->ymin, W, H, left_margin, margin, &px0, &py0);
+                _map_xy(chart, tx, chart->ymax, W, H, left_margin, margin, &px1, &py1);
                 SDL_RenderDrawLine(r, px0, py0, px1, py1);
-                map_xy(chart, chart->xmin, ty, W, H, left_margin, margin, &px0, &py0);
-                map_xy(chart, chart->xmax, ty, W, H, left_margin, margin, &px1, &py1);
+                _map_xy(chart, chart->xmin, ty, W, H, left_margin, margin, &px0, &py0);
+                _map_xy(chart, chart->xmax, ty, W, H, left_margin, margin, &px1, &py1);
                 SDL_RenderDrawLine(r, px0, py0, px1, py1);
             }
             SDL_RenderSetClipRect(r, NULL);
@@ -2705,57 +2705,57 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
 
     // series loop
     int series_index = 0;
-    int ns = list_size(chart->series);
+    int ns = LIST_SIZE(chart->series);
 
     for (int si = 0; si < ns; si++)
     {
-        Value *series_val = (Value *)list_getAt(chart->series, si);
+        Value *series_val = (Value *)_list_getAt(chart->series, si);
         if (!series_val || !IS_LIST(*series_val))
             continue;
-        list_t *items = AS_LIST(*series_val)->items;
+        List *items = AS_LIST(*series_val)->items;
         if (LIST_SIZE(items) < 1)
             continue;
-        Value *k0 = (Value *)list_getAt(items, 0);
+        Value *k0 = (Value *)_list_getAt(items, 0);
         if (!k0 || !IS_STRING(*k0))
             continue;
         const char *kind = AS_CSTRING(*k0);
 
-        DrawContext dc = {r, chart, W, H, left_margin, margin, palette_color(series_index)};
+        DrawContext dc = {r, chart, W, H, left_margin, margin, _palette_color(series_index)};
 
         if (!strcmp(kind, "legend"))
         {
-            draw_legend(&dc, items,
+            _draw_legend(&dc, items,
                         border_left, border_top, border_right, border_bottom,
                         has_grid_plot, grid_matrix, cell_size, legend_font);
         }
         else if (!strcmp(kind, "scatter"))
         {
-            draw_scatter(&dc, items);
+            _draw_scatter(&dc, items);
             series_index++;
         }
         else if (!strcmp(kind, "line"))
         {
-            draw_line(&dc, items);
+            _draw_line(&dc, items);
             series_index++;
         }
         else if (!strcmp(kind, "step"))
         {
-            draw_step(&dc, items);
+            _draw_step(&dc, items);
             series_index++;
         }
         else if (!strcmp(kind, "bar"))
         {
-            draw_bar(&dc, items);
+            _draw_bar(&dc, items);
             series_index++;
         }
         else if (!strcmp(kind, "hist"))
         {
-            draw_hist(&dc, items);
+            _draw_hist(&dc, items);
             series_index++;
         }
         else if (!strcmp(kind, "imshow"))
         {
-            draw_imshow(&dc, items,
+            _draw_imshow(&dc, items,
                         heatmap_start_x, heatmap_start_y,
                         heatmap_width, heatmap_height,
                         border_right, border_top, border_bottom);
@@ -2763,7 +2763,7 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
         }
         else if (!strcmp(kind, "heatmap"))
         {
-            draw_heatmap(&dc, items,
+            _draw_heatmap(&dc, items,
                          heatmap_start_x, heatmap_start_y,
                          heatmap_width, heatmap_height,
                          cell_size,
@@ -2772,20 +2772,20 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
         }
         else if (!strcmp(kind, "contour"))
         {
-            draw_contour(&dc, items,
+            _draw_contour(&dc, items,
                          heatmap_start_x, heatmap_start_y,
                          heatmap_width, heatmap_height);
             series_index++;
         }
         else if (!strcmp(kind, "quiver"))
         {
-            draw_vector_field(&dc, items, 0,
+            _draw_VectorField(&dc, items, 0,
                               border_left, border_top, border_right, border_bottom);
             series_index++;
         }
         else if (!strcmp(kind, "streamplot"))
         {
-            draw_vector_field(&dc, items, 1,
+            _draw_VectorField(&dc, items, 1,
                               border_left, border_top, border_right, border_bottom);
             series_index++;
         }
@@ -2795,11 +2795,11 @@ Value pt_show(vm_t *vm, int argc, Value *argv)
     {
         if (chart->show_axes)
         {
-            set_drawColor(r, 0x666666, 255);
+            _set_drawColor(r, 0x666666, 255);
             SDL_RenderDrawRect(r, &border_rect);
         }
         if (chart->show_ticks)
-            draw_gridAxisTicks(r, tick_font,
+            _draw_gridAxisTicks(r, tick_font,
                                border_left, border_top, border_right, border_bottom,
                                grid_rows, grid_cols, cell_width, cell_height);
     }

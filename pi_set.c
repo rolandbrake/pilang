@@ -5,7 +5,7 @@
 
 #include "pi_set.h"
 
-static int get_index(set_t *set, const void *data)
+static int _get_index(Set *set, const void *data)
 {
     int hash = set->hash(data);
     if (hash < 0)
@@ -14,9 +14,9 @@ static int get_index(set_t *set, const void *data)
     return hash % set->size;
 }
 
-set_t *set_create(int (*hash)(void *), int (*equals)(void *, void *))
+Set *set_create(int (*hash)(void *), int (*equals)(void *, void *))
 {
-    set_t *set = malloc(sizeof(set_t));
+    Set *set = malloc(sizeof(Set));
     if (!set)
         return NULL;
 
@@ -34,9 +34,9 @@ set_t *set_create(int (*hash)(void *), int (*equals)(void *, void *))
     return set;
 }
 
-void set_add(set_t *set, void *data)
+void set_add(Set *set, void *data)
 {
-    int index = get_index(set, data);
+    int index = _get_index(set, data);
     SetNode *node = set->buckets[index];
 
     while (node != NULL)
@@ -56,9 +56,9 @@ void set_add(set_t *set, void *data)
     set->buckets[index] = new_node;
 }
 
-int set_contains(set_t *set, void *data)
+int set_contains(Set *set, void *data)
 {
-    int index = get_index(set, data);
+    int index = _get_index(set, data);
     SetNode *node = set->buckets[index];
 
     while (node != NULL)
@@ -72,14 +72,14 @@ int set_contains(set_t *set, void *data)
     return 0;
 }
 
-bool set_has(set_t *set, void *data)
+bool set_has(Set *set, void *data)
 {
     return set_contains(set, data) == 1;
 }
 
-bool set_remove(set_t *set, void *data)
+bool set_remove(Set *set, void *data)
 {
-    int index = get_index(set, data);
+    int index = _get_index(set, data);
     SetNode *node = set->buckets[index];
     SetNode *prev = NULL;
 
@@ -93,17 +93,17 @@ bool set_remove(set_t *set, void *data)
                 prev->next = node->next;
 
             free(node);
-            return true;
+            return TRUE;
         }
 
         prev = node;
         node = node->next;
     }
 
-    return false;
+    return FALSE;
 }
 
-void set_free(set_t *set)
+void set_free(Set *set)
 {
     if (!set)
         return;

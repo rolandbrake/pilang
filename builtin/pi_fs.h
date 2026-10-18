@@ -5,41 +5,41 @@
 #include "../pi_value.h"
 
 // Reading
-Value fs_read(vm_t *vm, int argc, Value *argv);
-Value fs_readBytes(vm_t *vm, int argc, Value *argv);
-Value fs_writeBytes(vm_t *vm, int argc, Value *argv);
-Value fs_readlines(vm_t *vm, int argc, Value *argv);
-Value fs_readLinesLimit(vm_t *vm, int argc, Value *argv);
-Value fs_open(vm_t *vm, int argc, Value *argv);
-Value fs_seek(vm_t *vm, int argc, Value *argv);
+Value fs_read(VM *vm, int argc, Value *argv);
+Value fs_readBytes(VM *vm, int argc, Value *argv);
+Value fs_writeBytes(VM *vm, int argc, Value *argv);
+Value fs_readlines(VM *vm, int argc, Value *argv);
+Value fs_readLinesLimit(VM *vm, int argc, Value *argv);
+Value fs_open(VM *vm, int argc, Value *argv);
+Value fs_seek(VM *vm, int argc, Value *argv);
 
 // Writing
-Value fs_write(vm_t *vm, int argc, Value *argv);
-Value fs_append(vm_t *vm, int argc, Value *argv);
-Value fs_close(vm_t *vm, int argc, Value *argv);
+Value fs_write(VM *vm, int argc, Value *argv);
+Value fs_append(VM *vm, int argc, Value *argv);
+Value fs_close(VM *vm, int argc, Value *argv);
 
 // Paths
-Value fs_exists(vm_t *vm, int argc, Value *argv);
-Value fs_isdir(vm_t *vm, int argc, Value *argv);
-Value fs_isfile(vm_t *vm, int argc, Value *argv);
-Value fs_size(vm_t *vm, int argc, Value *argv);
-// Value fs_stat(vm_t *vm, int argc, Value *argv);
-Value fs_abspath(vm_t *vm, int argc, Value *argv);
-Value fs_basename(vm_t *vm, int argc, Value *argv);
-Value fs_dirname(vm_t *vm, int argc, Value *argv);
-Value fs_ext(vm_t *vm, int argc, Value *argv);
-Value fs_join(vm_t *vm, int argc, Value *argv);
+Value fs_exists(VM *vm, int argc, Value *argv);
+Value fs_isdir(VM *vm, int argc, Value *argv);
+Value fs_isfile(VM *vm, int argc, Value *argv);
+Value fs_size(VM *vm, int argc, Value *argv);
+// Value fs_stat(VM *vm, int argc, Value *argv);
+Value fs_abspath(VM *vm, int argc, Value *argv);
+Value fs_basename(VM *vm, int argc, Value *argv);
+Value fs_dirname(VM *vm, int argc, Value *argv);
+Value fs_ext(VM *vm, int argc, Value *argv);
+Value fs_join(VM *vm, int argc, Value *argv);
 
 // Directories
-Value fs_mkdir(vm_t *vm, int argc, Value *argv);
-Value fs_rmdir(vm_t *vm, int argc, Value *argv);
-Value fs_listdir(vm_t *vm, int argc, Value *argv);
-Value fs_cwd(vm_t *vm, int argc, Value *argv);
-Value fs_chdir(vm_t *vm, int argc, Value *argv);
+Value fs_mkdir(VM *vm, int argc, Value *argv);
+Value fs_rmdir(VM *vm, int argc, Value *argv);
+Value fs_listdir(VM *vm, int argc, Value *argv);
+Value fs_cwd(VM *vm, int argc, Value *argv);
+Value fs_chdir(VM *vm, int argc, Value *argv);
 
 // Operators
-Value fs_copy(vm_t *vm, int argc, Value *argv);
-Value fs_move(vm_t *vm, int argc, Value *argv);
-Value fs_delete(vm_t *vm, int argc, Value *argv);
+Value fs_copy(VM *vm, int argc, Value *argv);
+Value fs_move(VM *vm, int argc, Value *argv);
+Value fs_delete(VM *vm, int argc, Value *argv);
 
 #endif // PI_FS_H

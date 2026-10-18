@@ -23,7 +23,7 @@
 #include "../gc.h"
 
 
-Value pi_error(vm_t *vm, int argc, Value *argv)
+Value pi_error(VM *vm, int argc, Value *argv)
 {
     if (argc < 1) 
         vm_error(vm, "[error] expects at least one argument.");            
@@ -35,7 +35,7 @@ Value pi_error(vm_t *vm, int argc, Value *argv)
     exit(EXIT_FAILURE);
 }
 
-Value pi_assert(vm_t *vm, int argc, Value *argv)
+Value pi_assert(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[assert] expects at least two arguments: condition and message.");
@@ -51,10 +51,10 @@ Value pi_assert(vm_t *vm, int argc, Value *argv)
     }
 
     free((void *)message);
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value pi_zen(vm_t *vm, int argc, Value *argv)
+Value pi_zen(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
@@ -76,25 +76,25 @@ Value pi_zen(vm_t *vm, int argc, Value *argv)
         "----------------------------------------\n")));
 }
 
-Value sy_argv(vm_t *vm, int argc, Value *argv)
+Value sy_argv(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
 
-    list_t *args = list_create(sizeof(Value));
+    List *args = list_create(sizeof(Value));
 
     for (int i = 0; i < pi_cli_argc; i++)
     {
         Object *str_obj = add_obj(vm, new_pistring(strdup(pi_cli_argv[i])));
         Value val = NEW_OBJ(str_obj);
-        list_add(args, &val);
+        _list_add(args, &val);
     }
 
     Object *list_obj = add_obj(vm, new_list(args));
     return NEW_OBJ(list_obj);
 }
 
-Value sy_exit(vm_t *vm, int argc, Value *argv)
+Value sy_exit(VM *vm, int argc, Value *argv)
 {
     (void)vm;
 
@@ -105,7 +105,7 @@ Value sy_exit(vm_t *vm, int argc, Value *argv)
     exit(code);
 }
 
-Value sy_platform(vm_t *vm, int argc, Value *argv)
+Value sy_platform(VM *vm, int argc, Value *argv)
 {
     (void)vm;
     (void)argc;
@@ -135,7 +135,7 @@ Value sy_platform(vm_t *vm, int argc, Value *argv)
 #endif
 }
 
-Value sy_version(vm_t *vm, int argc, Value *argv)
+Value sy_version(VM *vm, int argc, Value *argv)
 {
     (void)vm;
     (void)argc;
@@ -144,7 +144,7 @@ Value sy_version(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_pistring(strdup(PI_VERSION)));
 }
 
-Value sy_path(vm_t *vm, int argc, Value *argv)
+Value sy_path(VM *vm, int argc, Value *argv)
 {
     (void)vm;
     (void)argc;
@@ -157,7 +157,7 @@ Value sy_path(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_pistring(strdup("unknown")));
 }
 
-Value sy_env(vm_t *vm, int argc, Value *argv)
+Value sy_env(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "[env] expects one argument.");
@@ -168,7 +168,7 @@ Value sy_env(vm_t *vm, int argc, Value *argv)
     if (value == NULL)
     {
         free(key);
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
     }
 
     Value result = NEW_OBJ(new_pistring(strdup(value)));
@@ -176,21 +176,21 @@ Value sy_env(vm_t *vm, int argc, Value *argv)
     return result;
 }
 
-Value sy_gc(vm_t *vm, int argc, Value *argv)
+Value sy_gc(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
 
     run_gc(vm);
     gc_trimHeap();
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
 #ifdef __linux__
 #include <sys/resource.h>
 #endif
 
-Value sy_mem(vm_t *vm, int argc, Value *argv)
+Value sy_mem(VM *vm, int argc, Value *argv)
 {
     (void)vm;
     (void)argc;
@@ -205,7 +205,7 @@ Value sy_mem(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(0);
 }
 
-Value sy_pid(vm_t *vm, int argc, Value *argv)
+Value sy_pid(VM *vm, int argc, Value *argv)
 {
     (void)vm;
     (void)argc;

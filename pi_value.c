@@ -16,7 +16,7 @@
 
 /* The VM deliberately uses NaN as a constant-pool sentinel.  These helpers
  * must retain IEEE NaN semantics even when the application is built -Ofast. */
-static PI_STRICT_FP int compare_numbers(double l, double r)
+static PI_STRICT_FP int _compare_numbers(double l, double r)
 {
     if (fabs(l - r) < 1e-9)
         return 0;
@@ -26,7 +26,7 @@ static PI_STRICT_FP int compare_numbers(double l, double r)
 /* Do not use isnan() here: -ffast-math is permitted to assume it is always
  * false.  The constant pool uses NaN as a sentinel, so inspect IEEE-754 bits
  * directly before doing any floating-point equality arithmetic. */
-static inline bool number_isNaN(double value)
+static inline bool _number_isNaN(double value)
 {
     uint64_t bits;
     memcpy(&bits, &value, sizeof(bits));
@@ -34,7 +34,7 @@ static inline bool number_isNaN(double value)
            (bits & UINT64_C(0x000fffffffffffff)) != 0;
 }
 
-static char *dup_Cstring(const char *text)
+static char *_dup_Cstring(const char *text)
 {
     size_t length = strlen(text) + 1;
     char *copy = malloc(length);
@@ -44,31 +44,31 @@ static char *dup_Cstring(const char *text)
     return copy;
 }
 
-static int compare_ptrs(const void *l, const void *r)
+static int _compare_ptrs(const void *l, const void *r)
 {
     return ((uintptr_t)l > (uintptr_t)r) - 
            ((uintptr_t)l < (uintptr_t)r);
 }
 
-static bool string_equals(const char *l, const char *r)
+static bool _string_equals(const char *l, const char *r)
 {
     return l == r || (l && r && strcmp(l, r) == 0);
 }
 
-static int normalize_compare(int cmp)
+static int _normalize_compare(int cmp)
 {
     return (cmp > 0) - (cmp < 0);
 }
 
-static int compare_strings(const char *l, const char *r)
+static int _compare_strings(const char *l, const char *r)
 {
     if (l == r)  return 0;
     if (!l)      return -1;
     if (!r)      return  1;
-    return normalize_compare(strcmp(l, r));
+    return _normalize_compare(strcmp(l, r));
 }
 
-static int compare_Cstrings(const void *l, const void *r)
+static int _compare_Cstrings(const void *l, const void *r)
 {
     const char *const *a = (const char *const *)l;
     const char *const *b = (const char *const *)r;
@@ -83,10 +83,10 @@ typedef struct
     char *buf;
     size_t len;
     size_t cap;
-} sb_t;
+} StringBuilder;
 
 /* Initialise with an optional string literal seed (pass "" for empty). */
-static void sb_init(sb_t *sb, const char *seed)
+static void _sb_init(StringBuilder *sb, const char *seed)
 {
     sb->len = strlen(seed);
     sb->cap = sb->len < SB_INIT_CAP ? SB_INIT_CAP : sb->len * 2;
@@ -96,7 +96,7 @@ static void sb_init(sb_t *sb, const char *seed)
     memcpy(sb->buf, seed, sb->len + 1); /* include NUL */
 }
 
-static void sb_append(sb_t *sb, const char *text)
+static void _sb_append(StringBuilder *sb, const char *text)
 {
     size_t tlen = strlen(text);
     size_t needed = sb->len + tlen + 1;
@@ -119,12 +119,12 @@ static void sb_append(sb_t *sb, const char *text)
 }
 
 /* Transfer ownership of the internal buffer to the caller. */
-static char *sb_finish(sb_t *sb)
+static char *_sb_finish(StringBuilder *sb)
 {
     return sb->buf; /* caller is responsible for free() */
 }
 
-static char *format_number(double number)
+static char *_format_number(double number)
 {
     char *text = malloc(64);
     if (!text)
@@ -184,7 +184,7 @@ static const char escape_table[256] = {
     ['"'] = '"',
 };
 
-static char *unescape_string(const char *src)
+static char *_unescape_string(const char *src)
 {
     size_t len = strlen(src);
     char *dest = malloc(len + 1); /* worst case: same length */
@@ -207,78 +207,78 @@ static char *unescape_string(const char *src)
 }
 
 /* Equality helpers. */
-static bool list_equals(list_t *l, list_t *r)
+static bool _list_equals(List *l, List *r)
 {
-    if (l == r) return true;
-    if (!l || !r || LIST_SIZE(l) != LIST_SIZE(r)) return false;
+    if (l == r) return TRUE;
+    if (!l || !r || LIST_SIZE(l) != LIST_SIZE(r)) return FALSE;
     for (size_t i = 0; i < LIST_SIZE(l); i++)
-        if (!equals(*(Value *)list_getAt(l, i), *(Value *)list_getAt(r, i)))
-            return false;
-    return true;
+        if (!equals(*(Value *)_list_getAt(l, i), *(Value *)_list_getAt(r, i)))
+            return FALSE;
+    return TRUE;
 }
 
-static bool tensor_equals(PiTensor *l, PiTensor *r)
+static bool _tensor_equals(PiTensor *l, PiTensor *r)
 {
     if (l->type != r->type || l->ndim != r->ndim || l->size != r->size)
-        return false;
+        return FALSE;
     for (int i = 0; i < l->ndim; i++)
-        if (l->shape[i] != r->shape[i]) return false;
+        if (l->shape[i] != r->shape[i]) return FALSE;
     for (int i = 0; i < l->size; i++)
-        if (fabs(tensor_getFlat(l, i) - tensor_getFlat(r, i)) >= 1e-9) return false;
-    return true;
+        if (fabs(tensor_getFlat(l, i) - tensor_getFlat(r, i)) >= 1e-9) return FALSE;
+    return TRUE;
 }
 
-static bool map_equals(PiMap *l, PiMap *r)
+static bool _map_equals(PiMap *l, PiMap *r)
 {
-    if (l == r) return true;
-    if (map_size(l) != map_size(r)) return false;
-    ht_iter it = ht_iterator(l->table);
-    while (ht_next(&it))
+    if (l == r) return TRUE;
+    if (map_size(l) != map_size(r)) return FALSE;
+    HT_Iterator it = _ht_iterator(l->table);
+    while (_ht_next(&it))
     {
-        Value *rv = ht_get(r->table, it.key);
-        if (!rv || !equals(*(Value *)it.value, *rv)) return false;
+        Value *rv = _ht_get(r->table, it.key);
+        if (!rv || !equals(*(Value *)it.value, *rv)) return FALSE;
     }
-    return true;
+    return TRUE;
 }
 
-static bool range_equals(PiRange *l, PiRange *r)
+static bool _range_equals(PiRange *l, PiRange *r)
 {
-    return compare_numbers(l->start, r->start) == 0 &&
-           compare_numbers(l->end, r->end) == 0 &&
-           compare_numbers(l->step, r->step) == 0;
+    return _compare_numbers(l->start, r->start) == 0 &&
+           _compare_numbers(l->end, r->end) == 0 &&
+           _compare_numbers(l->step, r->step) == 0;
 }
 
-static bool code_equals(ObjCode *l, ObjCode *r)
+static bool _code_equals(ObjCode *l, ObjCode *r)
 {
-    if (l == r) return true;
-    if (l->hash != r->hash) return false;
-    if ((l->data        == NULL) != (r->data        == NULL)) return false;
-    if ((l->param_names == NULL) != (r->param_names == NULL)) return false;
-    if (l->data        && !list_equals(l->data,        r->data))        return false;
-    if (l->param_names && !list_equals(l->param_names, r->param_names)) return false;
-    return true;
+    if (l == r) return TRUE;
+    if (l->hash != r->hash) return FALSE;
+    if ((l->data        == NULL) != (r->data        == NULL)) return FALSE;
+    if ((l->param_names == NULL) != (r->param_names == NULL)) return FALSE;
+    if (l->data        && !_list_equals(l->data,        r->data))        return FALSE;
+    if (l->param_names && !_list_equals(l->param_names, r->param_names)) return FALSE;
+    return TRUE;
 }
 
-static bool function_equals(Function *l, Function *r)
+static bool _function_equals(Function *l, Function *r)
 {
-    if (l == r)   return true;
-    if (!l || !r) return false;
+    if (l == r)   return TRUE;
+    if (!l || !r) return FALSE;
 
-    if (!string_equals(l->name, r->name))             return false;
+    if (!_string_equals(l->name, r->name))             return FALSE;
 
     if (l->flags != r->flags ||
-        l->upvalue_count != r->upvalue_count)         return false;
+        l->upvalue_count != r->upvalue_count)         return FALSE;
         
     if (l->instance != r->instance ||
-        l->owner    != r->owner)                      return false;
+        l->owner    != r->owner)                      return FALSE;
 
-    if (memcmp(&l->native, &r->native, sizeof(native_func)) != 0) return false;
+    if (memcmp(&l->native, &r->native, sizeof(NativeFunc)) != 0) return FALSE;
 
     if (l->body != r->body &&
-        (!l->body || !r->body || !code_equals(l->body, r->body))) return false;
+        (!l->body || !r->body || !_code_equals(l->body, r->body))) return FALSE;
         
-    if (!list_equals(l->params,       r->params))      return false;
-    if (!list_equals(l->param_names,  r->param_names)) return false;
+    if (!_list_equals(l->params,       r->params))      return FALSE;
+    if (!_list_equals(l->param_names,  r->param_names)) return FALSE;
     
     for (int i = 0; i < l->upvalue_count; i++)
     {
@@ -286,45 +286,45 @@ static bool function_equals(Function *l, Function *r)
         UpValue *ru = r->upvalues ? r->upvalues[i] : NULL;
 
         if (lu == ru) continue;
-        if (!lu || !ru) return false;
+        if (!lu || !ru) return FALSE;
 
-        if (lu->index != ru->index || !equals(lu->value, ru->value)) return false;
+        if (lu->index != ru->index || !equals(lu->value, ru->value)) return FALSE;
     }
-    return true;
+    return TRUE;
 }
 
-static bool module_equals(ObjModule *l, ObjModule *r)
+static bool _module_equals(ObjModule *l, ObjModule *r)
 {
-    if (l == r) return true;
-    return string_equals(l->name, r->name) AND
-           string_equals(l->path, r->path) AND
+    if (l == r) return TRUE;
+    return _string_equals(l->name, r->name) AND
+           _string_equals(l->path, r->path) AND
            l->builtin == r->builtin AND
            l->is_main == r->is_main AND
            l->state   == r->state   AND
-           (l->exports   == r->exports   OR (l->exports   AND r->exports   AND map_equals(l->exports,    r->exports)))   AND
-           (l->constants == r->constants OR (l->constants AND r->constants AND list_equals(l->constants, r->constants))) AND
-           (l->names     == r->names     OR (l->names     AND r->names     AND list_equals(l->names,     r->names)));
+           (l->exports   == r->exports   OR (l->exports   AND r->exports   AND _map_equals(l->exports,    r->exports)))   AND
+           (l->constants == r->constants OR (l->constants AND r->constants AND _list_equals(l->constants, r->constants))) AND
+           (l->names     == r->names     OR (l->names     AND r->names     AND _list_equals(l->names,     r->names)));
 }
 
-static bool file_equals(ObjFile *l, ObjFile *r)
+static bool _file_equals(ObjFile *l, ObjFile *r)
 {
     return l == r                           OR
            (l->fp == r->fp                  AND
             l->closed == r->closed          AND
-            string_equals(l->mode, r->mode) AND
-            string_equals(l->filename, r->filename));
+            _string_equals(l->mode, r->mode) AND
+            _string_equals(l->filename, r->filename));
 }
 
-static bool event_equals(PiEvent *l, PiEvent *r)
+static bool _event_equals(PiEvent *l, PiEvent *r)
 {
     return l == r                           OR
-           (string_equals(l->type, r->type) AND
+           (_string_equals(l->type, r->type) AND
             l->event_type == r->event_type  AND
             l->x  == r->x                   AND
             l->y  == r->y                   AND
             l->dx == r->dx                  AND
             l->dy == r->dy                  AND
-            string_equals(l->key, r->key)   AND
+            _string_equals(l->key, r->key)   AND
             l->button  == r->button         AND
             l->pressed == r->pressed        AND
             l->width   == r->width          AND
@@ -332,7 +332,7 @@ static bool event_equals(PiEvent *l, PiEvent *r)
 }
 
 /* Ordering helpers. */
-static int list_compare(list_t *l, list_t *r)
+static int _list_compare(List *l, List *r)
 {
     if (l == r)
         return 0;
@@ -346,15 +346,15 @@ static int list_compare(list_t *l, list_t *r)
 
     for (size_t i = 0; i < min; i++)
     {
-        int cmp = compare(*(Value *)list_getAt(l, i),
-                          *(Value *)list_getAt(r, i));
+        int cmp = compare(*(Value *)_list_getAt(l, i),
+                          *(Value *)_list_getAt(r, i));
         if (cmp != 0)
             return cmp;
     }
     return ls == rs ? 0 : (ls > rs ? 1 : -1);
 }
 
-static int tensor_compare(PiTensor *l, PiTensor *r)
+static int _tensor_compare(PiTensor *l, PiTensor *r)
 {
     if (l->ndim != r->ndim)
         return l->ndim > r->ndim ? 1 : -1;
@@ -367,19 +367,19 @@ static int tensor_compare(PiTensor *l, PiTensor *r)
 
     for (int i = 0; i < l->size; i++)
     {
-        int cmp = compare_numbers(tensor_getFlat(l, i), tensor_getFlat(r, i));
+        int cmp = _compare_numbers(tensor_getFlat(l, i), tensor_getFlat(r, i));
         if (cmp != 0)
             return cmp;
     }
     return 0;
 }
 
-static int map_compare(PiMap *l, PiMap *r)
+static int _map_compare(PiMap *l, PiMap *r)
 {
     if (l == r)
         return 0;
 
-    int cmp = normalize_compare(map_size(l) - map_size(r));
+    int cmp = _normalize_compare(map_size(l) - map_size(r));
     if (cmp != 0)
         return cmp;
 
@@ -394,17 +394,17 @@ static int map_compare(PiMap *l, PiMap *r)
     }
 
     int idx = 0;
-    ht_iter it = ht_iterator(l->table);
-    while (ht_next(&it))
+    HT_Iterator it = _ht_iterator(l->table);
+    while (_ht_next(&it))
         lk[idx++] = it.key;
 
     idx = 0;
-    it = ht_iterator(r->table);
-    while (ht_next(&it))
+    it = _ht_iterator(r->table);
+    while (_ht_next(&it))
         rk[idx++] = it.key;
 
-    qsort(lk, sz, sizeof(char *), compare_Cstrings);
-    qsort(rk, sz, sizeof(char *), compare_Cstrings);
+    qsort(lk, sz, sizeof(char *), _compare_Cstrings);
+    qsort(rk, sz, sizeof(char *), _compare_Cstrings);
 
     for (int i = 0; i < sz; i++)
     {
@@ -413,11 +413,11 @@ static int map_compare(PiMap *l, PiMap *r)
         {
             free(lk);
             free(rk);
-            return normalize_compare(cmp);
+            return _normalize_compare(cmp);
         }
 
-        cmp = compare(*(Value *)ht_get(l->table, lk[i]),
-                      *(Value *)ht_get(r->table, rk[i]));
+        cmp = compare(*(Value *)_ht_get(l->table, lk[i]),
+                      *(Value *)_ht_get(r->table, rk[i]));
         if (cmp != 0)
         {
             free(lk);
@@ -431,23 +431,23 @@ static int map_compare(PiMap *l, PiMap *r)
     return 0;
 }
 
-static int range_compare(PiRange *l, PiRange *r)
+static int _range_compare(PiRange *l, PiRange *r)
 {
     int cmp;
-    if ((cmp = compare_numbers(l->start, r->start))) return cmp;
-    if ((cmp = compare_numbers(l->end,   r->end)))   return cmp;
-    return compare_numbers(l->step, r->step);
+    if ((cmp = _compare_numbers(l->start, r->start))) return cmp;
+    if ((cmp = _compare_numbers(l->end,   r->end)))   return cmp;
+    return _compare_numbers(l->step, r->step);
 }
 
-static int code_compare(ObjCode *l, ObjCode *r)
+static int _code_compare(ObjCode *l, ObjCode *r)
 {
     if (l->hash != r->hash)
         return l->hash > r->hash ? 1 : -1;
     int cmp;
     if ((l->data == NULL) != (r->data == NULL)) return l->data ? 1 : -1;
-    if (l->data && (cmp = list_compare(l->data, r->data))) return cmp;
+    if (l->data && (cmp = _list_compare(l->data, r->data))) return cmp;
     if ((l->param_names == NULL) != (r->param_names == NULL)) return l->param_names ? 1 : -1;
-    if (l->param_names) return list_compare(l->param_names, r->param_names);
+    if (l->param_names) return _list_compare(l->param_names, r->param_names);
     return 0;
 }
 
@@ -460,24 +460,24 @@ static int code_compare(ObjCode *l, ObjCode *r)
             return _c;   \
     } while (0)
 
-static int function_compare(Function *l, Function *r)
+static int _function_compare(Function *l, Function *r)
 {
-    CMP_RET(compare_strings(l->name, r->name));
-    CMP_RET(normalize_compare(FUNC_HAS_FLAG(l, FUNC_NATIVE)    - FUNC_HAS_FLAG(r, FUNC_NATIVE)));
-    CMP_RET(normalize_compare(FUNC_HAS_FLAG(l, FUNC_METHOD)    - FUNC_HAS_FLAG(r, FUNC_METHOD)));
-    CMP_RET(normalize_compare(FUNC_HAS_FLAG(l, FUNC_NEED_ARGS) - FUNC_HAS_FLAG(r, FUNC_NEED_ARGS)));
-    CMP_RET(normalize_compare(FUNC_HAS_FLAG(l, FUNC_NEED_KWARGS) - FUNC_HAS_FLAG(r, FUNC_NEED_KWARGS)));
-    CMP_RET(normalize_compare(l->upvalue_count - r->upvalue_count));
-    CMP_RET(normalize_compare(memcmp(&l->native, &r->native, sizeof(native_func))));
+    CMP_RET(_compare_strings(l->name, r->name));
+    CMP_RET(_normalize_compare(FUNC_HAS_FLAG(l, FUNC_NATIVE)    - FUNC_HAS_FLAG(r, FUNC_NATIVE)));
+    CMP_RET(_normalize_compare(FUNC_HAS_FLAG(l, FUNC_METHOD)    - FUNC_HAS_FLAG(r, FUNC_METHOD)));
+    CMP_RET(_normalize_compare(FUNC_HAS_FLAG(l, FUNC_NEED_ARGS) - FUNC_HAS_FLAG(r, FUNC_NEED_ARGS)));
+    CMP_RET(_normalize_compare(FUNC_HAS_FLAG(l, FUNC_NEED_KWARGS) - FUNC_HAS_FLAG(r, FUNC_NEED_KWARGS)));
+    CMP_RET(_normalize_compare(l->upvalue_count - r->upvalue_count));
+    CMP_RET(_normalize_compare(memcmp(&l->native, &r->native, sizeof(NativeFunc))));
 
     if ((l->body == NULL) != (r->body == NULL)) return l->body ? 1 : -1;
-    if (l->body) CMP_RET(code_compare(l->body, r->body));
+    if (l->body) CMP_RET(_code_compare(l->body, r->body));
 
     if ((l->params == NULL) != (r->params == NULL)) return l->params ? 1 : -1;
-    if (l->params) CMP_RET(list_compare(l->params, r->params));
+    if (l->params) CMP_RET(_list_compare(l->params, r->params));
 
     if ((l->param_names == NULL) != (r->param_names == NULL)) return l->param_names ? 1 : -1;
-    if (l->param_names) CMP_RET(list_compare(l->param_names, r->param_names));
+    if (l->param_names) CMP_RET(_list_compare(l->param_names, r->param_names));
 
     for (int i = 0; i < l->upvalue_count; i++)
     {
@@ -488,56 +488,56 @@ static int function_compare(Function *l, Function *r)
         if (!lu) return -1;
         if (!ru) return  1;
 
-        CMP_RET(normalize_compare(lu->index - ru->index));
+        CMP_RET(_normalize_compare(lu->index - ru->index));
         CMP_RET(compare(lu->value, ru->value));
     }
 
-    CMP_RET(compare_ptrs(l->instance, r->instance));
-    return compare_ptrs(l->owner, r->owner);
+    CMP_RET(_compare_ptrs(l->instance, r->instance));
+    return _compare_ptrs(l->owner, r->owner);
 }
 
-static int module_compare(ObjModule *l, ObjModule *r)
+static int _module_compare(ObjModule *l, ObjModule *r)
 {
-    CMP_RET(compare_strings(l->name, r->name));
-    CMP_RET(compare_strings(l->path, r->path));
-    CMP_RET(normalize_compare((int)l->builtin - (int)r->builtin));
-    CMP_RET(normalize_compare((int)l->is_main - (int)r->is_main));
-    CMP_RET(normalize_compare((int)l->state   - (int)r->state));
+    CMP_RET(_compare_strings(l->name, r->name));
+    CMP_RET(_compare_strings(l->path, r->path));
+    CMP_RET(_normalize_compare((int)l->builtin - (int)r->builtin));
+    CMP_RET(_normalize_compare((int)l->is_main - (int)r->is_main));
+    CMP_RET(_normalize_compare((int)l->state   - (int)r->state));
 
     if ((l->exports == NULL) != (r->exports == NULL)) return l->exports ? 1 : -1;
-    if (l->exports) CMP_RET(map_compare(l->exports, r->exports));
+    if (l->exports) CMP_RET(_map_compare(l->exports, r->exports));
 
     if ((l->constants == NULL) != (r->constants == NULL)) return l->constants ? 1 : -1;
-    if (l->constants) CMP_RET(list_compare(l->constants, r->constants));
+    if (l->constants) CMP_RET(_list_compare(l->constants, r->constants));
 
     if ((l->names == NULL) != (r->names == NULL)) return l->names ? 1 : -1;
-    if (l->names) return list_compare(l->names, r->names);
+    if (l->names) return _list_compare(l->names, r->names);
     return 0;
 }
 
-static int file_compare(ObjFile *l, ObjFile *r)
+static int _file_compare(ObjFile *l, ObjFile *r)
 {
-    CMP_RET(compare_strings(l->filename, r->filename));
-    CMP_RET(compare_strings(l->mode, r->mode));
-    CMP_RET(normalize_compare((int)l->closed - (int)r->closed));
+    CMP_RET(_compare_strings(l->filename, r->filename));
+    CMP_RET(_compare_strings(l->mode, r->mode));
+    CMP_RET(_normalize_compare((int)l->closed - (int)r->closed));
 
-    return compare_ptrs(l->fp, r->fp);
+    return _compare_ptrs(l->fp, r->fp);
 }
 
-static int event_compare(PiEvent *l, PiEvent *r)
+static int _event_compare(PiEvent *l, PiEvent *r)
 {
-    CMP_RET(compare_strings(l->type, r->type));
-    CMP_RET(normalize_compare((int)l->event_type - (int)r->event_type));
-    CMP_RET(normalize_compare(l->x - r->x));
-    CMP_RET(normalize_compare(l->y - r->y));
-    CMP_RET(normalize_compare(l->dx - r->dx));
-    CMP_RET(normalize_compare(l->dy - r->dy));
-    CMP_RET(compare_strings(l->key, r->key));
-    CMP_RET(normalize_compare(l->button - r->button));
-    CMP_RET(normalize_compare((int)l->pressed - (int)r->pressed));
-    CMP_RET(normalize_compare(l->width - r->width));
+    CMP_RET(_compare_strings(l->type, r->type));
+    CMP_RET(_normalize_compare((int)l->event_type - (int)r->event_type));
+    CMP_RET(_normalize_compare(l->x - r->x));
+    CMP_RET(_normalize_compare(l->y - r->y));
+    CMP_RET(_normalize_compare(l->dx - r->dx));
+    CMP_RET(_normalize_compare(l->dy - r->dy));
+    CMP_RET(_compare_strings(l->key, r->key));
+    CMP_RET(_normalize_compare(l->button - r->button));
+    CMP_RET(_normalize_compare((int)l->pressed - (int)r->pressed));
+    CMP_RET(_normalize_compare(l->width - r->width));
 
-    return normalize_compare(l->height - r->height);
+    return _normalize_compare(l->height - r->height);
 }
 
 #undef CMP_RET
@@ -545,22 +545,22 @@ static int event_compare(PiEvent *l, PiEvent *r)
 PI_STRICT_FP bool equals(Value l, Value r)
 {
     if (l.type != r.type)
-        return false;
+        return FALSE;
 
     switch (l.type)
     {
     case VAL_NUM:
-        return !number_isNaN(l.data.number) &&
-               !number_isNaN(r.data.number) &&
+        return !_number_isNaN(l.data.number) &&
+               !_number_isNaN(r.data.number) &&
                fabs(l.data.number - r.data.number) < 1e-9;
     case VAL_BOOL:
         return l.data.boolean == r.data.boolean;
     case VAL_NIL:
-        return true;
+        return TRUE;
     case VAL_OBJ:
     {
         if (l.data.object->type != r.data.object->type)
-            return false;
+            return FALSE;
         switch (l.data.object->type)
         {
         case OBJ_STRING:
@@ -569,21 +569,21 @@ PI_STRICT_FP bool equals(Value l, Value r)
             PiString *b = (PiString *)r.data.object;
             return a->length == b->length && strcmp(a->chars, b->chars) == 0;
         }
-        case OBJ_LIST:    return list_equals(AS_LIST(l)->items,   AS_LIST(r)->items);
-        case OBJ_TUPLE:   return list_equals(AS_TUPLE(l)->items,  AS_TUPLE(r)->items);
-        case OBJ_TENSOR:  return tensor_equals(AS_TENSOR(l),      AS_TENSOR(r));
-        case OBJ_MAP:     return map_equals(AS_MAP(l),            AS_MAP(r));
-        case OBJ_MODULE:  return module_equals(AS_MODULE(l),      AS_MODULE(r));
-        case OBJ_RANGE:   return range_equals(AS_RANGE(l),        AS_RANGE(r));
-        case OBJ_FUN:     return function_equals(AS_FUN(l),       AS_FUN(r));
-        case OBJ_CODE:    return code_equals(AS_CODE(l),          AS_CODE(r));
-        case OBJ_FILE:    return file_equals(AS_FILE(l),          AS_FILE(r));
-        case OBJ_EVENT:   return event_equals(AS_EVENT(l),        AS_EVENT(r));
+        case OBJ_LIST:    return _list_equals(AS_LIST(l)->items,   AS_LIST(r)->items);
+        case OBJ_TUPLE:   return _list_equals(AS_TUPLE(l)->items,  AS_TUPLE(r)->items);
+        case OBJ_TENSOR:  return _tensor_equals(AS_TENSOR(l),      AS_TENSOR(r));
+        case OBJ_MAP:     return _map_equals(AS_MAP(l),            AS_MAP(r));
+        case OBJ_MODULE:  return _module_equals(AS_MODULE(l),      AS_MODULE(r));
+        case OBJ_RANGE:   return _range_equals(AS_RANGE(l),        AS_RANGE(r));
+        case OBJ_FUN:     return _function_equals(AS_FUN(l),       AS_FUN(r));
+        case OBJ_CODE:    return _code_equals(AS_CODE(l),          AS_CODE(r));
+        case OBJ_FILE:    return _file_equals(AS_FILE(l),          AS_FILE(r));
+        case OBJ_EVENT:   return _event_equals(AS_EVENT(l),        AS_EVENT(r));
         default:          return l.data.object == r.data.object;
         }
     }
     default:
-        return false;
+        return FALSE;
     }
 }
 
@@ -592,29 +592,29 @@ int compare(Value l, Value r)
     if (l.type != r.type)
     {
         if (is_numeric(l) && is_numeric(r))
-            return compare_numbers(as_number(l), as_number(r));
+            return _compare_numbers(as_number(l), as_number(r));
         return ERROR_COMPARE;
     }
 
     switch (l.type)
     {
-    case VAL_NUM:   return compare_numbers(l.data.number, r.data.number);
+    case VAL_NUM:   return _compare_numbers(l.data.number, r.data.number);
     case VAL_BOOL:  return (int)l.data.boolean - (int)r.data.boolean;
     case VAL_NIL:   return 0;
     case VAL_OBJ:
         switch (OBJ_TYPE(l))
         {
         case OBJ_STRING: return strcmp(AS_STRING(l)->chars, AS_STRING(r)->chars);
-        case OBJ_LIST:   return list_compare(AS_LIST(l)->items,  AS_LIST(r)->items);
-        case OBJ_TUPLE:  return list_compare(AS_TUPLE(l)->items, AS_TUPLE(r)->items);
-        case OBJ_TENSOR: return tensor_compare(AS_TENSOR(l),     AS_TENSOR(r));
-        case OBJ_MAP:    return map_compare(AS_MAP(l),           AS_MAP(r));
-        case OBJ_RANGE:  return range_compare(AS_RANGE(l),       AS_RANGE(r));
-        case OBJ_FUN:    return function_compare(AS_FUN(l),      AS_FUN(r));
-        case OBJ_CODE:   return code_compare(AS_CODE(l),         AS_CODE(r));
-        case OBJ_MODULE: return module_compare(AS_MODULE(l),     AS_MODULE(r));
-        case OBJ_FILE:   return file_compare(AS_FILE(l),         AS_FILE(r));
-        case OBJ_EVENT:  return event_compare(AS_EVENT(l),       AS_EVENT(r));
+        case OBJ_LIST:   return _list_compare(AS_LIST(l)->items,  AS_LIST(r)->items);
+        case OBJ_TUPLE:  return _list_compare(AS_TUPLE(l)->items, AS_TUPLE(r)->items);
+        case OBJ_TENSOR: return _tensor_compare(AS_TENSOR(l),     AS_TENSOR(r));
+        case OBJ_MAP:    return _map_compare(AS_MAP(l),           AS_MAP(r));
+        case OBJ_RANGE:  return _range_compare(AS_RANGE(l),       AS_RANGE(r));
+        case OBJ_FUN:    return _function_compare(AS_FUN(l),      AS_FUN(r));
+        case OBJ_CODE:   return _code_compare(AS_CODE(l),         AS_CODE(r));
+        case OBJ_MODULE: return _module_compare(AS_MODULE(l),     AS_MODULE(r));
+        case OBJ_FILE:   return _file_compare(AS_FILE(l),         AS_FILE(r));
+        case OBJ_EVENT:  return _event_compare(AS_EVENT(l),       AS_EVENT(r));
         default:         return ERROR_COMPARE;
         }
     default:
@@ -622,17 +622,17 @@ int compare(Value l, Value r)
     }
 }
 
-char *string_fromToken(token_t token)
+char *string_fromToken(Token token)
 {
     char *raw = tk_string(token);
     if (token.type != TK_STR)
         return raw;
-    char *text = unescape_string(raw);
+    char *text = _unescape_string(raw);
     free(raw);
     return text;
 }
 
-Value new_value(token_t token)
+Value new_value(Token token)
 {
     Value val;
 
@@ -695,7 +695,7 @@ bool as_bool(Value val)
     {
     case VAL_BOOL:  return val.data.boolean;
     case VAL_NUM:   return val.data.number != 0.0;
-    case VAL_NIL:   return false;
+    case VAL_NIL:   return FALSE;
     case VAL_OBJ:
         switch (AS_OBJ(val)->type)
         {
@@ -706,64 +706,64 @@ bool as_bool(Value val)
         case OBJ_MODULE:  return AS_MODULE(val)->exports &&
                                  ht_length(AS_MODULE(val)->exports->table) > 0;
         case OBJ_RANGE:   return AS_RANGE(val)->start != AS_RANGE(val)->end;
-        default:          return true;
+        default:          return TRUE;
         }
     default:
         error("Expected a boolean, but got %s", type_name(val));
     }
 }
 
-static bool tensor_shouldSummarizeDim(PiTensor *tensor, int dim)
+static bool _tensor_shouldSummarizeDim(PiTensor *tensor, int dim)
 {
     return tensor->shape[dim] > 10;
 }
 
-static bool tensor_shouldPrintIndex(PiTensor *tensor, int dim, int index)
+static bool _tensor_shouldPrintIndex(PiTensor *tensor, int dim, int index)
 {
-    if (!tensor_shouldSummarizeDim(tensor, dim))
-        return true;
+    if (!_tensor_shouldSummarizeDim(tensor, dim))
+        return TRUE;
     return index < 3 || index >= tensor->shape[dim] - 3;
 }
 
-static void tensor_appendToSb(sb_t *sb, PiTensor *tensor, int dim, int *indices)
+static void _tensor_appendToSb(StringBuilder *sb, PiTensor *tensor, int dim, int *indices)
 {
     if (dim == tensor->ndim)
     {
-        char *item = format_number(tensor_get(tensor, indices));
-        sb_append(sb, item);
+        char *item = _format_number(tensor_get(tensor, indices));
+        _sb_append(sb, item);
         free(item);
         return;
     }
 
-    sb_append(sb, "[");
-    bool wrote = false;
-    bool ellipsis = false;
+    _sb_append(sb, "[");
+    bool wrote = FALSE;
+    bool ellipsis = FALSE;
 
     for (int i = 0; i < tensor->shape[dim]; i++)
     {
-        if (!tensor_shouldPrintIndex(tensor, dim, i))
+        if (!_tensor_shouldPrintIndex(tensor, dim, i))
         {
             if (!ellipsis)
             {
                 if (wrote)
-                    sb_append(sb, ", ");
-                sb_append(sb, "...");
-                wrote = true;
-                ellipsis = true;
+                    _sb_append(sb, ", ");
+                _sb_append(sb, "...");
+                wrote = TRUE;
+                ellipsis = TRUE;
             }
             continue;
         }
         if (wrote)
-            sb_append(sb, ", ");
+            _sb_append(sb, ", ");
         indices[dim] = i;
-        tensor_appendToSb(sb, tensor, dim + 1, indices);
-        wrote = true;
+        _tensor_appendToSb(sb, tensor, dim + 1, indices);
+        wrote = TRUE;
     }
-    sb_append(sb, "]");
+    _sb_append(sb, "]");
 }
 
 /* Helper: malloc a small formatted string. */
-static char *fmt_alloc(size_t n, const char *fmt, ...)
+static char *_fmt_alloc(size_t n, const char *fmt, ...)
 {
     char *buf = malloc(n);
     if (!buf) return NULL;
@@ -774,7 +774,7 @@ static char *fmt_alloc(size_t n, const char *fmt, ...)
     return buf;
 }
 
-char *as_stringWithFormat(vm_t *vm, Value val)
+char *as_stringWithFormat(VM *vm, Value val)
 {
     if (vm && IS_INSTANCE(val))
     {
@@ -785,52 +785,52 @@ char *as_stringWithFormat(vm_t *vm, Value val)
 
     switch (val.type)
     {
-    case VAL_NUM:  return format_number(val.data.number);
-    case VAL_BOOL: return dup_Cstring(val.data.boolean ? "true" : "false");
-    case VAL_NIL:  return dup_Cstring("nil");
+    case VAL_NUM:  return _format_number(val.data.number);
+    case VAL_BOOL: return _dup_Cstring(val.data.boolean ? "true" : "false");
+    case VAL_NIL:  return _dup_Cstring("nil");
     case VAL_OBJ:
         switch (AS_OBJ(val)->type)
         {
         case OBJ_STRING:
-            return dup_Cstring(AS_STRING(val)->chars);
+            return _dup_Cstring(AS_STRING(val)->chars);
 
         case OBJ_LIST:
         {
-            list_t *list = as_list(val);
-            sb_t sb; sb_init(&sb, "[");
+            List *list = as_list(val);
+            StringBuilder sb; _sb_init(&sb, "[");
             for (size_t i = 0; i < (size_t)list->size; i++)
             {
-                if (i) sb_append(&sb, ", ");
-                char *item = as_stringWithFormat(vm, *(Value *)list_getAt(list, i));
-                sb_append(&sb, item); free(item);
+                if (i) _sb_append(&sb, ", ");
+                char *item = as_stringWithFormat(vm, *(Value *)_list_getAt(list, i));
+                _sb_append(&sb, item); free(item);
             }
-            sb_append(&sb, "]");
-            return sb_finish(&sb);
+            _sb_append(&sb, "]");
+            return _sb_finish(&sb);
         }
 
         case OBJ_MAP:
         {
             PiMap *map = AS_MAP(val);
-            sb_t sb; sb_init(&sb, "{");
-            bool first = true;
-            ht_iter it = ht_iterator(map->table);
-            while (ht_next(&it))
+            StringBuilder sb; _sb_init(&sb, "{");
+            bool first = TRUE;
+            HT_Iterator it = _ht_iterator(map->table);
+            while (_ht_next(&it))
             {
-                if (!first) sb_append(&sb, ", ");
-                first = false;
-                sb_append(&sb, it.key);
-                sb_append(&sb, ": ");
+                if (!first) _sb_append(&sb, ", ");
+                first = FALSE;
+                _sb_append(&sb, it.key);
+                _sb_append(&sb, ": ");
                 char *vstr = as_stringWithFormat(vm, *(Value *)it.value);
-                sb_append(&sb, vstr); free(vstr);
+                _sb_append(&sb, vstr); free(vstr);
             }
-            sb_append(&sb, "}");
-            return sb_finish(&sb);
+            _sb_append(&sb, "}");
+            return _sb_finish(&sb);
         }
 
         case OBJ_CLASS:
         {
             PiClass *c = AS_CLASS(val);
-            return fmt_alloc(256, "<class %s>", c->name ? c->name : "<anonymous>");
+            return _fmt_alloc(256, "<class %s>", c->name ? c->name : "<anonymous>");
         }
 
         case OBJ_INSTANCE:
@@ -838,95 +838,95 @@ char *as_stringWithFormat(vm_t *vm, Value val)
             PiInstance *inst = AS_INSTANCE(val);
             const char *name = inst->_class && inst->_class->name
                                    ? inst->_class->name : "<anonymous>";
-            return fmt_alloc(256, "<instance %s>", name);
+            return _fmt_alloc(256, "<instance %s>", name);
         }
 
         case OBJ_SET:
         {
             PiSet *set = AS_SET(val);
             int size   = set_size(set);
-            if (size == 0) return dup_Cstring("{}");
-            sb_t sb; sb_init(&sb, "{");
+            if (size == 0) return _dup_Cstring("{}");
+            StringBuilder sb; _sb_init(&sb, "{");
             for (int i = 0; i < size; i++)
             {
-                if (i) sb_append(&sb, ", ");
+                if (i) _sb_append(&sb, ", ");
                 char *item = as_stringWithFormat(vm, set_get(set, i));
-                sb_append(&sb, item); free(item);
+                _sb_append(&sb, item); free(item);
             }
-            sb_append(&sb, "}");
-            return sb_finish(&sb);
+            _sb_append(&sb, "}");
+            return _sb_finish(&sb);
         }
 
         case OBJ_TUPLE:
         {
             PiTuple *tuple = AS_TUPLE(val);
             int size       = LIST_SIZE(tuple->items);
-            sb_t sb; sb_init(&sb, "(");
+            StringBuilder sb; _sb_init(&sb, "(");
             for (int i = 0; i < size; i++)
             {
-                if (i) sb_append(&sb, ", ");
-                char *item = as_stringWithFormat(vm, *(Value *)list_getAt(tuple->items, i));
-                sb_append(&sb, item); free(item);
+                if (i) _sb_append(&sb, ", ");
+                char *item = as_stringWithFormat(vm, *(Value *)_list_getAt(tuple->items, i));
+                _sb_append(&sb, item); free(item);
             }
-            if (size == 1) sb_append(&sb, ",");
-            sb_append(&sb, ")");
-            return sb_finish(&sb);
+            if (size == 1) _sb_append(&sb, ",");
+            _sb_append(&sb, ")");
+            return _sb_finish(&sb);
         }
 
         case OBJ_TENSOR:
         {
-            sb_t sb; sb_init(&sb, "");
+            StringBuilder sb; _sb_init(&sb, "");
             int indices[MAX_TENSOR_DIMS] = {0};
-            tensor_appendToSb(&sb, AS_TENSOR(val), 0, indices);
-            return sb_finish(&sb);
+            _tensor_appendToSb(&sb, AS_TENSOR(val), 0, indices);
+            return _sb_finish(&sb);
         }
 
         case OBJ_RANGE:
         {
             PiRange *r = AS_RANGE(val);
-            char *start = format_number(r->start);
-            char *end   = format_number(r->end);
-            sb_t sb; sb_init(&sb, start);
-            sb_append(&sb, ".."); sb_append(&sb, end);
+            char *start = _format_number(r->start);
+            char *end   = _format_number(r->end);
+            StringBuilder sb; _sb_init(&sb, start);
+            _sb_append(&sb, ".."); _sb_append(&sb, end);
             free(start); free(end);
             if (r->step != 1.0)
             {
-                char *step = format_number(r->step);
-                sb_append(&sb, ":"); sb_append(&sb, step);
+                char *step = _format_number(r->step);
+                _sb_append(&sb, ":"); _sb_append(&sb, step);
                 free(step);
             }
-            return sb_finish(&sb);
+            return _sb_finish(&sb);
         }
 
         case OBJ_FUN:
-            return fmt_alloc(128, "<FUN: %s>", AS_FUN(val)->name);
+            return _fmt_alloc(128, "<FUN: %s>", AS_FUN(val)->name);
 
         case OBJ_MODULE:
         {
             ObjModule *m = AS_MODULE(val);
-            return fmt_alloc(256, "<module %s>", m->name ? m->name : "<anonymous>");
+            return _fmt_alloc(256, "<module %s>", m->name ? m->name : "<anonymous>");
         }
 
         case OBJ_FILE:
         {
             ObjFile *f = AS_FILE(val);
-            return fmt_alloc(256, "<file %s>", f->filename ? f->filename : "<anonymous>");
+            return _fmt_alloc(256, "<file %s>", f->filename ? f->filename : "<anonymous>");
         }
 
         case OBJ_SOCKET:
-            return dup_Cstring("<socket>");
+            return _dup_Cstring("<socket>");
 
 #ifndef __EMSCRIPTEN__
         case OBJ_IMAGE:
         {
             ObjImage *img = AS_IMAGE(val);
-            return fmt_alloc(128, "<image %dx%d>", img->surface->w, img->surface->h);
+            return _fmt_alloc(128, "<image %dx%d>", img->surface->w, img->surface->h);
         }
 
         case OBJ_AUDIO:
         {
             ObjAudio *audio = AS_AUDIO(val);
-            return fmt_alloc(128, "<audio %d Hz, %u channel%s>", audio->spec.freq,
+            return _fmt_alloc(128, "<audio %d Hz, %u channel%s>", audio->spec.freq,
                              audio->spec.channels, audio->spec.channels == 1 ? "" : "s");
         }
 #endif
@@ -941,9 +941,9 @@ char *as_stringWithFormat(vm_t *vm, Value val)
 
 char *as_string(Value val) { return as_stringWithFormat(NULL, val); }
 
-static uint64_t hash_mix(uint64_t hash, uint64_t value)
+static uint64_t _hash_mix(uint64_t hash, uint64_t value)
 {
-    hash ^= value + 0x9e3779b97f4a7c15ULL + (hash << 6) + (hash >> 2);
+    hash ^= value + 0x9e3779b97f4a7c15ull + (hash << 6) + (hash >> 2);
     return hash;
 }
 
@@ -954,22 +954,22 @@ uint64_t value_hash(Value val)
     case VAL_NUM:
     {
         if (isnan(val.data.number))
-            return 0x6e616eULL;
+            return 0x6e616eull;
         double n = val.data.number == 0.0 ? 0.0 : val.data.number;
         uint64_t bits = 0;
         memcpy(&bits, &n, sizeof(bits));
-        return hash_mix(0x6e3aULL, bits);
+        return _hash_mix(0x6e3aull, bits);
     }
     case VAL_BOOL:
-        return val.data.boolean ? 0x623a31ULL : 0x623a30ULL;
+        return val.data.boolean ? 0x623a31ull : 0x623a30ull;
     case VAL_NIL:
-        return 0x7a3a6e696cULL;
+        return 0x7a3a6e696cull;
     case VAL_OBJ:
     {
         Object *obj = AS_OBJ(val);
         if (obj->type == OBJ_STRING)
-            return hash_mix(0x733aULL, AS_STRING(val)->hash);
-        return hash_mix(0x6f3aULL, obj->id);
+            return _hash_mix(0x733aull, AS_STRING(val)->hash);
+        return _hash_mix(0x6f3aull, obj->id);
     }
     }
     return 0;
@@ -977,18 +977,18 @@ uint64_t value_hash(Value val)
 
 bool value_keyEquals(Value l, Value r)
 {
-    if (l.type != r.type) return false;
+    if (l.type != r.type) return FALSE;
     switch (l.type)
     {
     case VAL_NUM:
         return (isnan(l.data.number) && isnan(r.data.number)) ||
                l.data.number == r.data.number;
     case VAL_BOOL: return l.data.boolean == r.data.boolean;
-    case VAL_NIL:  return true;
+    case VAL_NIL:  return TRUE;
     case VAL_OBJ:
     {
         Object *lo = AS_OBJ(l), *ro = AS_OBJ(r);
-        if (lo->type != ro->type) return false;
+        if (lo->type != ro->type) return FALSE;
         if (lo->type == OBJ_STRING)
         {
             PiString *a = AS_STRING(l), *b = AS_STRING(r);
@@ -997,10 +997,10 @@ bool value_keyEquals(Value l, Value r)
         return lo->id == ro->id;
     }
     }
-    return false;
+    return FALSE;
 }
 
-list_t *as_list(Value val)
+List *as_list(Value val)
 {
     if (val.type == VAL_OBJ && OBJ_TYPE(val) == OBJ_LIST)
         return AS_LIST(val)->items;
@@ -1014,22 +1014,22 @@ bool is_numeric(Value val)
     case VAL_NUM:
     case VAL_BOOL:
     case VAL_NIL:
-        return true;
+        return TRUE;
 
     case VAL_OBJ:
         if (OBJ_TYPE(val) != OBJ_STRING)
-            return false;
+            return FALSE;
 
         const char *text = AS_STRING(val)->chars;
         if (*text == '\0')
-            return false;
+            return FALSE;
 
         char *end;
         strtod(text, &end);
         return *end == '\0';
 
     default:
-        return false;
+        return FALSE;
     }
 }
 
@@ -1076,8 +1076,8 @@ Value copy_value(Value val)
             list->current = 0;
             for (size_t i = 0; i < LIST_SIZE(original->items); i++)
             {
-                Value item = copy_value(*(Value *)list_getAt(original->items, i));
-                list_add(list->items, &item);
+                Value item = copy_value(*(Value *)_list_getAt(original->items, i));
+                _list_add(list->items, &item);
             }
             copy.data.object = (Object *)list;
             break;
@@ -1101,10 +1101,10 @@ Value copy_value(Value val)
 
             map->object.type = OBJ_MAP;
             map->table = ht_create(sizeof(Value));
-            map->it = ht_iterator(map->table);
+            map->it = _ht_iterator(map->table);
 
-            ht_iter it = ht_iterator(original->table);
-            while (ht_next(&it))
+            HT_Iterator it = _ht_iterator(original->table);
+            while (_ht_next(&it))
             {
                 Value value = copy_value(*(Value *)it.value);
                 ht_put(map->table, it.key, &value);
@@ -1132,7 +1132,7 @@ void print_value(Value val, bool is_root)
     {
     case VAL_NUM:
     {
-        char *text = format_number(val.data.number);
+        char *text = _format_number(val.data.number);
         printf("%s", text);
         free(text);
         break;

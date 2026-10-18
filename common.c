@@ -9,14 +9,14 @@
 #include "common.h"
 #include "pi_vm.h"
 
-error_handlerFn global_errorHandler = NULL;
+ErrorHandlerFunc global_errorHandler = NULL;
 int pi_cli_argc = 0;
 char **pi_cli_argv = NULL;
 
-bool is_absolute_path(const char *path)
+bool is_AbsolutePath(const char *path)
 {
     if (!path || !path[0])
-        return false;
+        return FALSE;
 
 #ifdef _WIN32
     return (isalpha((unsigned char)path[0]) && path[1] == ':') ||
@@ -26,9 +26,9 @@ bool is_absolute_path(const char *path)
 #endif
 }
 
-char *resolve_path(vm_t *vm, const char *path)
+char *resolve_path(VM *vm, const char *path)
 {
-    if (is_absolute_path(path) || !vm || !vm->current_path)
+    if (is_AbsolutePath(path) || !vm || !vm->current_path)
         return strdup(path);
 
     size_t length = strlen(vm->current_path) + 1 + strlen(path) + 1;
@@ -100,7 +100,7 @@ void error(const char *format, ...)
  * @param handler A function pointer to the custom error handler. If NULL,
  *                the default behavior (printing to stderr and exiting) is restored.
  */
-void set_errorHandler(error_handlerFn handler)
+void set_errorHandler(ErrorHandlerFunc handler)
 {
     global_errorHandler = handler;
 }

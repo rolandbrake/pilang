@@ -4,18 +4,18 @@
 #include "../pi_value.h"
 #include "../pi_vm.h"
 
-Value pi_char(vm_t *vm, int argc, Value *argv);
-Value pi_ord(vm_t *vm, int argc, Value *argv);
-Value pi_trim(vm_t *vm, int argc, Value *argv);
-Value pi_upper(vm_t *vm, int argc, Value *argv);
-Value pi_lower(vm_t *vm, int argc, Value *argv);
-Value st_replace(vm_t *vm, int argc, Value *argv);
-Value st_isUpper(vm_t *vm, int argc, Value *argv);
-Value st_isLower(vm_t *vm, int argc, Value *argv);
-Value st_isDigit(vm_t *vm, int argc, Value *argv);
-Value st_isNumeric(vm_t *vm, int argc, Value *argv);
-Value st_isAlpha(vm_t *vm, int argc, Value *argv);
-Value st_isAlnum(vm_t *vm, int argc, Value *argv);
-Value st_split(vm_t *vm, int argc, Value *argv);
+Value pi_char(VM *vm, int argc, Value *argv);
+Value pi_ord(VM *vm, int argc, Value *argv);
+Value pi_trim(VM *vm, int argc, Value *argv);
+Value pi_upper(VM *vm, int argc, Value *argv);
+Value pi_lower(VM *vm, int argc, Value *argv);
+Value st_replace(VM *vm, int argc, Value *argv);
+Value st_isUpper(VM *vm, int argc, Value *argv);
+Value st_isLower(VM *vm, int argc, Value *argv);
+Value st_isDigit(VM *vm, int argc, Value *argv);
+Value st_isNumeric(VM *vm, int argc, Value *argv);
+Value st_isAlpha(VM *vm, int argc, Value *argv);
+Value st_isAlnum(VM *vm, int argc, Value *argv);
+Value st_split(VM *vm, int argc, Value *argv);
 
 #endif // _PI_STRING_H

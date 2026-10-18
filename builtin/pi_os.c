@@ -11,61 +11,61 @@
 
 #ifdef __EMSCRIPTEN__
 
-static Value os_notSupported(vm_t *vm, const char *name)
+static Value _os_notSupported(VM *vm, const char *name)
 {
     vm_errorf(vm, "[os.%s] is not supported in the Emscripten build.", name);
     return NEW_NIL();
 }
 
-Value os_run(vm_t *vm, int argc, Value *argv)
+Value os_run(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
-    return os_notSupported(vm, "run");
+    return _os_notSupported(vm, "run");
 }
-Value os_spawn(vm_t *vm, int argc, Value *argv)
+Value os_spawn(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
-    return os_notSupported(vm, "spawn");
+    return _os_notSupported(vm, "spawn");
 }
-Value os_which(vm_t *vm, int argc, Value *argv)
+Value os_which(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
-    return os_notSupported(vm, "which");
+    return _os_notSupported(vm, "which");
 }
-Value os_signal(vm_t *vm, int argc, Value *argv)
+Value os_signal(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
-    return os_notSupported(vm, "signal");
+    return _os_notSupported(vm, "signal");
 }
-Value os_kill(vm_t *vm, int argc, Value *argv)
+Value os_kill(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
-    return os_notSupported(vm, "kill");
+    return _os_notSupported(vm, "kill");
 }
-Value os_hostname(vm_t *vm, int argc, Value *argv)
+Value os_hostname(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
-    return os_notSupported(vm, "hostname");
+    return _os_notSupported(vm, "hostname");
 }
-Value os_cpus(vm_t *vm, int argc, Value *argv)
+Value os_cpus(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
-    return os_notSupported(vm, "cpus");
+    return _os_notSupported(vm, "cpus");
 }
-Value os_ram(vm_t *vm, int argc, Value *argv)
+Value os_ram(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
-    return os_notSupported(vm, "ram");
+    return _os_notSupported(vm, "ram");
 }
-Value os_user(vm_t *vm, int argc, Value *argv)
+Value os_user(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
@@ -94,16 +94,16 @@ Value os_user(vm_t *vm, int argc, Value *argv)
 #endif
 #endif
 
-static Value os_string(vm_t *vm, const char *text)
+static Value _os_string(VM *vm, const char *text)
 {
     return NEW_OBJ(add_obj(vm, new_pistring(strdup(text ? text : ""))));
 }
 
-static PiMap *os_resultMap(vm_t *vm, const char *stdout_text, const char *stderr_text, int code)
+static PiMap *_os_resultMap(VM *vm, const char *stdout_text, const char *stderr_text, int code)
 {
     PiMap *result = (PiMap *)add_obj(vm, new_map(ht_create(sizeof(Value))));
-    Value stdout_val = os_string(vm, stdout_text);
-    Value stderr_val = os_string(vm, stderr_text);
+    Value stdout_val = _os_string(vm, stdout_text);
+    Value stderr_val = _os_string(vm, stderr_text);
     Value code_val = NEW_NUM(code);
 
     ht_put(result->table, "stdout", &stdout_val);
@@ -112,7 +112,7 @@ static PiMap *os_resultMap(vm_t *vm, const char *stdout_text, const char *stderr
     return result;
 }
 
-static char *read_allText(const char *path)
+static char *_read_allText(const char *path)
 {
     FILE *fp = fopen(path, "rb");
     if (!fp)
@@ -151,22 +151,22 @@ static char *read_allText(const char *path)
 }
 
 #ifdef _WIN32
-static bool make_tempPath(char *buffer, DWORD size)
+static bool _make_tempPath(char *buffer, DWORD size)
 {
     char temp_dir[MAX_PATH];
     DWORD dir_len = GetTempPathA(MAX_PATH, temp_dir);
     if (dir_len == 0 || dir_len >= MAX_PATH)
-        return false;
+        return FALSE;
 
     UINT result = GetTempFileNameA(temp_dir, "pi", 0, buffer);
     return result != 0;
 }
 
-static Value run_processWindows(vm_t *vm, const char *command, bool wait)
+static Value _run_processWindows(VM *vm, const char *command, bool wait)
 {
     char stdout_path[MAX_PATH];
     char stderr_path[MAX_PATH];
-    if (!make_tempPath(stdout_path, MAX_PATH) || !make_tempPath(stderr_path, MAX_PATH))
+    if (!_make_tempPath(stdout_path, MAX_PATH) || !_make_tempPath(stderr_path, MAX_PATH))
         vm_error(vm, "[os] failed to create temporary files.");
 
     SECURITY_ATTRIBUTES sa;
@@ -226,32 +226,32 @@ static Value run_processWindows(vm_t *vm, const char *command, bool wait)
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
 
-    char *stdout_text = read_allText(stdout_path);
-    char *stderr_text = read_allText(stderr_path);
+    char *stdout_text = _read_allText(stdout_path);
+    char *stderr_text = _read_allText(stderr_path);
     DeleteFileA(stdout_path);
     DeleteFileA(stderr_path);
 
-    PiMap *result = os_resultMap(vm, stdout_text, stderr_text, (int)exit_code);
+    PiMap *result = _os_resultMap(vm, stdout_text, stderr_text, (int)exit_code);
     free(stdout_text);
     free(stderr_text);
     return NEW_OBJ(result);
 }
 #else
-static bool make_tempPath(char *buffer, size_t size)
+static bool _make_tempPath(char *buffer, size_t size)
 {
     snprintf(buffer, size, "/tmp/pilangXXXXXX");
     int fd = mkstemp(buffer);
     if (fd == -1)
-        return false;
+        return FALSE;
     close(fd);
-    return true;
+    return TRUE;
 }
 
-static Value run_processPosix(vm_t *vm, const char *command, bool wait)
+static Value _run_processPosix(VM *vm, const char *command, bool wait)
 {
     char stdout_path[PATH_MAX];
     char stderr_path[PATH_MAX];
-    if (!make_tempPath(stdout_path, sizeof(stdout_path)) || !make_tempPath(stderr_path, sizeof(stderr_path)))
+    if (!_make_tempPath(stdout_path, sizeof(stdout_path)) || !_make_tempPath(stderr_path, sizeof(stderr_path)))
         vm_error(vm, "[os] failed to create temporary files.");
 
     pid_t pid = fork();
@@ -287,40 +287,40 @@ static Value run_processPosix(vm_t *vm, const char *command, bool wait)
     int status = 0;
     waitpid(pid, &status, 0);
 
-    char *stdout_text = read_allText(stdout_path);
-    char *stderr_text = read_allText(stderr_path);
+    char *stdout_text = _read_allText(stdout_path);
+    char *stderr_text = _read_allText(stderr_path);
     unlink(stdout_path);
     unlink(stderr_path);
 
     int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
-    PiMap *result = os_resultMap(vm, stdout_text, stderr_text, exit_code);
+    PiMap *result = _os_resultMap(vm, stdout_text, stderr_text, exit_code);
     free(stdout_text);
     free(stderr_text);
     return NEW_OBJ(result);
 }
 #endif
 
-Value os_run(vm_t *vm, int argc, Value *argv)
+Value os_run(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[os.run] expects a single command string.");
 
 #ifdef _WIN32
-    return run_processWindows(vm, AS_CSTRING(argv[0]), true);
+    return _run_processWindows(vm, AS_CSTRING(argv[0]), TRUE);
 #else
-    return run_processPosix(vm, AS_CSTRING(argv[0]), true);
+    return _run_processPosix(vm, AS_CSTRING(argv[0]), TRUE);
 #endif
 }
 
-Value os_spawn(vm_t *vm, int argc, Value *argv)
+Value os_spawn(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[os.spawn] expects a single command string.");
 
 #ifdef _WIN32
-    return run_processWindows(vm, AS_CSTRING(argv[0]), false);
+    return _run_processWindows(vm, AS_CSTRING(argv[0]), FALSE);
 #else
-    return run_processPosix(vm, AS_CSTRING(argv[0]), false);
+    return _run_processPosix(vm, AS_CSTRING(argv[0]), FALSE);
 #endif
 }
 
@@ -332,7 +332,7 @@ Value os_spawn(vm_t *vm, int argc, Value *argv)
  * @param argv Argument: [executable name]
  * @return true if successful, otherwise raises an error.
  */
-Value os_which(vm_t *vm, int argc, Value *argv)
+Value os_which(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[os.which] expects a single executable name string.");
@@ -348,7 +348,7 @@ Value os_which(vm_t *vm, int argc, Value *argv)
         if (len == 0 || len >= MAX_PATH)
             return NEW_NIL();
     }
-    return os_string(vm, resolved);
+    return _os_string(vm, resolved);
 #else
     const char *path = getenv("PATH");
     if (!path)
@@ -362,7 +362,7 @@ Value os_which(vm_t *vm, int argc, Value *argv)
         snprintf(candidate, sizeof(candidate), "%s/%s", token, name);
         if (access(candidate, X_OK) == 0)
         {
-            Value result = os_string(vm, candidate);
+            Value result = _os_string(vm, candidate);
             free(paths);
             return result;
         }
@@ -373,7 +373,7 @@ Value os_which(vm_t *vm, int argc, Value *argv)
 #endif
 }
 
-Value os_signal(vm_t *vm, int argc, Value *argv)
+Value os_signal(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_NUM(argv[0]))
         vm_error(vm, "[os.signal] expects (signal_number, action_string).");
@@ -393,12 +393,12 @@ Value os_signal(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[os.signal] action must be 'ignore' or 'default'.");
 
     if (signal(sig, handler) == SIG_ERR)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value os_kill(vm_t *vm, int argc, Value *argv)
+Value os_kill(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_NUM(argv[0]) || (argc >= 2 && !IS_NUM(argv[1])))
         vm_error(vm, "[os.kill] expects (pid, [signal]).");
@@ -409,7 +409,7 @@ Value os_kill(vm_t *vm, int argc, Value *argv)
 #ifdef _WIN32
     HANDLE proc = OpenProcess(PROCESS_TERMINATE, FALSE, (DWORD)pid);
     if (!proc)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
 
     BOOL ok = TerminateProcess(proc, (UINT)sig);
     CloseHandle(proc);
@@ -419,7 +419,7 @@ Value os_kill(vm_t *vm, int argc, Value *argv)
 #endif
 }
 
-Value os_hostname(vm_t *vm, int argc, Value *argv)
+Value os_hostname(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
@@ -429,17 +429,17 @@ Value os_hostname(vm_t *vm, int argc, Value *argv)
     DWORD size = sizeof(buffer);
     if (!GetComputerNameA(buffer, &size))
         vm_error(vm, "[os.hostname] failed.");
-    return os_string(vm, buffer);
+    return _os_string(vm, buffer);
 #else
     char buffer[256];
     if (gethostname(buffer, sizeof(buffer)) != 0)
         vm_error(vm, "[os.hostname] failed.");
     buffer[sizeof(buffer) - 1] = '\0';
-    return os_string(vm, buffer);
+    return _os_string(vm, buffer);
 #endif
 }
 
-Value os_cpus(vm_t *vm, int argc, Value *argv)
+Value os_cpus(VM *vm, int argc, Value *argv)
 {
     (void)vm;
     (void)argc;
@@ -455,7 +455,7 @@ Value os_cpus(vm_t *vm, int argc, Value *argv)
 #endif
 }
 
-Value os_ram(vm_t *vm, int argc, Value *argv)
+Value os_ram(VM *vm, int argc, Value *argv)
 {
     (void)vm;
     (void)argc;
@@ -482,7 +482,7 @@ Value os_ram(vm_t *vm, int argc, Value *argv)
 #endif
 }
 
-Value os_user(vm_t *vm, int argc, Value *argv)
+Value os_user(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
@@ -492,15 +492,15 @@ Value os_user(vm_t *vm, int argc, Value *argv)
     DWORD size = sizeof(buffer);
     if (!GetUserNameA(buffer, &size))
         vm_error(vm, "[os.user] failed.");
-    return os_string(vm, buffer);
+    return _os_string(vm, buffer);
 #else
     struct passwd *pw = getpwuid(getuid());
     if (pw && pw->pw_name)
-        return os_string(vm, pw->pw_name);
+        return _os_string(vm, pw->pw_name);
 
     const char *user = getenv("USER");
     if (user)
-        return os_string(vm, user);
+        return _os_string(vm, user);
     return NEW_NIL();
 #endif
 }

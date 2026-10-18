@@ -2,7 +2,7 @@
 #include "pi_builtin.h"
 #include "../pi_object.h"
 
-Value _pi_type(vm_t *vm, int argc, Value *argv)
+Value _pi_type(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[type] expects at least one argument.");
@@ -11,7 +11,7 @@ Value _pi_type(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_pistring(strdup(type)));
 }
 
-Value pi_isNum(vm_t *vm, int argc, Value *argv)
+Value pi_isNum(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[is_num] expects one argument.");
@@ -19,7 +19,7 @@ Value pi_isNum(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(IS_NUM(argv[0]));
 }
 
-Value pi_isStr(vm_t *vm, int argc, Value *argv)
+Value pi_isStr(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[is_str] expects one argument.");
@@ -27,7 +27,7 @@ Value pi_isStr(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(IS_STRING(argv[0]));
 }
 
-Value pi_isBool(vm_t *vm, int argc, Value *argv)
+Value pi_isBool(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[is_bool] expects one argument.");
@@ -35,7 +35,7 @@ Value pi_isBool(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(IS_BOOL(argv[0]));
 }
 
-Value pi_isList(vm_t *vm, int argc, Value *argv)
+Value pi_isList(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[is_list] expects one argument.");
@@ -43,7 +43,7 @@ Value pi_isList(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(IS_LIST(argv[0]));
 }
 
-Value pi_isMap(vm_t *vm, int argc, Value *argv)
+Value pi_isMap(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[is_map] expects one argument.");
@@ -51,7 +51,7 @@ Value pi_isMap(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(IS_MAP(argv[0]));
 }
 
-Value pi_num(vm_t *vm, int argc, Value *argv)
+Value pi_num(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[num] expects one argument.");
@@ -63,7 +63,7 @@ Value pi_num(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_str(vm_t *vm, int argc, Value *argv)
+Value pi_str(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[str] expects one argument.");
@@ -71,7 +71,7 @@ Value pi_str(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_pistring(pi_displayString(vm, argv[0])));
 }
 
-Value pi_bool(vm_t *vm, int argc, Value *argv)
+Value pi_bool(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[bool] expects one argument.");
@@ -79,7 +79,7 @@ Value pi_bool(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(as_bool(argv[0]));
 }
 
-Value tp_instanceof(vm_t *vm, int argc, Value *argv)
+Value tp_instanceof(VM *vm, int argc, Value *argv)
 {
     if (argc < 2)
         vm_error(vm, "[instanceof] expects two arguments: a value and a type string.");
@@ -87,13 +87,13 @@ Value tp_instanceof(vm_t *vm, int argc, Value *argv)
     if (!IS_STRING(argv[1]))
         vm_error(vm, "[instanceof] second argument must be a type string.");
 
-    char *typeName = type_name(argv[0]);
-    char *givenTypeName = AS_CSTRING(argv[1]);
+    char *value_type_name = type_name(argv[0]);
+    char *given_type_name = AS_CSTRING(argv[1]);
 
-    return NEW_BOOL(strcmp(typeName, givenTypeName) == 0);
+    return NEW_BOOL(strcmp(value_type_name, given_type_name) == 0);
 }
 
-Value tp_size(vm_t *vm, int argc, Value *argv)
+Value tp_size(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[size] expects one argument.");
@@ -124,7 +124,7 @@ Value tp_size(vm_t *vm, int argc, Value *argv)
     return NEW_NUM((double)VALUE_SIZE);
 }
 
-Value tp_nil(vm_t *vm, int argc, Value *argv)
+Value tp_nil(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[nil] expects one argument.");
@@ -132,7 +132,7 @@ Value tp_nil(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(IS_NIL(argv[0]));
 }
 
-Value tp_int(vm_t *vm, int argc, Value *argv)
+Value tp_int(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[int] expects one argument.");
@@ -156,7 +156,7 @@ Value tp_int(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value tp_float(vm_t *vm, int argc, Value *argv)
+Value tp_float(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[float] expects one argument.");
@@ -180,7 +180,7 @@ Value tp_float(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value tp_bool(vm_t *vm, int argc, Value *argv)
+Value tp_bool(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[bool] expects one argument.");
@@ -188,20 +188,20 @@ Value tp_bool(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(as_bool(argv[0]));
 }
 
-Value pi_list(vm_t *vm, int argc, Value *argv)
+Value pi_list(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[list] expects one argument.");
 
     Value arg = argv[0];
-    list_t *new_items = list_create(sizeof(Value));
+    List *new_items = list_create(sizeof(Value));
 
     if (IS_LIST(arg))
     {
         // list(x) creates a shallow copy; contained objects are shared.
-        list_t *original_items = AS_LIST(arg)->items;
+        List *original_items = AS_LIST(arg)->items;
         for (int i = 0; i < original_items->size; i++)
-            list_add(new_items, list_getAt(original_items, i));
+            _list_add(new_items, _list_getAt(original_items, i));
     }
     else if (IS_OBJ(arg) && is_iterable(AS_OBJ(arg)))
     {
@@ -211,7 +211,7 @@ Value pi_list(vm_t *vm, int argc, Value *argv)
         while (iter_hasNext(iterable_obj))
         {
             Value item = iter_next(iterable_obj);
-            list_add(new_items, &item);
+            _list_add(new_items, &item);
         }
     }
     else
@@ -220,13 +220,13 @@ Value pi_list(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_list(new_items));
 }
 
-Value tp_bytes(vm_t *vm, int argc, Value *argv)
+Value tp_bytes(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         vm_error(vm, "[bytes] expects one argument.");
 
     Value arg = argv[0];
-    list_t *byte_items = list_create(sizeof(Value));
+    List *byte_items = list_create(sizeof(Value));
 
     if (IS_STRING(arg))
     {
@@ -234,7 +234,7 @@ Value tp_bytes(vm_t *vm, int argc, Value *argv)
         for (size_t i = 0; i < pstr->length; i++)
         {
             Value byte_value = NEW_NUM((double)(unsigned char)pstr->chars[i]);
-            list_add(byte_items, &byte_value);
+            _list_add(byte_items, &byte_value);
         }
     }
     else if (IS_LIST(arg))
@@ -245,14 +245,14 @@ Value tp_bytes(vm_t *vm, int argc, Value *argv)
 
         for (int i = 0; i < plist->items->size; i++)
         {
-            Value *element = (Value *)list_getAt(plist->items, i);
+            Value *element = (Value *)_list_getAt(plist->items, i);
             Value value = *element;
 
             // Bytes are represented as numeric values, but must be exact integers in [0, 255].
             if (!IS_NUM(value) || AS_NUM(value) < 0 || AS_NUM(value) > 255 || AS_NUM(value) != (long)AS_NUM(value))
                 vm_error(vm, "[bytes] list elements must be integers between 0 and 255.");
 
-            list_add(byte_items, &value);
+            _list_add(byte_items, &value);
         }
     }
     else

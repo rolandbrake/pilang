@@ -11,7 +11,7 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-static int random_intInclusive(vm_t *vm, int min, int max, const char *name)
+static int _random_intInclusive(VM *vm, int min, int max, const char *name)
 {
     if (min > max)
         vm_errorf(vm, "[random.%s] min must not be greater than max.", name);
@@ -20,7 +20,7 @@ static int random_intInclusive(vm_t *vm, int min, int max, const char *name)
     return min + (int)(rand_num() * range);
 }
 
-Value rd_seed(vm_t *vm, int argc, Value *argv)
+Value rd_seed(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_NUM(argv[0]))
         vm_error(vm, "[random.seed] expects a numeric seed.");
@@ -29,7 +29,7 @@ Value rd_seed(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value rd_rand(vm_t *vm, int argc, Value *argv)
+Value rd_rand(VM *vm, int argc, Value *argv)
 {
     (void)argv;
     // if (argc != 0)
@@ -38,7 +38,7 @@ Value rd_rand(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(rand_num());
 }
 
-Value rd_uniform(vm_t *vm, int argc, Value *argv)
+Value rd_uniform(VM *vm, int argc, Value *argv)
 {
     if (argc == 0)
         return NEW_NUM(rand_num());
@@ -53,18 +53,18 @@ Value rd_uniform(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(min + rand_num() * (max - min));
 }
 
-Value rd_randint(vm_t *vm, int argc, Value *argv)
+Value rd_randint(VM *vm, int argc, Value *argv)
 {
     if (argc == 1 && IS_NUM(argv[0]))
-        return NEW_NUM(random_intInclusive(vm, 0, (int)AS_NUM(argv[0]), "randint"));
+        return NEW_NUM(_random_intInclusive(vm, 0, (int)AS_NUM(argv[0]), "randint"));
     if (argc == 2 && IS_NUM(argv[0]) && IS_NUM(argv[1]))
-        return NEW_NUM(random_intInclusive(vm, (int)AS_NUM(argv[0]), (int)AS_NUM(argv[1]), "randint"));
+        return NEW_NUM(_random_intInclusive(vm, (int)AS_NUM(argv[0]), (int)AS_NUM(argv[1]), "randint"));
 
     vm_error(vm, "[random.randint] expects max or min, max numeric arguments.");
     return NEW_NIL();
 }
 
-Value rd_normal(vm_t *vm, int argc, Value *argv)
+Value rd_normal(VM *vm, int argc, Value *argv)
 {
     double mean = 0.0;
     double stddev = 1.0;
@@ -95,7 +95,7 @@ Value rd_normal(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(mean + z * stddev);
 }
 
-Value rd_choice(vm_t *vm, int argc, Value *argv)
+Value rd_choice(VM *vm, int argc, Value *argv)
 {
     if (argc != 1 || !IS_LIST(argv[0]))
         vm_error(vm, "[random.choice] expects a list.");
@@ -105,30 +105,30 @@ Value rd_choice(vm_t *vm, int argc, Value *argv)
     if (size <= 0)
         vm_error(vm, "[random.choice] cannot choose from an empty list.");
 
-    int index = random_intInclusive(vm, 0, size - 1, "choice");
-    return *(Value *)list_getAt(list->items, index);
+    int index = _random_intInclusive(vm, 0, size - 1, "choice");
+    return *(Value *)_list_getAt(list->items, index);
 }
 
-Value rd_shuffle(vm_t *vm, int argc, Value *argv)
+Value rd_shuffle(VM *vm, int argc, Value *argv)
 {
     if (argc != 1 || !IS_LIST(argv[0]))
         vm_error(vm, "[random.shuffle] expects a list.");
 
     PiList *source = AS_LIST(argv[0]);
-    list_t *items = list_create(sizeof(Value));
+    List *items = list_create(sizeof(Value));
 
     for (int i = 0; i < LIST_SIZE(source->items); i++)
     {
-        Value item = *(Value *)list_getAt(source->items, i);
-        list_add(items, &item);
+        Value item = *(Value *)_list_getAt(source->items, i);
+        _list_add(items, &item);
     }
 
     for (int i = LIST_SIZE(items) - 1; i > 0; i--)
     {
-        int j = random_intInclusive(vm, 0, i, "shuffle");
-        Value tmp = *(Value *)list_getAt(items, i);
-        *(Value *)list_getAt(items, i) = *(Value *)list_getAt(items, j);
-        *(Value *)list_getAt(items, j) = tmp;
+        int j = _random_intInclusive(vm, 0, i, "shuffle");
+        Value tmp = *(Value *)_list_getAt(items, i);
+        *(Value *)_list_getAt(items, i) = *(Value *)_list_getAt(items, j);
+        *(Value *)_list_getAt(items, j) = tmp;
     }
 
     PiList *result = (PiList *)new_list(items);

@@ -22,12 +22,12 @@
 static FILE *dis_output = NULL;
 
 #ifdef __EMSCRIPTEN__
-static void dis_emit(const char *text)
+static void _dis_emit(const char *text)
 {
     EM_ASM({ console.log(UTF8ToString($0)); }, text);
 }
 #else
-static void dis_emitPlain(FILE *file, const char *text)
+static void _dis_emitPlain(FILE *file, const char *text)
 {
     const char *p = text;
     while (*p)
@@ -45,10 +45,10 @@ static void dis_emitPlain(FILE *file, const char *text)
     }
 }
 
-static void dis_emit(const char *text)
+static void _dis_emit(const char *text)
 {
     if (dis_output)
-        dis_emitPlain(dis_output, text);
+        _dis_emitPlain(dis_output, text);
     else
         printf("%s", text);
 }
@@ -124,14 +124,14 @@ static const char *op_names[] = {
     [0x53] = "SWITCH_COMPARE",
 };
 
-static context_t *create_context(bool is_function, list_t *code, char *fun_name)
+static Context *_create_context(bool is_function, List *code, char *fun_name)
 {
     static int f_count = 0;
-    context_t *context = malloc(sizeof(context_t));
+    Context *context = malloc(sizeof(Context));
 
-    context->upvalues = list_create(sizeof(upvalue_t));
-    context->locals = stack_create(sizeof(local_t *));
-    context->instrs = list_create(sizeof(instr_t));
+    context->upvalues = list_create(sizeof(Upvalue));
+    context->locals = stack_create(sizeof(Local *));
+    context->instrs = list_create(sizeof(Instruction));
     context->param_names = NULL;
 
     context->is_function = is_function;
@@ -150,7 +150,7 @@ static context_t *create_context(bool is_function, list_t *code, char *fun_name)
     return context;
 }
 
-static void free_instr(instr_t *instr)
+static void _free_instr(Instruction *instr)
 {
     if (!instr)
         return;
@@ -160,18 +160,18 @@ static void free_instr(instr_t *instr)
     free(instr->operands);
 }
 
-static void free_context(context_t *context)
+static void _free_context(Context *context)
 {
     list_free(context->upvalues);
 
-    // locals stack stores local_t* pointer VALUES
-    // stack_pop returns pointer to the slot holding the local_t*
-    // dereference to get the actual local_t*, then free that
-    while (!stack_isEmpty(context->locals))
+    // locals stack stores Local* pointer VALUES
+    // stack_pop returns pointer to the slot holding the Local*
+    // dereference to get the actual Local*, then free that
+    while (!_stack_isEmpty(context->locals))
     {
-        local_t *local = *(local_t **)stack_pop(context->locals);
+        Local *local = *(Local **)_stack_pop(context->locals);
         free(local->name);
-        free(local); // local_t was heap-alloc'd in add_localConst — safe to free
+        free(local); // Local was heap-alloc'd in add_localConst — safe to free
     }
     stack_free(context->locals);
 
@@ -179,8 +179,8 @@ static void free_context(context_t *context)
     {
         while (!list_isEmpty(context->instrs))
         {
-            instr_t *instr = (instr_t *)list_pop(context->instrs);
-            free_instr(instr);
+            Instruction *instr = (Instruction *)list_pop(context->instrs);
+            _free_instr(instr);
         }
         list_free(context->instrs);
     }
@@ -192,58 +192,58 @@ static void free_context(context_t *context)
     free(context);
 }
 
-static void free_loop(loop_t *loop)
+static void _free_loop(Loop *loop)
 {
     stack_free(loop->breaks);
     free(loop);
 }
 
-static void free_loop(loop_t *loop);
+static void _free_loop(Loop *loop);
 
-static context_t *current_context(compiler_t *comp)
+static Context *_current_context(Compiler *comp)
 {
-    context_t **context = (context_t **)stack_peek(comp->contexts);
+    Context **context = (Context **)_stack_peek(comp->contexts);
     return context ? *context : NULL;
 }
 
-static context_t *context_at(compiler_t *comp, int depth)
+static Context *_context_at(Compiler *comp, int depth)
 {
-    context_t **context = (context_t **)stack_getAt(comp->contexts, depth);
+    Context **context = (Context **)stack_getAt(comp->contexts, depth);
     return context ? *context : NULL;
 }
 
-static context_t *pop_context(compiler_t *comp)
+static Context *_pop_context(Compiler *comp)
 {
-    context_t **context = (context_t **)stack_pop(comp->contexts);
+    Context **context = (Context **)_stack_pop(comp->contexts);
     return context ? *context : NULL;
 }
 
-static loop_t *current_loop(compiler_t *comp)
+static Loop *_current_loop(Compiler *comp)
 {
-    loop_t **loop = (loop_t **)stack_peek(comp->loops);
+    Loop **loop = (Loop **)_stack_peek(comp->loops);
     return loop ? *loop : NULL;
 }
 
-static loop_t *pop_loopContext(compiler_t *comp)
+static Loop *_pop_loopContext(Compiler *comp)
 {
-    loop_t **loop = (loop_t **)stack_pop(comp->loops);
+    Loop **loop = (Loop **)_stack_pop(comp->loops);
     return loop ? *loop : NULL;
 }
 
-compiler_t *init_compiler()
+Compiler *init_compiler()
 {
 
-    compiler_t *comp = (compiler_t *)malloc(sizeof(compiler_t));
+    Compiler *comp = (Compiler *)malloc(sizeof(Compiler));
 
     comp->code = list_create(sizeof(uint8_t));
     comp->constants = list_create(sizeof(Value));
     comp->string_constants = ht_create(sizeof(int));
 
-    list_add(comp->constants, &NEW_NUM(NAN));
-    list_add(comp->constants, &NEW_NUM(INFINITY));
+    _list_add(comp->constants, &NEW_NUM(NAN));
+    _list_add(comp->constants, &NEW_NUM(INFINITY));
 
-    list_add(comp->constants, &NEW_BOOL(true));
-    list_add(comp->constants, &NEW_BOOL(false));
+    _list_add(comp->constants, &NEW_BOOL(TRUE));
+    _list_add(comp->constants, &NEW_BOOL(FALSE));
 
     comp->names = list_create(sizeof(String));
     memset(&comp->global_cache, 0, sizeof(comp->global_cache));
@@ -251,32 +251,32 @@ compiler_t *init_compiler()
     comp->declared_globals = ht_create(sizeof(bool));
 
     for (int i = 0; i < BUILTIN_CONST_COUNT; i++)
-        list_add(comp->builtin_names, new_string(builtin_constants[i].name));
+        _list_add(comp->builtin_names, new_string(builtin_constants[i].name));
 
     for (int i = 0; i < BUILTIN_FUNC_COUNT; i++)
-        list_add(comp->builtin_names, new_string(builtin_functions[i].name));
+        _list_add(comp->builtin_names, new_string(builtin_functions[i].name));
 
-    comp->locals = stack_create(sizeof(local_t));
-    comp->contexts = stack_create(sizeof(context_t *));
-    comp->loops = stack_create(sizeof(loop_t *));
+    comp->locals = stack_create(sizeof(Local));
+    comp->contexts = stack_create(sizeof(Context *));
+    comp->loops = stack_create(sizeof(Loop *));
     comp->objects = stack_create(sizeof(String));
     comp->name = "";
 
-    comp->current = create_context(false, comp->code, NULL);
+    comp->current = _create_context(FALSE, comp->code, NULL);
 
-    comp->instrs = ht_create(sizeof(list_t));
+    comp->instrs = ht_create(sizeof(List));
 
-    comp->is_lookUp = false;
-    comp->is_upvalue = false;
-    comp->is_repl = false;
+    comp->is_lookUp = FALSE;
+    comp->is_upvalue = FALSE;
+    comp->is_repl = FALSE;
     comp->source_name = NULL;
 
-    stack_push(comp->contexts, &comp->current);
+    _stack_push(comp->contexts, &comp->current);
 
     return comp;
 }
 
-void add_code(compiler_t *comp, byte _byte)
+void add_code(Compiler *comp, Byte _byte)
 {
     if (!comp || !comp->code)
     {
@@ -290,7 +290,7 @@ void add_code(compiler_t *comp, byte _byte)
     if (size == cap)
     {
         cap = cap == 0 ? 8 : cap * 2;
-        comp->code->data = realloc(comp->code->data, cap * sizeof(byte));
+        comp->code->data = realloc(comp->code->data, cap * sizeof(Byte));
         if (comp->code->data == NULL)
         {
             fprintf(stderr, "Memory allocation failed\n");
@@ -299,38 +299,38 @@ void add_code(compiler_t *comp, byte _byte)
         comp->code->capacity = cap;
     }
 
-    ((byte *)comp->code->data)[size++] = _byte;
+    ((Byte *)comp->code->data)[size++] = _byte;
     comp->code->size = size;
 }
 
-bool is_localScope(compiler_t *comp)
+bool is_localScope(Compiler *comp)
 {
     return comp->current->depth > 0 || comp->current->is_function;
 }
 
-void push_object(compiler_t *comp)
+void push_object(Compiler *comp)
 {
     if (!comp->is_lookUp)
-        stack_push(comp->objects, new_string(comp->name));
+        _stack_push(comp->objects, new_string(comp->name));
 }
 
-void pop_object(compiler_t *comp)
+void pop_object(Compiler *comp)
 {
     if (!comp->is_lookUp)
-        stack_pop(comp->objects);
+        _stack_pop(comp->objects);
 }
 
-bool is_object(compiler_t *comp)
+bool is_object(Compiler *comp)
 {
-    return !stack_isEmpty(comp->objects);
+    return !_stack_isEmpty(comp->objects);
 }
 
-bool is_lookUp(compiler_t *comp)
+bool is_lookUp(Compiler *comp)
 {
     return comp->is_lookUp;
 }
 
-bool look_up(compiler_t *comp, bool value)
+bool look_up(Compiler *comp, bool value)
 {
     bool look_up = comp->is_lookUp;
 
@@ -339,11 +339,11 @@ bool look_up(compiler_t *comp, bool value)
     return look_up;
 }
 
-void print_locals(compiler_t *comp)
+void print_locals(Compiler *comp)
 {
     printf("Locals stack (top to bottom):\n");
 
-    local_t *local = *(local_t **)stack_peek(comp->current->locals);
+    Local *local = *(Local **)_stack_peek(comp->current->locals);
     printf("Local: name = %s, depth = %d, is_captured = %s\n",
            local->name,
            local->depth,
@@ -352,14 +352,14 @@ void print_locals(compiler_t *comp)
     printf("\n");
 }
 
-void add_localConst(compiler_t *comp, char *name, bool is_const)
+void add_localConst(Compiler *comp, char *name, bool is_const)
 {
-    pistack_t *locals = comp->current->locals;
+    PiStack *locals = comp->current->locals;
 
     // Check for name conflict ONLY in current block
-    for (int i = stack_size(locals) - 1; i >= 0; i--)
+    for (int i = _stack_size(locals) - 1; i >= 0; i--)
     {
-        local_t *local = *(local_t **)stack_getAt(locals, i);
+        Local *local = *(Local **)stack_getAt(locals, i);
 
         if (local->depth < comp->current->depth)
             break;
@@ -371,25 +371,25 @@ void add_localConst(compiler_t *comp, char *name, bool is_const)
         }
     }
 
-    local_t *local = malloc(sizeof(local_t));
+    Local *local = malloc(sizeof(Local));
     local->name = strdup(name);
     local->depth = comp->current->depth;
-    local->is_captured = false;
+    local->is_captured = FALSE;
     local->is_const = is_const;
 
-    stack_push(locals, &local);
+    _stack_push(locals, &local);
 }
 
-void add_local(compiler_t *comp, char *name)
+void add_local(Compiler *comp, char *name)
 {
-    add_localConst(comp, name, false);
+    add_localConst(comp, name, FALSE);
 }
 
-int get_local(compiler_t *comp, char *name)
+int get_local(Compiler *comp, char *name)
 {
     int index = -1;
-    int depth = stack_size(comp->contexts) - 1;
-    comp->is_upvalue = false;
+    int depth = _stack_size(comp->contexts) - 1;
+    comp->is_upvalue = FALSE;
 
     index = resolve_local(comp, depth, name);
     if (index != -1)
@@ -397,21 +397,21 @@ int get_local(compiler_t *comp, char *name)
     else
     {
         index = resolve_upvalue(comp, depth, name);
-        comp->is_upvalue = true;
+        comp->is_upvalue = TRUE;
     }
     return index;
 }
 
-int get_localSize(compiler_t *comp, int depth)
+int get_localSize(Compiler *comp, int depth)
 {
     int size = 0;
 
-    pistack_t *locals = comp->current->locals;
-    int l_size = stack_size(locals);
+    PiStack *locals = comp->current->locals;
+    int l_size = _stack_size(locals);
 
     for (int i = l_size - 1; i >= 0; i--)
     {
-        local_t *local = *(local_t **)stack_getAt(locals, i);
+        Local *local = *(Local **)stack_getAt(locals, i);
         if (local->depth >= depth)
             size++;
         else
@@ -420,14 +420,14 @@ int get_localSize(compiler_t *comp, int depth)
     return size;
 }
 
-int resolve_local(compiler_t *comp, int depth, char *name)
+int resolve_local(Compiler *comp, int depth, char *name)
 {
     int index = -1;
-    local_t *local;
-    context_t *context = context_at(comp, depth);
-    for (int i = stack_size(context->locals) - 1; i >= 0; i--)
+    Local *local;
+    Context *context = _context_at(comp, depth);
+    for (int i = _stack_size(context->locals) - 1; i >= 0; i--)
     {
-        local = *(local_t **)stack_getAt(context->locals, i);
+        local = *(Local **)stack_getAt(context->locals, i);
         if (strcmp(local->name, name) == 0)
         {
             index = i;
@@ -437,106 +437,106 @@ int resolve_local(compiler_t *comp, int depth, char *name)
     return index;
 }
 
-int resolve_upvalue(compiler_t *comp, int depth, char *name)
+int resolve_upvalue(Compiler *comp, int depth, char *name)
 {
     if (depth == 0)
         return -1;
 
     int index = resolve_local(comp, depth - 1, name);
     if (index != -1)
-        return add_upvalue(comp, depth, index, true);
+        return add_upvalue(comp, depth, index, TRUE);
 
     int upvalue = resolve_upvalue(comp, depth - 1, name);
     if (upvalue != -1)
-        return add_upvalue(comp, depth, upvalue, false);
+        return add_upvalue(comp, depth, upvalue, FALSE);
 
     return -1;
 }
 
-int add_upvalue(compiler_t *comp, int depth, int index, bool is_local)
+int add_upvalue(Compiler *comp, int depth, int index, bool is_local)
 {
-    context_t *current = context_at(comp, depth);
+    Context *current = _context_at(comp, depth);
 
-    int size = list_size(current->upvalues);
+    int size = LIST_SIZE(current->upvalues);
     for (int i = 0; i < size; i++)
     {
-        upvalue_t *_upvalue = (upvalue_t *)list_getAt(current->upvalues, i);
+        Upvalue *_upvalue = (Upvalue *)_list_getAt(current->upvalues, i);
 
         if (_upvalue->index == index && _upvalue->is_local == is_local)
             return i;
     }
 
-    upvalue_t *upvalue = malloc(sizeof(upvalue_t));
+    Upvalue *upvalue = malloc(sizeof(Upvalue));
     upvalue->index = index;
     upvalue->is_local = is_local;
-    list_add(current->upvalues, upvalue);
+    _list_add(current->upvalues, upvalue);
 
     return size;
 }
 
-bool is_builtin(compiler_t *comp, const char *name)
+bool is_builtin(Compiler *comp, const char *name)
 {
     for (int i = 0; i < comp->builtin_names->size; i++)
     {
         char *existing = string_get(comp->builtin_names, i);
         if (strcmp(existing, name) == 0)
-            return true;
+            return TRUE;
     }
-    return false;
+    return FALSE;
 }
 
-static bool global_isConst(compiler_t *comp, const char *name)
+static bool _global_isConst(Compiler *comp, const char *name)
 {
-    bool *is_const = comp->declared_globals ? (bool *)ht_get(comp->declared_globals, name) : NULL;
+    bool *is_const = comp->declared_globals ? (bool *)_ht_get(comp->declared_globals, name) : NULL;
     return is_const != NULL && *is_const;
 }
 
-static bool local_isConstAt(compiler_t *comp, int depth, int index)
+static bool _local_isConstAt(Compiler *comp, int depth, int index)
 {
-    context_t *context = context_at(comp, depth);
-    if (!context || index < 0 || index >= stack_size(context->locals))
-        return false;
+    Context *context = _context_at(comp, depth);
+    if (!context || index < 0 || index >= _stack_size(context->locals))
+        return FALSE;
 
-    local_t *local = *(local_t **)stack_getAt(context->locals, index);
+    Local *local = *(Local **)stack_getAt(context->locals, index);
     return local && local->is_const;
 }
 
-static bool resolved_upvalueIsConst(compiler_t *comp, const char *name)
+static bool _resolved_upvalueIsConst(Compiler *comp, const char *name)
 {
-    int depth = stack_size(comp->contexts) - 2;
+    int depth = _stack_size(comp->contexts) - 2;
     for (int d = depth; d >= 0; d--)
     {
-        context_t *context = context_at(comp, d);
-        for (int i = stack_size(context->locals) - 1; i >= 0; i--)
+        Context *context = _context_at(comp, d);
+        for (int i = _stack_size(context->locals) - 1; i >= 0; i--)
         {
-            local_t *local = *(local_t **)stack_getAt(context->locals, i);
+            Local *local = *(Local **)stack_getAt(context->locals, i);
             if (strcmp(local->name, name) == 0)
                 return local->is_const;
         }
     }
 
-    return false;
+    return FALSE;
 }
 
-static void check_constAssignment(compiler_t *comp, const char *name, int local_index, bool is_upvalue)
+static void _check_constAssignment(Compiler *comp, const char *name, int local_index, bool is_upvalue)
 {
     if (local_index != -1)
     {
         bool is_const = is_upvalue
-                            ? resolved_upvalueIsConst(comp, name)
-                            : local_isConstAt(comp, stack_size(comp->contexts) - 1, local_index);
+                            ? _resolved_upvalueIsConst(comp, name)
+                            : _local_isConstAt(comp, _stack_size(comp->contexts) - 1, local_index);
         if (is_const)
             p_errorf(comp->current_line, comp->current_col,
                      "Cannot reassign const binding [%s]", name);
         return;
     }
 
-    if (global_isConst(comp, name))
+    if (_global_isConst(comp, name))
         p_errorf(comp->current_line, comp->current_col,
                  "Cannot reassign const binding [%s]", name);
 }
 
-void add_variableConst(compiler_t *comp, char *name, bool is_const)
+void add_variableConst(Compiler *comp, char *name, bool is_const)
 {
     int g_index = -1;
     if (is_localScope(comp))
@@ -545,7 +545,7 @@ void add_variableConst(compiler_t *comp, char *name, bool is_const)
     }
     else
     {
-        if (ht_get(comp->declared_globals, name) != NULL)
+        if (_ht_get(comp->declared_globals, name) != NULL)
             p_errorf(comp->current_line, comp->current_col, "Name already exists [%s]", name);
         if (is_builtin(comp, name))
             p_errorf(comp->current_line, comp->current_col,
@@ -558,12 +558,12 @@ void add_variableConst(compiler_t *comp, char *name, bool is_const)
     }
 }
 
-void add_variable(compiler_t *comp, char *name)
+void add_variable(Compiler *comp, char *name)
 {
-    add_variableConst(comp, name, false);
+    add_variableConst(comp, name, FALSE);
 }
 
-static void store_variableWithMode(compiler_t *comp, char *name, bool allow_const_init)
+static void _store_variableWithMode(Compiler *comp, char *name, bool allow_const_init)
 {
     if (is_localScope(comp))
     {
@@ -572,13 +572,13 @@ static void store_variableWithMode(compiler_t *comp, char *name, bool allow_cons
         if (index != -1)
         {
             if (!allow_const_init)
-                check_constAssignment(comp, name, index, is_upvalue);
+                _check_constAssignment(comp, name, index, is_upvalue);
             emit_8u(comp, is_upvalue ? OP_STORE_UPVALUE : OP_STORE_LOCAL, name, index);
         }
         else
         {
             if (!allow_const_init)
-                check_constAssignment(comp, name, -1, false);
+                _check_constAssignment(comp, name, -1, FALSE);
             int g_index = store_name(comp, name);
             emit_8u(comp, OP_STORE_GLOBAL, name, g_index);
         }
@@ -586,23 +586,23 @@ static void store_variableWithMode(compiler_t *comp, char *name, bool allow_cons
     else
     {
         if (!allow_const_init)
-            check_constAssignment(comp, name, -1, false);
+            _check_constAssignment(comp, name, -1, FALSE);
         int g_index = store_name(comp, name);
         emit_8u(comp, OP_STORE_GLOBAL, name, g_index);
     }
 }
 
-void store_variable(compiler_t *comp, char *name)
+void store_variable(Compiler *comp, char *name)
 {
-    store_variableWithMode(comp, name, false);
+    _store_variableWithMode(comp, name, FALSE);
 }
 
-void store_variableInit(compiler_t *comp, char *name)
+void store_variableInit(Compiler *comp, char *name)
 {
-    store_variableWithMode(comp, name, true);
+    _store_variableWithMode(comp, name, TRUE);
 }
 
-void load_variable(compiler_t *comp, char *name)
+void load_variable(Compiler *comp, char *name)
 {
     int index = get_local(comp, name);
     if (index != -1)
@@ -621,7 +621,7 @@ void load_variable(compiler_t *comp, char *name)
     }
 }
 
-int name_index(compiler_t *comp, char *name)
+int name_index(Compiler *comp, char *name)
 {
     for (int i = 0; i < comp->names->size; i++)
     {
@@ -632,30 +632,30 @@ int name_index(compiler_t *comp, char *name)
     return -1;
 }
 
-int store_name(compiler_t *comp, char *name)
+int store_name(Compiler *comp, char *name)
 {
     int index = name_index(comp, name);
     if (index != -1)
         return index;
 
-    list_add(comp->names, new_string(name));
+    _list_add(comp->names, new_string(name));
 
     // Return the new index
     return comp->names->size - 1;
 }
 
-void remove_locals(compiler_t *comp, int size)
+void remove_locals(Compiler *comp, int size)
 {
     while (size-- > 0)
-        stack_pop(comp->current->locals);
+        _stack_pop(comp->current->locals);
 }
 
-void push_scope(compiler_t *comp)
+void push_scope(Compiler *comp)
 {
     comp->current->depth++;
 }
 
-void pop_scope(compiler_t *comp)
+void pop_scope(Compiler *comp)
 {
     int size = emit_pop(comp, comp->current->depth);
 
@@ -664,58 +664,58 @@ void pop_scope(compiler_t *comp)
     comp->current->depth--;
 }
 
-void push_loop(compiler_t *comp, int address, bool is_for)
+void push_loop(Compiler *comp, int address, bool is_for)
 {
-    loop_t *loop = (loop_t *)malloc(sizeof(loop_t));
+    Loop *loop = (Loop *)malloc(sizeof(Loop));
 
     loop->_continue = address;
     loop->depth = comp->current->depth;
     loop->breaks = stack_create(sizeof(int));
     loop->is_for = is_for;
 
-    stack_push(comp->loops, &loop);
+    _stack_push(comp->loops, &loop);
 }
 
-void pop_loop(compiler_t *comp, int address)
+void pop_loop(Compiler *comp, int address)
 {
-    loop_t *loop = pop_loopContext(comp);
-    pistack_t *breaks = loop->breaks;
+    Loop *loop = _pop_loopContext(comp);
+    PiStack *breaks = loop->breaks;
 
     int16_t offset = address - comp->code->size;
 
     emit_16u(comp, OP_JUMP, "", offset);
 
-    while (stack_isEmpty(breaks) == false)
+    while (_stack_isEmpty(breaks) == FALSE)
         patch_jump(comp, POP_INT(breaks));
 
-    free_loop(loop);
+    _free_loop(loop);
 }
 
-void push_break(compiler_t *comp, int address)
+void push_break(Compiler *comp, int address)
 {
-    PUSH_INT(current_loop(comp)->breaks, address);
+    PUSH_INT(_current_loop(comp)->breaks, address);
 }
 
-int get_continue(compiler_t *comp)
+int get_continue(Compiler *comp)
 {
-    return current_loop(comp)->_continue;
+    return _current_loop(comp)->_continue;
 }
-bool is_forLoop(compiler_t *comp)
+bool is_forLoop(Compiler *comp)
 {
-    return current_loop(comp)->is_for;
-}
-
-bool in_loop(compiler_t *comp)
-{
-    return !stack_isEmpty(comp->loops);
+    return _current_loop(comp)->is_for;
 }
 
-int loop_depth(compiler_t *comp)
+bool in_loop(Compiler *comp)
 {
-    return current_loop(comp)->depth;
+    return !_stack_isEmpty(comp->loops);
 }
 
-static bool code_usesLocalSlot(list_t *code, uint8_t slot)
+int loop_depth(Compiler *comp)
+{
+    return _current_loop(comp)->depth;
+}
+
+static bool _code_usesLocalSlot(List *code, uint8_t slot)
 {
     uint8_t *bytecode = (uint8_t *)code->data;
     int length = code->size;
@@ -726,29 +726,29 @@ static bool code_usesLocalSlot(list_t *code, uint8_t slot)
 
         if ((op == OP_LOAD_LOCAL || op == OP_STORE_LOCAL) &&
             i < length && bytecode[i] == slot)
-            return true;
+            return TRUE;
 
-        i += operand_count(op);
+        i += _operand_count(op);
     }
 
-    return false;
+    return FALSE;
 }
 
-void push_function(compiler_t *comp, char *name)
+void push_function(Compiler *comp, char *name)
 {
     if (!comp->is_lookUp)
     {
-        current_context(comp)->depth = comp->current->depth;
-        context_t *context = create_context(true, list_create(sizeof(uint8_t)), name);
-        stack_push(comp->contexts, &context);
+        _current_context(comp)->depth = comp->current->depth;
+        Context *context = _create_context(TRUE, list_create(sizeof(uint8_t)), name);
+        _stack_push(comp->contexts, &context);
 
-        comp->current = current_context(comp);
+        comp->current = _current_context(comp);
         comp->code = comp->current->code;
         comp->locals = comp->current->locals;
     }
 }
 
-void pop_function(compiler_t *comp, int params)
+void pop_function(Compiler *comp, int params)
 {
     if (!comp->is_lookUp)
     {
@@ -756,25 +756,25 @@ void pop_function(compiler_t *comp, int params)
 
         ht_put(comp->instrs, name, comp->current->instrs);
 
-        int uv_size = list_size(comp->current->upvalues);
-        list_t *upvalues = comp->current->upvalues;
+        int uv_size = LIST_SIZE(comp->current->upvalues);
+        List *upvalues = comp->current->upvalues;
 
         ObjCode *code = (ObjCode *)new_code(comp->code);
 
-        code->need_args = code_usesLocalSlot(comp->code, (uint8_t)params);
-        code->need_kwargs = code_usesLocalSlot(comp->code, (uint8_t)(params + 1));
+        code->need_args = _code_usesLocalSlot(comp->code, (uint8_t)params);
+        code->need_kwargs = _code_usesLocalSlot(comp->code, (uint8_t)(params + 1));
 
-        code->method_need_args = code_usesLocalSlot(comp->code, (uint8_t)(params + 1));
-        code->method_need_kwargs = code_usesLocalSlot(comp->code, (uint8_t)(params + 2));
+        code->method_need_args = _code_usesLocalSlot(comp->code, (uint8_t)(params + 1));
+        code->method_need_kwargs = _code_usesLocalSlot(comp->code, (uint8_t)(params + 2));
 
         int c_index = store_const(comp, NEW_OBJ(code));
 
-        context_t *context = pop_context(comp);
+        Context *context = _pop_context(comp);
 
         code->param_names = context->param_names;
         context->param_names = NULL;
 
-        comp->current = current_context(comp);
+        comp->current = _current_context(comp);
         comp->code = comp->current->code;
         comp->locals = comp->current->locals;
 
@@ -791,7 +791,7 @@ void pop_function(compiler_t *comp, int params)
 
         for (int i = 0; i < uv_size; i++)
         {
-            upvalue_t *upvalue = (upvalue_t *)list_getAt(upvalues, i);
+            Upvalue *upvalue = (Upvalue *)_list_getAt(upvalues, i);
             int index = store_const(comp, NEW_NUM(upvalue->index));
             emit_16u(comp, OP_LOAD_CONST, itos(upvalue->index), index);
             index = store_const(comp, NEW_BOOL(upvalue->is_local));
@@ -801,19 +801,19 @@ void pop_function(compiler_t *comp, int params)
         if (uv_size > 0)
             emit_16u(comp, OP_PUSH_CLOSURE, name, (params << 8) | uv_size);
         else
-            emit_8u(comp, OP_PUSH_FUNCTION, name, (byte)params);
+            emit_8u(comp, OP_PUSH_FUNCTION, name, (Byte)params);
     }
 }
-int store_const(compiler_t *comp, Value value)
+int store_const(Compiler *comp, Value value)
 {
     if (IS_STR(value))
     {
         const char *text = AS_CSTRING(value);
-        int *existing = ht_get(comp->string_constants, text);
+        int *existing = _ht_get(comp->string_constants, text);
         if (existing)
             return *existing;
         int index = comp->constants->size;
-        list_add(comp->constants, &value);
+        _list_add(comp->constants, &value);
         ht_put(comp->string_constants, text, &index);
         return index;
     }
@@ -821,23 +821,23 @@ int store_const(compiler_t *comp, Value value)
     Value _value;
     for (int i = 0; i < comp->constants->size; i++)
     {
-        _value = *(Value *)list_getAt(comp->constants, i);
+        _value = *(Value *)_list_getAt(comp->constants, i);
         if (equals(_value, value))
             return i;
     }
-    list_add(comp->constants, &value);
+    _list_add(comp->constants, &value);
     return comp->constants->size - 1;
 }
 
-int store_stringConst(compiler_t *comp, const char *text)
+int store_stringConst(Compiler *comp, const char *text)
 {
-    int *existing = ht_get(comp->string_constants, text);
+    int *existing = _ht_get(comp->string_constants, text);
     if (existing)
         return *existing;
     return store_const(comp, NEW_OBJ(new_pistring(strdup(text))));
 }
 
-int store_tokenConst(compiler_t *comp, token_t token)
+int store_tokenConst(Compiler *comp, Token token)
 {
     if (token.type != TK_STR && token.type != TK_ID)
         return store_const(comp, new_value(token));
@@ -848,7 +848,7 @@ int store_tokenConst(compiler_t *comp, token_t token)
     return index;
 }
 
-static int _emit(compiler_t *comp, OpCode opcode, char *descr, int num_operands, int line, int column, ...)
+static int _emit(Compiler *comp, OpCode opcode, char *descr, int num_operands, int line, int column, ...)
 {
     if (comp->code == NULL || comp->instrs == NULL || comp->is_lookUp)
         return -1;
@@ -877,8 +877,8 @@ static int _emit(compiler_t *comp, OpCode opcode, char *descr, int num_operands,
                 left_index < comp->constants->size &&
                 right_index < comp->constants->size && op <= 7)
             {
-                Value left = *(Value *)list_getAt(comp->constants, left_index);
-                Value right = *(Value *)list_getAt(comp->constants, right_index);
+                Value left = *(Value *)_list_getAt(comp->constants, left_index);
+                Value right = *(Value *)_list_getAt(comp->constants, right_index);
                 bool literals = (IS_NUM(left) || IS_BOOL(left)) &&
                                 (IS_NUM(right) || IS_BOOL(right));
 
@@ -902,11 +902,11 @@ static int _emit(compiler_t *comp, OpCode opcode, char *descr, int num_operands,
                     }
 
                     while (comp->current->instrs->size > 0 &&
-                           ((instr_t *)list_getAt(comp->current->instrs,
+                           ((Instruction *)_list_getAt(comp->current->instrs,
                                                  comp->current->instrs->size - 1))->offset >= offset)
                     {
-                        instr_t *last = (instr_t *)list_pop(comp->current->instrs);
-                        free_instr(last);
+                        Instruction *last = (Instruction *)list_pop(comp->current->instrs);
+                        _free_instr(last);
                     }
                     comp->code->size = offset;
 
@@ -926,10 +926,10 @@ static int _emit(compiler_t *comp, OpCode opcode, char *descr, int num_operands,
         }
     }
 
-    int size = list_size(comp->code);
+    int size = LIST_SIZE(comp->code);
 
     uint8_t _opcode = (uint8_t)opcode;
-    list_add(comp->code, &_opcode);
+    _list_add(comp->code, &_opcode);
 
     uint8_t *operands = malloc(sizeof(uint8_t) * num_operands);
     if (!operands)
@@ -940,12 +940,12 @@ static int _emit(compiler_t *comp, OpCode opcode, char *descr, int num_operands,
     for (int i = 0; i < num_operands; i++)
     {
         uint8_t operand = (uint8_t)va_arg(args, int);
-        list_add(comp->code, &operand);
+        _list_add(comp->code, &operand);
         operands[i] = operand;
     }
     va_end(args);
 
-    instr_t instr = {0};
+    Instruction instr = {0};
     instr.descr = strdup(descr);
     instr.line = line;
     instr.column = column;
@@ -959,61 +959,61 @@ static int _emit(compiler_t *comp, OpCode opcode, char *descr, int num_operands,
     instr.num_operands = num_operands;
     instr.operands = operands;
 
-    list_add(comp->current->instrs, &instr);
+    _list_add(comp->current->instrs, &instr);
 
     return comp->code->size - 1;
 }
 
-int emit(compiler_t *comp, OpCode opcode)
+int emit(Compiler *comp, OpCode opcode)
 {
     return _emit(comp, opcode, "", 0, comp->current_line, comp->current_col);
 }
 
-int emit_8u(compiler_t *comp, OpCode opcode, char *descr, int operand)
+int emit_8u(Compiler *comp, OpCode opcode, char *descr, int operand)
 {
     return _emit(comp, opcode, descr, 1, comp->current_line, comp->current_col, operand);
 }
 
-int emit_16u(compiler_t *comp, OpCode opcode, char *descr, int operand)
+int emit_16u(Compiler *comp, OpCode opcode, char *descr, int operand)
 {
-    byte op1 = (byte)((operand >> 8) & 0xff);
-    byte op2 = (byte)(operand & 0xff);
+    Byte op1 = (Byte)((operand >> 8) & 0xff);
+    Byte op2 = (Byte)(operand & 0xff);
     return _emit(comp, opcode, descr, 2, comp->current_line, comp->current_col, op1, op2);
 }
 
-int emit_16uX2(compiler_t *comp, OpCode opcode, char *descr, int first, int second)
+int emit_16uX2(Compiler *comp, OpCode opcode, char *descr, int first, int second)
 {
-    byte op1 = (byte)((first >> 8) & 0xff);
-    byte op2 = (byte)(first & 0xff);
-    byte op3 = (byte)((second >> 8) & 0xff);
-    byte op4 = (byte)(second & 0xff);
+    Byte op1 = (Byte)((first >> 8) & 0xff);
+    Byte op2 = (Byte)(first & 0xff);
+    Byte op3 = (Byte)((second >> 8) & 0xff);
+    Byte op4 = (Byte)(second & 0xff);
     return _emit(comp, opcode, descr, 4, comp->current_line, comp->current_col,
                  op1, op2, op3, op4);
 }
 
-bool last_constantCondition(compiler_t *comp, bool *value)
+bool last_constantCondition(Compiler *comp, bool *value)
 {
     if (!comp || !comp->code || comp->code->size < 3 || !value)
-        return false;
+        return FALSE;
 
     uint8_t *code = (uint8_t *)comp->code->data;
     int offset = comp->code->size - 3;
     if (code[offset] != OP_LOAD_CONST)
-        return false;
+        return FALSE;
 
     int index = ((int)code[offset + 1] << 8) | code[offset + 2];
     if (index < 0 || index >= comp->constants->size)
-        return false;
+        return FALSE;
 
-    Value constant = *(Value *)list_getAt(comp->constants, index);
+    Value constant = *(Value *)_list_getAt(comp->constants, index);
     if (!IS_BOOL(constant) && !IS_NIL(constant) && !IS_NUM(constant))
-        return false;
+        return FALSE;
 
     *value = as_bool(constant);
-    return true;
+    return TRUE;
 }
 
-void discard_lastConstant(compiler_t *comp)
+void discard_lastConstant(Compiler *comp)
 {
     if (!comp || !comp->code || !comp->current || !comp->current->instrs ||
         comp->code->size < 3 || comp->current->instrs->size == 0)
@@ -1021,17 +1021,17 @@ void discard_lastConstant(compiler_t *comp)
 
     int offset = comp->code->size - 3;
     uint8_t *code = (uint8_t *)comp->code->data;
-    instr_t *last = (instr_t *)list_getAt(comp->current->instrs,
+    Instruction *last = (Instruction *)_list_getAt(comp->current->instrs,
                                            comp->current->instrs->size - 1);
     if (code[offset] != OP_LOAD_CONST || last->offset != offset)
         return;
 
-    last = (instr_t *)list_pop(comp->current->instrs);
-    free_instr(last);
+    last = (Instruction *)list_pop(comp->current->instrs);
+    _free_instr(last);
     comp->code->size = offset;
 }
 
-int emit_pop(compiler_t *comp, int depth)
+int emit_pop(Compiler *comp, int depth)
 {
     int size = get_localSize(comp, depth);
     if (size > 1)
@@ -1041,13 +1041,13 @@ int emit_pop(compiler_t *comp, int depth)
     return size;
 }
 
-int emit_jump(compiler_t *comp, int address)
+int emit_jump(Compiler *comp, int address)
 {
     emit_16u(comp, OP_JUMP, "", address);
     return comp->code->size - 1;
 }
 
-void patch_jumpWithFlags(compiler_t *comp, int address, uint16_t flags)
+void patch_jumpWithFlags(Compiler *comp, int address, uint16_t flags)
 {
     if (!comp->is_lookUp)
     {
@@ -1059,9 +1059,9 @@ void patch_jumpWithFlags(compiler_t *comp, int address, uint16_t flags)
         code[address - 1] = (encoded >> 8) & 0xff;
         code[address] = encoded & 0xff;
 
-        for (int i = list_size(comp->current->instrs) - 1; i >= 0; i--)
+        for (int i = LIST_SIZE(comp->current->instrs) - 1; i >= 0; i--)
         {
-            instr_t *instr = list_getAt(comp->current->instrs, i);
+            Instruction *instr = _list_getAt(comp->current->instrs, i);
             if (instr->offset == address - 2)
             {
                 instr->operands[0] = (encoded >> 8) & 0xff;
@@ -1072,12 +1072,12 @@ void patch_jumpWithFlags(compiler_t *comp, int address, uint16_t flags)
     }
 }
 
-void patch_jump(compiler_t *comp, int address)
+void patch_jump(Compiler *comp, int address)
 {
     patch_jumpWithFlags(comp, address, 0);
 }
 
-void patch_switchCompare(compiler_t *comp, int address)
+void patch_switchCompare(Compiler *comp, int address)
 {
     if (!comp || comp->is_lookUp)
         return;
@@ -1089,9 +1089,9 @@ void patch_switchCompare(compiler_t *comp, int address)
     code[address - 1] = (encoded >> 8) & 0xff;
     code[address] = encoded & 0xff;
 
-    for (int i = list_size(comp->current->instrs) - 1; i >= 0; i--)
+    for (int i = LIST_SIZE(comp->current->instrs) - 1; i >= 0; i--)
     {
-        instr_t *instr = list_getAt(comp->current->instrs, i);
+        Instruction *instr = _list_getAt(comp->current->instrs, i);
         if (instr->offset == address - 4)
         {
             instr->operands[2] = (encoded >> 8) & 0xff;
@@ -1101,27 +1101,27 @@ void patch_switchCompare(compiler_t *comp, int address)
     }
 }
 
-int code_size(compiler_t *comp)
+int code_size(Compiler *comp)
 {
     return comp->code->size;
 }
 
-void dis(compiler_t *comp)
+void dis(Compiler *comp)
 {
-    dis_emit("disassembling...\n");
+    _dis_emit("disassembling...\n");
 
-    if (stack_size(comp->contexts) > 0)
+    if (_stack_size(comp->contexts) > 0)
     {
-        context_t *global_ctx = context_at(comp, 0);
+        Context *global_ctx = _context_at(comp, 0);
         ht_put(comp->instrs, "<global>", global_ctx->instrs);
     }
 
     // Use iterator over the instruction table
-    ht_iter it = ht_iterator(comp->instrs);
-    while (ht_next(&it))
+    HT_Iterator it = _ht_iterator(comp->instrs);
+    while (_ht_next(&it))
     {
         const char *scope_name = it.key;
-        list_t *instrs = (list_t *)it.value; // stored as void*, cast back
+        List *instrs = (List *)it.value; // stored as void*, cast back
 
         char header_buf[256];
 #ifdef __EMSCRIPTEN__
@@ -1131,7 +1131,7 @@ void dis(compiler_t *comp)
         snprintf(header_buf, sizeof(header_buf), "\n\033[1;36m== Disassembly of %s ==\033[0m\n\n",
                  strcmp(scope_name, "<global>") == 0 ? "global scope" : scope_name);
 #endif
-        dis_emit(header_buf);
+        _dis_emit(header_buf);
 
         if (!instrs)
             continue;
@@ -1139,7 +1139,7 @@ void dis(compiler_t *comp)
         int line = 0, pc = 0;
         for (int j = 0; j < instrs->size; j++)
         {
-            instr_t *instr = (instr_t *)list_getAt(instrs, j);
+            Instruction *instr = (Instruction *)_list_getAt(instrs, j);
             OpCode opcode = instr->opcode;
             uint8_t *operands = instr->operands;
             char *descr = instr->descr;
@@ -1191,7 +1191,7 @@ void dis(compiler_t *comp)
                 line += 2;
                 pc += 2;
 
-                dis_emit(line_buf);
+                _dis_emit(line_buf);
                 continue;
             }
 
@@ -1299,7 +1299,7 @@ void dis(compiler_t *comp)
                 line += 2;
                 pc += 2;
 
-                dis_emit(line_buf);
+                _dis_emit(line_buf);
                 continue;
             }
 
@@ -1407,7 +1407,7 @@ void dis(compiler_t *comp)
             else
                 strcat(line_buf, "\n");
 
-            dis_emit(line_buf);
+            _dis_emit(line_buf);
         }
     }
 }
@@ -1462,7 +1462,7 @@ void p_errorf(int line, int column, const char *format, ...)
     }
 }
 
-void free_compiler(compiler_t *comp)
+void free_compiler(Compiler *comp)
 {
     list_free(comp->code);
 
@@ -1476,17 +1476,17 @@ void free_compiler(compiler_t *comp)
         ht_free(comp->declared_globals);
     free(comp->source_name);
 
-    while (!stack_isEmpty(comp->contexts))
+    while (!_stack_isEmpty(comp->contexts))
     {
-        context_t *context = pop_context(comp);
-        free_context(context);
+        Context *context = _pop_context(comp);
+        _free_context(context);
     }
     stack_free(comp->contexts);
 
-    while (!stack_isEmpty(comp->loops))
+    while (!_stack_isEmpty(comp->loops))
     {
-        loop_t *loop = pop_loopContext(comp);
-        free_loop(loop);
+        Loop *loop = _pop_loopContext(comp);
+        _free_loop(loop);
     }
     stack_free(comp->loops);
 
@@ -1497,7 +1497,7 @@ void free_compiler(compiler_t *comp)
     free(comp);
 }
 
-void reset_compiler(compiler_t *comp)
+void reset_compiler(Compiler *comp)
 {
     // Keep string_constants alongside the retained constant pool for REPL reuse.
     list_free(comp->code);
@@ -1505,17 +1505,17 @@ void reset_compiler(compiler_t *comp)
     if (comp->declared_globals)
         ht_free(comp->declared_globals);
 
-    while (!stack_isEmpty(comp->contexts))
+    while (!_stack_isEmpty(comp->contexts))
     {
-        context_t *context = pop_context(comp);
-        free_context(context);
+        Context *context = _pop_context(comp);
+        _free_context(context);
     }
     stack_free(comp->contexts);
 
-    while (!stack_isEmpty(comp->loops))
+    while (!_stack_isEmpty(comp->loops))
     {
-        loop_t *loop = pop_loopContext(comp);
-        free_loop(loop);
+        Loop *loop = _pop_loopContext(comp);
+        _free_loop(loop);
     }
     stack_free(comp->loops);
 
@@ -1529,20 +1529,20 @@ void reset_compiler(compiler_t *comp)
     memset(&comp->global_cache, 0, sizeof(comp->global_cache));
     comp->declared_globals = ht_create(sizeof(bool));
 
-    comp->locals = stack_create(sizeof(local_t));
-    comp->contexts = stack_create(sizeof(context_t *));
-    comp->loops = stack_create(sizeof(loop_t *));
+    comp->locals = stack_create(sizeof(Local));
+    comp->contexts = stack_create(sizeof(Context *));
+    comp->loops = stack_create(sizeof(Loop *));
     comp->objects = stack_create(sizeof(String));
     comp->name = "";
 
-    comp->current = create_context(false, comp->code, NULL);
+    comp->current = _create_context(FALSE, comp->code, NULL);
 
-    comp->instrs = ht_create(sizeof(list_t));
+    comp->instrs = ht_create(sizeof(List));
 
-    comp->is_lookUp = false;
-    comp->is_upvalue = false;
-    comp->is_repl = false;
+    comp->is_lookUp = FALSE;
+    comp->is_upvalue = FALSE;
+    comp->is_repl = FALSE;
     comp->source_name = NULL;
 
-    stack_push(comp->contexts, &comp->current);
+    _stack_push(comp->contexts, &comp->current);
 }

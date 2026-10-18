@@ -31,7 +31,7 @@ BuiltinFunc builtin_functions[] = {
     {"round", pi_round},
     {"seed", pi_seed},
     {"rand", pi_rand},
-    {"rand_n", pi_rand_n},
+    {"rand_n", pi_RandN},
 
     // String
     {"char", pi_char},

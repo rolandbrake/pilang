@@ -3,15 +3,15 @@
 #include "pi_object.h"
 #include "pi_string.h"
 
-Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, Object *instance)
+Object *new_func(char *name, ObjCode *body, List *params, UpValue **upvalues, Object *instance)
 {
 
     Object *object = (Object *)malloc(sizeof(Function));
 
     object->type = OBJ_FUN;
 
-    object->is_marked = false;
-    object->in_gcList = false;
+    object->is_marked = FALSE;
+    object->in_gcList = FALSE;
     object->gc_color = GC_WHITE;
     object->next = NULL;
 
@@ -23,7 +23,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     fn->arity = fn->params ? fn->params->size : 0;
     // Parameter names are shared with the compiled function body.
     fn->param_names = (body && body->param_names) ? body->param_names : NULL;
-    fn->owns_params = true;
+    fn->owns_params = TRUE;
 
     fn->body = body;
     fn->constants = NULL;
@@ -32,7 +32,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
 
     fn->flags = FUNC_NEED_ARGS | FUNC_NEED_KWARGS;
 
-    fn->global_valid = false;
+    fn->global_valid = FALSE;
     fn->glonal_index = -1;
 
     fn->native = NULL;
@@ -56,7 +56,7 @@ Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, 
     return object;
 }
 
-Value *new_native(const char *name, native_func func)
+Value *new_native(const char *name, NativeFunc func)
 {
 
     Value *val = malloc(sizeof(Value));
@@ -65,8 +65,8 @@ Value *new_native(const char *name, native_func func)
 
     val->data.object->type = OBJ_FUN;
     
-    val->data.object->is_marked = true;
-    val->data.object->in_gcList = false;
+    val->data.object->is_marked = TRUE;
+    val->data.object->in_gcList = FALSE;
     val->data.object->gc_color = GC_WHITE;
 
     val->data.object->next = NULL;
@@ -79,7 +79,7 @@ Value *new_native(const char *name, native_func func)
     fn->arity = 0;
 
     fn->param_names = NULL;
-    fn->owns_params = false;
+    fn->owns_params = FALSE;
 
     fn->body = NULL;
     fn->constants = NULL;
@@ -90,14 +90,14 @@ Value *new_native(const char *name, native_func func)
 
     fn->flags = FUNC_NATIVE;
 
-    fn->global_valid = false;
+    fn->global_valid = FALSE;
     fn->glonal_index = -1;
 
     fn->native = func;
 
     fn->upvalues = NULL;
     fn->upvalue_count = 0;
-    fn->owns_upvalues = false;
+    fn->owns_upvalues = FALSE;
 
     fn->instance = NULL;
     fn->owner = NULL;
@@ -110,7 +110,7 @@ Value *new_native(const char *name, native_func func)
  * Calls a Pilang function, setting up the call frame, stack layout,
  * parameter defaults, positional args, and implicit args/kwargs locals.
  */
-Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw_args)
+Value call_func(VM *vm, Function *function, size_t argc, Value *argv, Value kw_args)
 {
 
     // Native fast path
@@ -175,7 +175,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     frame->globals = vm->globals;
     frame->global_cache = vm->global_cache;
     frame->function = (Function *)vm->function; /* save BEFORE overwrite */
-    frame->is_recursive = false;
+    frame->is_recursive = FALSE;
 
     // switch to callee context
     vm->function = (Object *)function;
@@ -209,7 +209,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
 
         /* param_this: user declared `this` explicitly in the param list. */
         bool param_this = function->param_names &&
-                          (size_t)list_size(function->param_names) + 1 == param_count;
+                          (size_t)LIST_SIZE(function->param_names) + 1 == param_count;
 
         if (!param_this)
         {
@@ -223,7 +223,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     // set up stack frame
     size_t param_base = vm->bp + arg_offset;
     size_t aux_base = param_base + param_count;
-    bool provided[256] = {false};
+    bool provided[256] = {FALSE};
 
     /* Reserve this frame before a deferred default makes a nested call. */
     vm->stack[aux_base] = NEW_NIL();
@@ -234,7 +234,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     if (FUNC_HAS_FLAG(function, FUNC_METHOD) && param_offset == 1 && param_count > 0)
     {
         vm->stack[param_base] = instance;
-        provided[0] = true;
+        provided[0] = TRUE;
     }
 
     // Copy positional arguments
@@ -247,7 +247,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
             if (slot < param_count)
             {
                 vm->stack[param_base + slot] = argv[i];
-                provided[slot] = true;
+                provided[slot] = TRUE;
             }
         }
     }
@@ -256,12 +256,12 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     if (!IS_NIL(kw_args) && IS_MAP(kw_args) && function->param_names)
     {
         PiMap *kw_map = AS_MAP(kw_args);
-        int name_count = list_size(function->param_names);
+        int name_count = LIST_SIZE(function->param_names);
 
         for (int i = 0; i < name_count; i++)
         {
             char *param_name = string_get(function->param_names, i);
-            Value *kw_value = ht_get(kw_map->table, param_name);
+            Value *kw_value = _ht_get(kw_map->table, param_name);
             if (!kw_value)
                 continue;
 
@@ -274,7 +274,7 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
                 vm_error(vm, "Function argument got multiple values.");
 
             vm->stack[param_base + slot] = *kw_value;
-            provided[slot] = true;
+            provided[slot] = TRUE;
         }
     }
 
@@ -307,11 +307,11 @@ Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw
     // Implicit args and kwargs locals
     if (FUNC_HAS_FLAG(function, FUNC_NEED_ARGS))
     {
-        list_t *_args = list_create(sizeof(Value));
+        List *_args = list_create(sizeof(Value));
         if (FUNC_HAS_FLAG(function, FUNC_METHOD))
-            list_add(_args, &instance);
+            _list_add(_args, &instance);
         for (size_t i = 0; i < argc; i++)
-            list_add(_args, &argv[i]);
+            _list_add(_args, &argv[i]);
         vm->stack[aux_base] = NEW_OBJ(add_obj(vm, new_list(_args)));
     }
     else
@@ -335,7 +335,7 @@ execute:
     return vm->stack[--vm->sp];
 }
 
-Value call_funcv(vm_t *vm, Function *function, size_t argc, ...)
+Value call_funcv(VM *vm, Function *function, size_t argc, ...)
 {
     va_list args;
     va_start(args, argc);

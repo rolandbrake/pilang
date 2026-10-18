@@ -5,22 +5,22 @@
 
 void *reallocate(void *ptr, size_t o_size, size_t n_size);
 
-void mark_constants(vm_t *vm);
+void mark_constants(VM *vm);
 
 void mark_value(Value val);
 void mark_object(Object *obj);
-void mark_roots(vm_t *vm);
-void mark_globals(vm_t *vm);
-void mark_iters(vm_t *vm);
+void mark_roots(VM *vm);
+void mark_globals(VM *vm);
+void mark_iters(VM *vm);
 
-void sweep(vm_t *vm);
+void sweep(VM *vm);
 
 void free_object(Object *obj);
 void free_value(Value *val);
 
-void run_gc(vm_t *vm);
+void run_gc(VM *vm);
 void gc_trimHeap(void);
 size_t gc_objectBytes(Object *obj);
-size_t gc_recountBytes(vm_t *vm);
+size_t gc_recountBytes(VM *vm);
 
 #endif // GC_H

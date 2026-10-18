@@ -5,7 +5,7 @@
 
 #include "pi_token.h"
 
-keyword_t keywords[KW_NUM] = {
+Keyword keywords[KW_NUM] = {
     {"false", TK_FALSE},
     {"true", TK_TRUE},
     {"for", TK_FOR},
@@ -138,9 +138,9 @@ const char *token_names[] = {
     "TK_EOF",
 };
 
-token_t create_token(tk_type type, char *start, int length, int line, int column)
+Token create_token(PiTokenType type, char *start, int length, int line, int column)
 {
-    token_t token;
+    Token token;
 
     // Allocate memory for the token's lexeme and copy it
     token.start = (char *)malloc(length + 1);
@@ -164,13 +164,13 @@ token_t create_token(tk_type type, char *start, int length, int line, int column
     return token;
 }
 
-tk_type token_type(token_t token)
+PiTokenType token_type(Token token)
 {
     return token.type;
 }
 
 // Function to get the value of the token as a string
-char *token_value(token_t token)
+char *token_value(Token token)
 {
     int length = token.length;
     char *start = token.start;
@@ -195,18 +195,18 @@ char *token_value(token_t token)
     return new_str;
 }
 
-int token_line(token_t token)
+int token_line(Token token)
 {
     return token.line;
 }
 
-int token_column(token_t token)
+int token_column(Token token)
 {
     return token.column;
 }
 
 // Function to convert token to string (simple implementation)
-const char *token_toString(token_t token)
+const char *token_toString(Token token)
 {
     // Allocate enough space to hold the type, token value, and additional characters
     // Adjust the buffer size as needed to fit your largest expected token value
@@ -220,7 +220,7 @@ const char *token_toString(token_t token)
     return result;
 }
 
-tk_type find_kw(const char *name)
+PiTokenType find_kw(const char *name)
 {
     for (int i = 0; i < KW_NUM; ++i)
         if (strcmp(keywords[i].name, name) == 0)
@@ -228,7 +228,7 @@ tk_type find_kw(const char *name)
     return TK_INVALID;
 }
 
-double tk_double(const token_t token)
+double tk_double(const Token token)
 {
     // Numeric separators are syntax only; omit them before conversion.
     char *buffer = malloc(token.length + 1);
@@ -253,7 +253,7 @@ double tk_double(const token_t token)
     return token.is_negative ? -result : result;
 }
 
-char *tk_string(const token_t token)
+char *tk_string(const Token token)
 {
     // char *buffer = (char *)malloc(token.length + 1);
     // snprintf(buffer, token.length + 1, "%.*s", token.length, token.start);
@@ -261,7 +261,7 @@ char *tk_string(const token_t token)
     return token_value(token);
 }
 
-bool tk_bool(const token_t token)
+bool tk_bool(const Token token)
 {
     char *str = token_value(token);
     if (strcmp(str, "true") == 0)

@@ -1,6 +1,6 @@
 #include "pi_frame.h"
 
-Frame *create_frame(int pc, int sp, int bp, list_t *code, list_t *constants, list_t *names, table_t *instrs, int iters_top, int ip, Function *fn)
+Frame *create_frame(int pc, int sp, int bp, List *code, List *constants, List *names, HT_Table *instrs, int iters_top, int ip, Function *fn)
 {
     Frame *frame = (Frame *)malloc(sizeof(Frame));
 
@@ -19,7 +19,7 @@ Frame *create_frame(int pc, int sp, int bp, list_t *code, list_t *constants, lis
     frame->global_cache = NULL;
 
     frame->function = fn;
-    frame->is_recursive = false;
+    frame->is_recursive = FALSE;
 
     return frame;
 }

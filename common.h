@@ -25,7 +25,7 @@
 
 #define ERROR_COMPARE -2
 
-typedef uint8_t byte;
+typedef uint8_t Byte;
 #define INIT_CAP 8 // initial capacity must not be zero
 
 #define TARGET_FPS 60 // Target frames per second
@@ -34,8 +34,8 @@ typedef uint8_t byte;
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define ABS(a) ((a) < 0 ? -(a) : (a))
 
-#define False 0
-#define True 1
+#define FALSE 0
+#define TRUE 1
 
 
 #define AND &&
@@ -60,8 +60,8 @@ typedef uint8_t byte;
 
 #ifndef NIL_VAL
 #define NIL_VAL NEW_NIL()
-#define TRUE_VAL NEW_BOOL(true)
-#define FALSE_VAL NEW_BOOL(false)
+#define TRUE_VAL NEW_BOOL(TRUE)
+#define FALSE_VAL NEW_BOOL(FALSE)
 #endif
 
 
@@ -74,38 +74,38 @@ typedef uint8_t byte;
 typedef struct
 {
     float x, y, z; // 3D coordinates
-} vec3d;
+} Vec3D;
 
 typedef struct
 {
     float u, v; // 2D texture coordinates
-} vec2d;
+} Vec2D;
 
 // Triangle structure used in rendering
 typedef struct
 {
-    vec3d v[3];       // The three vertices of the triangle
-    vec2d t[3];       // The three texture coordinates
+    Vec3D v[3];       // The three vertices of the Triangle
+    Vec2D t[3];       // The three texture coordinates
     short color;      // Index to a color in the palette
     float brightness; // Lighting brightness (0.0 to 1.0) used for shading
-} triangle;
+} Triangle;
 
 char *itos(int num);
 void error(const char *format, ...);
 int find_paletteColor(uint8_t r, uint8_t g, uint8_t b);
-bool is_absolute_path(const char *path);
+bool is_AbsolutePath(const char *path);
 // Returns an owned path, resolving relative paths from vm->current_path.
-struct vm_t;
-char *resolve_path(struct vm_t *vm, const char *path);
+struct VM;
+char *resolve_path(struct VM *vm, const char *path);
 
 // Error handler callback definition
-typedef void (*error_handlerFn)(const char *message, int line, int column);
+typedef void (*ErrorHandlerFunc)(const char *message, int line, int column);
 
 // Global variable to store the custom error handler
-extern error_handlerFn global_errorHandler;
+extern ErrorHandlerFunc global_errorHandler;
 
 // Function to set a custom error handler
-void set_errorHandler(error_handlerFn handler);
+void set_errorHandler(ErrorHandlerFunc handler);
 
 // Command-line arguments (native only; emscripten may leave these empty)
 extern int pi_cli_argc;

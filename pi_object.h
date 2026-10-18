@@ -80,7 +80,7 @@ typedef struct Mix_Chunk Mix_Chunk;
 
 #define COL_LENGTH(o) (IS_LIST(o) ? PILIST_SIZE(o) : PISTR_SIZE(o))
 
-#define PILIST_GETAT(o, i, t) (*(t *)list_getAt(AS_CLIST(o), i))
+#define PILIST_GETAT(o, i, t) (*(t *)_list_getAt(AS_CLIST(o), i))
 
 #define OBJECT_HEAD Object object;
 
@@ -111,7 +111,7 @@ typedef enum
     OBJ_CHART3D,
     OBJ_EVENT,
 
-} o_type;
+} ObjectType;
 
 typedef struct ObjModule ObjModule;
 typedef struct PiMap PiMap;
@@ -125,7 +125,7 @@ typedef struct
     uint64_t key_hash;
     Object *key;
 
-    table_t *owner_table;
+    HT_Table *owner_table;
     uint64_t owner_version;
 
     uint64_t class_epoch;
@@ -145,7 +145,7 @@ typedef enum
 
 struct Object
 {
-    o_type type;
+    ObjectType type;
     uint64_t id;
     bool is_marked; // Flag to indicate if the object is marked for garbage collection
     bool in_gcList; // Flag to indicate if the object is in the GC list
@@ -222,7 +222,7 @@ typedef struct
 typedef struct
 {
     Object object;
-    list_t *items;
+    List *items;
 
     int current;     // Iterator state
     bool is_numeric; // Cached flag: true if every item is numeric
@@ -235,7 +235,7 @@ typedef enum
     TN_FLOAT64,
     TN_INT32,
     TN_INT64,
-} TN_TYPE;
+} TensorType;
 
 typedef struct
 {
@@ -250,7 +250,7 @@ typedef struct
 
     } data; // union for different data types
 
-    TN_TYPE type; // data type (e.g., float32, int64)
+    TensorType type; // data type (e.g., float32, int64)
     int *shape;   // array of dimensions
     int *strides; // steps in memory for each dimension
     int ndim;     // number of dimensions
@@ -268,10 +268,10 @@ typedef struct PiClass
     struct PiClass *super;
 
     // Static members, methods, etc.
-    table_t *members;
+    HT_Table *members;
 
     // instance field name -> slot index
-    table_t *field_names;
+    HT_Table *field_names;
 
     uint16_t slot_count;
 
@@ -279,7 +279,7 @@ typedef struct PiClass
     BoundCache bound_cache[BOUND_CACHE_SIZE];
     uint8_t bound_cache_next;
 
-    ht_iter it;
+    HT_Iterator it;
 } PiClass;
 
 typedef struct PiInstance
@@ -289,21 +289,21 @@ typedef struct PiInstance
     PiClass *_class;
 
     // Only created if genuinely dynamic fields are added.
-    table_t *fields;
+    HT_Table *fields;
     Value *slots;
     bool owns_storage;
 
     BoundCache bound_cache[BOUND_CACHE_SIZE];
     uint8_t bound_cache_next;
-    ht_iter it;
+    HT_Iterator it;
 
 } PiInstance;
 
 typedef struct PiMap
 {
     Object object;
-    table_t *table;
-    ht_iter it;
+    HT_Table *table;
+    HT_Iterator it;
 
 } PiMap;
 
@@ -317,7 +317,7 @@ typedef struct
 typedef struct
 {
     Object object;
-    list_t *items; // List of values for tuple
+    List *items; // List of values for tuple
     int current;   // Iterator state
 } PiTuple;
 
@@ -325,8 +325,8 @@ typedef struct
 typedef struct GlobalCache
 {
     Value *slots[UINT8_MAX + 1];
-    table_t *globals;
-    list_t *names;
+    HT_Table *globals;
+    List *names;
     uint64_t globals_version;
 } GlobalCache;
 
@@ -341,8 +341,8 @@ typedef struct
 typedef struct
 {
     Object object;
-    list_t *data;
-    list_t *param_names; // Parameter names for functions using this code
+    List *data;
+    List *param_names; // Parameter names for functions using this code
 
     bool need_args;
     bool need_kwargs;
@@ -399,7 +399,7 @@ ObjAudio *new_audio(SDL_AudioSpec spec, float *samples, Uint32 frames,
                     Mix_Chunk *chunk);
 
 struct PiChart3D;
-typedef struct vm_t vm_t;
+struct VM;
 
 
 typedef struct PiContext
@@ -421,7 +421,7 @@ typedef struct PiContext
     void *image_cache; /* PiDraw cached SDL textures; owned by builtin/pi_draw.c */
 
     Value frame_callback;
-    vm_t *vm;
+    struct VM *vm;
 
     SDL_Rect clip_rect; // clipping rectangle
     bool clip_enabled;
@@ -430,7 +430,7 @@ typedef struct PiContext
     HandlerList handlers[EVENT_COUNT];
 
     
-    EventQueue *eventQueue;
+    EventQueue *event_queue;
 
     
     uint32_t last_fps_time;
@@ -452,8 +452,8 @@ typedef struct
 
     PiContext *ctx; // where to draw
 
-    list_t *series; // list of plotted data
-    list_t *colors; // optional styling
+    List *series; // list of plotted data
+    List *colors; // optional styling
 
     double xmin, xmax;
     double ymin, ymax;
@@ -478,7 +478,7 @@ typedef struct PiChart3D
     Object object;
 
     PiContext *ctx;
-    list_t *series;
+    List *series;
 
     bool show_grid;
     bool show_axes;
@@ -499,15 +499,15 @@ typedef struct PiChart3D
 
 uint64_t string_hash(char *chars, size_t length);
 
-Object *alloc_object(size_t size, o_type type);
+Object *alloc_object(size_t size, ObjectType type);
 
 Object *new_pistring(char *str);
 PiString *copy_pistring(char *chars, int length);
 
-Object *new_list(list_t *items);
+Object *new_list(List *items);
 
-Object *new_tensor(int ndim, int *shape, TN_TYPE type);
-Object *new_tensorUninit(int ndim, int *shape, TN_TYPE type);
+Object *new_tensor(int ndim, int *shape, TensorType type);
+Object *new_tensorUninit(int ndim, int *shape, TensorType type);
 
 double tensor_get(PiTensor *tensor, int *indices);
 void tensor_set(PiTensor *tensor, int *indices, double value);
@@ -515,7 +515,7 @@ double tensor_getFlat(PiTensor *tensor, int index);
 void tensor_setFlat(PiTensor *tensor, int index, double value);
 Object *tensor_rowAsList(PiTensor *tensor, int row);
 
-Object *new_map(table_t *table);
+Object *new_map(HT_Table *table);
 
 Object *new_set(void); // Create empty set
 
@@ -531,7 +531,7 @@ Value set_get(PiSet *set, int index); // Get value by iteration order
 void set_clear(PiSet *set); // Remove all elements
 void set_free(PiSet *set);  // Free memory
 
-Object *new_tuple(list_t *items);
+Object *new_tuple(List *items);
 
 Object *new_file(FILE *file, char *filename, char *mode);
 
@@ -552,7 +552,7 @@ Object *new_range(double start, double end, double step);
 Object *new_slice(double start, double end, double step);
 
 uint32_t code_hash(uint8_t *code);
-Object *new_code(list_t *code);
+Object *new_code(List *code);
 
 Object *new_context();
 Object *new_chart(PiContext *ctx);

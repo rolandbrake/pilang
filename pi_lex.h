@@ -16,7 +16,7 @@
 typedef struct
 {
     char *source;    // Pointer to the source code string
-    token_t *tokens; // Array of tokens generated from the source code
+    Token *tokens; // Array of tokens generated from the source code
 
     int capacity; // Maximum capacity of the tokens array
     int size;     // Current number of tokens stored
@@ -30,8 +30,8 @@ typedef struct
     int column; // Current column number in the source code
 
     char ch; // The current character being processed
-    pistack_t *brackets;
-} scanner_t;
+    PiStack *brackets;
+} Scanner;
 
 /**
  * Initializes the scanner with the given source code.
@@ -43,7 +43,7 @@ void init_scanner(char *source);
  * Retrieves the next token from the source code.
  * @return Pointer to the token structure.
  */
-token_t *scan();
+Token *scan();
 
 /**
  * Processes all tokens from the source code.
@@ -86,7 +86,7 @@ bool match(char expected);
  * Adds a token to the list of tokens.
  * @param type The type of token to be added.
  */
-void add_token(tk_type type);
+void add_token(PiTokenType type);
 
 /**
  * Checks if the scanner has reached the end of the source code.

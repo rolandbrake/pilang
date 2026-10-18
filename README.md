@@ -1,10 +1,9 @@
 <p align="center">
   <a href="https://pi-lang.netlify.app/">
-    <img src="imgs/pi.png" alt="Pilang logo" width="150">
+    <img src="imgs/pi_logo.png" alt="Pilang logo" width="500">
   </a>
 </p>
 
-<h1 align="center">Pilang</h1>
 
 <p align="center">
   A compact language for turning data, math, and ideas into visible experiments.
@@ -105,7 +104,7 @@ Apply image-processing operations such as edge detection and grayscale conversio
 Pilang is growing support for small interactive games.
 
 <p align="center">
-  <a href="https://github.com/rolandbrake/pilang-games">
+  <a href="https://github.com/rolandbrake/pilang-games" target="_blank">
     <img src="imgs/games.png" alt="Pilang games in progress" height="500">
   </a>
 </p>

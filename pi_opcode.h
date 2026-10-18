@@ -84,7 +84,7 @@ typedef struct
     char *name;
     bool has_ops;
     int num_ops;
-} opcode_t;
+} Opcode;
 
 /**
  * Returns the number of operands required by the given opcode.
@@ -96,7 +96,7 @@ typedef struct
  * @param op The opcode to determine the number of operands for.
  * @return The number of operands required by the opcode.
  */
-static inline int operand_count(uint8_t op)
+static inline int _operand_count(uint8_t op)
 {
     switch ((OpCode)op)
     {

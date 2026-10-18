@@ -19,7 +19,7 @@
 #include "pi_fs.h"
 #include "pi_builtin.h"
 
-Value fs_read(vm_t *vm, int argc, Value *argv)
+Value fs_read(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
         vm_error(vm, "[read] expects a single file handler as argument.");
@@ -66,7 +66,7 @@ Value fs_read(vm_t *vm, int argc, Value *argv)
     return result;
 }
 
-Value fs_readBytes(vm_t *vm, int argc, Value *argv)
+Value fs_readBytes(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[read_bytes] expects a file path.");
@@ -75,7 +75,7 @@ Value fs_readBytes(vm_t *vm, int argc, Value *argv)
     if (!file)
         vm_errorf(vm, "[read_bytes] Failed to open file: %s", AS_CSTRING(argv[0]));
 
-    list_t *bytes = list_create(sizeof(Value));
+    List *bytes = list_create(sizeof(Value));
     if (!bytes)
     {
         fclose(file);
@@ -87,8 +87,8 @@ Value fs_readBytes(vm_t *vm, int argc, Value *argv)
     while ((count = fread(buffer, 1, sizeof(buffer), file)) > 0)
         for (size_t i = 0; i < count; i++)
         {
-            Value byte = NEW_NUM((double)buffer[i]);
-            list_add(bytes, &byte);
+            Value Byte = NEW_NUM((double)buffer[i]);
+            _list_add(bytes, &Byte);
         }
 
     if (ferror(file))
@@ -101,10 +101,10 @@ Value fs_readBytes(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, new_list(bytes)));
 }
 
-Value fs_writeBytes(vm_t *vm, int argc, Value *argv)
+Value fs_writeBytes(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_STRING(argv[0]) || !IS_LIST(argv[1]))
-        vm_error(vm, "[write_bytes] expects a file path and a list of byte values.");
+        vm_error(vm, "[write_bytes] expects a file path and a list of Byte values.");
 
     FILE *file = fopen(AS_CSTRING(argv[0]), "wb");
     if (!file)
@@ -117,7 +117,7 @@ Value fs_writeBytes(vm_t *vm, int argc, Value *argv)
         if (!IS_NUM(value) || AS_NUM(value) < 0 || AS_NUM(value) > 255 || AS_NUM(value) != (int)AS_NUM(value))
         {
             fclose(file);
-            vm_error(vm, "[write_bytes] byte values must be integers from 0 through 255.");
+            vm_error(vm, "[write_bytes] Byte values must be integers from 0 through 255.");
         }
 
         if (fputc((unsigned char)AS_NUM(value), file) == EOF)
@@ -130,10 +130,10 @@ Value fs_writeBytes(vm_t *vm, int argc, Value *argv)
     if (fclose(file) != 0)
         vm_errorf(vm, "[write_bytes] Failed to close file: %s", AS_CSTRING(argv[0]));
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value fs_readlines(vm_t *vm, int argc, Value *argv)
+Value fs_readlines(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
         vm_error(vm, "[readlines] expects a single file handler as argument.");
@@ -180,7 +180,7 @@ Value fs_readlines(vm_t *vm, int argc, Value *argv)
     return result;
 }
 
-Value fs_readLinesLimit(vm_t *vm, int argc, Value *argv)
+Value fs_readLinesLimit(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[read_lines] expects a path string.");
@@ -199,7 +199,7 @@ Value fs_readLinesLimit(vm_t *vm, int argc, Value *argv)
     if (!file)
         vm_errorf(vm, "[read_lines] Failed to open file: %s", AS_CSTRING(argv[0]));
 
-    list_t *lines = list_create(sizeof(Value));
+    List *lines = list_create(sizeof(Value));
     if (!lines)
     {
         fclose(file);
@@ -216,18 +216,18 @@ Value fs_readLinesLimit(vm_t *vm, int argc, Value *argv)
             buffer[--len] = '\0';
 
         Value line = NEW_OBJ(add_obj(vm, new_pistring(strdup(buffer))));
-        list_add(lines, &line);
+        _list_add(lines, &line);
         count++;
     }
 
     fclose(file);
 
     PiList *result = (PiList *)new_list(lines);
-    result->is_numeric = false;
+    result->is_numeric = FALSE;
     return NEW_OBJ(add_obj(vm, (Object *)result));
 }
 
-Value fs_open(vm_t *vm, int argc, Value *argv)
+Value fs_open(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[open] expects a single string argument as a file path.");
@@ -265,7 +265,7 @@ Value fs_open(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(f);
 }
 
-Value fs_seek(vm_t *vm, int argc, Value *argv)
+Value fs_seek(VM *vm, int argc, Value *argv)
 {
 
     if (argc < 2 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
@@ -283,10 +283,10 @@ Value fs_seek(vm_t *vm, int argc, Value *argv)
     if (fseek(file->fp, pos, SEEK_SET) != 0)
         vm_errorf(vm, "[seek] Failed to seek in file: %s", file->filename);
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value fs_write(vm_t *vm, int argc, Value *argv)
+Value fs_write(VM *vm, int argc, Value *argv)
 {
 
     if (argc < 2 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
@@ -307,10 +307,10 @@ Value fs_write(vm_t *vm, int argc, Value *argv)
     if (written < strlen(str) || ferror(file->fp))
         vm_errorf(vm, "[write] Failed to write to file: %s", file->filename);
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value fs_append(vm_t *vm, int argc, Value *argv)
+Value fs_append(VM *vm, int argc, Value *argv)
 {
 
     if (argc < 2 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
@@ -331,10 +331,10 @@ Value fs_append(vm_t *vm, int argc, Value *argv)
     if (written < strlen(str) || ferror(file->fp))
         vm_errorf(vm, "[append] Failed to write to file: %s", file->filename);
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value fs_close(vm_t *vm, int argc, Value *argv)
+Value fs_close(VM *vm, int argc, Value *argv)
 {
 
     if (argc < 1 || !IS_OBJ_TYPE(argv[0], OBJ_FILE))
@@ -345,11 +345,11 @@ Value fs_close(vm_t *vm, int argc, Value *argv)
     if (fclose(file->fp) != 0)
         vm_errorf(vm, "[close] Failed to close file: %s", file->filename);
 
-    file->closed = true;
-    return NEW_BOOL(true);
+    file->closed = TRUE;
+    return NEW_BOOL(TRUE);
 }
 
-Value fs_exists(vm_t *vm, int argc, Value *argv)
+Value fs_exists(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[exists] expects a string path as argument.");
@@ -359,39 +359,39 @@ Value fs_exists(vm_t *vm, int argc, Value *argv)
     struct stat st;
     int result = stat(path, &st);
     if (result == -1 && errno == ENOENT)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
 
     if (result != 0)
         vm_errorf(vm, "[exists] Failed to stat file: %s", path);
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value fs_isfile(vm_t *vm, int argc, Value *argv)
+Value fs_isfile(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[isfile] expects a string path as argument.");
 
     struct stat st;
     if (stat(AS_CSTRING(argv[0]), &st) != 0)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
 
     return NEW_BOOL(S_ISREG(st.st_mode));
 }
 
-Value fs_isdir(vm_t *vm, int argc, Value *argv)
+Value fs_isdir(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[isdir] expects a string path as argument.");
 
     struct stat st;
     if (stat(AS_CSTRING(argv[0]), &st) != 0)
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
 
     return NEW_BOOL(S_ISDIR(st.st_mode));
 }
 
-Value fs_size(vm_t *vm, int argc, Value *argv)
+Value fs_size(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[size] expects a string path as argument.");
@@ -403,7 +403,7 @@ Value fs_size(vm_t *vm, int argc, Value *argv)
     return NEW_NUM((double)st.st_size);
 }
 
-Value fs_abspath(vm_t *vm, int argc, Value *argv)
+Value fs_abspath(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[abspath] expects a string path as argument.");
@@ -423,7 +423,7 @@ Value fs_abspath(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_pistring(strdup(resolved)));
 }
 
-Value fs_basename(vm_t *vm, int argc, Value *argv)
+Value fs_basename(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[basename] expects a string.");
@@ -441,7 +441,7 @@ Value fs_basename(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_pistring(strdup(name)));
 }
 
-Value fs_dirname(vm_t *vm, int argc, Value *argv)
+Value fs_dirname(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[dirname] expects a string as argument.");
@@ -467,7 +467,7 @@ Value fs_dirname(vm_t *vm, int argc, Value *argv)
     return result;
 }
 
-Value fs_ext(vm_t *vm, int argc, Value *argv)
+Value fs_ext(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[ext] expects a string.");
@@ -481,7 +481,7 @@ Value fs_ext(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_pistring(strdup(dot + 1)));
 }
 
-Value fs_join(vm_t *vm, int argc, Value *argv)
+Value fs_join(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]))
         vm_error(vm, "[join] expects two strings.");
@@ -502,7 +502,7 @@ Value fs_join(vm_t *vm, int argc, Value *argv)
     return v;
 }
 
-Value fs_mkdir(vm_t *vm, int argc, Value *argv)
+Value fs_mkdir(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[mkdir] expects a string path.");
@@ -518,15 +518,15 @@ Value fs_mkdir(vm_t *vm, int argc, Value *argv)
     if (result != 0)
     {
         if (errno == EEXIST)
-            return NEW_BOOL(false);
+            return NEW_BOOL(FALSE);
 
         vm_error(vm, "[mkdir] failed.");
     }
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value fs_rmdir(vm_t *vm, int argc, Value *argv)
+Value fs_rmdir(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[rmdir] expects a string path as argument.");
@@ -538,10 +538,10 @@ Value fs_rmdir(vm_t *vm, int argc, Value *argv)
     if (result != 0)
         vm_error(vm, "[rmdir] failed to remove directory.");
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value fs_listdir(vm_t *vm, int argc, Value *argv)
+Value fs_listdir(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[listdir] expects a path.");
@@ -550,12 +550,12 @@ Value fs_listdir(vm_t *vm, int argc, Value *argv)
     if (!dir)
         vm_error(vm, "[listdir] cannot open directory.");
 
-    list_t *list = list_create(sizeof(Value));
+    List *list = list_create(sizeof(Value));
 
     struct dirent *entry;
     while ((entry = readdir(dir)) != NULL)
     {
-        list_add(list, &NEW_OBJ(new_pistring(strdup(entry->d_name))));
+        _list_add(list, &NEW_OBJ(new_pistring(strdup(entry->d_name))));
     }
 
     closedir(dir);
@@ -563,7 +563,7 @@ Value fs_listdir(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_list(list));
 }
 
-Value fs_cwd(vm_t *vm, int argc, Value *argv)
+Value fs_cwd(VM *vm, int argc, Value *argv)
 {
     char buffer[PATH_MAX];
 
@@ -573,7 +573,7 @@ Value fs_cwd(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(new_pistring(strdup(buffer)));
 }
 
-Value fs_chdir(vm_t *vm, int argc, Value *argv)
+Value fs_chdir(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[chdir] expects a path.");
@@ -581,10 +581,10 @@ Value fs_chdir(vm_t *vm, int argc, Value *argv)
     if (chdir(AS_CSTRING(argv[0])) != 0)
         vm_error(vm, "[chdir] failed.");
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value fs_copy(vm_t *vm, int argc, Value *argv)
+Value fs_copy(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]))
         vm_error(vm, "[copy] expects src and dst.");
@@ -623,10 +623,10 @@ Value fs_copy(vm_t *vm, int argc, Value *argv)
     fclose(src);
     fclose(dst);
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value fs_move(vm_t *vm, int argc, Value *argv)
+Value fs_move(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_STRING(argv[0]) || !IS_STRING(argv[1]))
         vm_error(vm, "[move] expects src and dst.");
@@ -634,10 +634,10 @@ Value fs_move(vm_t *vm, int argc, Value *argv)
     if (rename(AS_CSTRING(argv[0]), AS_CSTRING(argv[1])) != 0)
         vm_error(vm, "[move] failed.");
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
-Value fs_delete(vm_t *vm, int argc, Value *argv)
+Value fs_delete(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[delete] expects a path.");
@@ -645,7 +645,7 @@ Value fs_delete(vm_t *vm, int argc, Value *argv)
     if (remove(AS_CSTRING(argv[0])) != 0)
         vm_error(vm, "[delete] failed.");
 
-    return NEW_BOOL(true);
+    return NEW_BOOL(TRUE);
 }
 
 static BuiltinConst fs_consts[] = {

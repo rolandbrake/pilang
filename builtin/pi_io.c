@@ -25,7 +25,7 @@
 #include "pi_builtin.h"
 #include "../pi_func.h"
 
-static void append(char *buffer, int *offset, const char *text)
+static void _append(char *buffer, int *offset, const char *text)
 {
     int remaining = BUFFER_SIZE - *offset - 1;
     if (remaining <= 0)
@@ -41,7 +41,7 @@ static void append(char *buffer, int *offset, const char *text)
     }
 }
 
-static void append_char(char *buffer, int *offset, char c)
+static void _append_char(char *buffer, int *offset, char c)
 {
     if (*offset >= BUFFER_SIZE - 1)
         return;
@@ -51,7 +51,7 @@ static void append_char(char *buffer, int *offset, char c)
     buffer[*offset] = '\0';
 }
 
-static void write_stdoutText(const char *text)
+static void _write_stdoutText(const char *text)
 {
 #ifdef _WIN32
     HANDLE out = (HANDLE)_get_osfhandle(_fileno(stdout));
@@ -79,13 +79,13 @@ static void write_stdoutText(const char *text)
     fputs(text, stdout);
 }
 
-static void write_stdoutChar(char ch)
+static void _write_stdoutChar(char ch)
 {
     char text[2] = {ch, '\0'};
-    write_stdoutText(text);
+    _write_stdoutText(text);
 }
 
-static bool stdin_isInteractive(void)
+static bool _stdin_isInteractive(void)
 {
 #ifdef _WIN32
     return _isatty(_fileno(stdin)) != 0;
@@ -104,7 +104,7 @@ enum
     INPUT_KEY_END
 };
 
-static unsigned long input_nowMillis(void)
+static unsigned long _input_nowMillis(void)
 {
 #ifdef _WIN32
     return (unsigned long)GetTickCount();
@@ -115,71 +115,71 @@ static unsigned long input_nowMillis(void)
 #endif
 }
 
-static void input_moveLeft(size_t count)
+static void _input_moveLeft(size_t count)
 {
     if (count == 0)
         return;
 
     char code[32];
     snprintf(code, sizeof(code), "\033[%zuD", count);
-    write_stdoutText(code);
+    _write_stdoutText(code);
 }
 
-static void input_moveRight(size_t count)
+static void _input_moveRight(size_t count)
 {
     if (count == 0)
         return;
 
     char code[32];
     snprintf(code, sizeof(code), "\033[%zuC", count);
-    write_stdoutText(code);
+    _write_stdoutText(code);
 }
 
-static void input_drawCursor(const char *buffer, size_t cursor, size_t len)
+static void _input_drawCursor(const char *buffer, size_t cursor, size_t len)
 {
     (void)buffer;
     (void)cursor;
     (void)len;
-    write_stdoutText("\033[41m \033[0m\b");
+    _write_stdoutText("\033[41m \033[0m\b");
     fflush(stdout);
 }
 
-static void input_eraseCursor(const char *buffer, size_t cursor, size_t len)
+static void _input_eraseCursor(const char *buffer, size_t cursor, size_t len)
 {
     char text[2] = {' ', '\0'};
     if (cursor < len)
         text[0] = buffer[cursor];
-    write_stdoutText(text);
-    write_stdoutText("\b");
+    _write_stdoutText(text);
+    _write_stdoutText("\b");
     fflush(stdout);
 }
 
-static void input_redrawTail(const char *buffer, size_t cursor, size_t len, bool clear_extra)
+static void _input_redrawTail(const char *buffer, size_t cursor, size_t len, bool clear_extra)
 {
     if (cursor < len)
-        write_stdoutText(buffer + cursor);
+        _write_stdoutText(buffer + cursor);
 
     if (clear_extra)
-        write_stdoutChar(' ');
+        _write_stdoutChar(' ');
 
-    input_moveLeft((len - cursor) + (clear_extra ? 1 : 0));
+    _input_moveLeft((len - cursor) + (clear_extra ? 1 : 0));
     fflush(stdout);
 }
 
-static void input_setCursorVisible(const char *buffer, size_t cursor, size_t len, bool *visible, bool show)
+static void _input_setCursorVisible(const char *buffer, size_t cursor, size_t len, bool *visible, bool show)
 {
     if (*visible == show)
         return;
 
     if (show)
-        input_drawCursor(buffer, cursor, len);
+        _input_drawCursor(buffer, cursor, len);
     else
-        input_eraseCursor(buffer, cursor, len);
+        _input_eraseCursor(buffer, cursor, len);
 
     *visible = show;
 }
 
-static void read_linePlain(vm_t *vm, const char *name, char *buffer, size_t size)
+static void _read_linePlain(VM *vm, const char *name, char *buffer, size_t size)
 {
     if (!fgets(buffer, (int)size, stdin))
         vm_errorf(vm, "[%s] Failed to read input.", name);
@@ -190,10 +190,10 @@ static void read_linePlain(vm_t *vm, const char *name, char *buffer, size_t size
 }
 
 #ifndef _WIN32
-static bool input_enableRawMode(struct termios *old_term)
+static bool _input_enableRawMode(struct termios *old_term)
 {
     if (tcgetattr(STDIN_FILENO, old_term) == -1)
-        return false;
+        return FALSE;
 
     struct termios raw_term = *old_term;
     raw_term.c_lflag &= ~(ICANON | ECHO);
@@ -203,7 +203,7 @@ static bool input_enableRawMode(struct termios *old_term)
 }
 #endif
 
-static int input_readKey(int timeout_ms)
+static int _input_readKey(int timeout_ms)
 {
 #ifdef _WIN32
     DWORD started = GetTickCount();
@@ -287,54 +287,54 @@ static int input_readKey(int timeout_ms)
 #endif
 }
 
-static void read_lineWithCursor(vm_t *vm, const char *name, char *buffer, size_t size)
+static void _read_lineWithCursor(VM *vm, const char *name, char *buffer, size_t size)
 {
     if (size == 0)
         return;
 
     buffer[0] = '\0';
 
-    if (!stdin_isInteractive())
+    if (!_stdin_isInteractive())
     {
-        read_linePlain(vm, name, buffer, size);
+        _read_linePlain(vm, name, buffer, size);
         return;
     }
 
 #ifndef _WIN32
     struct termios old_term;
-    if (!input_enableRawMode(&old_term))
+    if (!_input_enableRawMode(&old_term))
     {
-        read_linePlain(vm, name, buffer, size);
+        _read_linePlain(vm, name, buffer, size);
         return;
     }
 #endif
 
     size_t len = 0;
     size_t cursor = 0;
-    bool cursor_visible = false;
-    unsigned long last_blink = input_nowMillis();
-    input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+    bool cursor_visible = FALSE;
+    unsigned long last_blink = _input_nowMillis();
+    _input_setCursorVisible(buffer, cursor, len, &cursor_visible, TRUE);
 
-    while (true)
+    while (TRUE)
     {
-        int ch = input_readKey(50);
-        unsigned long now = input_nowMillis();
+        int ch = _input_readKey(50);
+        unsigned long now = _input_nowMillis();
         if (ch == INPUT_KEY_NONE)
         {
             if (now - last_blink >= 500)
             {
-                input_setCursorVisible(buffer, cursor, len, &cursor_visible, !cursor_visible);
+                _input_setCursorVisible(buffer, cursor, len, &cursor_visible, !cursor_visible);
                 last_blink = now;
             }
             continue;
         }
 
-        input_setCursorVisible(buffer, cursor, len, &cursor_visible, false);
+        _input_setCursorVisible(buffer, cursor, len, &cursor_visible, FALSE);
         last_blink = now;
 
         if (ch == '\r' || ch == '\n')
         {
-            write_stdoutChar('\n');
+            _write_stdoutChar('\n');
             break;
         }
 
@@ -343,7 +343,7 @@ static void read_lineWithCursor(vm_t *vm, const char *name, char *buffer, size_t
 #ifndef _WIN32
             tcsetattr(STDIN_FILENO, TCSANOW, &old_term);
 #endif
-            write_stdoutChar('\n');
+            _write_stdoutChar('\n');
             vm_errorf(vm, "[%s] Input interrupted.", name);
         }
 
@@ -351,10 +351,10 @@ static void read_lineWithCursor(vm_t *vm, const char *name, char *buffer, size_t
         {
             if (cursor > 0)
             {
-                input_moveLeft(1);
+                _input_moveLeft(1);
                 cursor--;
             }
-            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+            _input_setCursorVisible(buffer, cursor, len, &cursor_visible, TRUE);
             continue;
         }
 
@@ -362,26 +362,26 @@ static void read_lineWithCursor(vm_t *vm, const char *name, char *buffer, size_t
         {
             if (cursor < len)
             {
-                input_moveRight(1);
+                _input_moveRight(1);
                 cursor++;
             }
-            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+            _input_setCursorVisible(buffer, cursor, len, &cursor_visible, TRUE);
             continue;
         }
 
         if (ch == INPUT_KEY_HOME)
         {
-            input_moveLeft(cursor);
+            _input_moveLeft(cursor);
             cursor = 0;
-            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+            _input_setCursorVisible(buffer, cursor, len, &cursor_visible, TRUE);
             continue;
         }
 
         if (ch == INPUT_KEY_END)
         {
-            input_moveRight(len - cursor);
+            _input_moveRight(len - cursor);
             cursor = len;
-            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+            _input_setCursorVisible(buffer, cursor, len, &cursor_visible, TRUE);
             continue;
         }
 
@@ -390,13 +390,13 @@ static void read_lineWithCursor(vm_t *vm, const char *name, char *buffer, size_t
             if (cursor > 0)
             {
                 cursor--;
-                input_moveLeft(1);
+                _input_moveLeft(1);
                 memmove(buffer + cursor, buffer + cursor + 1, len - cursor);
                 len--;
                 buffer[len] = '\0';
-                input_redrawTail(buffer, cursor, len, true);
+                _input_redrawTail(buffer, cursor, len, TRUE);
             }
-            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+            _input_setCursorVisible(buffer, cursor, len, &cursor_visible, TRUE);
             continue;
         }
 
@@ -407,9 +407,9 @@ static void read_lineWithCursor(vm_t *vm, const char *name, char *buffer, size_t
                 memmove(buffer + cursor, buffer + cursor + 1, len - cursor);
                 len--;
                 buffer[len] = '\0';
-                input_redrawTail(buffer, cursor, len, true);
+                _input_redrawTail(buffer, cursor, len, TRUE);
             }
-            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+            _input_setCursorVisible(buffer, cursor, len, &cursor_visible, TRUE);
             continue;
         }
 
@@ -417,18 +417,18 @@ static void read_lineWithCursor(vm_t *vm, const char *name, char *buffer, size_t
         {
             if (len + 1 >= size)
             {
-                input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+                _input_setCursorVisible(buffer, cursor, len, &cursor_visible, TRUE);
                 continue;
             }
 
             memmove(buffer + cursor + 1, buffer + cursor, len - cursor + 1);
             buffer[cursor] = (char)ch;
             len++;
-            write_stdoutText(buffer + cursor);
+            _write_stdoutText(buffer + cursor);
             cursor++;
-            input_moveLeft(len - cursor);
+            _input_moveLeft(len - cursor);
             buffer[len] = '\0';
-            input_setCursorVisible(buffer, cursor, len, &cursor_visible, true);
+            _input_setCursorVisible(buffer, cursor, len, &cursor_visible, TRUE);
         }
     }
 
@@ -437,9 +437,9 @@ static void read_lineWithCursor(vm_t *vm, const char *name, char *buffer, size_t
 #endif
 }
 
-static char *display_valueString(vm_t *vm, Value value, bool nested);
+static char *_display_valueString(VM *vm, Value value, bool nested);
 
-char *pi_displayString(vm_t *vm, Value value);
+char *pi_displayString(VM *vm, Value value);
 
 typedef struct
 {
@@ -448,7 +448,7 @@ typedef struct
     size_t capacity;
 } DisplayBuilder;
 
-static void builder_init(DisplayBuilder *builder, const char *initial)
+static void _builder_init(DisplayBuilder *builder, const char *initial)
 {
     size_t len = strlen(initial);
     builder->capacity = len < 32 ? 32 : len + 1;
@@ -461,7 +461,7 @@ static void builder_init(DisplayBuilder *builder, const char *initial)
     memcpy(builder->data, initial, len + 1);
 }
 
-static void builder_append(DisplayBuilder *builder, const char *text)
+static void _builder_append(DisplayBuilder *builder, const char *text)
 {
     size_t len = strlen(text);
     size_t needed = builder->length + len + 1;
@@ -485,150 +485,150 @@ static void builder_append(DisplayBuilder *builder, const char *text)
     builder->length += len;
 }
 
-static char *builder_finish(DisplayBuilder *builder)
+static char *_builder_finish(DisplayBuilder *builder)
 {
     return builder->data;
 }
 
-static char *display_quoteString(const char *text)
+static char *_display_quoteString(const char *text)
 {
     DisplayBuilder builder;
-    builder_init(&builder, "\"");
+    _builder_init(&builder, "\"");
 
     for (const char *cursor = text; *cursor != '\0'; cursor++)
     {
         switch (*cursor)
         {
         case '\\':
-            builder_append(&builder, "\\\\");
+            _builder_append(&builder, "\\\\");
             break;
         case '"':
-            builder_append(&builder, "\\\"");
+            _builder_append(&builder, "\\\"");
             break;
         case '\n':
-            builder_append(&builder, "\\n");
+            _builder_append(&builder, "\\n");
             break;
         case '\r':
-            builder_append(&builder, "\\r");
+            _builder_append(&builder, "\\r");
             break;
         case '\t':
-            builder_append(&builder, "\\t");
+            _builder_append(&builder, "\\t");
             break;
         default:
         {
             char ch[2] = {*cursor, '\0'};
-            builder_append(&builder, ch);
+            _builder_append(&builder, ch);
             break;
         }
         }
     }
 
-    builder_append(&builder, "\"");
-    return builder_finish(&builder);
+    _builder_append(&builder, "\"");
+    return _builder_finish(&builder);
 }
 
-static char *display_mapString(vm_t *vm, PiMap *map)
+static char *_display_mapString(VM *vm, PiMap *map)
 {
     int size = ht_length(map->table);
     if (size == 0)
         return strdup("{}");
 
     DisplayBuilder builder;
-    builder_init(&builder, "{");
-    ht_iter it = ht_iterator(map->table);
-    for (int i = 0; ht_next(&it); i++)
+    _builder_init(&builder, "{");
+    HT_Iterator it = _ht_iterator(map->table);
+    for (int i = 0; _ht_next(&it); i++)
     {
         const char *key = it.key;
         Value *stored = it.value;
-        char *quoted_key = display_quoteString(key);
-        char *value = stored ? display_valueString(vm, *stored, true) : strdup("nil");
+        char *quoted_key = _display_quoteString(key);
+        char *value = stored ? _display_valueString(vm, *stored, true) : strdup("nil");
 
         if (i > 0)
-            builder_append(&builder, ", ");
+            _builder_append(&builder, ", ");
 
-        builder_append(&builder, quoted_key);
-        builder_append(&builder, ": ");
-        builder_append(&builder, value);
+        _builder_append(&builder, quoted_key);
+        _builder_append(&builder, ": ");
+        _builder_append(&builder, value);
         free(quoted_key);
         free(value);
     }
 
-    builder_append(&builder, "}");
-    return builder_finish(&builder);
+    _builder_append(&builder, "}");
+    return _builder_finish(&builder);
 }
 
-static char *display_listString(vm_t *vm, PiList *list)
+static char *_display_listString(VM *vm, PiList *list)
 {
     DisplayBuilder builder;
-    builder_init(&builder, "[");
+    _builder_init(&builder, "[");
 
     for (int i = 0; i < list->items->size; i++)
     {
-        Value item = *(Value *)list_getAt(list->items, i);
-        char *text = display_valueString(vm, item, true);
+        Value item = *(Value *)_list_getAt(list->items, i);
+        char *text = _display_valueString(vm, item, true);
 
         if (i > 0)
-            builder_append(&builder, ", ");
+            _builder_append(&builder, ", ");
 
-        builder_append(&builder, text);
+        _builder_append(&builder, text);
         free(text);
     }
 
-    builder_append(&builder, "]");
-    return builder_finish(&builder);
+    _builder_append(&builder, "]");
+    return _builder_finish(&builder);
 }
 
-static char *display_tupleString(vm_t *vm, PiTuple *tuple)
+static char *_display_tupleString(VM *vm, PiTuple *tuple)
 {
     int size = LIST_SIZE(tuple->items);
     DisplayBuilder builder;
-    builder_init(&builder, "(");
+    _builder_init(&builder, "(");
 
     for (int i = 0; i < size; i++)
     {
-        Value item = *(Value *)list_getAt(tuple->items, i);
-        char *text = display_valueString(vm, item, true);
+        Value item = *(Value *)_list_getAt(tuple->items, i);
+        char *text = _display_valueString(vm, item, true);
 
         if (i > 0)
-            builder_append(&builder, ", ");
+            _builder_append(&builder, ", ");
 
-        builder_append(&builder, text);
+        _builder_append(&builder, text);
         free(text);
     }
 
     // Keep Python-style single-item tuple output: (value,)
     if (size == 1)
-        builder_append(&builder, ",");
+        _builder_append(&builder, ",");
 
-    builder_append(&builder, ")");
-    return builder_finish(&builder);
+    _builder_append(&builder, ")");
+    return _builder_finish(&builder);
 }
 
-static char *display_setString(vm_t *vm, PiSet *set)
+static char *_display_setString(VM *vm, PiSet *set)
 {
     int size = set_size(set);
     if (size == 0)
         return strdup("{}");
 
     DisplayBuilder builder;
-    builder_init(&builder, "{");
+    _builder_init(&builder, "{");
 
     for (int i = 0; i < size; i++)
     {
-        char *text = display_valueString(vm, set_get(set, i), true);
+        char *text = _display_valueString(vm, set_get(set, i), true);
 
         if (i > 0)
-            builder_append(&builder, ", ");
+            _builder_append(&builder, ", ");
 
-        builder_append(&builder, text);
+        _builder_append(&builder, text);
         free(text);
     }
 
-    builder_append(&builder, "}");
-    return builder_finish(&builder);
+    _builder_append(&builder, "}");
+    return _builder_finish(&builder);
 }
 
-static char *display_valueString(vm_t *vm, Value value, bool nested)
+static char *_display_valueString(VM *vm, Value value, bool nested)
 {
     // Instances can customize their printed representation by defining format().
     // Returning the same instance avoids infinite recursion.
@@ -636,27 +636,27 @@ static char *display_valueString(vm_t *vm, Value value, bool nested)
     {
         Value formatted = vm_callMethodNoArgs(vm, value, "format");
         if (!(IS_INSTANCE(formatted) && AS_INSTANCE(formatted) == AS_INSTANCE(value)))
-            return display_valueString(vm, formatted, nested);
+            return _display_valueString(vm, formatted, nested);
     }
 
     if (nested && IS_STRING(value))
-        return display_quoteString(AS_CSTRING(value));
+        return _display_quoteString(AS_CSTRING(value));
     if (IS_LIST(value))
-        return display_listString(vm, AS_LIST(value));
+        return _display_listString(vm, AS_LIST(value));
     if (IS_MAP(value))
-        return display_mapString(vm, AS_MAP(value));
+        return _display_mapString(vm, AS_MAP(value));
     if (IS_SET(value))
-        return display_setString(vm, AS_SET(value));
+        return _display_setString(vm, AS_SET(value));
     if (IS_TUPLE(value))
-        return display_tupleString(vm, AS_TUPLE(value));
+        return _display_tupleString(vm, AS_TUPLE(value));
 
     char *text = as_stringWithFormat(vm, value);
     return text ? text : strdup("<unknown>");
 }
 
-char *pi_displayString(vm_t *vm, Value value)
+char *pi_displayString(VM *vm, Value value)
 {
-    return display_valueString(vm, value, false);
+    return _display_valueString(vm, value, false);
 }
 
 typedef struct
@@ -671,7 +671,7 @@ typedef struct
     int style_offset;
 } FormatSpec;
 
-static bool string_equalsIgnoreCase(const char *left, const char *right)
+static bool _string_equalsIgnoreCase(const char *left, const char *right)
 {
     while (*left != '\0' && *right != '\0')
     {
@@ -684,7 +684,7 @@ static bool string_equalsIgnoreCase(const char *left, const char *right)
     return *left == '\0' && *right == '\0';
 }
 
-static bool parse_intText(const char *text, int *value)
+static bool _parse_intText(const char *text, int *value)
 {
     if (*text == '\0')
         return false;
@@ -703,7 +703,7 @@ static bool parse_intText(const char *text, int *value)
     return true;
 }
 
-static bool parse_hexByte(const char *text, int *value)
+static bool _parse_hexByte(const char *text, int *value)
 {
     int result = 0;
     for (int i = 0; i < 2; i++)
@@ -725,7 +725,7 @@ static bool parse_hexByte(const char *text, int *value)
     return true;
 }
 
-static void spec_appendStyle(FormatSpec *spec, const char *format, ...)
+static void _spec_appendStyle(FormatSpec *spec, const char *format, ...)
 {
     int remaining = (int)sizeof(spec->style) - spec->style_offset - 1;
     if (remaining <= 0)
@@ -745,71 +745,71 @@ static void spec_appendStyle(FormatSpec *spec, const char *format, ...)
     }
 }
 
-static int ansi_namedColor(const char *name)
+static int _ansi_namedColor(const char *name)
 {
-    if (string_equalsIgnoreCase(name, "black"))
+    if (_string_equalsIgnoreCase(name, "black"))
         return 0;
-    if (string_equalsIgnoreCase(name, "red"))
+    if (_string_equalsIgnoreCase(name, "red"))
         return 1;
-    if (string_equalsIgnoreCase(name, "green"))
+    if (_string_equalsIgnoreCase(name, "green"))
         return 2;
-    if (string_equalsIgnoreCase(name, "yellow"))
+    if (_string_equalsIgnoreCase(name, "yellow"))
         return 3;
-    if (string_equalsIgnoreCase(name, "blue"))
+    if (_string_equalsIgnoreCase(name, "blue"))
         return 4;
-    if (string_equalsIgnoreCase(name, "magenta"))
+    if (_string_equalsIgnoreCase(name, "magenta"))
         return 5;
-    if (string_equalsIgnoreCase(name, "cyan"))
+    if (_string_equalsIgnoreCase(name, "cyan"))
         return 6;
-    if (string_equalsIgnoreCase(name, "white"))
+    if (_string_equalsIgnoreCase(name, "white"))
         return 7;
-    if (string_equalsIgnoreCase(name, "default"))
+    if (_string_equalsIgnoreCase(name, "default"))
         return 9;
     return -1;
 }
 
-static bool parse_colorSpec(FormatSpec *spec, const char *value, bool foreground)
+static bool _parse_colorSpec(FormatSpec *spec, const char *value, bool foreground)
 {
     int channel = foreground ? 38 : 48;
 
     if (value[0] == '#' && strlen(value) == 7)
     {
         int r, g, b;
-        if (!parse_hexByte(value + 1, &r) ||
-            !parse_hexByte(value + 3, &g) ||
-            !parse_hexByte(value + 5, &b))
+        if (!_parse_hexByte(value + 1, &r) ||
+            !_parse_hexByte(value + 3, &g) ||
+            !_parse_hexByte(value + 5, &b))
             return false;
-        spec_appendStyle(spec, "\033[%d;2;%d;%d;%dm", channel, r, g, b);
+        _spec_appendStyle(spec, "\033[%d;2;%d;%d;%dm", channel, r, g, b);
         return true;
     }
 
     int color_index = -1;
-    if (parse_intText(value, &color_index))
+    if (_parse_intText(value, &color_index))
     {
         if (color_index < 0 || color_index > 255)
             return false;
-        spec_appendStyle(spec, "\033[%d;5;%dm", channel, color_index);
+        _spec_appendStyle(spec, "\033[%d;5;%dm", channel, color_index);
         return true;
     }
 
-    color_index = ansi_namedColor(value);
+    color_index = _ansi_namedColor(value);
     if (color_index < 0)
         return false;
 
     if (color_index == 9)
-        spec_appendStyle(spec, "\033[%dm", foreground ? 39 : 49);
+        _spec_appendStyle(spec, "\033[%dm", foreground ? 39 : 49);
     else
-        spec_appendStyle(spec, "\033[%dm", (foreground ? 30 : 40) + color_index);
+        _spec_appendStyle(spec, "\033[%dm", (foreground ? 30 : 40) + color_index);
     return true;
 }
 
-static bool parse_alignmentToken(FormatSpec *spec, const char *token)
+static bool _parse_alignmentToken(FormatSpec *spec, const char *token)
 {
     if ((token[0] != '<' && token[0] != '>' && token[0] != '^') || token[1] == '\0')
         return false;
 
     int width;
-    if (!parse_intText(token + 1, &width))
+    if (!_parse_intText(token + 1, &width))
         return false;
 
     spec->align = token[0];
@@ -817,7 +817,7 @@ static bool parse_alignmentToken(FormatSpec *spec, const char *token)
     return true;
 }
 
-static bool parse_numberToken(FormatSpec *spec, const char *token)
+static bool _parse_numberToken(FormatSpec *spec, const char *token)
 {
     const char *p = token;
     bool always_sign = false;
@@ -865,7 +865,7 @@ static bool parse_numberToken(FormatSpec *spec, const char *token)
     return true;
 }
 
-static void parse_formatSpec(const char *spec_text, int spec_len, FormatSpec *spec)
+static void _parse_formatSpec(const char *spec_text, int spec_len, FormatSpec *spec)
 {
     memset(spec, 0, sizeof(*spec));
     spec->precision = -1;
@@ -893,34 +893,34 @@ static void parse_formatSpec(const char *spec_text, int spec_len, FormatSpec *sp
             continue;
 
         if (strcmp(token, "bold") == 0)
-            spec_appendStyle(spec, "\033[1m");
+            _spec_appendStyle(spec, "\033[1m");
         else if (strcmp(token, "italic") == 0)
-            spec_appendStyle(spec, "\033[3m");
+            _spec_appendStyle(spec, "\033[3m");
         else if (strcmp(token, "underline") == 0)
-            spec_appendStyle(spec, "\033[4m");
+            _spec_appendStyle(spec, "\033[4m");
         else if (strncmp(token, "fg:", 3) == 0)
         {
-            if (!parse_colorSpec(spec, token + 3, true))
-                spec_appendStyle(spec, "");
+            if (!_parse_colorSpec(spec, token + 3, true))
+                _spec_appendStyle(spec, "");
         }
         else if (strncmp(token, "bg:", 3) == 0)
         {
-            if (!parse_colorSpec(spec, token + 3, false))
-                spec_appendStyle(spec, "");
+            if (!_parse_colorSpec(spec, token + 3, false))
+                _spec_appendStyle(spec, "");
         }
-        else if (!parse_alignmentToken(spec, token) && !parse_numberToken(spec, token))
+        else if (!_parse_alignmentToken(spec, token) && !_parse_numberToken(spec, token))
         {
             // Unknown tokens are ignored so future format options stay forwards-compatible.
         }
     }
 }
 
-static bool value_isIntegral(double value)
+static bool _value_isIntegral(double value)
 {
     return isfinite(value) && floor(value) == value;
 }
 
-static char *format_binaryInteger(unsigned long long value)
+static char *_format_binaryInteger(unsigned long long value)
 {
     char digits[sizeof(unsigned long long) * CHAR_BIT + 1];
     int pos = (int)sizeof(digits) - 1;
@@ -935,7 +935,7 @@ static char *format_binaryInteger(unsigned long long value)
     return strdup(digits + pos);
 }
 
-static char *format_numericValue(vm_t *vm, FormatSpec *spec, Value value)
+static char *_format_numericValue(VM *vm, FormatSpec *spec, Value value)
 {
     if (!is_numeric(value))
         vm_errorf(vm, "[format] numeric spec requires a numeric value, got %s.", type_name(value));
@@ -952,7 +952,7 @@ static char *format_numericValue(vm_t *vm, FormatSpec *spec, Value value)
     case 'x':
     case 'b':
     {
-        if (!value_isIntegral(number))
+        if (!_value_isIntegral(number))
             vm_error(vm, "[format] integer base spec requires an integral number.");
 
         long long signed_value = (long long)number;
@@ -964,7 +964,7 @@ static char *format_numericValue(vm_t *vm, FormatSpec *spec, Value value)
         else if (spec->number_type == 'x')
             snprintf(buffer, sizeof(buffer), "%llx", (unsigned long long)signed_value);
         else
-            return format_binaryInteger((unsigned long long)signed_value);
+            return _format_binaryInteger((unsigned long long)signed_value);
         return strdup(buffer);
     }
     case 'f':
@@ -989,7 +989,7 @@ static char *format_numericValue(vm_t *vm, FormatSpec *spec, Value value)
     return text;
 }
 
-static char *format_applyAlignment(const char *text, FormatSpec *spec)
+static char *_format_applyAlignment(const char *text, FormatSpec *spec)
 {
     int len = (int)strlen(text);
     if (spec->width <= len)
@@ -1024,12 +1024,12 @@ static char *format_applyAlignment(const char *text, FormatSpec *spec)
     return result;
 }
 
-static char *format_valueWithSpec(vm_t *vm, Value value, FormatSpec *spec)
+static char *_format_valueWithSpec(VM *vm, Value value, FormatSpec *spec)
 {
     char *text = spec->has_number
-                     ? format_numericValue(vm, spec, value)
+                     ? _format_numericValue(vm, spec, value)
                      : pi_displayString(vm, value);
-    char *aligned = format_applyAlignment(text, spec);
+    char *aligned = _format_applyAlignment(text, spec);
     free(text);
 
     if (spec->style_offset == 0)
@@ -1045,7 +1045,7 @@ static char *format_valueWithSpec(vm_t *vm, Value value, FormatSpec *spec)
     return styled;
 }
 
-static void format_text(vm_t *vm, int argc, Value *argv, char *out)
+static void _format_text(VM *vm, int argc, Value *argv, char *out)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[format] expects at least a format string.");
@@ -1060,7 +1060,7 @@ static void format_text(vm_t *vm, int argc, Value *argv, char *out)
         {
             if (fmt[i + 1] == '{')
             {
-                append_char(out, &offset, '{');
+                _append_char(out, &offset, '{');
                 i++;
                 continue;
             }
@@ -1089,7 +1089,7 @@ static void format_text(vm_t *vm, int argc, Value *argv, char *out)
 
             if (!has_digit || fmt[j] != '}')
             {
-                append_char(out, &offset, fmt[i]);
+                _append_char(out, &offset, fmt[i]);
                 continue;
             }
 
@@ -1100,15 +1100,15 @@ static void format_text(vm_t *vm, int argc, Value *argv, char *out)
             if (spec_start >= 0)
             {
                 FormatSpec spec;
-                parse_formatSpec(fmt + spec_start, spec_len, &spec);
-                arg_text = format_valueWithSpec(vm, argv[index + 1], &spec);
+                _parse_formatSpec(fmt + spec_start, spec_len, &spec);
+                arg_text = _format_valueWithSpec(vm, argv[index + 1], &spec);
             }
             else
             {
                 arg_text = pi_displayString(vm, argv[index + 1]);
             }
 
-            append(out, &offset, arg_text);
+            _append(out, &offset, arg_text);
             free(arg_text);
 
             i = j;
@@ -1117,16 +1117,16 @@ static void format_text(vm_t *vm, int argc, Value *argv, char *out)
 
         if (fmt[i] == '}' && fmt[i + 1] == '}')
         {
-            append_char(out, &offset, '}');
+            _append_char(out, &offset, '}');
             i++;
             continue;
         }
 
-        append_char(out, &offset, fmt[i]);
+        _append_char(out, &offset, fmt[i]);
     }
 }
 
-Value pi_print(vm_t *vm, int argc, Value *argv)
+Value pi_print(VM *vm, int argc, Value *argv)
 {
     char *text;
     for (int i = 0; i < argc; i++)
@@ -1136,7 +1136,7 @@ Value pi_print(vm_t *vm, int argc, Value *argv)
 
         text = pi_displayString(vm, argv[i]);
 
-        write_stdoutText(text);
+        _write_stdoutText(text);
         free(text);
     }
 
@@ -1144,29 +1144,29 @@ Value pi_print(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_println(vm_t *vm, int argc, Value *argv)
+Value pi_println(VM *vm, int argc, Value *argv)
 {
     pi_print(vm, argc, argv);
-    write_stdoutChar('\n');
+    _write_stdoutChar('\n');
     fflush(stdout);
 
     return NEW_NIL();
 }
 
-Value pi_printf(vm_t *vm, int argc, Value *argv)
+Value pi_printf(VM *vm, int argc, Value *argv)
 {
     char out[BUFFER_SIZE];
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[printf] expects at least a format string.");
 
-    format_text(vm, argc, argv, out);
+    _format_text(vm, argc, argv, out);
 
-    write_stdoutText(out);
+    _write_stdoutText(out);
     fflush(stdout);
     return NEW_NIL();
 }
 
-Value pi_log(vm_t *vm, int argc, Value *argv)
+Value pi_log(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "[log] expects message.");
@@ -1189,69 +1189,69 @@ Value pi_log(vm_t *vm, int argc, Value *argv)
     else
         sprintf(line, "%s\n", msg);
 
-    write_stdoutText(line);
+    _write_stdoutText(line);
     free(line);
 
     free(msg);
     return NEW_NIL();
 }
 
-Value pi_input(vm_t *vm, int argc, Value *argv)
+Value pi_input(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_STRING(argv[0]))
         vm_error(vm, "[input] expects a single string argument as a prompt.");
 
     PiString *prompt = AS_STRING(argv[0]);
-    write_stdoutText(prompt->chars);
+    _write_stdoutText(prompt->chars);
     fflush(stdout);
 
     char buffer[BUFFER_SIZE];
-    read_lineWithCursor(vm, "input", buffer, sizeof(buffer));
+    _read_lineWithCursor(vm, "input", buffer, sizeof(buffer));
 
     return NEW_OBJ(new_pistring(strdup(buffer)));
 }
 
-Value io_format(vm_t *vm, int argc, Value *argv)
+Value io_format(VM *vm, int argc, Value *argv)
 {
     char out[BUFFER_SIZE];
-    format_text(vm, argc, argv, out);
+    _format_text(vm, argc, argv, out);
     return NEW_OBJ(new_pistring(strdup(out)));
 }
 
-Value io_readline(vm_t *vm, int argc, Value *argv)
+Value io_readline(VM *vm, int argc, Value *argv)
 {
     (void)argc;
     (void)argv;
 
     char buffer[BUFFER_SIZE];
-    read_lineWithCursor(vm, "readline", buffer, sizeof(buffer));
+    _read_lineWithCursor(vm, "readline", buffer, sizeof(buffer));
 
     return NEW_OBJ(new_pistring(strdup(buffer)));
 }
 
-Value io_prompt(vm_t *vm, int argc, Value *argv)
+Value io_prompt(VM *vm, int argc, Value *argv)
 {
     if (argc > 0)
         pi_print(vm, argc, argv);
 
     char buffer[BUFFER_SIZE];
-    read_lineWithCursor(vm, "prompt", buffer, sizeof(buffer));
+    _read_lineWithCursor(vm, "prompt", buffer, sizeof(buffer));
 
     return NEW_OBJ(new_pistring(strdup(buffer)));
 }
 
-Value io_clear(vm_t *vm, int argc, Value *argv)
+Value io_clear(VM *vm, int argc, Value *argv)
 {
     (void)vm;
     (void)argc;
     (void)argv;
 
-    write_stdoutText("\033[2J\033[H");
+    _write_stdoutText("\033[2J\033[H");
     fflush(stdout);
     return NEW_NIL();
 }
 
-Value io_pos(vm_t *vm, int argc, Value *argv)
+Value io_pos(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_NUM(argv[0]) || !IS_NUM(argv[1]))
         vm_error(vm, "[io.pos] expects x and y numbers.");
@@ -1267,23 +1267,23 @@ Value io_pos(vm_t *vm, int argc, Value *argv)
 
     char code[64];
     snprintf(code, sizeof(code), "\033[%d;%dH%s", y + 1, x + 1, clear ? "\033[J" : "");
-    write_stdoutText(code);
+    _write_stdoutText(code);
     fflush(stdout);
     return NEW_NIL();
 }
 
-Value io_cursor(vm_t *vm, int argc, Value *argv)
+Value io_cursor(VM *vm, int argc, Value *argv)
 {
     bool visible = true;
     if (argc >= 1)
         visible = as_bool(argv[0]);
 
-    write_stdoutText(visible ? "\033[?25h" : "\033[?25l");
+    _write_stdoutText(visible ? "\033[?25h" : "\033[?25l");
     fflush(stdout);
     return NEW_NIL();
 }
 
-Value io_key(vm_t *vm, int argc, Value *argv)
+Value io_key(VM *vm, int argc, Value *argv)
 {
     int timeout_ms = -1;
     if (argc >= 1)

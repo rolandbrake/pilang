@@ -6,35 +6,35 @@
 #include "pi_obj.h"
 #include "../pi_class.h"
 
-static int normalize_compare(int cmp)
+static int _normalize_compare(int cmp)
 {
     return (cmp > 0) - (cmp < 0);
 }
 
-static bool is_classType(Value value)
+static bool _is_classType(Value value)
 {
     return IS_CLASS(value) || IS_INSTANCE(value);
 }
 
-static bool get_classType(Value target, Value key, Value *out)
+static bool _get_classType(Value target, Value key, Value *out)
 {
-    if (!is_classType(target) || !IS_STRING(key))
-        return false;
+    if (!_is_classType(target) || !IS_STRING(key))
+        return FALSE;
     const char *name = AS_CSTRING(key);
     return IS_CLASS(target)
                ? class_getMember(AS_CLASS(target), name, out)
                : instance_getMember(AS_INSTANCE(target), name, out);
 }
 
-static bool has_classType(Value target, Value key)
+static bool _has_classType(Value target, Value key)
 {
     Value ignored;
-    return get_classType(target, key, &ignored);
+    return _get_classType(target, key, &ignored);
 }
 
-static void set_classType(Value target, Value key, Value value)
+static void _set_classType(Value target, Value key, Value value)
 {
-    if (!is_classType(target) || !IS_STRING(key))
+    if (!_is_classType(target) || !IS_STRING(key))
         return;
     if (IS_CLASS(target))
         class_setMember(AS_CLASS(target), AS_CSTRING(key), value);
@@ -42,89 +42,89 @@ static void set_classType(Value target, Value key, Value value)
         instance_setMember(AS_INSTANCE(target), AS_CSTRING(key), value);
 }
 
-static bool delete_classType(Value target, Value key)
+static bool _delete_classType(Value target, Value key)
 {
-    if (!is_classType(target) || !IS_STRING(key))
-        return false;
+    if (!_is_classType(target) || !IS_STRING(key))
+        return FALSE;
     if (IS_CLASS(target))
         return class_deleteMember(AS_CLASS(target), AS_CSTRING(key));
     PiInstance *instance = AS_INSTANCE(target);
     if (class_getFieldSlot(instance->_class, AS_CSTRING(key), NULL))
-        return false;
+        return FALSE;
     return instance->fields && ht_delete(instance->fields, AS_CSTRING(key));
 }
 
-static int compare_cstrings(const void *left, const void *right)
+static int _compare_cstrings(const void *left, const void *right)
 {
     const char *const *a = (const char *const *)left;
     const char *const *b = (const char *const *)right;
     return strcmp(*a, *b);
 }
 
-static bool map_equals(PiMap *left, PiMap *right);
-static int map_compare(PiMap *left, PiMap *right);
+static bool _map_equals(PiMap *left, PiMap *right);
+static int _map_compare(PiMap *left, PiMap *right);
 
-static bool value_equals(Value left, Value right)
+static bool _value_equals(Value left, Value right)
 {
     if (IS_MAP(left) && IS_MAP(right))
-        return map_equals(AS_MAP(left), AS_MAP(right));
+        return _map_equals(AS_MAP(left), AS_MAP(right));
 
     return equals(left, right);
 }
 
-static int value_compare(Value left, Value right)
+static int _value_compare(Value left, Value right)
 {
     if (IS_MAP(left) && IS_MAP(right))
-        return map_compare(AS_MAP(left), AS_MAP(right));
+        return _map_compare(AS_MAP(left), AS_MAP(right));
 
     int cmp = compare(left, right);
     if (cmp != ERROR_COMPARE)
-        return normalize_compare(cmp);
+        return _normalize_compare(cmp);
 
     char *l_type = type_name(left);
     char *r_type = type_name(right);
     int type_cmp = strcmp(l_type, r_type);
     if (type_cmp != 0)
-        return normalize_compare(type_cmp);
+        return _normalize_compare(type_cmp);
 
     if (IS_OBJ(left) && IS_OBJ(right))
-        return normalize_compare((AS_OBJ(left) > AS_OBJ(right)) - (AS_OBJ(left) < AS_OBJ(right)));
+        return _normalize_compare((AS_OBJ(left) > AS_OBJ(right)) - (AS_OBJ(left) < AS_OBJ(right)));
 
     return 0;
 }
 
-static bool map_equals(PiMap *left, PiMap *right)
+static bool _map_equals(PiMap *left, PiMap *right)
 {
     if (left == right)
-        return true;
+        return TRUE;
 
     if (map_size(left) != map_size(right))
-        return false;
+        return FALSE;
 
     // Use iterator over left map
-    ht_iter it = ht_iterator(left->table);
-    while (ht_next(&it))
+    HT_Iterator it = _ht_iterator(left->table);
+    while (_ht_next(&it))
     {
         const char *key = it.key;
         Value *left_value = (Value *)it.value;
-        Value *right_value = ht_get(right->table, key);
+        Value *right_value = _ht_get(right->table, key);
 
         if (right_value == NULL)
-            return false;
+            return FALSE;
 
-        if (!value_equals(*left_value, *right_value))
-            return false;
+        if (!_value_equals(*left_value, *right_value))
+            return FALSE;
     }
 
-    return true;
+    return TRUE;
 }
 
-static int map_compare(PiMap *left, PiMap *right)
+static int _map_compare(PiMap *left, PiMap *right)
 {
     if (left == right)
         return 0;
 
-    int size_cmp = normalize_compare(map_size(left) - map_size(right));
+    int size_cmp = _normalize_compare(map_size(left) - map_size(right));
     if (size_cmp != 0)
         return size_cmp;
 
@@ -142,17 +142,17 @@ static int map_compare(PiMap *left, PiMap *right)
     }
 
     int idx = 0;
-    ht_iter it = ht_iterator(left->table);
-    while (ht_next(&it))
+    HT_Iterator it = _ht_iterator(left->table);
+    while (_ht_next(&it))
         left_keys[idx++] = it.key;
 
     idx = 0;
-    it = ht_iterator(right->table);
-    while (ht_next(&it))
+    it = _ht_iterator(right->table);
+    while (_ht_next(&it))
         right_keys[idx++] = it.key;
 
-    qsort(left_keys, left_size, sizeof(char *), compare_cstrings);
-    qsort(right_keys, right_size, sizeof(char *), compare_cstrings);
+    qsort(left_keys, left_size, sizeof(char *), _compare_cstrings);
+    qsort(right_keys, right_size, sizeof(char *), _compare_cstrings);
 
     for (int i = 0; i < left_size; i++)
     {
@@ -161,12 +161,12 @@ static int map_compare(PiMap *left, PiMap *right)
         {
             free(left_keys);
             free(right_keys);
-            return normalize_compare(key_cmp);
+            return _normalize_compare(key_cmp);
         }
 
-        Value *left_value = ht_get(left->table, left_keys[i]);
-        Value *right_value = ht_get(right->table, right_keys[i]);
-        int value_cmp = value_compare(*left_value, *right_value);
+        Value *left_value = _ht_get(left->table, left_keys[i]);
+        Value *right_value = _ht_get(right->table, right_keys[i]);
+        int value_cmp = _value_compare(*left_value, *right_value);
         if (value_cmp != 0)
         {
             free(left_keys);
@@ -180,20 +180,20 @@ static int map_compare(PiMap *left, PiMap *right)
 }
 
 // Clones a PiMap object, preserving its prototype chain and key-value pairs.
-Value pi_clone(vm_t *vm, int argc, Value *argv)
+Value pi_clone(VM *vm, int argc, Value *argv)
 {
     if (argc >= 1 && IS_CLASS(argv[0]))
     {
         PiClass *original = AS_CLASS(argv[0]);
-        table_t *members = ht_create(sizeof(Value));
-        ht_iter it = ht_iterator(original->members);
-        while (ht_next(&it))
+        HT_Table *members = ht_create(sizeof(Value));
+        HT_Iterator it = _ht_iterator(original->members);
+        while (_ht_next(&it))
             ht_put(members, it.key, it.value);
         PiClass *copy = (PiClass *)new_class(original->name, original->super, members);
         ht_free(copy->field_names);
         copy->field_names = ht_create(sizeof(uint16_t));
-        ht_iter fields = ht_iterator(original->field_names);
-        while (ht_next(&fields))
+        HT_Iterator fields = _ht_iterator(original->field_names);
+        while (_ht_next(&fields))
             ht_put(copy->field_names, fields.key, fields.value);
         copy->slot_count = original->slot_count;
         return NEW_OBJ(add_obj(vm, (Object *)copy));
@@ -208,10 +208,10 @@ Value pi_clone(vm_t *vm, int argc, Value *argv)
         if (original->fields)
         {
             copy->fields = ht_create(sizeof(Value));
-            ht_iter it = ht_iterator(original->fields);
-            while (ht_next(&it))
+            HT_Iterator it = _ht_iterator(original->fields);
+            while (_ht_next(&it))
                 ht_put(copy->fields, it.key, it.value);
-            copy->it = ht_iterator(copy->fields);
+            copy->it = _ht_iterator(copy->fields);
         }
         return NEW_OBJ(add_obj(vm, (Object *)copy));
     }
@@ -221,13 +221,13 @@ Value pi_clone(vm_t *vm, int argc, Value *argv)
 
     PiMap *original = AS_MAP(argv[0]);
 
-    table_t *new_table = ht_create(sizeof(Value));
+    HT_Table *new_table = ht_create(sizeof(Value));
     Object *obj = new_map(new_table);
     PiMap *map = (PiMap *)obj;
 
     // Use iterator to copy all entries
-    ht_iter it = ht_iterator(original->table);
-    while (ht_next(&it))
+    HT_Iterator it = _ht_iterator(original->table);
+    while (_ht_next(&it))
     {
         const char *key = it.key;
         Value *value = (Value *)it.value;
@@ -238,22 +238,22 @@ Value pi_clone(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, obj));
 }
 
-Value pi_values(vm_t *vm, int argc, Value *argv)
+Value pi_values(VM *vm, int argc, Value *argv)
 {
     if (argc >= 1 && IS_CLASS(argv[0]))
     {
-        list_t *list = list_create(sizeof(Value));
-        table_t *seen = ht_create(sizeof(Value));
+        List *list = list_create(sizeof(Value));
+        HT_Table *seen = ht_create(sizeof(Value));
         for (PiClass *current = AS_CLASS(argv[0]); current; current = current->super)
         {
-            ht_iter it = ht_iterator(current->members);
-            while (ht_next(&it))
+            HT_Iterator it = _ht_iterator(current->members);
+            while (_ht_next(&it))
             {
                 if (ht_has(seen, it.key))
                     continue;
                 Value value = *(Value *)it.value;
                 ht_put(seen, it.key, &value);
-                list_add(list, &value);
+                _list_add(list, &value);
             }
         }
         ht_free(seen);
@@ -261,19 +261,19 @@ Value pi_values(vm_t *vm, int argc, Value *argv)
     }
     if (argc >= 1 && IS_INSTANCE(argv[0]))
     {
-        list_t *list = list_create(sizeof(Value));
+        List *list = list_create(sizeof(Value));
         PiInstance *instance = AS_INSTANCE(argv[0]);
-        ht_iter names = ht_iterator(instance->_class->field_names);
-        while (ht_next(&names))
+        HT_Iterator names = _ht_iterator(instance->_class->field_names);
+        while (_ht_next(&names))
         {
             uint16_t slot = *(uint16_t *)names.value;
-            list_add(list, &instance->slots[slot]);
+            _list_add(list, &instance->slots[slot]);
         }
         if (instance->fields)
         {
-            ht_iter it = ht_iterator(instance->fields);
-            while (ht_next(&it))
-                list_add(list, (Value *)it.value);
+            HT_Iterator it = _ht_iterator(instance->fields);
+            while (_ht_next(&it))
+                _list_add(list, (Value *)it.value);
         }
         return NEW_OBJ(new_list(list));
     }
@@ -282,36 +282,36 @@ Value pi_values(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[values] expects a map as the first argument.");
 
     PiMap *map = AS_MAP(argv[0]);
-    list_t *list = list_create(sizeof(Value));
+    List *list = list_create(sizeof(Value));
 
-    ht_iter it = ht_iterator(map->table);
-    while (ht_next(&it))
+    HT_Iterator it = _ht_iterator(map->table);
+    while (_ht_next(&it))
     {
         Value *val = (Value *)it.value;
         if (val)
-            list_add(list, val);
+            _list_add(list, val);
     }
 
     return NEW_OBJ(new_list(list));
 }
 
-Value pi_keys(vm_t *vm, int argc, Value *argv)
+Value pi_keys(VM *vm, int argc, Value *argv)
 {
     if (argc >= 1 && IS_CLASS(argv[0]))
     {
-        list_t *list = list_create(sizeof(Value));
-        table_t *seen = ht_create(sizeof(Value));
+        List *list = list_create(sizeof(Value));
+        HT_Table *seen = ht_create(sizeof(Value));
         for (PiClass *current = AS_CLASS(argv[0]); current; current = current->super)
         {
-            ht_iter it = ht_iterator(current->members);
-            while (ht_next(&it))
+            HT_Iterator it = _ht_iterator(current->members);
+            while (_ht_next(&it))
             {
                 if (ht_has(seen, it.key))
                     continue;
                 Value marker = NEW_NIL();
                 ht_put(seen, it.key, &marker);
                 Value key = NEW_OBJ(new_pistring(strdup(it.key)));
-                list_add(list, &key);
+                _list_add(list, &key);
             }
         }
         ht_free(seen);
@@ -319,21 +319,21 @@ Value pi_keys(vm_t *vm, int argc, Value *argv)
     }
     if (argc >= 1 && IS_INSTANCE(argv[0]))
     {
-        list_t *list = list_create(sizeof(Value));
+        List *list = list_create(sizeof(Value));
         PiInstance *instance = AS_INSTANCE(argv[0]);
-        ht_iter names = ht_iterator(instance->_class->field_names);
-        while (ht_next(&names))
+        HT_Iterator names = _ht_iterator(instance->_class->field_names);
+        while (_ht_next(&names))
         {
             Value key = NEW_OBJ(new_pistring(strdup(names.key)));
-            list_add(list, &key);
+            _list_add(list, &key);
         }
         if (instance->fields)
         {
-            ht_iter it = ht_iterator(instance->fields);
-            while (ht_next(&it))
+            HT_Iterator it = _ht_iterator(instance->fields);
+            while (_ht_next(&it))
             {
                 Value key = NEW_OBJ(new_pistring(strdup(it.key)));
-                list_add(list, &key);
+                _list_add(list, &key);
             }
         }
         return NEW_OBJ(new_list(list));
@@ -343,36 +343,36 @@ Value pi_keys(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[keys] expects a map as the first argument.");
 
     PiMap *map = AS_MAP(argv[0]);
-    list_t *list = list_create(sizeof(Value));
+    List *list = list_create(sizeof(Value));
 
-    ht_iter it = ht_iterator(map->table);
-    while (ht_next(&it))
+    HT_Iterator it = _ht_iterator(map->table);
+    while (_ht_next(&it))
     {
         const char *key = it.key;
-        list_add(list, &NEW_OBJ(new_pistring(strdup(key))));
+        _list_add(list, &NEW_OBJ(new_pistring(strdup(key))));
     }
 
     return NEW_OBJ(new_list(list));
 }
 
-Value pi_toString(vm_t *vm, int argc, Value *argv)
+Value pi_toString(VM *vm, int argc, Value *argv)
 {
-    if (argc < 1 || !is_classType(argv[0]))
+    if (argc < 1 || !_is_classType(argv[0]))
         vm_error(vm, "[format] expects an object as the first argument.");
 
     char *text = as_string(argv[0]);
     return NEW_OBJ(add_obj(vm, new_pistring(text)));
 }
 
-Value pi_valueOf(vm_t *vm, int argc, Value *argv)
+Value pi_valueOf(VM *vm, int argc, Value *argv)
 {
-    if (argc < 1 || !is_classType(argv[0]))
+    if (argc < 1 || !_is_classType(argv[0]))
         vm_error(vm, "[format] expects an object as the first argument.");
 
     return argv[0];
 }
 
-Value pi_hashCode(vm_t *vm, int argc, Value *argv)
+Value pi_hashCode(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_OBJ(argv[0]))
         vm_error(vm, "[hash] expects an object as the first argument.");
@@ -380,7 +380,7 @@ Value pi_hashCode(vm_t *vm, int argc, Value *argv)
     return NEW_NUM((double)AS_OBJ(target)->id);
 }
 
-Value pi_extends(vm_t *vm, int argc, Value *argv)
+Value pi_extends(VM *vm, int argc, Value *argv)
 {
     if (argc >= 3 && IS_CLASS(argv[1]) && IS_CLASS(argv[2]))
     {
@@ -397,19 +397,19 @@ Value pi_extends(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_equals(vm_t *vm, int argc, Value *argv)
+Value pi_equals(VM *vm, int argc, Value *argv)
 {
     if (argc == 2)
-        return NEW_BOOL(value_equals(argv[0], argv[1]));
+        return NEW_BOOL(_value_equals(argv[0], argv[1]));
 
     if (argc >= 3)
-        return NEW_BOOL(value_equals(argv[1], argv[2]));
+        return NEW_BOOL(_value_equals(argv[1], argv[2]));
 
     vm_error(vm, "[equals] expects either obj.equals(other) or Object.equals(left, right).");
     return NEW_NIL();
 }
 
-Value pi_id(vm_t *vm, int argc, Value *argv)
+Value pi_id(VM *vm, int argc, Value *argv)
 {
     if (argc != 1 || !IS_OBJ(argv[0]))
     {
@@ -422,7 +422,7 @@ Value pi_id(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, new_pistring(strdup(buffer))));
 }
 
-Value pi_ident(vm_t *vm, int argc, Value *argv)
+Value pi_ident(VM *vm, int argc, Value *argv)
 {
     Value left;
     Value right;
@@ -441,12 +441,12 @@ Value pi_ident(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "[ident] expects either obj.ident(other) or Object.ident(left, right).");
 
     if (!IS_OBJ(left) || !IS_OBJ(right))
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
 
     return NEW_BOOL(AS_OBJ(left) == AS_OBJ(right));
 }
 
-Value pi_compare(vm_t *vm, int argc, Value *argv)
+Value pi_compare(VM *vm, int argc, Value *argv)
 {
     Value left;
     Value right;
@@ -464,10 +464,10 @@ Value pi_compare(vm_t *vm, int argc, Value *argv)
     else
         vm_error(vm, "[compare] expects either obj.compare(other) or Object.compare(left, right).");
 
-    return NEW_NUM(value_compare(left, right));
+    return NEW_NUM(_value_compare(left, right));
 }
 
-Value pi_type(vm_t *vm, int argc, Value *argv)
+Value pi_type(VM *vm, int argc, Value *argv)
 {
     Value target;
 
@@ -487,7 +487,7 @@ Value pi_type(vm_t *vm, int argc, Value *argv)
 }
 
 // TODO: checkout later
-Value pi_name(vm_t *vm, int argc, Value *argv)
+Value pi_name(VM *vm, int argc, Value *argv)
 {
     Value target = NEW_NIL();
 
@@ -526,7 +526,7 @@ Value pi_name(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_setName(vm_t *vm, int argc, Value *argv)
+Value pi_setName(VM *vm, int argc, Value *argv)
 {
     if (argc >= 3 && IS_CLASS(argv[1]) && IS_STRING(argv[2]))
     {
@@ -545,11 +545,11 @@ Value pi_setName(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_lock(vm_t *vm, int argc, Value *argv)
+Value pi_lock(VM *vm, int argc, Value *argv)
 {
-    if (argc >= 1 && is_classType(argv[0]))
+    if (argc >= 1 && _is_classType(argv[0]))
         return argv[0];
-    if (argc >= 2 && is_classType(argv[1]))
+    if (argc >= 2 && _is_classType(argv[1]))
         return argv[1];
 
     if (argc >= 1 && IS_MAP(argv[0]))
@@ -560,11 +560,11 @@ Value pi_lock(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_bracketAccess(vm_t *vm, int argc, Value *argv)
+Value pi_bracketAccess(VM *vm, int argc, Value *argv)
 {
-    if (argc >= 1 && is_classType(argv[0]))
+    if (argc >= 1 && _is_classType(argv[0]))
         return argv[0];
-    if (argc >= 2 && is_classType(argv[1]))
+    if (argc >= 2 && _is_classType(argv[1]))
         return argv[1];
 
     if (argc >= 1 && IS_MAP(argv[0]))
@@ -575,19 +575,19 @@ Value pi_bracketAccess(vm_t *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value pi_get(vm_t *vm, int argc, Value *argv)
+Value pi_get(VM *vm, int argc, Value *argv)
 {
-    if (argc >= 3 && is_classType(argv[1]))
+    if (argc >= 3 && _is_classType(argv[1]))
     {
         Value result;
-        if (!get_classType(argv[1], argv[2], &result))
+        if (!_get_classType(argv[1], argv[2], &result))
             return NEW_NIL();
         return result;
     }
-    if (argc >= 2 && is_classType(argv[0]))
+    if (argc >= 2 && _is_classType(argv[0]))
     {
         Value result;
-        if (!get_classType(argv[0], argv[1], &result))
+        if (!_get_classType(argv[0], argv[1], &result))
             return NEW_NIL();
         return result;
     }
@@ -611,16 +611,16 @@ Value pi_get(vm_t *vm, int argc, Value *argv)
     return map_get(map, key);
 }
 
-Value pi_set(vm_t *vm, int argc, Value *argv)
+Value pi_set(VM *vm, int argc, Value *argv)
 {
-    if (argc >= 4 && is_classType(argv[1]))
+    if (argc >= 4 && _is_classType(argv[1]))
     {
-        set_classType(argv[1], argv[2], argv[3]);
+        _set_classType(argv[1], argv[2], argv[3]);
         return argv[1];
     }
-    if (argc >= 3 && is_classType(argv[0]))
+    if (argc >= 3 && _is_classType(argv[0]))
     {
-        set_classType(argv[0], argv[1], argv[2]);
+        _set_classType(argv[0], argv[1], argv[2]);
         return argv[0];
     }
 
@@ -647,13 +647,13 @@ Value pi_set(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ((Object *)map);
 }
 
-Value pi_has(vm_t *vm, int argc, Value *argv)
+Value pi_has(VM *vm, int argc, Value *argv)
 {
-    if (argc >= 3 && is_classType(argv[1]))
-        return NEW_BOOL(has_classType(argv[1], argv[2]));
+    if (argc >= 3 && _is_classType(argv[1]))
+        return NEW_BOOL(_has_classType(argv[1], argv[2]));
 
-    if (argc >= 2 && is_classType(argv[0]))
-        return NEW_BOOL(has_classType(argv[0], argv[1]));
+    if (argc >= 2 && _is_classType(argv[0]))
+        return NEW_BOOL(_has_classType(argv[0], argv[1]));
 
     PiMap *map;
     Value key;
@@ -674,13 +674,13 @@ Value pi_has(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(map_has(map, key));
 }
 
-Value pi_delete(vm_t *vm, int argc, Value *argv)
+Value pi_delete(VM *vm, int argc, Value *argv)
 {
-    if (argc >= 3 && is_classType(argv[1]))
-        return NEW_BOOL(delete_classType(argv[1], argv[2]));
+    if (argc >= 3 && _is_classType(argv[1]))
+        return NEW_BOOL(_delete_classType(argv[1], argv[2]));
 
-    if (argc >= 2 && is_classType(argv[0]))
-        return NEW_BOOL(delete_classType(argv[0], argv[1]));
+    if (argc >= 2 && _is_classType(argv[0]))
+        return NEW_BOOL(_delete_classType(argv[0], argv[1]));
 
     PiMap *map;
     Value key;
@@ -701,7 +701,7 @@ Value pi_delete(vm_t *vm, int argc, Value *argv)
     return NEW_BOOL(map_delete(map, key));
 }
 
-Value pi_iterator(vm_t *vm, int argc, Value *argv)
+Value pi_iterator(VM *vm, int argc, Value *argv)
 {
     Value target;
 
@@ -719,7 +719,7 @@ Value pi_iterator(vm_t *vm, int argc, Value *argv)
     return target;
 }
 
-Value pi_next(vm_t *vm, int argc, Value *argv)
+Value pi_next(VM *vm, int argc, Value *argv)
 {
     Value target;
 

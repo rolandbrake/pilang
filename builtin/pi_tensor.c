@@ -8,14 +8,14 @@
 #include <limits.h>
 #include <string.h>
 
-static int double_cmp(const void *a, const void *b)
+static int _double_cmp(const void *a, const void *b)
 {
     double x = *(double *)a;
     double y = *(double *)b;
     return (x > y) - (x < y);
 }
 
-static double activation_value(const char *activation, double x)
+static double _activation_value(const char *activation, double x)
 {
     if (activation && strcmp(activation, "tanh") == 0)
         return tanh(x);
@@ -24,7 +24,7 @@ static double activation_value(const char *activation, double x)
     return x;
 }
 
-static const char *optional_activation(vm_t *vm, int argc, Value *argv, int index)
+static const char *_optional_activation(VM *vm, int argc, Value *argv, int index)
 {
     if (argc <= index || IS_NIL(argv[index]))
         return NULL;
@@ -33,7 +33,7 @@ static const char *optional_activation(vm_t *vm, int argc, Value *argv, int inde
     return AS_CSTRING(argv[index]);
 }
 
-static double vector_get(vm_t *vm, Value vector, int index, const char *name)
+static double _vector_get(VM *vm, Value vector, int index, const char *name)
 {
     if (IS_TENSOR(vector))
     {
@@ -48,7 +48,7 @@ static double vector_get(vm_t *vm, Value vector, int index, const char *name)
         PiList *list = AS_LIST(vector);
         if (index < 0 || index >= list->items->size)
             vm_errorf(vm, "%s list has invalid length.", name);
-        Value value = *(Value *)list_getAt(list->items, index);
+        Value value = *(Value *)_list_getAt(list->items, index);
         if (!IS_NUM(value))
             vm_errorf(vm, "%s list must contain only numbers.", name);
         return AS_NUM(value);
@@ -58,7 +58,7 @@ static double vector_get(vm_t *vm, Value vector, int index, const char *name)
     return 0.0;
 }
 
-static void vector_set(vm_t *vm, Value vector, int index, double new_value, const char *name)
+static void _vector_set(VM *vm, Value vector, int index, double new_value, const char *name)
 {
     if (IS_TENSOR(vector))
     {
@@ -74,7 +74,7 @@ static void vector_set(vm_t *vm, Value vector, int index, double new_value, cons
         PiList *list = AS_LIST(vector);
         if (index < 0 || index >= list->items->size)
             vm_errorf(vm, "%s list has invalid length.", name);
-        Value *slot = (Value *)list_getAt(list->items, index);
+        Value *slot = (Value *)_list_getAt(list->items, index);
         if (!IS_NUM(*slot))
             vm_errorf(vm, "%s list must contain only numbers.", name);
         *slot = NEW_NUM(new_value);
@@ -84,11 +84,11 @@ static void vector_set(vm_t *vm, Value vector, int index, double new_value, cons
     vm_errorf(vm, "%s must be a numeric list or tensor.", name);
 }
 
-static int tn_shapeFromArgs(vm_t *vm, int argc, Value *argv, int **out_shape)
+static int _tn_shapeFromArgs(VM *vm, int argc, Value *argv, int **out_shape)
 {
     if (argc == 1 && (IS_LIST(argv[0]) || IS_TUPLE(argv[0])))
     {
-        list_t *shape_items = IS_LIST(argv[0])
+        List *shape_items = IS_LIST(argv[0])
                                   ? AS_LIST(argv[0])->items
                                   : AS_TUPLE(argv[0])->items;
         int ndim = shape_items->size;
@@ -101,7 +101,7 @@ static int tn_shapeFromArgs(vm_t *vm, int argc, Value *argv, int **out_shape)
 
         for (int i = 0; i < ndim; i++)
         {
-            Value dim = *(Value *)list_getAt(shape_items, i);
+            Value dim = *(Value *)_list_getAt(shape_items, i);
             if (!IS_NUM(dim) || AS_NUM(dim) < 0 || floor(AS_NUM(dim)) != AS_NUM(dim) || AS_NUM(dim) > INT_MAX)
                 vm_error(vm, "tensor shape dimensions must be non-negative integer numbers.");
             shape[i] = (int)AS_NUM(dim);
@@ -128,10 +128,10 @@ static int tn_shapeFromArgs(vm_t *vm, int argc, Value *argv, int **out_shape)
     return argc;
 }
 
-static Value tn_makeFilled(vm_t *vm, int argc, Value *argv, double fill, bool randomize)
+static Value _tn_makeFilled(VM *vm, int argc, Value *argv, double fill, bool randomize)
 {
     int *shape = NULL;
-    int ndim = tn_shapeFromArgs(vm, argc, argv, &shape);
+    int ndim = _tn_shapeFromArgs(vm, argc, argv, &shape);
     PiTensor *tensor = (PiTensor *)add_obj(vm, randomize || fill != 0.0
                                                    ? new_tensorUninit(ndim, shape, TN_FLOAT64)
                                                    : new_tensor(ndim, shape, TN_FLOAT64));
@@ -151,22 +151,22 @@ static Value tn_makeFilled(vm_t *vm, int argc, Value *argv, double fill, bool ra
     return NEW_OBJ(tensor);
 }
 
-Value tn_zeros(vm_t *vm, int argc, Value *argv)
+Value tn_zeros(VM *vm, int argc, Value *argv)
 {
-    return tn_makeFilled(vm, argc, argv, 0.0, false);
+    return _tn_makeFilled(vm, argc, argv, 0.0, FALSE);
 }
 
-Value tn_ones(vm_t *vm, int argc, Value *argv)
+Value tn_ones(VM *vm, int argc, Value *argv)
 {
-    return tn_makeFilled(vm, argc, argv, 1.0, false);
+    return _tn_makeFilled(vm, argc, argv, 1.0, FALSE);
 }
 
-Value tn_rand(vm_t *vm, int argc, Value *argv)
+Value tn_rand(VM *vm, int argc, Value *argv)
 {
-    return tn_makeFilled(vm, argc, argv, 0.0, true);
+    return _tn_makeFilled(vm, argc, argv, 0.0, TRUE);
 }
 
-static bool infer_shape(Value value, int depth, int *shape, int *ndim)
+static bool _infer_shape(Value value, int depth, int *shape, int *ndim)
 {
     if (IS_NUM(value))
     {
@@ -176,32 +176,32 @@ static bool infer_shape(Value value, int depth, int *shape, int *ndim)
     }
 
     if (!IS_LIST(value))
-        return false;
+        return FALSE;
 
     PiList *list = AS_LIST(value);
     if (*ndim != -1 && depth >= *ndim)
-        return false;
+        return FALSE;
 
     int size = list->items->size;
     if (shape[depth] == -1)
         shape[depth] = size;
     else if (shape[depth] != size)
-        return false;
+        return FALSE;
 
     for (int i = 0; i < size; i++)
     {
-        Value child = *(Value *)list_getAt(list->items, i);
-        if (!infer_shape(child, depth + 1, shape, ndim))
-            return false;
+        Value child = *(Value *)_list_getAt(list->items, i);
+        if (!_infer_shape(child, depth + 1, shape, ndim))
+            return FALSE;
     }
 
     if (size == 0 && *ndim == -1)
         *ndim = depth + 1;
 
-    return true;
+    return TRUE;
 }
 
-static void flatten_tensor(Value value, PiTensor *tensor, int *cursor)
+static void _flatten_tensor(Value value, PiTensor *tensor, int *cursor)
 {
     if (IS_NUM(value))
     {
@@ -211,10 +211,10 @@ static void flatten_tensor(Value value, PiTensor *tensor, int *cursor)
 
     PiList *list = AS_LIST(value);
     for (int i = 0; i < list->items->size; i++)
-        flatten_tensor(*(Value *)list_getAt(list->items, i), tensor, cursor);
+        _flatten_tensor(*(Value *)_list_getAt(list->items, i), tensor, cursor);
 }
 
-static void coords_from_flat(int index, PiTensor *tensor, int *coords)
+static void _coords_FromFlat(int index, PiTensor *tensor, int *coords)
 {
     for (int d = tensor->ndim - 1; d >= 0; d--)
     {
@@ -223,7 +223,7 @@ static void coords_from_flat(int index, PiTensor *tensor, int *coords)
     }
 }
 
-static int flat_from_coords(int ndim, int *shape, int *coords)
+static int _flat_FromCoords(int ndim, int *shape, int *coords)
 {
     int flat = 0;
     for (int d = 0; d < ndim; d++)
@@ -231,7 +231,7 @@ static int flat_from_coords(int ndim, int *shape, int *coords)
     return flat;
 }
 
-Value tn_from(vm_t *vm, int argc, Value *argv)
+Value tn_from(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "tensor.from expects one numeric nested list.");
@@ -250,25 +250,25 @@ Value tn_from(vm_t *vm, int argc, Value *argv)
         shape[i] = -1;
 
     int ndim = -1;
-    if (!infer_shape(argv[0], 0, shape, &ndim) || ndim <= 0)
+    if (!_infer_shape(argv[0], 0, shape, &ndim) || ndim <= 0)
         vm_error(vm, "tensor.from expects a rectangular numeric nested list.");
 
     PiTensor *tensor = (PiTensor *)add_obj(vm, new_tensorUninit(ndim, shape, TN_FLOAT64));
     int cursor = 0;
-    flatten_tensor(argv[0], tensor, &cursor);
+    _flatten_tensor(argv[0], tensor, &cursor);
     return NEW_OBJ(tensor);
 }
 
-Value tn_fill(vm_t *vm, int argc, Value *argv)
+Value tn_fill(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_NUM(argv[argc - 1]))
         vm_error(vm, "tensor.fill expects a shape and a fill value");
 
     double fill = AS_NUM(argv[argc - 1]);
-    return tn_makeFilled(vm, argc - 1, argv, fill, false);
+    return _tn_makeFilled(vm, argc - 1, argv, fill, FALSE);
 }
 
-Value tn_linspace(vm_t *vm, int argc, Value *argv)
+Value tn_linspace(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || argc > 3 || !is_numeric(argv[0]) || !is_numeric(argv[1]) ||
         (argc == 3 && !is_numeric(argv[2])))
@@ -299,7 +299,7 @@ Value tn_linspace(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value tn_range(vm_t *vm, int argc, Value *argv)
+Value tn_range(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || argc > 3)
         vm_error(vm, "tensor.range expects stop, or start, stop, and optional step.");
@@ -333,43 +333,43 @@ Value tn_range(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value tn_shape(vm_t *vm, int argc, Value *argv)
+Value tn_shape(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.shape expects a tensor.");
 
     PiTensor *tensor = AS_TENSOR(argv[0]);
-    list_t *items = list_create(sizeof(Value));
+    List *items = list_create(sizeof(Value));
     for (int i = 0; i < tensor->ndim; i++)
     {
         Value dim = NEW_NUM(tensor->shape[i]);
-        list_add(items, &dim);
+        _list_add(items, &dim);
     }
 
     return NEW_OBJ(add_obj(vm, new_tuple(items)));
 }
 
-Value tn_ndim(vm_t *vm, int argc, Value *argv)
+Value tn_ndim(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.ndim expects a tensor.");
     return NEW_NUM(AS_TENSOR(argv[0])->ndim);
 }
 
-Value tn_size(vm_t *vm, int argc, Value *argv)
+Value tn_size(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.size expects a tensor.");
     return NEW_NUM(AS_TENSOR(argv[0])->size);
 }
 
-Value tn_reshape(vm_t *vm, int argc, Value *argv)
+Value tn_reshape(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.reshape expects a tensor and a shape.");
 
     int *shape = NULL;
-    int ndim = tn_shapeFromArgs(vm, argc - 1, argv + 1, &shape);
+    int ndim = _tn_shapeFromArgs(vm, argc - 1, argv + 1, &shape);
     int size = 1;
     for (int i = 0; i < ndim; i++)
         size *= shape[i];
@@ -387,7 +387,7 @@ Value tn_reshape(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value tn_eye(vm_t *vm, int argc, Value *argv)
+Value tn_eye(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_NUM(argv[0]) || !IS_NUM(argv[1]))
         vm_error(vm, "tensor.eye expects two numbers (rows, cols)");
@@ -404,10 +404,10 @@ Value tn_eye(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(tensor);
 }
 
-Value tn_randn(vm_t *vm, int argc, Value *argv)
+Value tn_randn(VM *vm, int argc, Value *argv)
 {
     int *shape = NULL;
-    int ndim = tn_shapeFromArgs(vm, argc, argv, &shape);
+    int ndim = _tn_shapeFromArgs(vm, argc, argv, &shape);
     PiTensor *tensor = (PiTensor *)add_obj(vm, new_tensor(ndim, shape, TN_FLOAT64));
     free(shape);
 
@@ -427,7 +427,7 @@ Value tn_randn(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(tensor);
 }
 
-Value tn_randint(vm_t *vm, int argc, Value *argv)
+Value tn_randint(VM *vm, int argc, Value *argv)
 {
     if (argc < 3)
         vm_error(vm, "randint expects shape and high or shape, low, high");
@@ -504,7 +504,7 @@ Value tn_randint(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(tensor);
 }
 
-Value tn_slice(vm_t *vm, int argc, Value *argv)
+Value tn_slice(VM *vm, int argc, Value *argv)
 {
     if (argc < 4 || !IS_TENSOR(argv[0]) || !IS_NUM(argv[1]) || !IS_NUM(argv[2]) || !IS_NUM(argv[3]))
         vm_error(vm, "slice expects tensor, axis, start, stop");
@@ -532,21 +532,21 @@ Value tn_slice(vm_t *vm, int argc, Value *argv)
 
     for (int flat = 0; flat < src->size; flat++)
     {
-        coords_from_flat(flat, src, coords);
+        _coords_FromFlat(flat, src, coords);
         if (coords[axis] < start || coords[axis] >= stop)
             continue;
 
         for (int d = 0; d < src->ndim; d++)
             new_coords[d] = coords[d] - (d == axis ? start : 0);
 
-        int target_flat = flat_from_coords(src->ndim, new_shape, new_coords);
+        int target_flat = _flat_FromCoords(src->ndim, new_shape, new_coords);
         tensor_setFlat(result, target_flat, tensor_getFlat(src, flat));
     }
 
     return NEW_OBJ(result);
 }
 
-Value tn_concat(vm_t *vm, int argc, Value *argv)
+Value tn_concat(VM *vm, int argc, Value *argv)
 {
     if (argc < 3 || !IS_TENSOR(argv[0]) || !IS_TENSOR(argv[1]) || !IS_NUM(argv[2]))
         vm_error(vm, "concat expects two tensors and axis");
@@ -574,26 +574,26 @@ Value tn_concat(vm_t *vm, int argc, Value *argv)
 
     for (int flat = 0; flat < a->size; flat++)
     {
-        coords_from_flat(flat, a, coords);
+        _coords_FromFlat(flat, a, coords);
         for (int d = 0; d < a->ndim; d++)
             target_coords[d] = coords[d];
-        int target_flat = flat_from_coords(a->ndim, new_shape, target_coords);
+        int target_flat = _flat_FromCoords(a->ndim, new_shape, target_coords);
         tensor_setFlat(result, target_flat, tensor_getFlat(a, flat));
     }
 
     for (int flat = 0; flat < b->size; flat++)
     {
-        coords_from_flat(flat, b, coords);
+        _coords_FromFlat(flat, b, coords);
         for (int d = 0; d < b->ndim; d++)
             target_coords[d] = coords[d] + (d == axis ? a->shape[axis] : 0);
-        int target_flat = flat_from_coords(b->ndim, new_shape, target_coords);
+        int target_flat = _flat_FromCoords(b->ndim, new_shape, target_coords);
         tensor_setFlat(result, target_flat, tensor_getFlat(b, flat));
     }
 
     return NEW_OBJ(result);
 }
 
-Value tn_transpose(vm_t *vm, int argc, Value *argv)
+Value tn_transpose(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]) || argc == 2)
         vm_error(vm, "transpose expects a tensor and optional axes");
@@ -612,7 +612,7 @@ Value tn_transpose(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value tn_flatten(vm_t *vm, int argc, Value *argv)
+Value tn_flatten(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.flatten expects a tensor");
@@ -627,7 +627,7 @@ Value tn_flatten(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value tn_expandDims(vm_t *vm, int argc, Value *argv)
+Value tn_expandDims(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_NUM(argv[1]))
         vm_error(vm, "tensor.expand_dims expects a tensor and axis");
@@ -677,7 +677,7 @@ Value tn_expandDims(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-static Value elementwise_unary(vm_t *vm, PiTensor *tensor, double (*fn)(double))
+static Value _elementwise_unary(VM *vm, PiTensor *tensor, double (*fn)(double))
 {
     PiTensor *result = (PiTensor *)add_obj(vm, new_tensor(tensor->ndim, tensor->shape, tensor->type));
     for (int i = 0; i < tensor->size; i++)
@@ -685,7 +685,7 @@ static Value elementwise_unary(vm_t *vm, PiTensor *tensor, double (*fn)(double))
     return NEW_OBJ(result);
 }
 
-static Value elementwise_binary(vm_t *vm, PiTensor *a, PiTensor *b, double (*op)(double, double))
+static Value _elementwise_binary(VM *vm, PiTensor *a, PiTensor *b, double (*op)(double, double))
 {
     if (a->ndim != b->ndim)
         vm_error(vm, "tensors must have same dimensions");
@@ -700,68 +700,68 @@ static Value elementwise_binary(vm_t *vm, PiTensor *a, PiTensor *b, double (*op)
     return NEW_OBJ(result);
 }
 
-static double op_add(double a, double b) { return a + b; }
-static double op_sub(double a, double b) { return a - b; }
-static double op_mul(double a, double b) { return a * b; }
-static double op_div(double a, double b) { return a / b; }
+static double _op_add(double a, double b) { return a + b; }
+static double _op_sub(double a, double b) { return a - b; }
+static double _op_mul(double a, double b) { return a * b; }
+static double _op_div(double a, double b) { return a / b; }
 
-Value tn_add(vm_t *vm, int argc, Value *argv)
+Value tn_add(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_TENSOR(argv[1]))
         vm_error(vm, "tensor.add expects two tensors");
-    return elementwise_binary(vm, AS_TENSOR(argv[0]), AS_TENSOR(argv[1]), op_add);
+    return _elementwise_binary(vm, AS_TENSOR(argv[0]), AS_TENSOR(argv[1]), _op_add);
 }
 
-Value tn_sub(vm_t *vm, int argc, Value *argv)
+Value tn_sub(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_TENSOR(argv[1]))
         vm_error(vm, "tensor.sub expects two tensors");
-    return elementwise_binary(vm, AS_TENSOR(argv[0]), AS_TENSOR(argv[1]), op_sub);
+    return _elementwise_binary(vm, AS_TENSOR(argv[0]), AS_TENSOR(argv[1]), _op_sub);
 }
 
-Value tn_mult(vm_t *vm, int argc, Value *argv)
+Value tn_mult(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_TENSOR(argv[1]))
         vm_error(vm, "tensor.mult expects two tensors");
-    return elementwise_binary(vm, AS_TENSOR(argv[0]), AS_TENSOR(argv[1]), op_mul);
+    return _elementwise_binary(vm, AS_TENSOR(argv[0]), AS_TENSOR(argv[1]), _op_mul);
 }
 
-Value tn_div(vm_t *vm, int argc, Value *argv)
+Value tn_div(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_TENSOR(argv[1]))
         vm_error(vm, "tensor.div expects two tensors");
-    return elementwise_binary(vm, AS_TENSOR(argv[0]), AS_TENSOR(argv[1]), op_div);
+    return _elementwise_binary(vm, AS_TENSOR(argv[0]), AS_TENSOR(argv[1]), _op_div);
 }
 
-Value tn_exp(vm_t *vm, int argc, Value *argv)
+Value tn_exp(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.exp expects a tensor");
-    return elementwise_unary(vm, AS_TENSOR(argv[0]), exp);
+    return _elementwise_unary(vm, AS_TENSOR(argv[0]), exp);
 }
 
-Value tn_log(vm_t *vm, int argc, Value *argv)
+Value tn_log(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.log expects a tensor");
-    return elementwise_unary(vm, AS_TENSOR(argv[0]), log);
+    return _elementwise_unary(vm, AS_TENSOR(argv[0]), log);
 }
 
-Value tn_sqrt(vm_t *vm, int argc, Value *argv)
+Value tn_sqrt(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.sqrt expects a tensor");
-    return elementwise_unary(vm, AS_TENSOR(argv[0]), sqrt);
+    return _elementwise_unary(vm, AS_TENSOR(argv[0]), sqrt);
 }
 
-Value tn_abs(vm_t *vm, int argc, Value *argv)
+Value tn_abs(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.abs expects a tensor");
-    return elementwise_unary(vm, AS_TENSOR(argv[0]), fabs);
+    return _elementwise_unary(vm, AS_TENSOR(argv[0]), fabs);
 }
 
-Value tn_clip(vm_t *vm, int argc, Value *argv)
+Value tn_clip(VM *vm, int argc, Value *argv)
 {
     if (argc < 3 || !IS_TENSOR(argv[0]) || !IS_NUM(argv[1]) || !IS_NUM(argv[2]))
         vm_error(vm, "tensor.clip expects tensor, min, max");
@@ -781,7 +781,7 @@ Value tn_clip(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value tn_sign(vm_t *vm, int argc, Value *argv)
+Value tn_sign(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.sign expects a tensor");
@@ -796,7 +796,7 @@ Value tn_sign(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value tn_matmult(vm_t *vm, int argc, Value *argv)
+Value tn_matmult(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_TENSOR(argv[1]))
         vm_error(vm, "tensor.matmult expects two tensors");
@@ -822,7 +822,7 @@ Value tn_matmult(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value tn_dot(vm_t *vm, int argc, Value *argv)
+Value tn_dot(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_TENSOR(argv[1]))
         vm_error(vm, "tensor.dot expects two tensors");
@@ -840,7 +840,7 @@ Value tn_dot(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(sum);
 }
 
-static Value tensor_reduce(vm_t *vm, PiTensor *tensor, double (*fn)(double, double), double init)
+static Value _tensor_reduce(VM *vm, PiTensor *tensor, double (*fn)(double, double), double init)
 {
     double accum = init;
     for (int i = 0; i < tensor->size; i++)
@@ -848,55 +848,55 @@ static Value tensor_reduce(vm_t *vm, PiTensor *tensor, double (*fn)(double, doub
     return NEW_NUM(accum);
 }
 
-static double reduce_sum(double accum, double val) { return accum + val; }
-static double reduce_prod(double accum, double val) { return accum * val; }
-static double reduce_min(double accum, double val) { return val < accum ? val : accum; }
-static double reduce_max(double accum, double val) { return val > accum ? val : accum; }
+static double _reduce_sum(double accum, double val) { return accum + val; }
+static double _reduce_prod(double accum, double val) { return accum * val; }
+static double _reduce_min(double accum, double val) { return val < accum ? val : accum; }
+static double _reduce_max(double accum, double val) { return val > accum ? val : accum; }
 
-Value tn_sum(vm_t *vm, int argc, Value *argv)
+Value tn_sum(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.sum expects a tensor");
-    return tensor_reduce(vm, AS_TENSOR(argv[0]), reduce_sum, 0.0);
+    return _tensor_reduce(vm, AS_TENSOR(argv[0]), _reduce_sum, 0.0);
 }
 
-Value tn_mean(vm_t *vm, int argc, Value *argv)
+Value tn_mean(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "mean expects a tensor");
     PiTensor *tensor = AS_TENSOR(argv[0]);
-    double sum = AS_NUM(tensor_reduce(vm, tensor, reduce_sum, 0.0));
+    double sum = AS_NUM(_tensor_reduce(vm, tensor, _reduce_sum, 0.0));
     return NEW_NUM(sum / tensor->size);
 }
 
-Value tn_min(vm_t *vm, int argc, Value *argv)
+Value tn_min(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.min expects a tensor");
     PiTensor *tensor = AS_TENSOR(argv[0]);
     if (tensor->size == 0)
         vm_error(vm, "empty tensor");
-    return tensor_reduce(vm, tensor, reduce_min, tensor_getFlat(tensor, 0));
+    return _tensor_reduce(vm, tensor, _reduce_min, tensor_getFlat(tensor, 0));
 }
 
-Value tn_max(vm_t *vm, int argc, Value *argv)
+Value tn_max(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.max expects a tensor");
     PiTensor *tensor = AS_TENSOR(argv[0]);
     if (tensor->size == 0)
         vm_error(vm, "empty tensor");
-    return tensor_reduce(vm, tensor, reduce_max, tensor_getFlat(tensor, 0));
+    return _tensor_reduce(vm, tensor, _reduce_max, tensor_getFlat(tensor, 0));
 }
 
-Value tn_prod(vm_t *vm, int argc, Value *argv)
+Value tn_prod(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.prod expects a tensor");
-    return tensor_reduce(vm, AS_TENSOR(argv[0]), reduce_prod, 1.0);
+    return _tensor_reduce(vm, AS_TENSOR(argv[0]), _reduce_prod, 1.0);
 }
 
-Value tn_argmax(vm_t *vm, int argc, Value *argv)
+Value tn_argmax(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.argmax expects a tensor");
@@ -917,7 +917,7 @@ Value tn_argmax(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(idx);
 }
 
-Value tn_argmin(vm_t *vm, int argc, Value *argv)
+Value tn_argmin(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.argmin expects a tensor");
@@ -938,29 +938,29 @@ Value tn_argmin(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(idx);
 }
 
-Value tn_any(vm_t *vm, int argc, Value *argv)
+Value tn_any(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.any expects a tensor");
     PiTensor *tensor = AS_TENSOR(argv[0]);
     for (int i = 0; i < tensor->size; i++)
         if (tensor_getFlat(tensor, i) != 0)
-            return NEW_BOOL(true);
-    return NEW_BOOL(false);
+            return NEW_BOOL(TRUE);
+    return NEW_BOOL(FALSE);
 }
 
-Value tn_all(vm_t *vm, int argc, Value *argv)
+Value tn_all(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.all expects a tensor");
     PiTensor *tensor = AS_TENSOR(argv[0]);
     for (int i = 0; i < tensor->size; i++)
         if (tensor_getFlat(tensor, i) == 0)
-            return NEW_BOOL(false);
-    return NEW_BOOL(true);
+            return NEW_BOOL(FALSE);
+    return NEW_BOOL(TRUE);
 }
 
-Value tn_reduce(vm_t *vm, int argc, Value *argv)
+Value tn_reduce(VM *vm, int argc, Value *argv)
 {
     if (argc < 3 || !IS_TENSOR(argv[0]) || !IS_FUN(argv[1]) || !IS_NUM(argv[2]))
         vm_error(vm, "tensor.reduce expects a tensor, a binary function, and an initial value");
@@ -975,44 +975,44 @@ Value tn_reduce(vm_t *vm, int argc, Value *argv)
     return init;
 }
 
-Value tn_isTensor(vm_t *vm, int argc, Value *argv)
+Value tn_isTensor(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "tensor.is_tensor expects one argument");
     return NEW_BOOL(IS_TENSOR(argv[0]));
 }
 
-Value tn_isScalar(vm_t *vm, int argc, Value *argv)
+Value tn_isScalar(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "tensor.is_scalar expects one argument");
     if (!IS_TENSOR(argv[0]))
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
     PiTensor *tensor = AS_TENSOR(argv[0]);
     return NEW_BOOL(tensor->ndim == 0);
 }
 
-Value tn_isVector(vm_t *vm, int argc, Value *argv)
+Value tn_isVector(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "tensor.is_vector expects one argument");
     if (!IS_TENSOR(argv[0]))
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
     PiTensor *tensor = AS_TENSOR(argv[0]);
     return NEW_BOOL(tensor->ndim == 1);
 }
 
-Value tn_isMatrix(vm_t *vm, int argc, Value *argv)
+Value tn_isMatrix(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
         vm_error(vm, "tensor.is_matrix expects one argument");
     if (!IS_TENSOR(argv[0]))
-        return NEW_BOOL(false);
+        return NEW_BOOL(FALSE);
     PiTensor *tensor = AS_TENSOR(argv[0]);
     return NEW_BOOL(tensor->ndim == 2);
 }
 
-Value tn_apply(vm_t *vm, int argc, Value *argv)
+Value tn_apply(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_FUN(argv[1]))
         vm_error(vm, "tensor.apply expects a tensor and a function");
@@ -1032,7 +1032,7 @@ Value tn_apply(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value tn_conv2d(vm_t *vm, int argc, Value *argv)
+Value tn_conv2d(VM *vm, int argc, Value *argv)
 {
     if (argc < 3 || !IS_TENSOR(argv[0]) || !IS_TENSOR(argv[1]))
         vm_error(vm, "tensor.conv2d expects input tensor, weight tensor, and bias vector.");
@@ -1040,7 +1040,7 @@ Value tn_conv2d(vm_t *vm, int argc, Value *argv)
     PiTensor *input = AS_TENSOR(argv[0]);
     PiTensor *weights = AS_TENSOR(argv[1]);
     Value bias = argv[2];
-    const char *activation = optional_activation(vm, argc, argv, 3);
+    const char *activation = _optional_activation(vm, argc, argv, 3);
 
     if (input->ndim != 3)
         vm_error(vm, "tensor.conv2d input must have shape [channels, height, width].");
@@ -1067,7 +1067,7 @@ Value tn_conv2d(vm_t *vm, int argc, Value *argv)
 
     for (int oc = 0; oc < out_channels; oc++)
     {
-        double b = vector_get(vm, bias, oc, "conv2d bias");
+        double b = _vector_get(vm, bias, oc, "conv2d bias");
 
         for (int oy = 0; oy < out_h; oy++)
         {
@@ -1094,7 +1094,7 @@ Value tn_conv2d(vm_t *vm, int argc, Value *argv)
                 }
 
                 int out_index = oc * out->strides[0] + oy * out->strides[1] + ox * out->strides[2];
-                tensor_setFlat(out, out_index, activation_value(activation, sum));
+                tensor_setFlat(out, out_index, _activation_value(activation, sum));
             }
         }
     }
@@ -1102,7 +1102,7 @@ Value tn_conv2d(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(out);
 }
 
-Value tn_avgpool2d(vm_t *vm, int argc, Value *argv)
+Value tn_avgpool2d(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.avgpool2d expects an input tensor.");
@@ -1166,7 +1166,7 @@ Value tn_avgpool2d(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(out);
 }
 
-Value tn_dense(vm_t *vm, int argc, Value *argv)
+Value tn_dense(VM *vm, int argc, Value *argv)
 {
     if (argc < 3 || !IS_TENSOR(argv[1]))
         vm_error(vm, "tensor.dense expects input vector, weight matrix, and bias vector.");
@@ -1174,7 +1174,7 @@ Value tn_dense(vm_t *vm, int argc, Value *argv)
     Value input = argv[0];
     PiTensor *weights = AS_TENSOR(argv[1]);
     Value bias = argv[2];
-    const char *activation = optional_activation(vm, argc, argv, 3);
+    const char *activation = _optional_activation(vm, argc, argv, 3);
 
     if (weights->ndim != 2)
         vm_error(vm, "tensor.dense weights must have shape [out_features, in_features].");
@@ -1198,29 +1198,29 @@ Value tn_dense(vm_t *vm, int argc, Value *argv)
         vm_error(vm, "tensor.dense input must be a numeric list or tensor.");
     }
 
-    list_t *items = list_create(sizeof(Value));
+    List *items = list_create(sizeof(Value));
     if (!items)
         vm_error(vm, "tensor.dense allocation failed.");
 
     for (int o = 0; o < out_features; o++)
     {
-        double sum = vector_get(vm, bias, o, "dense bias");
+        double sum = _vector_get(vm, bias, o, "dense bias");
         int weight_row = o * weights->strides[0];
 
         for (int i = 0; i < in_features; i++)
-            sum += vector_get(vm, input, i, "dense input") *
+            sum += _vector_get(vm, input, i, "dense input") *
                    tensor_getFlat(weights, weight_row + i * weights->strides[1]);
 
-        Value value = NEW_NUM(activation_value(activation, sum));
-        list_add(items, &value);
+        Value value = NEW_NUM(_activation_value(activation, sum));
+        _list_add(items, &value);
     }
 
     PiList *result = (PiList *)new_list(items);
-    result->is_numeric = true;
+    result->is_numeric = TRUE;
     return NEW_OBJ(add_obj(vm, (Object *)result));
 }
 
-Value tn_trainClassifierHead(vm_t *vm, int argc, Value *argv)
+Value tn_trainClassifierHead(VM *vm, int argc, Value *argv)
 {
     if (argc < 7 || !IS_TENSOR(argv[1]) || !IS_TENSOR(argv[3]) || !IS_NUM(argv[5]) || !IS_NUM(argv[6]))
         vm_error(vm, "tensor.train_classifierHead expects features, f6 weights/bias, output weights/bias, label, learning_rate.");
@@ -1277,11 +1277,11 @@ Value tn_trainClassifierHead(vm_t *vm, int argc, Value *argv)
 
     for (int h = 0; h < hidden_count; h++)
     {
-        double sum = vector_get(vm, f6_b, h, "f6 bias");
+        double sum = _vector_get(vm, f6_b, h, "f6 bias");
         int row = h * f6_w->strides[0];
 
         for (int i = 0; i < feature_count; i++)
-            sum += vector_get(vm, features, i, "features") *
+            sum += _vector_get(vm, features, i, "features") *
                    tensor_getFlat(f6_w, row + i * f6_w->strides[1]);
 
         hidden[h] = tanh(sum);
@@ -1290,7 +1290,7 @@ Value tn_trainClassifierHead(vm_t *vm, int argc, Value *argv)
     double max_logit = 0.0;
     for (int o = 0; o < class_count; o++)
     {
-        double sum = vector_get(vm, out_b, o, "output bias");
+        double sum = _vector_get(vm, out_b, o, "output bias");
         int row = o * out_w->strides[0];
 
         for (int h = 0; h < hidden_count; h++)
@@ -1327,7 +1327,7 @@ Value tn_trainClassifierHead(vm_t *vm, int argc, Value *argv)
             tensor_setFlat(out_w, weight_index, old_weight - lr * dlogit * hidden[h]);
         }
 
-        vector_set(vm, out_b, o, vector_get(vm, out_b, o, "output bias") - lr * dlogit, "output bias");
+        _vector_set(vm, out_b, o, _vector_get(vm, out_b, o, "output bias") - lr * dlogit, "output bias");
     }
 
     for (int h = 0; h < hidden_count; h++)
@@ -1339,10 +1339,10 @@ Value tn_trainClassifierHead(vm_t *vm, int argc, Value *argv)
         {
             int weight_index = row + i * f6_w->strides[1];
             double old_weight = tensor_getFlat(f6_w, weight_index);
-            tensor_setFlat(f6_w, weight_index, old_weight - lr * dz * vector_get(vm, features, i, "features"));
+            tensor_setFlat(f6_w, weight_index, old_weight - lr * dz * _vector_get(vm, features, i, "features"));
         }
 
-        vector_set(vm, f6_b, h, vector_get(vm, f6_b, h, "f6 bias") - lr * dz, "f6 bias");
+        _vector_set(vm, f6_b, h, _vector_get(vm, f6_b, h, "f6 bias") - lr * dz, "f6 bias");
     }
 
     free(hidden);
@@ -1353,7 +1353,7 @@ Value tn_trainClassifierHead(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(loss);
 }
 
-Value tn_cross(vm_t *vm, int argc, Value *argv)
+Value tn_cross(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_TENSOR(argv[1]))
         vm_error(vm, "tensor.cross expects two tensors");
@@ -1370,7 +1370,7 @@ Value tn_cross(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value tn_squeeze(vm_t *vm, int argc, Value *argv)
+Value tn_squeeze(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.squeeze expects a tensor");
@@ -1406,7 +1406,7 @@ Value tn_squeeze(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value tn_var(vm_t *vm, int argc, Value *argv)
+Value tn_var(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.var expects a tensor");
@@ -1423,13 +1423,13 @@ Value tn_var(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(sum_sq / (tensor->size - 1)); // sample variance
 }
 
-Value tn_std(vm_t *vm, int argc, Value *argv)
+Value tn_std(VM *vm, int argc, Value *argv)
 {
     double var = AS_NUM(tn_var(vm, argc, argv));
     return NEW_NUM(sqrt(var));
 }
 
-Value tn_median(vm_t *vm, int argc, Value *argv)
+Value tn_median(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.median expects a tensor");
@@ -1439,13 +1439,13 @@ Value tn_median(vm_t *vm, int argc, Value *argv)
     double *arr = malloc(tensor->size * sizeof(double));
     for (int i = 0; i < tensor->size; i++)
         arr[i] = tensor_getFlat(tensor, i);
-    qsort(arr, tensor->size, sizeof(double), double_cmp);
+    qsort(arr, tensor->size, sizeof(double), _double_cmp);
     double med = arr[tensor->size / 2];
     free(arr);
     return NEW_NUM(med);
 }
 
-Value tn_percentile(vm_t *vm, int argc, Value *argv)
+Value tn_percentile(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_NUM(argv[1]))
         vm_error(vm, "tensor.percentile expects a tensor and a percentile (0-100)");
@@ -1461,7 +1461,7 @@ Value tn_percentile(vm_t *vm, int argc, Value *argv)
     double *data = malloc(tensor->size * sizeof(double));
     for (int i = 0; i < tensor->size; i++)
         data[i] = tensor_getFlat(tensor, i);
-    qsort(data, tensor->size, sizeof(double), double_cmp);
+    qsort(data, tensor->size, sizeof(double), _double_cmp);
 
     double idx = (q / 100.0) * (tensor->size - 1);
     int lo = (int)floor(idx);
@@ -1474,7 +1474,7 @@ Value tn_percentile(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(result);
 }
 
-Value tn_mode(vm_t *vm, int argc, Value *argv)
+Value tn_mode(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.mode expects a tensor");
@@ -1486,7 +1486,7 @@ Value tn_mode(vm_t *vm, int argc, Value *argv)
     double *data = malloc(tensor->size * sizeof(double));
     for (int i = 0; i < tensor->size; i++)
         data[i] = tensor_getFlat(tensor, i);
-    qsort(data, tensor->size, sizeof(double), double_cmp);
+    qsort(data, tensor->size, sizeof(double), _double_cmp);
 
     double mode = data[0];
     int max_count = 1, cur_count = 1;
@@ -1513,7 +1513,7 @@ Value tn_mode(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(mode);
 }
 
-Value tn_covariance(vm_t *vm, int argc, Value *argv)
+Value tn_covariance(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_TENSOR(argv[1]))
         vm_error(vm, "tensor.covariance expects two tensors");
@@ -1535,7 +1535,7 @@ Value tn_covariance(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(sum / (a->size - 1));
 }
 
-Value tn_correlation(vm_t *vm, int argc, Value *argv)
+Value tn_correlation(VM *vm, int argc, Value *argv)
 {
     if (argc < 2 || !IS_TENSOR(argv[0]) || !IS_TENSOR(argv[1]))
         vm_error(vm, "tensor.correlation expects two tensors");
@@ -1554,7 +1554,7 @@ Value tn_correlation(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(cov / sqrt(var_a * var_b));
 }
 
-Value tn_zscore(vm_t *vm, int argc, Value *argv)
+Value tn_zscore(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.zscore expects a tensor");
@@ -1571,19 +1571,19 @@ Value tn_zscore(vm_t *vm, int argc, Value *argv)
     return NEW_OBJ(result);
 }
 
-Value tn_solve(vm_t *vm, int argc, Value *argv)
+Value tn_solve(VM *vm, int argc, Value *argv)
 {
     vm_error(vm, "solve not implemented");
     return NEW_NUM(0);
 }
 
-Value tn_inv(vm_t *vm, int argc, Value *argv)
+Value tn_inv(VM *vm, int argc, Value *argv)
 {
     vm_error(vm, "inv not implemented");
     return NEW_NUM(0);
 }
 
-Value tn_det(vm_t *vm, int argc, Value *argv)
+Value tn_det(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "det expects a 2x2 tensor");
@@ -1597,19 +1597,19 @@ Value tn_det(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(a * d - b * c);
 }
 
-Value tn_svd(vm_t *vm, int argc, Value *argv)
+Value tn_svd(VM *vm, int argc, Value *argv)
 {
     vm_error(vm, "svd not implemented");
     return NEW_NUM(0);
 }
 
-Value tn_eig(vm_t *vm, int argc, Value *argv)
+Value tn_eig(VM *vm, int argc, Value *argv)
 {
     vm_error(vm, "eig not implemented");
     return NEW_NUM(0);
 }
 
-Value tn_norm(vm_t *vm, int argc, Value *argv)
+Value tn_norm(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "norm expects a tensor");
@@ -1623,7 +1623,7 @@ Value tn_norm(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(sqrt(sum_sq));
 }
 
-Value tn_rank(vm_t *vm, int argc, Value *argv)
+Value tn_rank(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "tensor.rank expects a matrix");
@@ -1679,7 +1679,7 @@ Value tn_rank(vm_t *vm, int argc, Value *argv)
     free(mat);
     return NEW_NUM(rank);
 }
-Value tn_trace(vm_t *vm, int argc, Value *argv)
+Value tn_trace(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "trace expects a 2D tensor");
@@ -1692,13 +1692,13 @@ Value tn_trace(vm_t *vm, int argc, Value *argv)
     return NEW_NUM(trace);
 }
 
-Value tn_pinv(vm_t *vm, int argc, Value *argv)
+Value tn_pinv(VM *vm, int argc, Value *argv)
 {
     vm_error(vm, "pinv not implemented");
     return NEW_NUM(0);
 }
 
-Value tn_shuffle(vm_t *vm, int argc, Value *argv)
+Value tn_shuffle(VM *vm, int argc, Value *argv)
 {
     if (argc < 1 || !IS_TENSOR(argv[0]))
         vm_error(vm, "shuffle expects a tensor");

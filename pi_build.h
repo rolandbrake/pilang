@@ -30,7 +30,7 @@ typedef struct
     uint64_t module_table_offset;
     uint64_t string_table_offset;
     uint64_t payload_offset;
-} px_header_t;
+} PX_Header;
 
 typedef struct
 {
@@ -44,60 +44,60 @@ typedef struct
     uint64_t payload_size;
     uint32_t flags;
     uint32_t reserved;
-} px_module_record_t;
+} PX_ModuleRecord;
 
 typedef struct
 {
-    list_t *code;
-    list_t *constants;
-    list_t *names;
-} px_module_payload_t;
+    List *code;
+    List *constants;
+    List *names;
+} PX_ModulePayload;
 
 typedef struct
 {
     char *name;
     char *path;
-    compiler_t *compiler;
+    Compiler *compiler;
     bool is_entry;
     size_t source_size;
     uint64_t source_hash;
-} px_built_module_t;
+} PX_BuiltModule;
 
-typedef struct px_project_build
+typedef struct PX_ProjectBuild
 {
-    px_built_module_t *modules;
+    PX_BuiltModule *modules;
     uint32_t module_count;
-} px_project_build_t;
+} PX_ProjectBuild;
 
-bool px_writeHeader(FILE *file, const px_header_t *header);
-bool px_readHeader(FILE *file, px_header_t *header);
-bool px_headerIsValid(const px_header_t *header, uint32_t vm_abi);
+bool px_writeHeader(FILE *file, const PX_Header *header);
+bool px_readHeader(FILE *file, PX_Header *header);
+bool px_headerIsValid(const PX_Header *header, uint32_t vm_abi);
 
-bool px_writeModuleRecord(FILE *file, const px_module_record_t *record);
-bool px_readModuleRecord(FILE *file, px_module_record_t *record);
+bool px_writeModuleRecord(FILE *file, const PX_ModuleRecord *record);
+bool px_readModuleRecord(FILE *file, PX_ModuleRecord *record);
 
 uint64_t px_hashBytes(const void *data, size_t size);
 
-bool px_writeModulePayload(FILE *file, const list_t *code,
-                           const list_t *constants, const list_t *names);
-bool px_readModulePayload(FILE *file, px_module_payload_t *payload);
-void px_freeModulePayload(px_module_payload_t *payload);
-bool px_applyModulePayload(compiler_t *compiler, px_module_payload_t *payload);
-compiler_t *px_readCompiler(FILE *file);
+bool px_writeModulePayload(FILE *file, const List *code,
+                           const List *constants, const List *names);
+bool px_readModulePayload(FILE *file, PX_ModulePayload *payload);
+void px_freeModulePayload(PX_ModulePayload *payload);
+bool px_applyModulePayload(Compiler *compiler, PX_ModulePayload *payload);
+Compiler *px_readCompiler(FILE *file);
 
 bool px_writeEntryBuild(const char *build_path, const char *source_path,
-                        const char *source, const compiler_t *compiler);
-compiler_t *px_readEntryBuild(const char *build_path, const char *source_path,
+                        const char *source, const Compiler *compiler);
+Compiler *px_readEntryBuild(const char *build_path, const char *source_path,
                               const char *source);
 bool px_writeProjectBuild(const char *build_path, const char *entry_path,
-                          const char *entry_source, const compiler_t *entry_compiler,
-                          px_project_build_t *modules);
+                          const char *entry_source, const Compiler *entry_compiler,
+                          PX_ProjectBuild *modules);
 bool px_readProjectBuild(const char *build_path, const char *entry_path,
-                         const char *entry_source, px_project_build_t *build);
-bool px_readExecutableBuild(const char *build_path, px_project_build_t *build);
-bool px_readEmbeddedBuild(const char *path, uint64_t offset, px_project_build_t *build);
-void px_freeProjectBuild(px_project_build_t *build);
-px_built_module_t *px_findBuiltModule(px_project_build_t *build, const char *path);
-px_built_module_t *px_findBuiltModuleByName(px_project_build_t *build, const char *name);
+                         const char *entry_source, PX_ProjectBuild *build);
+bool px_readExecutableBuild(const char *build_path, PX_ProjectBuild *build);
+bool px_readEmbeddedBuild(const char *path, uint64_t offset, PX_ProjectBuild *build);
+void px_freeProjectBuild(PX_ProjectBuild *build);
+PX_BuiltModule *px_findBuiltModule(PX_ProjectBuild *build, const char *path);
+PX_BuiltModule *px_findBuiltModuleByName(PX_ProjectBuild *build, const char *name);
 
 #endif // PI_BUILD_H

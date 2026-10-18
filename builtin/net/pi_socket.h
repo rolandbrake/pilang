@@ -3,11 +3,11 @@
 
 #include "../pi_builtin.h"
 
-Value socket_Socket(vm_t *vm, int argc, Value *argv);
-Value socket_connect(vm_t *vm, int argc, Value *argv);
-Value socket_sendAll(vm_t *vm, int argc, Value *argv);
-Value socket_receive(vm_t *vm, int argc, Value *argv);
-Value socket_close(vm_t *vm, int argc, Value *argv);
+Value socket_Socket(VM *vm, int argc, Value *argv);
+Value socket_connect(VM *vm, int argc, Value *argv);
+Value socket_sendAll(VM *vm, int argc, Value *argv);
+Value socket_receive(VM *vm, int argc, Value *argv);
+Value socket_close(VM *vm, int argc, Value *argv);
 
 extern BuiltinModule module_netSocket;
 

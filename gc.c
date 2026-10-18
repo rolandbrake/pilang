@@ -17,9 +17,9 @@ static Object **mark_stack = NULL;
 static int stack_count = 0;
 static int stack_capacity = 0;
 
-static bool stack_tracing = false;
+static bool stack_tracing = FALSE;
 
-static void mark_references(Object *obj);
+static void _mark_references(Object *obj);
 
 void gc_trimHeap(void)
 {
@@ -30,12 +30,12 @@ void gc_trimHeap(void)
 }
 
 // Uses an explicit stack to avoid deep recursive marking.
-static void push_stack(Object *obj)
+static void _push_stack(Object *obj)
 {
     if (obj == NULL || obj->is_marked)
         return;
 
-    obj->is_marked = true;
+    obj->is_marked = TRUE;
 
     if (stack_count >= stack_capacity)
     {
@@ -50,28 +50,28 @@ static void push_stack(Object *obj)
 }
 
 // Processes all pending objects and marks their references.
-static void trace_stack(void)
+static void _trace_stack(void)
 {
-    stack_tracing = true;
+    stack_tracing = TRUE;
 
     while (stack_count > 0)
     {
         Object *obj = mark_stack[--stack_count];
-        mark_references(obj);
+        _mark_references(obj);
     }
 
-    stack_tracing = false;
+    stack_tracing = FALSE;
 }
 
-void mark_list(list_t *list)
+void mark_list(List *list)
 {
     if (!list)
         return;
 
-    int size = list_size(list);
+    int size = LIST_SIZE(list);
     for (int i = 0; i < size; i++)
     {
-        Value *val = (Value *)list_getAt(list, i);
+        Value *val = (Value *)_list_getAt(list, i);
         if (val)
             mark_value(*val);
     }
@@ -90,12 +90,12 @@ void *reallocate(void *ptr, size_t o_size, size_t n_size)
     return result;
 }
 
-static size_t gc_listBytes(const list_t *list)
+static size_t _gc_listBytes(const List *list)
 {
     return list ? sizeof(*list) + (size_t)list->capacity * (size_t)list->i_size : 0;
 }
 
-static size_t gc_tableBytes(const table_t *table)
+static size_t _gc_tableBytes(const HT_Table *table)
 {
     if (!table)
         return 0;
@@ -106,7 +106,7 @@ static size_t gc_tableBytes(const table_t *table)
            (size_t)table->order_cap * sizeof(uint32_t);
 }
 
-static size_t gc_tensorElementSize(TN_TYPE type)
+static size_t _gc_tensorElementSize(TensorType type)
 {
     switch (type)
     {
@@ -137,36 +137,36 @@ size_t gc_objectBytes(Object *obj)
     case OBJ_LIST:
     {
         PiList *list = (PiList *)obj;
-        return sizeof(*list) + gc_listBytes(list->items);
+        return sizeof(*list) + _gc_listBytes(list->items);
     }
     case OBJ_TUPLE:
     {
         PiTuple *tuple = (PiTuple *)obj;
-        return sizeof(*tuple) + gc_listBytes(tuple->items);
+        return sizeof(*tuple) + _gc_listBytes(tuple->items);
     }
     case OBJ_TENSOR:
     {
         PiTensor *tensor = (PiTensor *)obj;
         return sizeof(*tensor) +
                (size_t)tensor->ndim * sizeof(int) * 2 +
-               (size_t)tensor->size * gc_tensorElementSize(tensor->type);
+               (size_t)tensor->size * _gc_tensorElementSize(tensor->type);
     }
     case OBJ_MAP:
     {
         PiMap *map = (PiMap *)obj;
-        return sizeof(*map) + gc_tableBytes(map->table);
+        return sizeof(*map) + _gc_tableBytes(map->table);
     }
     case OBJ_CLASS:
     {
         PiClass *klass = (PiClass *)obj;
         return sizeof(*klass) +
                (klass->name ? strlen(klass->name) + 1 : 0) +
-               gc_tableBytes(klass->members) + gc_tableBytes(klass->field_names);
+               _gc_tableBytes(klass->members) + _gc_tableBytes(klass->field_names);
     }
     case OBJ_INSTANCE:
     {
         PiInstance *instance = (PiInstance *)obj;
-        return sizeof(*instance) + gc_tableBytes(instance->fields) +
+        return sizeof(*instance) + _gc_tableBytes(instance->fields) +
                (instance->_class ? (size_t)instance->_class->slot_count * sizeof(Value) : 0);
     }
     case OBJ_FUN:
@@ -174,13 +174,13 @@ size_t gc_objectBytes(Object *obj)
         Function *function = (Function *)obj;
         return sizeof(*function) +
                (function->name ? strlen(function->name) + 1 : 0) +
-               gc_listBytes(function->params) +
+               _gc_listBytes(function->params) +
                (size_t)function->upvalue_count * sizeof(UpValue *);
     }
     case OBJ_CODE:
     {
         ObjCode *code = (ObjCode *)obj;
-        return sizeof(*code) + gc_listBytes(code->data) + gc_listBytes(code->param_names) +
+        return sizeof(*code) + _gc_listBytes(code->data) + _gc_listBytes(code->param_names) +
                (size_t)code->member_cache_count * sizeof(MemberCache);
     }
     case OBJ_MODULE:
@@ -189,8 +189,8 @@ size_t gc_objectBytes(Object *obj)
         return sizeof(*module) +
                (module->name ? strlen(module->name) + 1 : 0) +
                (module->path ? strlen(module->path) + 1 : 0) +
-               gc_listBytes(module->code) + gc_listBytes(module->constants) + gc_listBytes(module->names) +
-               gc_tableBytes(module->instrs) + gc_tableBytes(module->globals);
+               _gc_listBytes(module->code) + _gc_listBytes(module->constants) + _gc_listBytes(module->names) +
+               _gc_tableBytes(module->instrs) + _gc_tableBytes(module->globals);
     }
     case OBJ_RANGE:
         return sizeof(PiRange);
@@ -215,7 +215,7 @@ size_t gc_objectBytes(Object *obj)
     }
 }
 
-size_t gc_recountBytes(vm_t *vm)
+size_t gc_recountBytes(VM *vm)
 {
     size_t total = 0;
     for (Object *obj = vm->objects; obj; obj = obj->next)
@@ -226,10 +226,10 @@ size_t gc_recountBytes(vm_t *vm)
     return total;
 }
 
-void mark_globals(vm_t *vm)
+void mark_globals(VM *vm)
 {
-    ht_iter it = ht_iterator(vm->globals);
-    while (ht_next(&it))
+    HT_Iterator it = _ht_iterator(vm->globals);
+    while (_ht_next(&it))
     {
         Value *val = it.value;
         if (val != NULL)
@@ -237,13 +237,13 @@ void mark_globals(vm_t *vm)
     }
 }
 
-void mark_modules(vm_t *vm)
+void mark_modules(VM *vm)
 {
     if (!vm->modules)
         return;
 
-    ht_iter it = ht_iterator(vm->modules);
-    while (ht_next(&it))
+    HT_Iterator it = _ht_iterator(vm->modules);
+    while (_ht_next(&it))
     {
         Value *val = (Value *)it.value;
         if (val)
@@ -251,7 +251,7 @@ void mark_modules(vm_t *vm)
     }
 }
 
-void mark_iters(vm_t *vm)
+void mark_iters(VM *vm)
 {
     for (int i = 0; i <= vm->iter_sp; i++)
     {
@@ -260,11 +260,11 @@ void mark_iters(vm_t *vm)
     }
 }
 
-void mark_constants(vm_t *vm)
+void mark_constants(VM *vm)
 {
-    int count = list_size(vm->constants);
+    int count = LIST_SIZE(vm->constants);
     for (int i = 0; i < count; i++)
-        mark_value(*(Value *)list_getAt(vm->constants, i));
+        mark_value(*(Value *)_list_getAt(vm->constants, i));
 }
 
 void mark_value(Value val)
@@ -276,13 +276,13 @@ void mark_value(Value val)
 // Entry point for marking. Starts tracing only from the outermost call.
 void mark_object(Object *obj)
 {
-    push_stack(obj);
+    _push_stack(obj);
 
     if (!stack_tracing)
-        trace_stack();
+        _trace_stack();
 }
 
-static void mark_references(Object *obj)
+static void _mark_references(Object *obj)
 {
     if (obj == NULL)
         return;
@@ -296,7 +296,7 @@ static void mark_references(Object *obj)
         int size = LIST_SIZE(list->items);
         for (int i = 0; i < size; i++)
         {
-            Value *item = (Value *)list_getAt(list->items, i);
+            Value *item = (Value *)_list_getAt(list->items, i);
             if (item)
                 mark_value(*item);
         }
@@ -310,11 +310,11 @@ static void mark_references(Object *obj)
     {
         PiMap *map = (PiMap *)obj;
 
-        table_t *table = map->table;
+        HT_Table *table = map->table;
         if (table)
         {
-            ht_iter it = ht_iterator(table);
-            while (ht_next(&it))
+            HT_Iterator it = _ht_iterator(table);
+            while (_ht_next(&it))
             {
                 Value *val = (Value *)it.value;
                 if (val)
@@ -332,8 +332,8 @@ static void mark_references(Object *obj)
             mark_object((Object *)_class->super);
         if (_class->members)
         {
-            ht_iter it = ht_iterator(_class->members);
-            while (ht_next(&it))
+            HT_Iterator it = _ht_iterator(_class->members);
+            while (_ht_next(&it))
             {
                 Value *value = (Value *)it.value;
                 if (value)
@@ -359,8 +359,8 @@ static void mark_references(Object *obj)
             mark_object((Object *)instance->_class);
         if (instance->fields)
         {
-            ht_iter it = ht_iterator(instance->fields);
-            while (ht_next(&it))
+            HT_Iterator it = _ht_iterator(instance->fields);
+            while (_ht_next(&it))
             {
                 Value *value = (Value *)it.value;
                 if (value)
@@ -396,7 +396,7 @@ static void mark_references(Object *obj)
         int size = LIST_SIZE(tuple->items);
         for (int i = 0; i < size; i++)
         {
-            Value *item = (Value *)list_getAt(tuple->items, i);
+            Value *item = (Value *)_list_getAt(tuple->items, i);
             if (item)
                 mark_value(*item);
         }
@@ -435,8 +435,8 @@ static void mark_references(Object *obj)
 
         if (fn->globals)
         {
-            ht_iter it = ht_iterator(fn->globals);
-            while (ht_next(&it))
+            HT_Iterator it = _ht_iterator(fn->globals);
+            while (_ht_next(&it))
             {
                 Value *val = (Value *)it.value;
                 if (val)
@@ -496,7 +496,7 @@ static void mark_references(Object *obj)
     }
 }
 
-void sweep(vm_t *vm)
+void sweep(VM *vm)
 {
 
     Object *obj = vm->objects;
@@ -510,7 +510,7 @@ void sweep(vm_t *vm)
 
         if (!obj->is_marked)
         {
-            obj->in_gcList = false;
+            obj->in_gcList = FALSE;
 
             collected_bytes += obj->gc_bytes;
             free_object(obj);
@@ -522,8 +522,8 @@ void sweep(vm_t *vm)
         }
         else
         {
-            obj->is_marked = false;
-            obj->in_gcList = true;
+            obj->is_marked = FALSE;
+            obj->in_gcList = TRUE;
             prev = obj;
             live_count++;
         }
@@ -552,7 +552,7 @@ void sweep(vm_t *vm)
 void free_object(Object *obj)
 {
 
-    obj->in_gcList = false;
+    obj->in_gcList = FALSE;
 
     switch (obj->type)
     {
@@ -753,7 +753,7 @@ void free_value(Value *val)
     free(val);
 }
 
-void mark_roots(vm_t *vm)
+void mark_roots(VM *vm)
 {
     for (int i = 0; i < vm->sp; i++)
         mark_value(vm->stack[i]);
@@ -771,8 +771,8 @@ void mark_roots(vm_t *vm)
         mark_list(frame->names);
         if (frame->globals)
         {
-            ht_iter it = ht_iterator(frame->globals);
-            while (ht_next(&it))
+            HT_Iterator it = _ht_iterator(frame->globals);
+            while (_ht_next(&it))
             {
                 Value *val = (Value *)it.value;
                 if (val)
@@ -788,7 +788,7 @@ void mark_roots(vm_t *vm)
 
     mark_list(vm->names);
 
-    UpValue *up = vm->openUpvalues;
+    UpValue *up = vm->open_upvalues;
     while (up != NULL)
     {
         mark_value(up->value);
@@ -796,7 +796,7 @@ void mark_roots(vm_t *vm)
     }
 }
 
-void run_gc(vm_t *vm)
+void run_gc(VM *vm)
 {
 
     mark_globals(vm);
@@ -809,7 +809,7 @@ void run_gc(vm_t *vm)
     sweep(vm);
 }
 
-static void print_objectChain(vm_t *vm)
+static void _print_objectChain(VM *vm)
 {
     printf("\n[DEBUG] Object Chain:\n");
     Object *obj = vm->objects;

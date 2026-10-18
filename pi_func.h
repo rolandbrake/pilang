@@ -8,7 +8,7 @@
 
 #define MAX_UPVALUES 32
 
-typedef Value (*native_func)(vm_t *vm, int argc, Value *argv);
+typedef Value (*NativeFunc)(VM *vm, int argc, Value *argv);
 
 typedef enum
 {
@@ -26,16 +26,16 @@ typedef struct Function
 
     char *name; // Function name
 
-    list_t *params; // PiList of parameters
+    List *params; // PiList of parameters
     int arity;      // Cached positional parameter count
 
-    list_t *param_names; // PiList of parameter names
+    List *param_names; // PiList of parameter names
     bool owns_params;
     ObjCode *body;
-    list_t *constants; // Constants table for this function's bytecode
-    list_t *names;     // Names table for this function's bytecode
-    table_t *instrs;   // Instruction metadata table for this function's bytecode
-    table_t *globals;  // The global environment where this function was defined
+    List *constants; // Constants table for this function's bytecode
+    List *names;     // Names table for this function's bytecode
+    HT_Table *instrs;   // Instruction metadata table for this function's bytecode
+    HT_Table *globals;  // The global environment where this function was defined
 
     UpValue **upvalues; // PiList of upvalues used in the function body
     int upvalue_count;  // Number of upvalues
@@ -52,15 +52,15 @@ typedef struct Function
     bool global_valid; // Whether a same-named global still points at this function object
     int glonal_index;  // Names-table index for a valid same-named global binding
 
-    native_func native; // Pointer to the native function (NULL for bytecode)
+    NativeFunc native; // Pointer to the native function (NULL for bytecode)
 } Function;
 
-// Object *new_func(char *name, list_t *body, list_t *params, UpValue **upvalues, Object *instance);
-Object *new_func(char *name, ObjCode *body, list_t *params, UpValue **upvalues, Object *instance);
-Value *new_native(const char *name, native_func func);
+// Object *new_func(char *name, List *body, List *params, UpValue **upvalues, Object *instance);
+Object *new_func(char *name, ObjCode *body, List *params, UpValue **upvalues, Object *instance);
+Value *new_native(const char *name, NativeFunc func);
 
-Value call_func(vm_t *vm, Function *function, size_t argc, Value *argv, Value kw_args);
-Value call_funcv(vm_t *vm, Function *function, size_t argc, ...);
+Value call_func(VM *vm, Function *function, size_t argc, Value *argv, Value kw_args);
+Value call_funcv(VM *vm, Function *function, size_t argc, ...);
 
 void free_func(Function *fn);
 
