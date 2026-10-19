@@ -32,7 +32,7 @@ jobs:
             runner: macos-13
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Windows build dependencies
         if: runner.os == 'Windows'
@@ -49,8 +49,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
-          make release
-          ./bin/pilang.exe help
+          mingw32-make release
+          SDL_VIDEODRIVER=dummy ./bin/pilang.exe help
           mkdir -p dist/pilang-windows-x64
           cp bin/pilang.exe dist/pilang-windows-x64/
           cp /ucrt64/bin/*.dll dist/pilang-windows-x64/
@@ -68,7 +68,7 @@ jobs:
         shell: bash
         run: |
           make release
-          ./bin/pilang help
+          SDL_VIDEODRIVER=dummy ./bin/pilang help
           mkdir -p dist/pilang-linux-x64/bin dist/pilang-linux-x64/lib
           cp bin/pilang dist/pilang-linux-x64/bin/
           ldd bin/pilang | awk '/=> \// {print $3}' | while read -r library; do
@@ -96,7 +96,8 @@ jobs:
           mkdir -p dist/Pilang.app/Contents/MacOS dist/Pilang.app/Contents/Frameworks
           cp bin/pilang dist/Pilang.app/Contents/MacOS/
           dylibbundler -od -b -x dist/Pilang.app/Contents/MacOS/pilang \
-            -d dist/Pilang.app/Contents/Frameworks
+            -d dist/Pilang.app/Contents/Frameworks \
+            -p @executable_path/../Frameworks/
           cat > dist/Pilang.app/Contents/Info.plist <<'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -107,7 +108,7 @@ jobs:
             <key>CFBundlePackageType</key><string>APPL</string>
           </dict></plist>
           EOF
-          dist/Pilang.app/Contents/MacOS/pilang help
+          otool -L dist/Pilang.app/Contents/MacOS/pilang
           tar -C dist -czf dist/pilang-${{ matrix.name }}.tar.gz Pilang.app
 
       - name: Upload release archive
