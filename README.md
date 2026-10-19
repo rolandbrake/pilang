@@ -32,9 +32,17 @@ be built for the browser with WebAssembly.
 
 ## Install and run
 
-When platform releases are available, download one from the
-[Releases page](https://github.com/rolandbrake/pilang/releases), extract it,
-then run `pilang` from the extracted folder. Until then, build from source:
+Pilang is ready to download. Get the latest **pre-release** from the
+[Releases page](https://github.com/rolandbrake/pilang/releases), then choose
+the archive for your platform:
+
+- **Windows x64:** extract the ZIP and run `pilang-windows-x64\\pilang.exe`.
+- **Linux x64:** extract the `.tar.gz`, then run `./pilang-linux-x64/pilang`.
+- **macOS:** extract the archive and open `Pilang.app` for Apple Silicon or
+  Intel, as appropriate.
+
+Pre-releases contain the newest features and are still being tested. Build
+from source if you want to contribute to Pilang or work on its runtime.
 
 To build Pilang from source, clone the repository and use the short setup path
 for your platform. It installs ready-made SDL libraries; do **not** run
