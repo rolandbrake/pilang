@@ -141,7 +141,7 @@ Value sy_version(VM *vm, int argc, Value *argv)
     (void)argc;
     (void)argv;
 
-    return NEW_OBJ(new_pistring(strdup(PI_VERSION)));
+    return NEW_OBJ(new_pistring(strdup(PI_VERSION_STRING)));
 }
 
 Value sy_path(VM *vm, int argc, Value *argv)

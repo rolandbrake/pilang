@@ -371,7 +371,7 @@ static const char *_package_color(const char *color)
 
 static void _print_usage(const char *program)
 {
-    printf("Pilangv0.1.4\n");
+    printf("Pilang v%s\n", PI_VERSION);
     printf("Usage:\n");
     printf("  %s                            Start the interactive prompt\n", program);
     printf("  %s run [file] [args...]       Run main.pi or the specified Pilang file\n", program);
@@ -1095,7 +1095,7 @@ static int _run_repl(void)
 #define C_CYAN "\033[36m"
 
     printf(
-        C_CYAN C_BOLD "Pilang v0.1.4" C_RESET
+        C_CYAN C_BOLD "Pilang v" PI_VERSION C_RESET
                       "  " C_YELLOW "(type 'exit' or press ^C to quit)" C_RESET "\n");
 
     Compiler *comp = init_compiler();
@@ -1344,7 +1344,7 @@ int main(int argc, char *argv[])
 
     if (strcmp(command, "--version") == 0 || strcmp(command, "-v") == 0)
     {
-        printf("Pilang: 0.1.3\n");
+        printf("Pilang: %s\n", PI_VERSION);
         return 0;
     }
 

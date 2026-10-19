@@ -4,10 +4,15 @@ RELEASE_DIR ?= bin
 
 ifeq ($(OS),Windows_NT)
 EXEEXT := .exe
+ifeq ($(MSYSTEM),)
+USE_POWERSHELL := 1
+endif
+endif
+
+ifeq ($(USE_POWERSHELL),1)
 MKDIR = powershell -NoProfile -Command "New-Item -ItemType Directory -Force '$(RELEASE_DIR)' | Out-Null"
 CLEAN = powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue '$(TARGET)', '$(WEB_TARGET)', '$(WEB_JS)', '$(WEB_WASM)'"
 else
-EXEEXT :=
 MKDIR = mkdir -p $(RELEASE_DIR)
 CLEAN = rm -f $(TARGET) $(WEB_TARGET) $(WEB_JS) $(WEB_WASM)
 endif
@@ -86,7 +91,10 @@ CPPFLAGS ?= -I.
 DEBUG_CFLAGS ?=  -DDEBUG_BUILD
 RELEASE_CFLAGS ?=  -O3
 
-ifeq ($(OS),Windows_NT)
+# `make static-deps` is intentionally optional. Normal Windows development uses
+# the prebuilt MSYS2 SDL packages through pkg-config; a static prefix is used
+# only when a maintainer has explicitly built it.
+ifneq ($(wildcard third_party/prefix/include/SDL2/SDL.h),)
 STATIC_PREFIX ?= third_party/prefix
 NATIVE_CPPFLAGS = $(CPPFLAGS) -I$(STATIC_PREFIX)/include
 RELEASE_CFLAGS += -static
@@ -119,8 +127,8 @@ NATIVE_LDLIBS ?= \
 DEBUG_LDLIBS ?= $(NATIVE_LDLIBS)
 else
 PKG_CONFIG ?= pkg-config
-SDL_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_image SDL2_ttf 2>/dev/null)
-SDL_LDLIBS ?= $(shell $(PKG_CONFIG) --libs sdl2 SDL2_image SDL2_ttf 2>/dev/null)
+SDL_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_image SDL2_ttf SDL2_mixer 2>/dev/null)
+SDL_LDLIBS ?= $(shell $(PKG_CONFIG) --libs sdl2 SDL2_image SDL2_ttf SDL2_mixer 2>/dev/null)
 CPPFLAGS += -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE $(SDL_CFLAGS)
 NATIVE_LDLIBS ?= $(SDL_LDLIBS) -lm -pthread
 DEBUG_LDLIBS ?= $(NATIVE_LDLIBS)
@@ -146,7 +154,7 @@ EMCC_FLAGS ?= \
 	--use-port=sdl2_ttf \
 	--shell-file index.html
 
-.PHONY: all debug release static-deps web run test loon-test clean
+.PHONY: all debug release static-deps setup web run test loon-test clean
 
 all: release
 
@@ -155,6 +163,9 @@ $(RELEASE_DIR):
 
 static-deps:
 	powershell -NoProfile -ExecutionPolicy Bypass -File tools/setup_deps.ps1
+
+setup:
+	@echo "Run tools/setup.ps1 on Windows or tools/setup.sh on Linux/macOS."
 
 debug: $(RELEASE_DIR)
 	$(CC) $(NATIVE_CFLAGS) $(DEBUG_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(DEBUG_LDLIBS)
