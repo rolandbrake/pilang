@@ -36,7 +36,7 @@ Pilang is ready to download. Get the latest **pre-release** from the
 [Releases page](https://github.com/rolandbrake/pilang/releases), then choose
 the archive for your platform:
 
-- **Windows x64:** extract the ZIP and run `pilang-windows-x64\\pilang.exe`.
+- **Windows x64:** extract the ZIP and run `pilang-windows-x64\pilang.exe`.
 - **Linux x64:** extract the `.tar.gz`, then run `./pilang-linux-x64/pilang`.
 - **macOS:** extract the archive and open `Pilang.app` for Apple Silicon or
   Intel, as appropriate.
