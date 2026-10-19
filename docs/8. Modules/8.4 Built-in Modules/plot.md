@@ -124,7 +124,7 @@ shape `[height, width, channels]` with `channels` in `1..4`.
 ```swift
 import image
 
-let img = image.load("imgs/baboon.bmp")
+let img = image.load("resources/baboon.bmp")
 plot.imshow(chart, img)
 ```
 

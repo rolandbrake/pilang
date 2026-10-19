@@ -9,7 +9,7 @@ return a new image and leave the input image unchanged.
 import image
 import image.filters
 
-let img = image.load("imgs/baboon.bmp")
+let img = image.load("resources/baboon.bmp")
 let edges = image.filters.canny(img, 50, 150)
 image.show(edges, "Edges")
 ```
@@ -143,7 +143,7 @@ import image.filters
 import plot
 import draw
 
-let img = image.load("imgs/baboon.bmp")
+let img = image.load("resources/baboon.bmp")
 let embossed = image.filters.filter(img, image.filters.KERNEL_EMBOSS)
 
 let ctx = draw.canvas(900, 420, "Filters")

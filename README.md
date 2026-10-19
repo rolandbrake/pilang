@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://pi-lang.netlify.app/">
-    <img src="imgs/pi_logo.png" alt="Pilang logo" width="500">
+    <img src="resources/pi_logo.png" alt="Pilang logo" width="500">
   </a>
 </p>
 
@@ -12,7 +12,7 @@
 
 
 <p align="center">
-  <a href="https://pi-lang.netlify.app/"><strong>Visit the Pilang website</strong></a>
+  <a href="https://pi-lang.netlify.app/"><strong>Website</a>
   |
   <a href="docs/README.md">Read the docs</a>
   |
@@ -22,147 +22,92 @@
 ## Overview
 
 Pilang is for the moment when an idea is still small enough to explore: shape
-some data, transform it, run the math, and draw the result without assembling a
-stack of packages first. It is a C-powered scripting language with tensors,
-image processing, 2D charts, and interactive 3D plots in its core modules.
+data, run the math, and draw the result without assembling a stack of packages
+first. It is a C-powered scripting language for numerical work, simulations,
+visual experiments, and small interactive programs.
 
-Its syntax keeps expressive operations close to the data. Build ranges and
-comprehensions, slice in either direction, use `#` for length, spread values
-with `...`, and send a value through a pipeline with `=>`. The result is a
-language that reads naturally while staying playful and direct for numerical
-work, simulations, and visual experiments.
+Tensors, image processing, 2D charts, interactive 3D plots, drawing, and audio
+are available as built-in modules. Pilang runs natively on Windows and can also
+be built for the browser with WebAssembly.
 
 ## Windows build and packaging
 
-Pilang's Windows release is a single static executable. SDL2, SDL_image,
-SDL_ttf, SDL_mixer, and their required static libraries are linked into
-`bin/pilang.exe`; users do not need to place those DLLs beside it.
-
-To build from a fresh clone, install Git, CMake, and a MinGW-w64 toolchain that
-provides `gcc` and `mingw32-make`, then run from the repository root:
+Build a standalone Windows executable from a fresh clone with Git, CMake, and
+a MinGW-w64 toolchain that provides `gcc` and `mingw32-make`:
 
 ```powershell
 make static-deps   # runs tools/setup_deps.ps1 to build pinned SDL dependencies once
 make release       # creates bin/pilang.exe
 ```
 
-The downloaded sources and build artifacts live in `third_party/`. They are
-ignored by Git and can be regenerated at any time with `make static-deps`.
-
-To package an application, create a `package.loon` next to its entry file and
-run the compiler from that directory. For the included example:
+Package an application by adding a `package.loon` beside its entry file, then
+run:
 
 ```powershell
 cd test\package
 ..\..\bin\pilang.exe pack target:win
 ```
 
-You can use `pilang pack target:win` instead after adding `bin/` to `PATH`.
-
-For example:
+After adding `bin/` to `PATH`, use `pilang pack target:win`. The resulting
+`.exe` includes the Pilang runtime and application, so it can be launched with
+a double-click. See [`test/package/package.loon`](test/package/package.loon)
+for a complete manifest example.
 
 ```loon
 name: "My App"
-version: "1.0.0"
 entry: "main.pi"
 targets:
   win:
     output: "my-app.exe"
-    console: false
-    icon: "data/assets/icon.png"
 ```
-
-`my-app.exe` contains both the Pilang runtime and compiled application. It can
-be started with a double-click. Set `console: false` to hide the command prompt
-for a windowed application. `icon` accepts a PNG up to 256 by 256 pixels or an
-ICO file and sets
-the Windows executable icon. See [`test/package/package.loon`](test/package/package.loon)
-for a working example.
 
 ## Math Plotting
 
-Create mathematical plots and visualize data directly.
+Turn arrays, functions, and simulations into 2D charts or interactive 3D
+surface, mesh, and wireframe plots. The plotting modules are designed for quick
+visual feedback while you experiment.
 
 <p align="center">
     <a href="./samples/surface.pi">
-        <img src="imgs/math_plot.png" alt="Pilang mathematical plot" height="400">
+        <img src="resources/math_plot.png" alt="Pilang mathematical plot" height="400">
     </a>
 </p>
 
 ## Image Processing
 
-Apply image-processing operations such as edge detection and grayscale conversion.
+Load, inspect, and transform images with built-in operations such as grayscale
+conversion and edge detection, then display the result in the same script.
 
 <p align="center">
  <a href="./samples/imshow.pi">
-    <img src="imgs/img_process.png" alt="Pilang image processing" height="400">
-  </a>
-</p>
-
-## Games
-
-Pilang is growing support for small interactive games.
-
-<p align="center">
-  <a href="https://github.com/rolandbrake/pilang-games" target="_blank">
-    <img src="imgs/games.png" alt="Pilang games in progress" height="500">
+    <img src="resources/img_process.png" alt="Pilang image processing" height="400">
   </a>
 </p>
 
 ## 3D Graphics
 
-Explore software-projected 3D scenes and model rendering in PiLang.
+Explore software-projected 3D scenes, meshes, and OBJ model rendering without
+leaving Pilang.
 
 <p align="center">
   <a href="./samples/graphics/tunnel_3d.pi">
-    <img src="imgs/3d_models.png" alt="Pilang 3D graphics in progress" height="400">
+    <img src="resources/3d_models.png" alt="Pilang 3D graphics in progress" height="400">
   </a>
 </p>
 
-## The Pilang Feel
 
+## Games
 
-### A pipeline, not plumbing
+Pilang supports small interactive games with drawing, input, images, and audio.
+Build them for the browser with WebAssembly or package them as standalone
+Windows executables.
 
-Turn a collection into an answer as a readable sequence of operations. `=>`
-passes the expression on its left into the next call; arrow functions and list
-comprehensions make transformations compact without hiding the work.
+<p align="center">
+  <a href="https://github.com/rolandbrake/pilang-games" target="_blank">
+    <img src="resources/_games.png" alt="Pilang games in progress" height="600">
+  </a>
+</p>
 
-```swift
-let total = [n : n in 0..20] =>
-    filter(n -> n % 2 == 0) =>
-    map(n -> n ** 2) =>
-    reduce((sum, n) -> sum + n, 0)
-
-let highlighted = [n * n : n in 0..20 : n % 3 == 0]
-```
-
-### Collections with a visual vocabulary
-
-Negative indexes, reverse slices, ranges, `#` length, destructuring, and spread
-syntax are built into everyday expressions—not bolted on as library calls.
-
-```swift
-let trail = [2, 3, 5, 7, 11]
-[first, second] = trail // first = 2, second = 3
-let reversed = trail[::-1]
-let extended = [0, ...trail, 13]
-
-println(#extended) // 7
-println(3 in trail) // true
-```
-
-### Math that reaches the screen
-
-Tensors, statistics, drawing, plots, 3D visualization, and image operations
-are available as native modules. Move from a matrix to a chart or surface plot
-without first building an ecosystem around your script.
-
-### Let domain objects speak the language
-
-Objects can define `format`, `call`, indexing behavior, and `compute` hooks for
-operators. A vector, unit, color, or symbolic value can participate in normal
-Pilang expressions instead of living behind verbose method calls.
 
 ## Quick Taste
 
@@ -465,7 +410,7 @@ Use it to read docs, browse examples, and try Pilang in the browser.
 
 <p align="center">
     <a href="./samples/graphics/monkey_3d.pi">
-        <img src="imgs/monkey.gif" alt="Pilang rotating OBJ monkey model" width="220" height="220">
+        <img src="resources/monkey.gif" alt="Pilang rotating OBJ monkey model" width="180" >
     </a>
 </p>
 

@@ -11,7 +11,7 @@ plot.title(chart, "Loaded image")
 plot.xlabel(chart, "x pixel")
 plot.ylabel(chart, "y pixel")
 
-let img = image.load("../imgs/baboon.bmp")
+let img = image.load("../resources/baboon.bmp")
 
 let gray = image.color.rgb2gray(img)
 plot.imshow(chart, gray)

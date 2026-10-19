@@ -28,6 +28,7 @@ EM_JS(void, _web_stop_loop, (), { if(Module.piFrameLoop){cancelAnimationFrame(Mo
 #include "pi_plot3d.h"
 #include "../src/pi_func.h"
 #include "../src/pi_table.h"
+#include "../src/pi_package.h"
 
 typedef struct TransformState
 {
@@ -699,6 +700,18 @@ Value dw_canvas(VM *vm, int argc, Value *argv)
             vm_error(vm, "canvas() icon must be an image path");
         icon_path = AS_CSTRING(argv[3]);
     }
+    bool show_launch = TRUE;
+    if (argc > 4)
+    {
+        if (!IS_BOOL(argv[4]))
+            vm_error(vm, "canvas() launch flag must be a boolean");
+        show_launch = AS_BOOL(argv[4]);
+    }
+
+#if defined(_WIN32) && !defined(__EMSCRIPTEN__)
+    if (show_launch)
+        package_showLaunchScreen(w, h, title);
+#endif
 
     PiContext *ctx = (PiContext *)new_context();
 #ifdef __EMSCRIPTEN__
@@ -1916,7 +1929,7 @@ static BuiltinFunc draw_funcs[] = {
     {"clear", dw_clear},
     {"pixel", dw_pixel},
     {"line", dw_line},
-    {"Triangle", dw_triangle},
+    {"triangle", dw_triangle},
     {"rect", dw_rect},
     {"polygon", dw_polygon},
     {"circle", dw_circle},

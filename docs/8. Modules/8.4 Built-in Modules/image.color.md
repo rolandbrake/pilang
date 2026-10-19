@@ -9,7 +9,7 @@ objects. Each function returns a new image.
 import image
 import image.color
 
-let img = image.load("imgs/lenna.png")
+let img = image.load("resources/lenna.png")
 let gray = image.color.rgb2gray(img)
 image.show(gray, "Grayscale")
 ```
@@ -65,7 +65,7 @@ let restored = image.color.hsv2rgb(hsv)
 import image
 import image.color
 
-let img = image.load("imgs/baboon.bmp")
+let img = image.load("resources/baboon.bmp")
 let gray = image.color.rgb2gray(img)
 let rgba = image.color.gray2rgba(gray)
 

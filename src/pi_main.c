@@ -316,6 +316,7 @@ int main(int argc, char *argv[])
 
 // Native (non-Emscripten) includes and main
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -344,6 +345,14 @@ int main(int argc, char *argv[])
 #endif
 
 static bool package_colors;
+#ifdef _WIN32
+static char package_executable[MAX_PATH];
+static uint64_t package_launch_offset;
+static uint64_t package_launch_size;
+static uint64_t package_font_offset;
+static uint64_t package_font_size;
+static bool package_launch_pending;
+#endif
 
 static void _package_initOutput(void)
 {
@@ -742,6 +751,154 @@ static int _run_executableFile(const char *filename)
     comp->source_name = strdup(entry->path);
     int status = _run_compiler(comp, NULL, entry->path, TRUE, build);
     return status;
+}
+
+static void _show_launchScreen(const char *filename, uint64_t offset, uint64_t size,
+                               uint64_t font_offset, uint64_t font_size,
+                               int window_width, int window_height, const char *title)
+{
+    FILE *file = fopen(filename, "rb");
+    if (!file || !size || fseek(file, (long)offset, SEEK_SET) != 0)
+    {
+        if (file)
+            fclose(file);
+        return;
+    }
+
+    void *data = malloc((size_t)size);
+    if (!data || fread(data, 1, (size_t)size, file) != size)
+    {
+        free(data);
+        fclose(file);
+        return;
+    }
+    fclose(file);
+
+    SDL_RWops *stream = SDL_RWFromMem(data, (int)size);
+    SDL_Surface *surface = stream ? IMG_Load_RW(stream, 1) : NULL;
+    free(data);
+    if (!surface)
+        return;
+
+    SDL_Window *window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                                          window_width, window_height, 0);
+    SDL_Renderer *renderer = window ? SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED) : NULL;
+    SDL_Texture *texture = renderer ? SDL_CreateTextureFromSurface(renderer, surface) : NULL;
+    SDL_FreeSurface(surface);
+    if (!texture)
+    {
+        if (renderer)
+            SDL_DestroyRenderer(renderer);
+        if (window)
+            SDL_DestroyWindow(window);
+        return;
+    }
+
+    int width, height, image_width, image_height;
+    SDL_GetRendererOutputSize(renderer, &width, &height);
+    SDL_QueryTexture(texture, NULL, NULL, &image_width, &image_height);
+    float scale = fminf((float)width * 0.55f / image_width, (float)height * 0.36f / image_height);
+    SDL_Rect destination = {(width - (int)(image_width * scale)) / 2,
+                            height / 2 - (int)(image_height * scale) - height / 20,
+                            (int)(image_width * scale), (int)(image_height * scale)};
+    time_t now = time(NULL);
+    struct tm *local = localtime(&now);
+    char caption[64];
+    snprintf(caption, sizeof(caption), "Powered by Pilang \xC2\xA9 %d", local ? local->tm_year + 1900 : 2026);
+    file = fopen(filename, "rb");
+    void *font_data = font_size && file && fseek(file, (long)font_offset, SEEK_SET) == 0 ? malloc((size_t)font_size) : NULL;
+    bool font_loaded = font_data && fread(font_data, 1, (size_t)font_size, file) == font_size;
+    if (file)
+        fclose(file);
+    if (!font_loaded)
+    {
+        free(font_data);
+        font_data = NULL;
+    }
+    SDL_RWops *font_stream = font_data ? SDL_RWFromMem(font_data, (int)font_size) : NULL;
+    TTF_Font *font = font_stream ? TTF_OpenFontRW(font_stream, 1, height / 38) : NULL;
+    if (font)
+        TTF_SetFontStyle(font, TTF_STYLE_BOLD);
+    SDL_Surface *caption_surface = font ? TTF_RenderUTF8_Blended(font, caption, (SDL_Color){255, 255, 255, 255}) : NULL;
+    SDL_Texture *caption_texture = caption_surface ? SDL_CreateTextureFromSurface(renderer, caption_surface) : NULL;
+    SDL_Rect caption_destination = {0};
+    if (caption_texture)
+    {
+        SDL_QueryTexture(caption_texture, NULL, NULL, &caption_destination.w, &caption_destination.h);
+        caption_destination.x = (width - caption_destination.w) / 2;
+        caption_destination.y = destination.y + destination.h + height / 28;
+    }
+    if (caption_surface)
+        SDL_FreeSurface(caption_surface);
+    Uint32 started = SDL_GetTicks();
+    const Uint32 duration = 2000;
+    SDL_Event event;
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    while (SDL_GetTicks() - started < duration)
+    {
+        while (SDL_PollEvent(&event))
+            if (event.type == SDL_QUIT)
+                started = SDL_GetTicks() - duration;
+        Uint32 elapsed = SDL_GetTicks() - started;
+        Uint8 alpha = elapsed < 500    ? (Uint8)(elapsed * 255 / 500)
+                      : elapsed < 1500 ? 255
+                                       : (Uint8)((duration - elapsed) * 255 / 500);
+        SDL_SetRenderDrawColor(renderer, 0, 176, 240, 255);
+        SDL_RenderClear(renderer);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 48);
+        int grid = height / 16;
+        for (int x = 0; x < width; x += grid)
+        {
+            SDL_RenderDrawLine(renderer, x, 0, x, height);
+            SDL_RenderDrawLine(renderer, x + 1, 0, x + 1, height);
+        }
+        for (int y = 0; y < height; y += grid)
+        {
+            SDL_RenderDrawLine(renderer, 0, y, width, y);
+            SDL_RenderDrawLine(renderer, 0, y + 1, width, y + 1);
+        }
+        SDL_SetTextureAlphaMod(texture, alpha);
+        SDL_RenderCopy(renderer, texture, NULL, &destination);
+        if (caption_texture)
+        {
+            SDL_SetTextureColorMod(caption_texture, 0, 0, 0);
+            SDL_Rect shadow = caption_destination;
+            shadow.x += 2;
+            shadow.y += 2;
+            SDL_SetTextureAlphaMod(caption_texture, alpha);
+            SDL_RenderCopy(renderer, caption_texture, NULL, &shadow);
+            SDL_SetTextureColorMod(caption_texture, 255, 255, 255);
+            SDL_RenderCopy(renderer, caption_texture, NULL, &caption_destination);
+        }
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255 - alpha);
+        SDL_RenderFillRect(renderer, NULL);
+        SDL_RenderPresent(renderer);
+        SDL_Delay(16);
+    }
+    if (caption_texture)
+        SDL_DestroyTexture(caption_texture);
+    if (font)
+        TTF_CloseFont(font);
+    free(font_data);
+    SDL_DestroyTexture(texture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+}
+
+void package_showLaunchScreen(int width, int height, const char *title)
+{
+#ifdef _WIN32
+    if (!package_launch_pending)
+        return;
+    package_launch_pending = FALSE;
+    _show_launchScreen(package_executable, package_launch_offset, package_launch_size,
+                       package_font_offset, package_font_size, width, height, title);
+#else
+    (void)width;
+    (void)height;
+    (void)title;
+#endif
 }
 
 static int _run_embeddedBuild(const char *filename, uint64_t offset)
@@ -1152,12 +1309,23 @@ int main(int argc, char *argv[])
     char executable[MAX_PATH];
     DWORD executable_length = GetModuleFileNameA(NULL, executable, sizeof(executable));
     uint64_t embedded_offset;
+    uint64_t launch_offset;
+    uint64_t launch_size;
+    uint64_t font_offset;
+    uint64_t font_size;
     bool embedded_console;
     if (executable_length > 0 && executable_length < sizeof(executable) &&
-        package_embeddedOffset(executable, &embedded_offset, &embedded_console))
+        package_embeddedOffset(executable, &embedded_offset, &embedded_console,
+                               &launch_offset, &launch_size, &font_offset, &font_size))
     {
         if (!embedded_console)
             FreeConsole();
+        strcpy(package_executable, executable);
+        package_launch_offset = launch_offset;
+        package_launch_size = launch_size;
+        package_font_offset = font_offset;
+        package_font_size = font_size;
+        package_launch_pending = TRUE;
         return _run_embeddedBuild(executable, embedded_offset);
     }
 #endif

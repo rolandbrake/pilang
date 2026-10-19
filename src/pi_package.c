@@ -15,6 +15,31 @@
 static bool _copy_file(FILE *source, FILE *destination);
 static void _bundle_error(char *error, size_t error_size, const char *message);
 
+static FILE *_open_splashAsset(const char *runtime_path, const char *asset)
+{
+    const char *separator = strrchr(runtime_path, '/');
+    const char *backslash = strrchr(runtime_path, '\\');
+    if (!separator || (backslash && backslash > separator))
+        separator = backslash;
+    if (separator)
+    {
+        size_t directory_length = (size_t)(separator - runtime_path);
+        char *path = malloc(directory_length + strlen("/../resources/") + strlen(asset) + 1);
+        if (path)
+        {
+            memcpy(path, runtime_path, directory_length);
+            sprintf(path + directory_length, "/../resources/%s", asset);
+            FILE *file = fopen(path, "rb");
+            free(path);
+            if (file)
+                return file;
+        }
+    }
+    char path[256];
+    snprintf(path, sizeof(path), "resources/%s", asset);
+    return fopen(path, "rb");
+}
+
 static char *_read_text(const char *path)
 {
     FILE *file = fopen(path, "rb");
@@ -479,17 +504,27 @@ bool package_bundle(const char *runtime_path, const PiPackage *package, char *er
         strcat(payload_path, ".px");
     FILE *runtime = fopen(runtime_path, "rb");
     FILE *payload = fopen(payload_path, "rb");
+    FILE *launch = _open_splashAsset(runtime_path, "_launch.png");
+    FILE *font = _open_splashAsset(runtime_path, "JetBrainsMono-Light.ttf");
     free(payload_path);
-    if (!runtime || !payload)
+    if (!runtime || !payload || !launch || !font)
     {
         if (!runtime)
             snprintf(error, error_size, "could not read Pilang runtime '%s': %s", runtime_path, strerror(errno));
         else
             snprintf(error, error_size, "could not read compiled application '%s'", package->entry);
+        if (!launch)
+            snprintf(error, error_size, "could not read launch logo 'resources/_launch.png'");
+        if (!font)
+            snprintf(error, error_size, "could not read splash font 'resources/JetBrainsMono-Light.ttf'");
         if (runtime)
             fclose(runtime);
         if (payload)
             fclose(payload);
+        if (launch)
+            fclose(launch);
+        if (font)
+            fclose(font);
         return FALSE;
     }
     FILE *output = fopen(package->output, "wb");
@@ -498,6 +533,8 @@ bool package_bundle(const char *runtime_path, const PiPackage *package, char *er
         snprintf(error, error_size, "could not create '%s': %s", package->output, strerror(errno));
         fclose(runtime);
         fclose(payload);
+        fclose(launch);
+        fclose(font);
         return FALSE;
     }
     bool ok = _copy_file(runtime, output);
@@ -528,6 +565,38 @@ bool package_bundle(const char *runtime_path, const PiPackage *package, char *er
         _bundle_error(error, error_size, "could not seek the package output");
         ok = FALSE;
     }
+    long launch_offset = ok ? ftell(output) : -1;
+    if (ok && fseek(launch, 0, SEEK_END) != 0)
+    {
+        _bundle_error(error, error_size, "could not measure the launch image");
+        ok = FALSE;
+    }
+    long launch_size = ftell(launch);
+    if (launch_size < 0 || fseek(launch, 0, SEEK_SET) != 0)
+    {
+        _bundle_error(error, error_size, "could not read the launch image");
+        ok = FALSE;
+    }
+    if (ok)
+        ok = _copy_file(launch, output);
+    if (!ok && (!error || !error[0]))
+        _bundle_error(error, error_size, "failed while appending the launch image");
+    long font_offset = ok ? ftell(output) : -1;
+    if (ok && fseek(font, 0, SEEK_END) != 0)
+    {
+        _bundle_error(error, error_size, "could not measure the splash font");
+        ok = FALSE;
+    }
+    long font_size = ftell(font);
+    if (font_size < 0 || fseek(font, 0, SEEK_SET) != 0)
+    {
+        _bundle_error(error, error_size, "could not read the splash font");
+        ok = FALSE;
+    }
+    if (ok)
+        ok = _copy_file(font, output);
+    if (!ok && (!error || !error[0]))
+        _bundle_error(error, error_size, "failed while appending the splash font");
     long offset = ok ? ftell(output) : -1;
     if (fseek(payload, 0, SEEK_END) != 0)
     {
@@ -544,12 +613,17 @@ bool package_bundle(const char *runtime_path, const PiPackage *package, char *er
         ok = _copy_file(payload, output);
     if (!ok && (!error || !error[0]))
         _bundle_error(error, error_size, "failed while appending the compiled application");
-    PiPackageTrailer trailer = {{'P', 'I', 'P', 'A', 'C', 'K', '1', package->console ? 'C' : 'G'}, (uint64_t)offset, (uint64_t)size};
+    PiPackageTrailer trailer = {{'P', 'I', 'P', 'A', 'C', 'K', '3', package->console ? 'C' : 'G'},
+                                (uint64_t)offset, (uint64_t)size,
+                                (uint64_t)launch_offset, (uint64_t)launch_size,
+                                (uint64_t)font_offset, (uint64_t)font_size};
     if (ok)
         ok = fwrite(&trailer, 1, sizeof(trailer), output) == sizeof(trailer);
     if (!ok && (!error || !error[0]))
         _bundle_error(error, error_size, "failed while writing package information");
     fclose(payload);
+    fclose(launch);
+    fclose(font);
     if (output)
         fclose(output);
     if (!ok)
@@ -557,7 +631,9 @@ bool package_bundle(const char *runtime_path, const PiPackage *package, char *er
     return ok;
 }
 
-bool package_embeddedOffset(const char *path, uint64_t *offset, bool *console)
+bool package_embeddedOffset(const char *path, uint64_t *offset, bool *console,
+                            uint64_t *launch_offset, uint64_t *launch_size,
+                            uint64_t *font_offset, uint64_t *font_size)
 {
     FILE *file = fopen(path, "rb");
     PiPackageTrailer trailer;
@@ -569,10 +645,18 @@ bool package_embeddedOffset(const char *path, uint64_t *offset, bool *console)
         return FALSE;
     }
     fclose(file);
-    if (memcmp(trailer.magic, "PIPACK1", 7) != 0)
+    if (memcmp(trailer.magic, "PIPACK3", 7) != 0)
         return FALSE;
     *offset = trailer.payload_offset;
     if (console)
         *console = trailer.magic[7] != 'G';
+    if (launch_offset)
+        *launch_offset = trailer.launch_offset;
+    if (launch_size)
+        *launch_size = trailer.launch_size;
+    if (font_offset)
+        *font_offset = trailer.font_offset;
+    if (font_size)
+        *font_size = trailer.font_size;
     return TRUE;
 }

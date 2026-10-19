@@ -10,7 +10,7 @@ workflows.
 ```swift
 import image
 
-let img = image.load("imgs/baboon.bmp")
+let img = image.load("resources/baboon.bmp")
 println(image.width(img), image.height(img), image.channels(img))
 
 let small = image.resize(img, 256, 256)
@@ -40,7 +40,7 @@ common formats such as BMP, PNG, and JPG are supported when the native build has
 those SDL_image backends.
 
 ```swift
-let img = image.load("imgs/lenna.png")
+let img = image.load("resources/lenna.png")
 ```
 
 Relative paths are resolved from the directory containing the executing `.pi`
@@ -163,7 +163,7 @@ import image
 import image.color
 import image.filters
 
-let img = image.load("imgs/baboon.bmp")
+let img = image.load("resources/baboon.bmp")
 let gray = image.color.rgb2gray(img)
 let edges = image.filters.canny(gray, 40, 120)
 
