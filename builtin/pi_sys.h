@@ -1,8 +1,8 @@
 #ifndef PI_SYS_H
 #define PI_SYS_H
 
-#include "../pi_value.h"
-#include "../pi_vm.h"
+#include "../src/pi_value.h"
+#include "../src/pi_vm.h"
 
 Value pi_error(VM *vm, int argc, Value *argv);
 Value pi_assert(VM *vm, int argc, Value *argv);

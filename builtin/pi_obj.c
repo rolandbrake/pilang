@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "pi_obj.h"
-#include "../pi_class.h"
+#include "../src/pi_class.h"
 
 static int _normalize_compare(int cmp)
 {

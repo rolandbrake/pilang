@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "../pi_vm.h"
+#include "../src/pi_vm.h"
 
 typedef enum
 {

@@ -4,7 +4,7 @@
 #include <string.h>
 
 #include "pi_col.h"
-#include "../pi_list.h"
+#include "../src/pi_list.h"
 #include "pi_builtin.h"
 
 static int _compare(const void *a, const void *b)

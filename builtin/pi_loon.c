@@ -1,8 +1,8 @@
 #include "pi_loon.h"
 #include "pi_builtin.h"
 
-#include "../pi_object.h"
-#include "../pi_table.h"
+#include "../src/pi_object.h"
+#include "../src/pi_table.h"
 
 /* Native LOON parser shared by the c native implementation and the `loon` module. */
 

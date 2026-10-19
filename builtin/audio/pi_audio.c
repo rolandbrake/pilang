@@ -2,7 +2,7 @@
 #include <emscripten.h>
 #include "pi_audio.h"
 #include "../pi_builtin.h"
-#include "../../pi_object.h"
+#include "../../src/pi_object.h"
 
 EM_JS(int, _web_audio_load, (const char *path), { Module.piAudio ||= []; const a = new Audio(UTF8ToString(path)); Module.piAudio.push(a); return Module.piAudio.length - 1; });
 EM_JS(void, _web_audio_play, (int id), { const a=Module.piAudio&&Module.piAudio[id]; if(a){a.currentTime=0;a.play().catch(()=>{});} });
@@ -119,9 +119,9 @@ DEFINE_BUILTIN_MODULE(module_audio, "audio", audio_funcs, audio_consts);
 
 #include "pi_audio.h"
 #include "../pi_builtin.h"
-#include "../../common.h"
-#include "../../pi_object.h"
-#include "../../pi_value.h"
+#include "../../src/common.h"
+#include "../../src/pi_object.h"
+#include "../../src/pi_value.h"
 
 static Mix_Music *current_music = NULL;
 

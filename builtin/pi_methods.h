@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#include "../pi_func.h"
+#include "../src/pi_func.h"
 
 typedef struct
 {

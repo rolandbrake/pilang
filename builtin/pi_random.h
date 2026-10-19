@@ -1,8 +1,8 @@
 #ifndef PI_RANDOM_H
 #define PI_RANDOM_H
 
-#include "../pi_value.h"
-#include "../pi_vm.h"
+#include "../src/pi_value.h"
+#include "../src/pi_vm.h"
 
 Value rd_seed(VM *vm, int argc, Value *argv);
 Value rd_rand(VM *vm, int argc, Value *argv);

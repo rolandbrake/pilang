@@ -1,8 +1,8 @@
 #ifndef PI_OBJ_H
 #define PI_OBJ_H
 
-#include "../pi_value.h"
-#include "../pi_vm.h"
+#include "../src/pi_value.h"
+#include "../src/pi_vm.h"
 
 Value pi_values(VM *vm, int argc, Value *argv);
 Value pi_keys(VM *vm, int argc, Value *argv);

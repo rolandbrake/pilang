@@ -1,6 +1,6 @@
 #include "pi_builtin.h"
 #include "pi_col.h"
-#include "../pi_value.h"
+#include "../src/pi_value.h"
 
 BuiltinConst builtin_constants[] = {
     {"INF", NEW_NUM(INFINITY)},

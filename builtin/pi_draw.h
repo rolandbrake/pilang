@@ -1,9 +1,9 @@
 #ifndef PI_DRAW_H
 #define PI_DRAW_H
 
-#include "../pi_vm.h"
-#include "../pi_value.h"
-#include "../pi_object.h"
+#include "../src/pi_vm.h"
+#include "../src/pi_value.h"
+#include "../src/pi_object.h"
 
 // Create a new drawing canvas/window.
 Value dw_canvas(VM *vm, int argc, Value *argv);

@@ -4,7 +4,7 @@
 
 #include "pi_math.h"
 #include "pi_builtin.h"
-#include "../common.h"
+#include "../src/common.h"
 
 // xoshiro32** uses four 32-bit state values. splitmix32 expands a single seed into this state.
 static uint32_t rng_state[4];

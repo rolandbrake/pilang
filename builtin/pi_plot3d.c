@@ -8,8 +8,8 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 
-#include "../pi_func.h"
-#include "../pi_object.h"
+#include "../src/pi_func.h"
+#include "../src/pi_object.h"
 
 #include "pi_builtin.h"
 

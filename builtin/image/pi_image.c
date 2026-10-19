@@ -8,9 +8,9 @@
 
 #include "pi_image.h"
 #include "../pi_builtin.h"
-#include "../../common.h"
-#include "../../pi_value.h"
-#include "../../pi_object.h"
+#include "../../src/common.h"
+#include "../../src/pi_value.h"
+#include "../../src/pi_object.h"
 
 ObjImage *new_image(SDL_Surface *s)
 {

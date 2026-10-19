@@ -5,8 +5,8 @@
 #include <string.h>
 
 #include "pi_os.h"
-#include "../pi_object.h"
-#include "../pi_table.h"
+#include "../src/pi_object.h"
+#include "../src/pi_table.h"
 #include "pi_builtin.h"
 
 #ifdef __EMSCRIPTEN__

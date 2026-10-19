@@ -5,9 +5,9 @@
 
 #include "pi_filters.h"
 #include "./pi_image.h"
-#include "../../common.h"
-#include "../../pi_object.h"
-#include "../../pi_value.h"
+#include "../../src/common.h"
+#include "../../src/pi_object.h"
+#include "../../src/pi_value.h"
 
 #include <SDL2/SDL.h>
 

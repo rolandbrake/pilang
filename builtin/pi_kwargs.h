@@ -1,7 +1,7 @@
 #ifndef PI_KWARGS_H
 #define PI_KWARGS_H
 
-#include "../pi_vm.h"
+#include "../src/pi_vm.h"
 
 static inline bool _kw_has(VM *vm, const char *name)
 {

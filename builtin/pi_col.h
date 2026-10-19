@@ -1,7 +1,7 @@
 #ifndef PI_COL_H
 #define PI_COL_H
-#include "../pi_value.h"
-#include "../pi_vm.h"
+#include "../src/pi_value.h"
+#include "../src/pi_vm.h"
 
 // Removes and returns the last element or character from a list or string.
 Value pi_pop(VM *vm, int argc, Value *argv);

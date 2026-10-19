@@ -5,8 +5,8 @@
 
 #include "pi_color.h"
 #include "pi_image.h"
-#include "../../pi_object.h"
-#include "../../pi_value.h"
+#include "../../src/pi_object.h"
+#include "../../src/pi_value.h"
 
 #include <SDL2/SDL.h>
 

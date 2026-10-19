@@ -1,8 +1,8 @@
 #ifndef PI_TYPE_H
 #define PI_TYPE_H
 
-#include "../pi_value.h"
-#include "../pi_vm.h"
+#include "../src/pi_value.h"
+#include "../src/pi_vm.h"
 
 Value _pi_type(VM *vm, int argc, Value *argv);
 Value pi_isNum(VM *vm, int argc, Value *argv);

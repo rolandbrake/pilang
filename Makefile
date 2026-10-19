@@ -18,26 +18,26 @@ WEB_JS ?= $(RELEASE_DIR)/pilang.js
 WEB_WASM ?= $(RELEASE_DIR)/pilang.wasm
 
 CORE_SRCS := \
-	pi_main.c \
-	pi_token.c \
-	pi_lex.c \
-	pi_list.c \
-	pi_stack.c \
-	pi_table.c \
-	pi_string.c \
-	pi_value.c \
-	pi_object.c \
-	pi_class.c \
-	pi_compiler.c \
-	pi_parser.c \
-	pi_vm.c \
-	common.c \
-	pi_func.c \
-	pi_frame.c \
-	gc.c \
-	pi_package.c \
-	pi_module.c \
-	pi_build.c
+	src/pi_main.c \
+	src/pi_token.c \
+	src/pi_lex.c \
+	src/pi_list.c \
+	src/pi_stack.c \
+	src/pi_table.c \
+	src/pi_string.c \
+	src/pi_value.c \
+	src/pi_object.c \
+	src/pi_class.c \
+	src/pi_compiler.c \
+	src/pi_parser.c \
+	src/pi_vm.c \
+	src/common.c \
+	src/pi_func.c \
+	src/pi_frame.c \
+	src/gc.c \
+	src/pi_package.c \
+	src/pi_module.c \
+	src/pi_build.c
 
 COMMON_BUILTIN_SRCS := \
 	builtin/pi_math.c \
@@ -82,7 +82,7 @@ WEB_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS) \
 CSTD ?= -std=c99
 # WARNINGS ?= -Wall -Wextra
 
-CPPFLAGS ?=
+CPPFLAGS ?= -I.
 DEBUG_CFLAGS ?=  -DDEBUG_BUILD
 RELEASE_CFLAGS ?=  -O3
 

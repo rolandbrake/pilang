@@ -1,7 +1,7 @@
 #ifndef PI_AUDIO_H
 #define PI_AUDIO_H
 
-#include "../../pi_value.h"
+#include "../../src/pi_value.h"
 
 Value au_load(VM *vm, int argc, Value *argv);
 

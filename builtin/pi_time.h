@@ -5,8 +5,8 @@
 #include <time.h>
 #include <math.h>
 
-#include "../pi_value.h"
-#include "../pi_vm.h"
+#include "../src/pi_value.h"
+#include "../src/pi_vm.h"
 
 Value pi_sleep(VM *vm, int argc, Value *argv);
 Value _pi_time(VM *vm, int argc, Value *argv);

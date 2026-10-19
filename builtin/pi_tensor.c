@@ -1,8 +1,8 @@
 #include "pi_tensor.h"
 #include "pi_builtin.h"
-#include "../pi_func.h"
-#include "../pi_list.h"
-#include "../pi_object.h"
+#include "../src/pi_func.h"
+#include "../src/pi_list.h"
+#include "../src/pi_object.h"
 #include <stdlib.h>
 #include <math.h>
 #include <limits.h>

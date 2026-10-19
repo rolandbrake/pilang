@@ -1,8 +1,8 @@
 #ifndef PI_PLOT3D_H
 #define PI_PLOT3D_H
 
-#include "../pi_vm.h"
-#include "../pi_value.h"
+#include "../src/pi_vm.h"
+#include "../src/pi_value.h"
 
 Value pt3d_surface(VM *vm, int argc, Value *argv);
 Value pt3d_mesh(VM *vm, int argc, Value *argv);

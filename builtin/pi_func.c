@@ -3,11 +3,11 @@
 #include <sys/time.h>
 
 #include "pi_func.h"
-#include "../pi_func.h"
-#include "../pi_list.h"
-#include "../pi_object.h"
-#include "../pi_table.h"
-#include "../pi_value.h"
+#include "../src/pi_func.h"
+#include "../src/pi_list.h"
+#include "../src/pi_object.h"
+#include "../src/pi_table.h"
+#include "../src/pi_value.h"
 #include "pi_builtin.h"
 
 static double _now_ms(void)

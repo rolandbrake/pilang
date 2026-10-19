@@ -2,7 +2,7 @@
 #define PI_IMAGE_COLOR_H
 
 #include "../pi_builtin.h"
-#include "../../pi_value.h"
+#include "../../src/pi_value.h"
 
 Value im_rgb2gray(VM *vm, int argc, Value *argv);
 Value im_gray2rgb(VM *vm, int argc, Value *argv);

@@ -4,8 +4,8 @@
 #include "pi_builtin.h"
 #include "pi_math.h"
 #include "pi_random.h"
-#include "../pi_list.h"
-#include "../pi_object.h"
+#include "../src/pi_list.h"
+#include "../src/pi_object.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846

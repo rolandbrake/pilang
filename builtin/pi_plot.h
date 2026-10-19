@@ -1,9 +1,9 @@
 #ifndef PI_PLOT_H
 #define PI_PLOT_H
 
-#include "../pi_vm.h"
-#include "../pi_value.h"
-#include "../pi_object.h"
+#include "../src/pi_vm.h"
+#include "../src/pi_value.h"
+#include "../src/pi_object.h"
 
 typedef struct
 {

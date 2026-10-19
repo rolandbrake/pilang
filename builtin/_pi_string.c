@@ -3,7 +3,7 @@
 #include <ctype.h>
 
 #include "_pi_string.h"
-#include "../pi_object.h"
+#include "../src/pi_object.h"
 #include "pi_builtin.h"
 
 // Return a single character string based on the given numeric argument.

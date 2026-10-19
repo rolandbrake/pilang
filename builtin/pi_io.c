@@ -21,9 +21,9 @@
 
 #include "pi_io.h"
 
-#include "../common.h"
+#include "../src/common.h"
 #include "pi_builtin.h"
-#include "../pi_func.h"
+#include "../src/pi_func.h"
 
 static void _append(char *buffer, int *offset, const char *text)
 {

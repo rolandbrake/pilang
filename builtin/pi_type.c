@@ -1,6 +1,6 @@
 #include "pi_type.h"
 #include "pi_builtin.h"
-#include "../pi_object.h"
+#include "../src/pi_object.h"
 
 Value _pi_type(VM *vm, int argc, Value *argv)
 {

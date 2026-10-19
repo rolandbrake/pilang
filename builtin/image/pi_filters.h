@@ -2,7 +2,7 @@
 #define PI_IMAGE_FILTERS_H
 
 #include "../pi_builtin.h"
-#include "../../pi_value.h"
+#include "../../src/pi_value.h"
 
 
 

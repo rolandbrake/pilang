@@ -1,8 +1,8 @@
 #ifndef PI_OS_H
 #define PI_OS_H
 
-#include "../pi_value.h"
-#include "../pi_vm.h"
+#include "../src/pi_value.h"
+#include "../src/pi_vm.h"
 
 // Runs a shell command and returns stdout/stderr/code.
 Value os_run(VM *vm, int argc, Value *argv);

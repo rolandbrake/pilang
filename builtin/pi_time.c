@@ -11,10 +11,10 @@
 #endif
 
 #include "pi_time.h"
-#include "../pi_object.h"
-#include "../pi_table.h"
-#include "../pi_func.h"
-#include "../pi_vm.h"
+#include "../src/pi_object.h"
+#include "../src/pi_table.h"
+#include "../src/pi_func.h"
+#include "../src/pi_vm.h"
 #include "pi_builtin.h"
 
 #define SLEEP_INTERRUPT_SLICE_MS 25.0

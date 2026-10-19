@@ -2,8 +2,8 @@
 #define PI_IO_H
 
 #include <stdio.h>
-#include "../pi_value.h"
-#include "../pi_vm.h"
+#include "../src/pi_value.h"
+#include "../src/pi_vm.h"
 
 #define BUFFER_SIZE 2048
 

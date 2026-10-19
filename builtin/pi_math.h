@@ -2,8 +2,8 @@
 #define PI_MATH_H
 
 #include <stdint.h>
-#include "../pi_vm.h"
-#include "../pi_value.h"
+#include "../src/pi_vm.h"
+#include "../src/pi_value.h"
 
 void rng_seed(uint32_t seed);
 double rand_num(void);

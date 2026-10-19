@@ -1,8 +1,8 @@
 #ifndef PI_FS_H
 #define PI_FS_H
 
-#include "../pi_vm.h"
-#include "../pi_value.h"
+#include "../src/pi_vm.h"
+#include "../src/pi_value.h"
 
 // Reading
 Value fs_read(VM *vm, int argc, Value *argv);

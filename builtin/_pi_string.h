@@ -1,8 +1,8 @@
 #ifndef _PI_STRING_H
 #define _PI_STRING_H
 
-#include "../pi_value.h"
-#include "../pi_vm.h"
+#include "../src/pi_value.h"
+#include "../src/pi_vm.h"
 
 Value pi_char(VM *vm, int argc, Value *argv);
 Value pi_ord(VM *vm, int argc, Value *argv);

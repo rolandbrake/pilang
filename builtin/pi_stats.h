@@ -1,8 +1,8 @@
 #ifndef STATS_H
 #define STATS_H
 
-#include "../pi_vm.h"
-#include "../pi_value.h"
+#include "../src/pi_vm.h"
+#include "../src/pi_value.h"
 
 // Returns the mean (average) of a list of numbers.
 Value pi_mean(VM *vm, int argc, Value *argv);

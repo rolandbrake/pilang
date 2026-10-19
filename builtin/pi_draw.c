@@ -23,11 +23,11 @@ EM_JS(void, _web_start_loop, (), { if(Module.piFrameLoop)cancelAnimationFrame(Mo
 EM_JS(void, _web_stop_loop, (), { if(Module.piFrameLoop){cancelAnimationFrame(Module.piFrameLoop);Module.piFrameLoop=0} });
 #endif
 
-#include "../common.h"
+#include "../src/common.h"
 #include "pi_builtin.h"
 #include "pi_plot3d.h"
-#include "../pi_func.h"
-#include "../pi_table.h"
+#include "../src/pi_func.h"
+#include "../src/pi_table.h"
 
 typedef struct TransformState
 {
