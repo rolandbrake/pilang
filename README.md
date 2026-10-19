@@ -12,7 +12,7 @@
 
 
 <p align="center">
-  <a href="https://pi-lang.netlify.app/"><strong>Website</a>
+  <a href="https://pi-lang.netlify.app/">Website</a>
   |
   <a href="docs/README.md">Read the docs</a>
   |
@@ -30,18 +30,44 @@ Tensors, image processing, 2D charts, interactive 3D plots, drawing, and audio
 are available as built-in modules. Pilang runs natively on Windows and can also
 be built for the browser with WebAssembly.
 
-## Windows build and packaging
+## Install and run
 
-Build a standalone Windows executable from a fresh clone with Git, CMake, and
-a MinGW-w64 toolchain that provides `gcc` and `mingw32-make`:
+When platform releases are available, download one from the
+[Releases page](https://github.com/rolandbrake/pilang/releases), extract it,
+then run `pilang` from the extracted folder. Until then, build from source:
+
+To build Pilang from source, clone the repository and use the short setup path
+for your platform. It installs ready-made SDL libraries; do **not** run
+`make static-deps` for a normal development build.
+
+### Windows
+
+In PowerShell, run:
 
 ```powershell
-make static-deps   # runs tools/setup_deps.ps1 to build pinned SDL dependencies once
-make release       # creates bin/pilang.exe
+.\tools\setup.ps1 -InstallMSYS2
 ```
 
-Package an application by adding a `package.loon` beside its entry file, then
-run:
+Then open the **MSYS2 UCRT64** terminal in the repository and run:
+
+```sh
+make release
+./bin/pilang.exe test.pi
+```
+
+### Linux and macOS
+
+From the repository root, run:
+
+```sh
+sh tools/setup.sh
+make release
+./bin/pilang test.pi
+```
+
+### Package a Windows app
+
+After building Pilang, add a `package.loon` beside your entry file and run:
 
 ```powershell
 cd test\package
@@ -49,8 +75,9 @@ cd test\package
 ```
 
 After adding `bin/` to `PATH`, use `pilang pack target:win`. The resulting
-`.exe` includes the Pilang runtime and application, so it can be launched with
-a double-click. See [`test/package/package.loon`](test/package/package.loon)
+`.exe` includes the Pilang runtime and application. A release runtime is
+self-contained; a runtime built locally with MSYS2 may also need its SDL DLLs
+beside the application. See [`test/package/package.loon`](test/package/package.loon)
 for a complete manifest example.
 
 ```loon
@@ -100,7 +127,7 @@ leaving Pilang.
 
 Pilang supports small interactive games with drawing, input, images, and audio.
 Build them for the browser with WebAssembly or package them as standalone
-Windows executables.
+Windows executables. [for ready to run games](https://github.com/rolandbrake/pilang-games).
 
 <p align="center">
   <a href="https://github.com/rolandbrake/pilang-games" target="_blank">
@@ -290,16 +317,16 @@ draw.run(ctx)
 
 ## Run Pilang
 
-From the repository root on Windows:
+Run a script from the repository root:
 
-```powershell
-pilang run test.pi
+```sh
+./bin/pilang test.pi
 ```
 
-You can also use the shorthand form:
+On Windows, use:
 
 ```powershell
-pilang test.pi
+.\bin\pilang.exe test.pi
 ```
 
 ### Build a `.px` project
@@ -307,9 +334,9 @@ pilang test.pi
 Turn an entry script and its imported Pilang modules into a portable compiled
 project file:
 
-```powershell
-pilang build app.pi
-pilang app.px
+```sh
+./bin/pilang build app.pi
+./bin/pilang app.px
 ```
 
 This creates `app.px` beside `app.pi`. A `.px` contains Pilang bytecode and is
@@ -321,36 +348,35 @@ details.
 
 Show available commands:
 
-```powershell
-pilang help
+```sh
+./bin/pilang help
 ```
 
 Developer helpers:
 
-```powershell
-pilang dis test.pi
-pilang dis -o bytecode.txt test.pi
-pilang fmt test.pi
-pilang min test.pi
+```sh
+./bin/pilang dis test.pi
+./bin/pilang dis -o bytecode.txt test.pi
+./bin/pilang fmt test.pi
+./bin/pilang min test.pi
 ```
 
 `fmt` and `min` rewrite the target file in place and use the JavaScript utilities in `utils/`, so Node.js and the formatter/minifier modules must be available.
 
-## Build From Source
+## Browser build
 
-The repository includes a Makefile for native and browser builds. On Windows with MinGW available, use `make` from the repository root. Some MinGW installs expose this as `mingw32-make`.
+Build the WebAssembly version after installing Emscripten:
 
-```powershell
-make release
+```sh
+make web
 ```
 
-Common targets:
+This writes `pilang.html`, `pilang.js`, and `pilang.wasm` to `bin/`.
 
-- `make release`: build the optimized native executable, `release/pilang.exe`.
-- `make debug`: build a debug native executable with `DEBUG_BUILD` enabled at `release/pilang.exe`.
-- `make web`: build the Emscripten/WebAssembly output in `release/`.
-- `make run`: build and run the native executable.
-- `make test`: build the native executable and run `python tools/run_tests.py`.
+Other useful targets:
+
+- `make debug`: build a debug executable in `bin/`.
+- `make test`: build and run the test suite.
 - `make clean`: remove generated build outputs.
 
 Run the end-to-end benchmark suite after a release build:
@@ -360,8 +386,6 @@ python tools/run_benchmarks.py
 ```
 
 See [`benchmark/README.md`](benchmark/README.md) for the included workloads and runner options.
-
-The native build expects MinGW GCC and the SDL2 development libraries used by the project. The browser build expects Emscripten's `emcc`.
 
 ## Project Layout
 
