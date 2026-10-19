@@ -9,7 +9,7 @@ on:
       tag:
         description: "Existing tag to publish"
         required: true
-        default: "v0.2.0-rc.1"
+        default: "v0.2.0-rc.2"
 
 permissions:
   contents: write
@@ -43,17 +43,21 @@ jobs:
           install: zip mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-make
             mingw-w64-ucrt-x86_64-pkgconf mingw-w64-ucrt-x86_64-SDL2
             mingw-w64-ucrt-x86_64-SDL2_image mingw-w64-ucrt-x86_64-SDL2_ttf
-            mingw-w64-ucrt-x86_64-SDL2_mixer
+            mingw-w64-ucrt-x86_64-SDL2_mixer mingw-w64-ucrt-x86_64-ntldd
 
       - name: Build Windows release
         if: runner.os == 'Windows'
         shell: msys2 {0}
         run: |
           mingw32-make release
-          SDL_VIDEODRIVER=dummy ./bin/pilang.exe help
+          ./bin/pilang.exe help
           mkdir -p dist/pilang-windows-x64
           cp bin/pilang.exe dist/pilang-windows-x64/
-          cp /ucrt64/bin/*.dll dist/pilang-windows-x64/
+          ntldd -R bin/pilang.exe |
+            sed -n 's/.*=> \(.*\) (0x.*/\1/p' |
+            grep -Ei '(^|[/\\])ucrt64[/\\]bin[/\\].*\.dll$' |
+            sort -fu |
+            while IFS= read -r library; do cp "$library" dist/pilang-windows-x64/; done
           (cd dist && zip -r pilang-windows-x64.zip pilang-windows-x64)
 
       - name: Install Linux build dependencies

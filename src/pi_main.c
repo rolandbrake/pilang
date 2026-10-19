@@ -1291,17 +1291,20 @@ static int _run_repl(void)
     return 0;
 }
 
-int main(int argc, char *argv[])
+static void _init_sdl_runtime(void)
 {
-    static char *main_argv[] = {"main.pi"};
-    pi_cli_argc = 0;
-    pi_cli_argv = NULL;
-
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) != 0)
         error("SDL_Init failed: %s", SDL_GetError());
 
     if (TTF_Init() != 0)
         error("TTF_Init failed: %s", TTF_GetError());
+}
+
+int main(int argc, char *argv[])
+{
+    static char *main_argv[] = {"main.pi"};
+    pi_cli_argc = 0;
+    pi_cli_argv = NULL;
 
     signal(SIGINT, _handle_sigint);
 
@@ -1326,13 +1329,17 @@ int main(int argc, char *argv[])
         package_font_offset = font_offset;
         package_font_size = font_size;
         package_launch_pending = TRUE;
+        _init_sdl_runtime();
         return _run_embeddedBuild(executable, embedded_offset);
     }
 #endif
 
     /* No arguments -> drop into the interactive REPL. */
     if (argc < 2)
+    {
+        _init_sdl_runtime();
         return _run_repl();
+    }
 
     const char *command = argv[1];
 
@@ -1437,6 +1444,7 @@ int main(int argc, char *argv[])
 
     if (strcmp(command, "run") == 0)
     {
+        _init_sdl_runtime();
         if (argc == 2)
         {
             if (!_file_exists("main.pi"))
@@ -1494,6 +1502,7 @@ int main(int argc, char *argv[])
     /* Shorthand: `pi <file>` is equivalent to `pi run <file>` */
     if (argc >= 2)
     {
+        _init_sdl_runtime();
         pi_cli_argc = argc - 1;
         pi_cli_argv = &argv[1];
         return _run_file(command);
