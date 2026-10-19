@@ -128,9 +128,14 @@ DEBUG_LDLIBS ?= $(NATIVE_LDLIBS)
 else
 PKG_CONFIG ?= pkg-config
 SDL_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_image SDL2_ttf SDL2_mixer 2>/dev/null)
-SDL_LDLIBS ?= $(shell $(PKG_CONFIG) --libs sdl2 SDL2_image SDL2_ttf SDL2_mixer 2>/dev/null)
 CPPFLAGS += -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE $(SDL_CFLAGS)
+ifeq ($(OS),Windows_NT)
+SDL_LDLIBS ?= $(shell $(PKG_CONFIG) --libs SDL2_image SDL2_ttf SDL2_mixer 2>/dev/null)
+NATIVE_LDLIBS ?= -lmingw32 -lSDL2main $(SDL_LDLIBS) -lSDL2 -lws2_32 -lopengl32 -lm -pthread
+else
+SDL_LDLIBS ?= $(shell $(PKG_CONFIG) --libs sdl2 SDL2_image SDL2_ttf SDL2_mixer 2>/dev/null)
 NATIVE_LDLIBS ?= $(SDL_LDLIBS) -lm -pthread
+endif
 DEBUG_LDLIBS ?= $(NATIVE_LDLIBS)
 NATIVE_CPPFLAGS = $(CPPFLAGS)
 endif
