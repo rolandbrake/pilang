@@ -139,11 +139,12 @@ jobs:
       - name: Create or update the release
         env:
           GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -eu
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/*/* --clobber
+          if gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*/* --clobber --repo "$REPOSITORY"
             exit 0
           fi
 
@@ -151,4 +152,4 @@ jobs:
           case "$TAG" in
             *-*) prerelease="--prerelease" ;;
           esac
-          gh release create "$TAG" dist/*/* --generate-notes $prerelease
+          gh release create "$TAG" dist/*/* --generate-notes $prerelease --repo "$REPOSITORY"
