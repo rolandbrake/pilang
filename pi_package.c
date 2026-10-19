@@ -190,7 +190,7 @@ static bool _web_removeTree(const char *path)
     WIN32_FIND_DATAA item;
     HANDLE find = FindFirstFileA(pattern, &item);
     if (find == INVALID_HANDLE_VALUE)
-        return GetLastError() == ERROR_FILE_NOT_FOUND && RemoveDirectoryA(path) != 0;
+        return RemoveDirectoryA(path) != 0;
 
     bool ok = TRUE;
     do
@@ -277,8 +277,21 @@ bool package_web(const char *runtime_path, const PiPackage *package, char *error
         _bundle_error(error, error_size, "Emscripten web runtime build failed");
         return FALSE;
     }
-    if (!_web_safePath(package->output) || !_web_removeTree(package->output) ||
-        _mkdir(package->output) != 0)
+    if (!_web_safePath(package->output))
+    {
+        _bundle_error(error, error_size, "could not create web output directory");
+        return FALSE;
+    }
+    if (!_web_removeTree(package->output))
+    {
+        DWORD attr = GetFileAttributesA(package->output);
+        if (attr == INVALID_FILE_ATTRIBUTES || !(attr & FILE_ATTRIBUTE_DIRECTORY))
+        {
+            _bundle_error(error, error_size, "could not create web output directory");
+            return FALSE;
+        }
+    }
+    else if (_mkdir(package->output) != 0)
     {
         _bundle_error(error, error_size, "could not create web output directory");
         return FALSE;
@@ -299,7 +312,10 @@ bool package_web(const char *runtime_path, const PiPackage *package, char *error
     else
         strncat(entry_px, ".px", sizeof(entry_px) - strlen(entry_px) - 1);
 
-    fprintf(index, "<!doctype html><meta charset=\"utf-8\"><title>%s</title><canvas></canvas><script type=\"module\">import createPilang from './pilang.js';const app=await createPilang({canvas:document.querySelector('canvas'),noInitialRun:true});const files=[", package->name);
+    fprintf(index, "<!doctype html><meta charset=\"utf-8\"><title>%s</title>", package->name);
+    if (package->icon && _web_safePath(package->icon))
+        fprintf(index, "<link rel=\"icon\" href=\"%s\">", package->icon);
+    fprintf(index, "<canvas></canvas><script type=\"module\">import createPilang from './pilang.js';const app=await createPilang({canvas:document.querySelector('canvas'),noInitialRun:true});const files=[");
     bool ok = _web_safePath(entry_px) && _web_copyPath(package->output, entry_px, entry_px, index);
     for (size_t i = 0; ok && i < package->file_count; i++)
         ok = _web_safePath(package->files[i]) && _web_copyPath(package->output, package->files[i], package->files[i], index);

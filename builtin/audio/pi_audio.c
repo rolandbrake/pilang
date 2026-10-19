@@ -10,6 +10,28 @@ EM_JS(void, _web_audio_volume, (int id, double value), { const a=Module.piAudio&
 EM_JS(void, _web_audio_pause, (int id), { const a=Module.piAudio&&Module.piAudio[id]; if(a)a.pause(); });
 EM_JS(void, _web_audio_stop, (int id), { const a=Module.piAudio&&Module.piAudio[id]; if(a){a.pause();a.currentTime=0;} });
 EM_JS(int, _web_audio_playing, (int id), { const a=Module.piAudio&&Module.piAudio[id]; return !!(a&&!a.paused&&!a.ended); });
+EM_JS(void, _web_music_play, (const char *path, int loops), {
+    const music = new Audio(UTF8ToString(path));
+    if (Module.piMusic)
+        Module.piMusic.pause();
+    music.loop = loops < 0;
+    Module.piMusic = music;
+    Module.piMusicRequested = true;
+    const play = function() { music.play().catch(function(){}); };
+    play();
+    if (!Module.piAudioUnlock)
+    {
+        Module.piAudioUnlock = function()
+        {
+            if (Module.piMusicRequested && Module.piMusic)
+                Module.piMusic.play().catch(function(){});
+        };
+        document.addEventListener('pointerdown', Module.piAudioUnlock, {once : true});
+        document.addEventListener('keydown', Module.piAudioUnlock, {once : true});
+    }
+});
+EM_JS(int, _web_music_playing, (), { const a=Module.piMusic; return !!(Module.piMusicRequested && a && !a.ended); });
+EM_JS(void, _web_music_stop, (), { if(Module.piMusic){Module.piMusic.pause();Module.piMusic.currentTime=0;}Module.piMusicRequested=false; });
 
 static ObjAudio *_web_audio(VM *vm, Value value)
 {
@@ -65,9 +87,26 @@ Value au_channels(VM *vm, int argc, Value *argv) { return NEW_NUM(0); }
 Value au_frames(VM *vm, int argc, Value *argv) { return NEW_NUM(0); }
 Value au_duration(VM *vm, int argc, Value *argv) { return NEW_NUM(0); }
 Value au_format(VM *vm, int argc, Value *argv) { return NEW_NIL(); }
-Value au_playMusic(VM *vm, int argc, Value *argv) { return NEW_BOOL(FALSE); }
-Value au_musicIsPlaying(VM *vm, int argc, Value *argv) { return NEW_BOOL(FALSE); }
-Value au_stopMusic(VM *vm, int argc, Value *argv) { return NEW_BOOL(TRUE); }
+Value au_playMusic(VM *vm, int argc, Value *argv)
+{
+    if (argc < 1 || !IS_STRING(argv[0]))
+        vm_error(vm, "[audio.play_music] expects a file path string.");
+    int loops = 0;
+    if (argc > 1)
+    {
+        if (!IS_NUM(argv[1]) || AS_NUM(argv[1]) < -1 || AS_NUM(argv[1]) != (int)AS_NUM(argv[1]))
+            vm_error(vm, "[audio.play_music] loops must be an integer greater than or equal to -1.");
+        loops = (int)AS_NUM(argv[1]);
+    }
+    _web_music_play(AS_CSTRING(argv[0]), loops);
+    return NEW_BOOL(TRUE);
+}
+Value au_musicIsPlaying(VM *vm, int argc, Value *argv) { return NEW_BOOL(_web_music_playing()); }
+Value au_stopMusic(VM *vm, int argc, Value *argv)
+{
+    _web_music_stop();
+    return NEW_BOOL(TRUE);
+}
 static BuiltinFunc audio_funcs[] = {{"load", au_load}, {"sample_rate", au_sampleRate}, {"channels", au_channels}, {"frames", au_frames}, {"duration", au_duration}, {"format", au_format}, {"play", au_play}, {"volume", au_volume}, {"pause", au_pause}, {"resume", au_resume}, {"stop", au_stop}, {"is_playing", au_isPlaying}, {"play_music", au_playMusic}, {"music_isPlaying", au_musicIsPlaying}, {"stop_music", au_stopMusic}};
 static BuiltinConst audio_consts[] = {};
 DEFINE_BUILTIN_MODULE(module_audio, "audio", audio_funcs, audio_consts);
