@@ -177,6 +177,38 @@ static bool _web_makeParents(char *path)
     return TRUE;
 }
 
+static bool _web_removeTree(const char *path)
+{
+    DWORD attr = GetFileAttributesA(path);
+    if (attr == INVALID_FILE_ATTRIBUTES)
+        return GetLastError() == ERROR_FILE_NOT_FOUND;
+    if (!(attr & FILE_ATTRIBUTE_DIRECTORY))
+        return DeleteFileA(path) != 0;
+
+    char pattern[MAX_PATH];
+    snprintf(pattern, sizeof(pattern), "%s\\*", path);
+    WIN32_FIND_DATAA item;
+    HANDLE find = FindFirstFileA(pattern, &item);
+    if (find == INVALID_HANDLE_VALUE)
+        return GetLastError() == ERROR_FILE_NOT_FOUND && RemoveDirectoryA(path) != 0;
+
+    bool ok = TRUE;
+    do
+    {
+        if (!strcmp(item.cFileName, ".") || !strcmp(item.cFileName, ".."))
+            continue;
+        char child[MAX_PATH];
+        snprintf(child, sizeof(child), "%s\\%s", path, item.cFileName);
+        if (!_web_removeTree(child))
+        {
+            ok = FALSE;
+            break;
+        }
+    } while (FindNextFileA(find, &item));
+    FindClose(find);
+    return ok && RemoveDirectoryA(path) != 0;
+}
+
 static bool _web_copyPath(const char *output, const char *source, const char *relative, FILE *index)
 {
     DWORD attr = GetFileAttributesA(source);
@@ -245,7 +277,8 @@ bool package_web(const char *runtime_path, const PiPackage *package, char *error
         _bundle_error(error, error_size, "Emscripten web runtime build failed");
         return FALSE;
     }
-    if (_mkdir(package->output) != 0 && errno != EEXIST)
+    if (!_web_safePath(package->output) || !_web_removeTree(package->output) ||
+        _mkdir(package->output) != 0)
     {
         _bundle_error(error, error_size, "could not create web output directory");
         return FALSE;
@@ -258,11 +291,19 @@ bool package_web(const char *runtime_path, const PiPackage *package, char *error
         _bundle_error(error, error_size, "could not create index.html");
         return FALSE;
     }
+    char entry_px[MAX_PATH];
+    snprintf(entry_px, sizeof(entry_px), "%s", package->entry);
+    char *extension = strrchr(entry_px, '.');
+    if (extension && strcmp(extension, ".pi") == 0)
+        strcpy(extension, ".px");
+    else
+        strncat(entry_px, ".px", sizeof(entry_px) - strlen(entry_px) - 1);
+
     fprintf(index, "<!doctype html><meta charset=\"utf-8\"><title>%s</title><canvas></canvas><script type=\"module\">import createPilang from './pilang.js';const app=await createPilang({canvas:document.querySelector('canvas'),noInitialRun:true});const files=[", package->name);
-    bool ok = _web_safePath(package->entry) && _web_copyPath(package->output, package->entry, package->entry, index);
+    bool ok = _web_safePath(entry_px) && _web_copyPath(package->output, entry_px, entry_px, index);
     for (size_t i = 0; ok && i < package->file_count; i++)
         ok = _web_safePath(package->files[i]) && _web_copyPath(package->output, package->files[i], package->files[i], index);
-    fprintf(index, "];for(let i=0;i<files.length;i++){const p=files[i],r=await fetch(p),b=new Uint8Array(await r.arrayBuffer());app.FS.mkdirTree('/'+p.split('/').slice(0,-1).join('/'));app.FS.writeFile('/'+p,b);if(i===0)app.ccall('set_source',null,['string'],[new TextDecoder().decode(b)]);}app.ccall('execute_source','number',[],[]);</script>");
+    fprintf(index, "];for(const p of files){const r=await fetch(p),b=new Uint8Array(await r.arrayBuffer());app.FS.mkdirTree('/'+p.split('/').slice(0,-1).join('/'));app.FS.writeFile('/'+p,b)}app.ccall('execute_px','number',['string'],['/'+files[0]]);</script>");
     fclose(index);
     char js[MAX_PATH], wasm[MAX_PATH], target[MAX_PATH];
     snprintf(js, sizeof(js), "%s/bin/pilang.js", root);

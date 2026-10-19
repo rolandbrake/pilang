@@ -245,6 +245,54 @@ int execute_source(void)
 }
 
 EMSCRIPTEN_KEEPALIVE
+int execute_px(const char *path)
+{
+    _browser_initRuntime();
+    _browser_cleanupExecution();
+    browser_hadError = FALSE;
+    browser_isExecuting = FALSE;
+    paused = FALSE;
+
+    PX_ProjectBuild *build = calloc(1, sizeof(*build));
+    if (!build || !path || !px_readExecutableBuild(path, build))
+    {
+        free(build);
+        _browser_reportError("Could not load compiled project.", -1, -1);
+        return 1;
+    }
+
+    PX_BuiltModule *entry = NULL;
+    for (uint32_t i = 0; i < build->module_count; i++)
+        if (build->modules[i].is_entry)
+            entry = &build->modules[i];
+
+    if (!entry || !entry->compiler)
+    {
+        px_freeProjectBuild(build);
+        free(build);
+        _browser_reportError("Compiled project has no entry module.", -1, -1);
+        return 1;
+    }
+
+    browser_comp = entry->compiler;
+    entry->compiler = NULL;
+    browser_comp->source_name = strdup(entry->path);
+    vm = init_vm(browser_comp, entry->path, TRUE);
+    vm->project_build = build;
+
+    start_time = clock();
+    browser_isExecuting = TRUE;
+    while (vm->running && !paused)
+        vm_run(vm);
+
+    browser_isExecuting = FALSE;
+    if (!paused && !browser_hadError)
+        _browser_printExecutionTime();
+    _browser_notifyFinished(!browser_hadError);
+    return browser_hadError ? 1 : 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
 int disassemble_source(void)
 {
     if (_browser_prepareExecution() != 0)
@@ -1178,7 +1226,7 @@ int main(int argc, char *argv[])
         printf("%sPackaging%s %s %s (%s)\n", _package_color("\033[36m"),
                _package_color("\033[0m"), package.name, package.version, target);
         int status = 0;
-        if (strcmp(target, "win") == 0)
+        if (strcmp(target, "win") == 0 || strcmp(target, "web") == 0)
         {
             status = _build_file(package.entry);
             if (status != 0)
