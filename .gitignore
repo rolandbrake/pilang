@@ -93,13 +93,12 @@ __pycache__/
 # Local agent instructions
 AGENTS.md
 
-# Checked-in Windows static build kit. It lets `make release` produce a
-# self-contained runtime without rebuilding SDL on every machine.
-!resources/windows-x64-static/
-!resources/windows-x64-static/include/
-!resources/windows-x64-static/include/**
-!resources/windows-x64-static/lib/
-!resources/windows-x64-static/lib/**
+# Checked-in Windows static build kit.
+!deps/
+!deps/include/
+!deps/include/**
+!deps/lib/
+!deps/lib/**
 
 Don't Touch My Presents/
 Flappy Bird/

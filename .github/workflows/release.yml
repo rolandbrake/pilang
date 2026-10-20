@@ -53,7 +53,6 @@ jobs:
           mkdir -p dist/Pilang/bin
           cp bin/pilang.exe dist/Pilang/bin/
           cp -r resources dist/Pilang/
-          rm -rf dist/Pilang/resources/windows-x64-static
           cp -r samples test dist/Pilang/
           cp README.md LICENSE dist/Pilang/
           printf '@echo off\r\ncd /d "%%~dp0"\r\n"%%~dp0bin\\pilang.exe" %%*\r\n' > dist/Pilang/Pilang.cmd

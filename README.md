@@ -41,20 +41,13 @@ The archive includes the runtime, its resources, examples, and tests. It does
 not require SDL DLLs beside the executable. Linux and macOS downloads will be
 published after their native packages are separately tested.
 
-To build Pilang from source on Windows, clone the repository and use the short
-setup path below. The Windows static build kit is included in the repository,
-so a normal build is simply `make release`—do **not** run `make static-deps`
-unless you are intentionally rebuilding that build kit.
+To build Pilang from source on Windows, clone the repository, open an MSYS2
+UCRT64 terminal with GCC and `make` installed, then run `make release`. The
+static build kit is already in `deps/`; no dependency setup command is needed.
 
 ### Windows
 
-In PowerShell, run:
-
-```powershell
-.\tools\setup.ps1 -InstallMSYS2
-```
-
-Then open the **MSYS2 UCRT64** terminal in the repository and run:
+In an **MSYS2 UCRT64** terminal in the repository, run:
 
 ```sh
 make release
@@ -63,13 +56,8 @@ make release
 
 ### Linux and macOS
 
-From the repository root, run:
-
-```sh
-sh tools/setup.sh
-make release
-./bin/pilang test.pi
-```
+Linux and macOS runtime packages are not currently published. Windows is the
+supported local release build while their native packaging is redesigned.
 
 ### Package a Windows app
 

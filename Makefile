@@ -91,15 +91,12 @@ CPPFLAGS ?= -I.
 DEBUG_CFLAGS ?=  -DDEBUG_BUILD
 RELEASE_CFLAGS ?=  -O3
 
-# Windows releases use the checked-in static SDL build kit. It keeps the
-# runtime and Windows packages self-contained without asking users to build
-# dependencies locally.
-ifeq ($(OS),Windows_NT)
-STATIC_PREFIX ?= resources/windows-x64-static
-else
-STATIC_PREFIX :=
+# Windows uses the checked-in static build kit. `make release` therefore
+# produces a self-contained executable with no SDL DLLs.
+STATIC_PREFIX ?= deps
+ifeq ($(wildcard $(STATIC_PREFIX)/include/SDL2/SDL.h),)
+$(error Missing Windows static build kit at $(STATIC_PREFIX). Clone the repository with the deps directory.)
 endif
-ifneq ($(wildcard $(STATIC_PREFIX)/include/SDL2/SDL.h),)
 NATIVE_CPPFLAGS = $(CPPFLAGS) -I$(STATIC_PREFIX)/include
 RELEASE_CFLAGS += -static
 DEBUG_CFLAGS += -static
@@ -129,20 +126,6 @@ NATIVE_LDLIBS ?= \
 	-ladvapi32 \
 	-lshell32
 DEBUG_LDLIBS ?= $(NATIVE_LDLIBS)
-else
-PKG_CONFIG ?= pkg-config
-SDL_CFLAGS ?= $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_image SDL2_ttf SDL2_mixer 2>/dev/null)
-CPPFLAGS += -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE $(SDL_CFLAGS)
-ifeq ($(OS),Windows_NT)
-SDL_LDLIBS ?= $(shell $(PKG_CONFIG) --libs SDL2_image SDL2_ttf SDL2_mixer 2>/dev/null)
-NATIVE_LDLIBS ?= -lmingw32 -lSDL2main $(SDL_LDLIBS) -lSDL2 -lws2_32 -lopengl32 -lm -pthread
-else
-SDL_LDLIBS ?= $(shell $(PKG_CONFIG) --libs sdl2 SDL2_image SDL2_ttf SDL2_mixer 2>/dev/null)
-NATIVE_LDLIBS ?= $(SDL_LDLIBS) -lm -pthread
-endif
-DEBUG_LDLIBS ?= $(NATIVE_LDLIBS)
-NATIVE_CPPFLAGS = $(CPPFLAGS)
-endif
 
 CFLAGS = $(CPPFLAGS) $(WARNINGS) $(CSTD)
 NATIVE_CFLAGS = $(NATIVE_CPPFLAGS) $(WARNINGS) $(CSTD)
@@ -163,18 +146,12 @@ EMCC_FLAGS ?= \
 	--use-port=sdl2_ttf \
 	--shell-file index.html
 
-.PHONY: all debug release static-deps setup web run test loon-test clean
+.PHONY: all debug release web run test loon-test clean
 
 all: release
 
 $(RELEASE_DIR):
 	$(MKDIR)
-
-static-deps:
-	powershell -NoProfile -ExecutionPolicy Bypass -File tools/setup_deps.ps1 -Prefix resources/windows-x64-static
-
-setup:
-	@echo "Run tools/setup.ps1 on Windows or tools/setup.sh on Linux/macOS."
 
 debug: $(RELEASE_DIR)
 	$(CC) $(NATIVE_CFLAGS) $(DEBUG_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(DEBUG_LDLIBS)
