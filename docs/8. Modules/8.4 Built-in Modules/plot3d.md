@@ -4,7 +4,15 @@ The `plot3d` module provides Pilang's native 3D visualization layer. It renders
 surfaces, meshes, wireframes, and 3D scatter data into a `draw` canvas using a
 stable orthographic camera.
 
-![Pilang 3D surface plot](surface.png)
+
+<div align ="center">
+  <img src="surface.png" width = 400/>
+</div>
+
+<br/>
+<br/>
+<br/>
+
 
 ```swift
 import draw
@@ -43,7 +51,14 @@ showing the chart.
 Adds a filled 3D surface from a 2D tensor. The tensor row and column indexes form
 the x/y grid and each tensor value is used as z height.
 
-![Pilang 3D surface](surface.png)
+
+<div align ="center">
+  <img src="surface.png" width = 400/>
+</div>
+
+<br/>
+<br/>
+<br/>
 
 ```swift
 plot3d.surface(chart, z)
@@ -61,7 +76,13 @@ plot3d.mesh(chart, z)
 
 Adds a wireframe plot from a 2D tensor.
 
-![Pilang 3D wireframe](wireframe.png)
+<div align ="center">
+  <img src="wireframe.png" width = 400/>
+</div>
+
+<br/>
+<br/>
+<br/>
 
 ```swift
 plot3d.wireframe(chart, z)
@@ -71,7 +92,15 @@ plot3d.wireframe(chart, z)
 
 Adds 3D points from three numeric lists.
 
-![Pilang 3D scatter](scatter3d.png)
+
+<div align ="center">
+  <img src="scatter3d.png" width = 400/>
+</div>
+
+<br/>
+<br/>
+<br/>
+
 
 ```swift
 plot3d.scatter(chart, xs, ys, zs)
