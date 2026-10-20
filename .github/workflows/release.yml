@@ -9,7 +9,7 @@ on:
       tag:
         description: "Existing tag to publish"
         required: true
-        default: "v0.2.0-rc.3"
+        default: "v0.2.0-rc.1"
 
 permissions:
   contents: write
@@ -48,22 +48,15 @@ jobs:
           grep -qx 'packaged application' dist/pack-test/output.txt
 
       - name: Assemble the Windows runtime
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          mkdir -p dist/Pilang/bin
-          cp bin/pilang.exe dist/Pilang/bin/
-          cp -r resources dist/Pilang/
-          cp -r samples test dist/Pilang/
-          cp README.md LICENSE dist/Pilang/
-          printf '@echo off\r\ncd /d "%%~dp0"\r\n"%%~dp0bin\\pilang.exe" %%*\r\n' > dist/Pilang/Pilang.cmd
-          (cd dist/Pilang && ./bin/pilang.exe help)
-          (cd dist && zip -r pilang-windows-x64.zip Pilang)
+          .\tools\release.ps1 $env:GITHUB_REF_NAME -SkipBuild
 
       - name: Upload release archive
         uses: actions/upload-artifact@v4
         with:
           name: pilang-windows-x64
-          path: dist/pilang-windows-x64.zip
+          path: release/*.zip
           if-no-files-found: error
 
   publish:
