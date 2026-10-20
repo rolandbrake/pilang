@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://pi-lang.netlify.app/">
-    <img src="resources/pi_logo.png" alt="Pilang logo" width="500">
+    <img src="resources/_pi_logo.png" alt="Pilang logo" width="500">
   </a>
 </p>
 
