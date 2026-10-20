@@ -91,6 +91,7 @@ CPPFLAGS ?= -I.
 DEBUG_CFLAGS ?=  -DDEBUG_BUILD
 RELEASE_CFLAGS ?=  -O3
 
+ifeq ($(OS),Windows_NT)
 # Windows uses the checked-in static build kit. `make release` therefore
 # produces a self-contained executable with no SDL DLLs.
 STATIC_PREFIX ?= deps/windows-x64
@@ -125,6 +126,20 @@ NATIVE_LDLIBS ?= \
 	-lgdi32 \
 	-ladvapi32 \
 	-lshell32
+else ifeq ($(shell uname -s),Linux)
+# Linux uses its own checked-in static kit. The pkg-config metadata carries
+# every static SDL dependency, so no shared libraries are needed in a release.
+STATIC_PREFIX ?= deps/linux-x64
+ifeq ($(wildcard $(STATIC_PREFIX)/include/SDL2/SDL.h),)
+$(error Missing Linux static build kit at $(STATIC_PREFIX).)
+endif
+NATIVE_CPPFLAGS = $(CPPFLAGS) -I$(STATIC_PREFIX)/include $(shell PKG_CONFIG_PATH=$(STATIC_PREFIX)/lib/pkgconfig pkg-config --cflags sdl2 SDL2_image SDL2_mixer SDL2_ttf)
+RELEASE_CFLAGS += -static
+DEBUG_CFLAGS += -static
+NATIVE_LDLIBS ?= $(shell PKG_CONFIG_PATH=$(STATIC_PREFIX)/lib/pkgconfig pkg-config --static --libs sdl2 SDL2_image SDL2_mixer SDL2_ttf) -lm -ldl -lpthread
+else
+$(error Native builds are currently supported on Windows x64 and Linux x64 only.)
+endif
 DEBUG_LDLIBS ?= $(NATIVE_LDLIBS)
 
 CFLAGS = $(CPPFLAGS) $(WARNINGS) $(CSTD)

@@ -1,0 +1,53 @@
+name: Build Linux static dependencies
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Linux x64 static preflight
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config curl zip
+
+      - name: Build a static SDL dependency kit
+        run: |
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$RUNNER_TEMP/vcpkg"
+          "$RUNNER_TEMP/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
+          "$RUNNER_TEMP/vcpkg/vcpkg" install \
+            --triplet x64-linux \
+            --x-install-root "$RUNNER_TEMP/vcpkg-installed" \
+            sdl2 sdl2-image sdl2-mixer sdl2-ttf
+          prefix="$RUNNER_TEMP/pilang-linux-x64"
+          mkdir -p "$prefix"
+          cp -a "$RUNNER_TEMP/vcpkg-installed/x64-linux/include" "$prefix/"
+          cp -a "$RUNNER_TEMP/vcpkg-installed/x64-linux/lib" "$prefix/"
+          test -f "$prefix/lib/libSDL2.a"
+          test -f "$prefix/lib/libSDL2_image.a"
+          test -f "$prefix/lib/libSDL2_mixer.a"
+          test -f "$prefix/lib/libSDL2_ttf.a"
+
+      - name: Build and verify the static runtime
+        run: |
+          make release STATIC_PREFIX="$RUNNER_TEMP/pilang-linux-x64"
+          ./bin/pilang help
+          if ldd bin/pilang 2>&1 | grep -q '=>'; then
+            echo "The Linux runtime has shared-library dependencies."
+            ldd bin/pilang
+            exit 1
+          fi
+
+      - name: Upload the validated dependency kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: pilang-linux-x64-static-deps
+          path: ${{ runner.temp }}/pilang-linux-x64
+          if-no-files-found: error
