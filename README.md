@@ -9,6 +9,12 @@
   A compact language for turning data, math, and ideas into visible experiments.
 </p>
 
+<p align="center">
+  <a href="https://github.com/rolandbrake/pilang/releases"><img src="https://img.shields.io/github/v/release/rolandbrake/pilang?display_name=tag&include_prereleases" alt="Latest release"></a>
+  <a href="https://github.com/rolandbrake/pilang/actions/workflows/release.yml"><img src="https://github.com/rolandbrake/pilang/actions/workflows/release.yml/badge.svg" alt="Release workflow"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
+
 
 
 <p align="center">
@@ -27,8 +33,8 @@ first. It is a C-powered scripting language for numerical work, simulations,
 visual experiments, and small interactive programs.
 
 Tensors, image processing, 2D charts, interactive 3D plots, drawing, and audio
-are available as built-in modules. Pilang runs natively on Windows and can also
-be built for the browser with WebAssembly.
+are available as built-in modules. Pilang runs natively on Windows and Linux,
+with browser builds available through WebAssembly.
 
 ## Install and run
 
@@ -88,6 +94,13 @@ make release
 
 The static kit is committed under [`deps/linux-x64/`](deps/linux-x64/), so the
 output has no SDL or other shared-library dependency.
+
+### macOS community support
+
+macOS builds are not published yet. If you have a Mac and would like to help,
+please test a source build or help create the static dependency kit. Open an
+[issue](https://github.com/rolandbrake/pilang/issues) with your macOS version,
+Apple Silicon or Intel architecture, and any build output.
 
 ### Package a Windows app
 
