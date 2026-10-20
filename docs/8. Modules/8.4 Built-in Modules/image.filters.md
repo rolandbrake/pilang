@@ -3,7 +3,11 @@
 The `image.filters` module contains image filtering operations. Most functions
 return a new image and leave the input image unchanged.
 
-![Pilang edge detection example](../edge%20detection.png)
+
+<div align="center">
+    <img src="./edge detection.png" width=300 alt="Pilang edge detection example"/>
+</div>
+<br/>
 
 ```swift
 import image
@@ -129,7 +133,10 @@ let mask = image.filters.threshold(img, 100)
 Runs a Canny-style edge detector: grayscale conversion, Gaussian blur,
 gradient magnitude, non-maximum suppression, and hysteresis thresholding.
 
-![Pilang Canny edge detection](edge%20detection.png)
+<div align="center">
+    <img src="./edge detection.png.png" width=300 alt="Pilang edge detection example"/>
+</div>
+<br/>
 
 ```swift
 let edges = image.filters.canny(img, 40, 120)

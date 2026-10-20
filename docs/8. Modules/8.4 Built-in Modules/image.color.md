@@ -3,7 +3,11 @@
 The `image.color` module provides color-space conversion helpers for image
 objects. Each function returns a new image.
 
-![Pilang grayscale conversion example](grayscale.png)
+
+<div align="center">
+    <img src="./grayscale.png" width=300 alt="Pilang grayscale conversion example"/>
+</div>
+<br/>
 
 ```swift
 import image

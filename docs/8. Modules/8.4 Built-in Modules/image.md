@@ -5,7 +5,10 @@ native image objects, transforms image dimensions, displays and saves images,
 and converts between images and tensors for numerical and machine-learning
 workflows.
 
-![Pilang image processing example](../grayscale.png)
+<div align="center">
+    <img src="./grayscale.png" width=300 alt="Pilang image processing example"/>
+</div>
+<br/>
 
 ```swift
 import image
