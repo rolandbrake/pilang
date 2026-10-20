@@ -133,7 +133,7 @@ STATIC_PREFIX ?= deps/linux-x64
 ifeq ($(wildcard $(STATIC_PREFIX)/include/SDL2/SDL.h),)
 $(error Missing Linux static build kit at $(STATIC_PREFIX).)
 endif
-NATIVE_CPPFLAGS = $(CPPFLAGS) -I$(STATIC_PREFIX)/include $(shell PKG_CONFIG_PATH=$(STATIC_PREFIX)/lib/pkgconfig pkg-config --cflags sdl2 SDL2_image SDL2_mixer SDL2_ttf)
+NATIVE_CPPFLAGS = $(CPPFLAGS) -D_POSIX_C_SOURCE=200809L -I$(STATIC_PREFIX)/include $(shell PKG_CONFIG_PATH=$(STATIC_PREFIX)/lib/pkgconfig pkg-config --cflags sdl2 SDL2_image SDL2_mixer SDL2_ttf)
 RELEASE_CFLAGS += -static
 DEBUG_CFLAGS += -static
 NATIVE_LDLIBS ?= $(shell PKG_CONFIG_PATH=$(STATIC_PREFIX)/lib/pkgconfig pkg-config --static --libs sdl2 SDL2_image SDL2_mixer SDL2_ttf) -lm -ldl -lpthread
