@@ -32,8 +32,12 @@ be built for the browser with WebAssembly.
 
 ## Install and run
 
-Windows x64 builds are published on the [Releases page](https://github.com/rolandbrake/pilang/releases).
-Download the latest ZIP, extract it, then open PowerShell in the extracted
+Windows and Linux x64 builds are published on the
+[Releases page](https://github.com/rolandbrake/pilang/releases).
+
+### Windows x64
+
+Download the ZIP, extract it, then open PowerShell in the extracted
 `Pilang-v<version>` folder:
 
 ```powershell
@@ -41,19 +45,28 @@ Download the latest ZIP, extract it, then open PowerShell in the extracted
 .\bin\pilang.exe samples\hello.pi
 ```
 
-The ZIP contains the runtime, `resources/`, examples, tests, benchmarks, and
-python test runner. `pilang.exe` is statically linked: SDL DLLs are
-not required or included. Pre-releases contain the newest features and are
-still being tested.
+### Linux x64
 
-Pilang currently provides a checked-in source-build kit for **Windows x64**.
+Download and extract the `.tar.gz` archive, then run from its `Pilang-v<version>` folder:
+
+```sh
+./bin/pilang --version
+./bin/pilang samples/hello.pi
+```
+
+Each archive contains the runtime, `resources/`, examples, tests, benchmarks,
+and Python test runners. The runtime is statically linked: no SDL DLLs or
+Linux `.so` files are required or included. Pre-releases contain the newest
+features and are still being tested.
+
+Pilang provides checked-in source-build kits for **Windows x64** and
+**Linux x64**.
 It is designed to make `make release` the only build command after the normal
 Windows compiler tools are installed.
 
 ### Windows
 
-Install MSYS2, open its **UCRT64** terminal in the repository, and ensure GCC
-and GNU Make are installed. Then run:
+Use a 64-bit MinGW-w64 environment with GCC and GNU Make installed. Then run:
 
 ```sh
 make release
@@ -63,6 +76,18 @@ make release
 The static headers and libraries are committed under
 [`deps/windows-x64/`](deps/windows-x64/), so no dependency-download step is needed. The output is `bin/pilang.exe` and has no SDL
 DLL dependency.
+
+### Linux
+
+Install GCC, GNU Make, and `pkg-config`, then run:
+
+```sh
+make release
+./bin/pilang test.pi
+```
+
+The static kit is committed under [`deps/linux-x64/`](deps/linux-x64/), so the
+output has no SDL or other shared-library dependency.
 
 ### Package a Windows app
 

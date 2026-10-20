@@ -95,10 +95,12 @@ __pycache__/
 # Local agent instructions
 AGENTS.md
 
-# Checked-in Windows static build kit.
+# Checked-in static build kits.
 !deps/
 !deps/windows-x64/
 !deps/windows-x64/**
+!deps/linux-x64/
+!deps/linux-x64/**
 
 Don't Touch My Presents/
 Flappy Bird/
