@@ -79,7 +79,7 @@ jobs:
           fi
 
       - name: Assemble the Linux runtime
-        run: ./tools/release.sh "$GITHUB_REF_NAME" --skip-build
+        run: bash tools/release.sh "$GITHUB_REF_NAME" --skip-build
 
       - name: Upload release archive
         uses: actions/upload-artifact@v4
