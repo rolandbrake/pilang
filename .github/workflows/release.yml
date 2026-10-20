@@ -75,8 +75,14 @@ jobs:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -eu
+          mapfile -t archives < <(find dist -type f -name '*.zip' -print)
+          if [ "${#archives[@]}" -eq 0 ]; then
+            echo "No release ZIP was downloaded."
+            exit 1
+          fi
+
           if gh release view "$TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/*/* --clobber --repo "$REPOSITORY"
+            gh release upload "$TAG" "${archives[@]}" --clobber --repo "$REPOSITORY"
             exit 0
           fi
 
@@ -84,4 +90,4 @@ jobs:
           case "$TAG" in
             *-*) prerelease="--prerelease" ;;
           esac
-          gh release create "$TAG" dist/*/* --generate-notes $prerelease --repo "$REPOSITORY"
+          gh release create "$TAG" "${archives[@]}" --generate-notes $prerelease --repo "$REPOSITORY"
