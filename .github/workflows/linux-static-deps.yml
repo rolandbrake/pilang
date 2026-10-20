@@ -17,7 +17,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential cmake ninja-build pkg-config curl zip \
-            autoconf automake libtool gettext
+            autoconf automake libtool gettext autotools-dev bison flex texinfo
 
       - name: Build a static SDL dependency kit
         run: |
@@ -35,6 +35,14 @@ jobs:
           test -f "$prefix/lib/libSDL2_image.a"
           test -f "$prefix/lib/libSDL2_mixer.a"
           test -f "$prefix/lib/libSDL2_ttf.a"
+
+      - name: Upload vcpkg failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vcpkg-gperf-logs
+          path: ${{ runner.temp }}/vcpkg/buildtrees/gperf/**/*.log
+          if-no-files-found: ignore
 
       - name: Build and verify the static runtime
         run: |
