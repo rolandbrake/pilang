@@ -21,12 +21,18 @@ jobs:
 
       - name: Build a static SDL dependency kit
         run: |
-          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$RUNNER_TEMP/vcpkg"
+          git init "$RUNNER_TEMP/vcpkg"
+          git -C "$RUNNER_TEMP/vcpkg" remote add origin https://github.com/microsoft/vcpkg.git
+          git -C "$RUNNER_TEMP/vcpkg" fetch --depth 1 origin d4f3e122069912636c123b7ece673f6e01513cea
+          git -C "$RUNNER_TEMP/vcpkg" checkout FETCH_HEAD
           "$RUNNER_TEMP/vcpkg/bootstrap-vcpkg.sh" -disableMetrics
-          "$RUNNER_TEMP/vcpkg/vcpkg" install \
+          if ! "$RUNNER_TEMP/vcpkg/vcpkg" install \
             --triplet x64-linux \
             --x-install-root "$RUNNER_TEMP/vcpkg-installed" \
-            sdl2 sdl2-image sdl2-mixer sdl2-ttf
+            sdl2 sdl2-image sdl2-mixer sdl2-ttf; then
+            find "$RUNNER_TEMP/vcpkg/buildtrees/gperf" -type f -name '*.log' -print -exec cat {} \;
+            exit 1
+          fi
           prefix="$RUNNER_TEMP/pilang-linux-x64"
           mkdir -p "$prefix"
           cp -a "$RUNNER_TEMP/vcpkg-installed/x64-linux/include" "$prefix/"
