@@ -50,7 +50,7 @@ jobs:
       - name: Assemble the Windows runtime
         shell: pwsh
         run: |
-          .\tools\release.ps1 $env:GITHUB_REF_NAME -SkipBuild
+          .\tools\release.ps1 "${{ inputs.tag || github.ref_name }}" -SkipBuild
 
       - name: Upload release archive
         uses: actions/upload-artifact@v4
@@ -79,7 +79,7 @@ jobs:
           fi
 
       - name: Assemble the Linux runtime
-        run: bash tools/release.sh "$GITHUB_REF_NAME" --skip-build
+        run: bash tools/release.sh "${{ inputs.tag || github.ref_name }}" --skip-build
 
       - name: Upload release archive
         uses: actions/upload-artifact@v4
