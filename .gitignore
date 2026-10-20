@@ -84,6 +84,8 @@ vids/
 
 # test.pi
 main.pi
+# The package smoke test needs its manifest entry source in every clone.
+!test/package/main.pi
 dt_vm.c
 
 # Ignore Python bytecode and cache recursively
