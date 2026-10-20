@@ -32,32 +32,37 @@ be built for the browser with WebAssembly.
 
 ## Install and run
 
-Pilang is ready to download for **Windows x64**. Get the latest pre-release
-from the [Releases page](https://github.com/rolandbrake/pilang/releases),
-extract `pilang-windows-x64.zip`, and open `Pilang.cmd`. You can also run
-`bin\pilang.exe` from PowerShell or add `Pilang\bin` to `PATH`.
+Windows x64 builds are published on the [Releases page](https://github.com/rolandbrake/pilang/releases).
+Download the latest ZIP, extract it, then open PowerShell in the extracted
+`Pilang-v<version>` folder:
 
-The archive includes the runtime, its resources, examples, and tests. It does
-not require SDL DLLs beside the executable. Linux and macOS downloads will be
-published after their native packages are separately tested.
+```powershell
+.\bin\pilang.exe --version
+.\bin\pilang.exe samples\hello.pi
+```
 
-To build Pilang from source on Windows, clone the repository, open an MSYS2
-UCRT64 terminal with GCC and `make` installed, then run `make release`. The
-static build kit is already in `deps/`; no dependency setup command is needed.
+The ZIP contains the runtime, `resources/`, examples, tests, benchmarks, and
+python test runner. `pilang.exe` is statically linked: SDL DLLs are
+not required or included. Pre-releases contain the newest features and are
+still being tested.
+
+Pilang currently provides a checked-in source-build kit for **Windows x64**.
+It is designed to make `make release` the only build command after the normal
+Windows compiler tools are installed.
 
 ### Windows
 
-In an **MSYS2 UCRT64** terminal in the repository, run:
+Install MSYS2, open its **UCRT64** terminal in the repository, and ensure GCC
+and GNU Make are installed. Then run:
 
 ```sh
 make release
 ./bin/pilang.exe test.pi
 ```
 
-### Linux and macOS
-
-Linux and macOS runtime packages are not currently published. Windows is the
-supported local release build while their native packaging is redesigned.
+The static headers and libraries are committed under
+[`deps/windows-x64/`](deps/windows-x64/), so no dependency-download step is needed. The output is `bin/pilang.exe` and has no SDL
+DLL dependency.
 
 ### Package a Windows app
 
@@ -69,9 +74,8 @@ cd test\package
 ```
 
 After adding `bin/` to `PATH`, use `pilang pack target:win`. The resulting
-`.exe` includes the Pilang runtime and application. A release runtime is
-self-contained; a runtime built locally with MSYS2 may also need its SDL DLLs
-beside the application. See [`test/package/package.loon`](test/package/package.loon)
+`.exe` includes the Pilang runtime and application, with no SDL DLLs required
+beside it. See [`test/package/package.loon`](test/package/package.loon)
 for a complete manifest example.
 
 ```loon
@@ -388,9 +392,10 @@ See [`benchmark/README.md`](benchmark/README.md) for the included workloads and 
 - `libs/`: Pilang libraries written in `.pi`.
 - `ML/`: numerical and machine-learning experiments written in Pilang.
 - `release/`: local build outputs.
+- `deps/windows-x64/`: checked-in Windows x64 static build dependencies.
 - `benchmark/`: end-to-end interpreter benchmark programs.
 - `docs/`: language documentation and reference material.
-- `tests/`: examples and regression tests grouped by language area.
+- `test/`: examples and regression tests grouped by language area.
 
 ## Documentation
 

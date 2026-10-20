@@ -1,8 +1,9 @@
-# Windows static build kit
+# Build dependencies
 
-This folder contains the headers and static libraries used by `make release`
-on Windows x64. They are bundled so contributors can build Pilang and create
-standalone Windows packages without first compiling SDL and its dependencies.
+Each platform has its own dependency kit. `make release` on Windows x64 uses
+`windows-x64/`, which contains the SDL headers and static libraries required to
+build Pilang without downloading or compiling those dependencies first.
 
-The release workflow uses these files to create a static `pilang.exe`. They
-are build-time inputs only and are excluded from the downloadable runtime.
+These are build-time inputs only: the release ZIP contains a static
+`pilang.exe`, not these files or SDL DLLs. Future platform kits belong beside
+`windows-x64/`.

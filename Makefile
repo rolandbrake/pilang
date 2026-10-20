@@ -93,7 +93,7 @@ RELEASE_CFLAGS ?=  -O3
 
 # Windows uses the checked-in static build kit. `make release` therefore
 # produces a self-contained executable with no SDL DLLs.
-STATIC_PREFIX ?= deps
+STATIC_PREFIX ?= deps/windows-x64
 ifeq ($(wildcard $(STATIC_PREFIX)/include/SDL2/SDL.h),)
 $(error Missing Windows static build kit at $(STATIC_PREFIX). Clone the repository with the deps directory.)
 endif

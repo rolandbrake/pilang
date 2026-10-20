@@ -95,10 +95,8 @@ AGENTS.md
 
 # Checked-in Windows static build kit.
 !deps/
-!deps/include/
-!deps/include/**
-!deps/lib/
-!deps/lib/**
+!deps/windows-x64/
+!deps/windows-x64/**
 
 Don't Touch My Presents/
 Flappy Bird/
