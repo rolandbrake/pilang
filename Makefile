@@ -91,11 +91,15 @@ CPPFLAGS ?= -I.
 DEBUG_CFLAGS ?=  -DDEBUG_BUILD
 RELEASE_CFLAGS ?=  -O3
 
-# `make static-deps` is intentionally optional. Normal Windows development uses
-# the prebuilt MSYS2 SDL packages through pkg-config; a static prefix is used
-# only when a maintainer has explicitly built it.
-ifneq ($(wildcard third_party/prefix/include/SDL2/SDL.h),)
-STATIC_PREFIX ?= third_party/prefix
+# Windows releases use the checked-in static SDL build kit. It keeps the
+# runtime and Windows packages self-contained without asking users to build
+# dependencies locally.
+ifeq ($(OS),Windows_NT)
+STATIC_PREFIX ?= resources/windows-x64-static
+else
+STATIC_PREFIX :=
+endif
+ifneq ($(wildcard $(STATIC_PREFIX)/include/SDL2/SDL.h),)
 NATIVE_CPPFLAGS = $(CPPFLAGS) -I$(STATIC_PREFIX)/include
 RELEASE_CFLAGS += -static
 DEBUG_CFLAGS += -static
@@ -167,7 +171,7 @@ $(RELEASE_DIR):
 	$(MKDIR)
 
 static-deps:
-	powershell -NoProfile -ExecutionPolicy Bypass -File tools/setup_deps.ps1
+	powershell -NoProfile -ExecutionPolicy Bypass -File tools/setup_deps.ps1 -Prefix resources/windows-x64-static
 
 setup:
 	@echo "Run tools/setup.ps1 on Windows or tools/setup.sh on Linux/macOS."

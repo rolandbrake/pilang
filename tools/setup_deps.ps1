@@ -1,5 +1,6 @@
 param(
-    [string]$Root = (Split-Path -Parent $PSScriptRoot)
+    [string]$Root = (Split-Path -Parent $PSScriptRoot),
+    [string]$Prefix
 )
 
 $ErrorActionPreference = 'Stop'
@@ -45,7 +46,10 @@ foreach ($command in 'git', 'cmake') {
 
 $thirdParty = Join-Path $Root 'third_party'
 $buildRoot = Join-Path $thirdParty 'build'
-$prefix = Join-Path $thirdParty 'prefix'
+if (-not $Prefix) {
+    $Prefix = Join-Path $Root 'resources/windows-x64-static'
+}
+$prefix = $Prefix
 New-Item -ItemType Directory -Force -Path $thirdParty, $buildRoot, $prefix | Out-Null
 
 $sdl = Ensure-Source 'SDL2' 'https://github.com/libsdl-org/SDL.git' 'release-2.32.8'

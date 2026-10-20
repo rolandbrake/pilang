@@ -6,7 +6,7 @@
 #include <pthread.h>
 #include "pi_value.h"
 
-#define PI_VERSION "0.2.0-rc.2"
+#define PI_VERSION "0.2.0-rc.3"
 #define PI_VERSION_STRING "Pi-Lang " PI_VERSION
 
 #define PI 3.1415926535897932384626433832795
