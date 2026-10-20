@@ -37,6 +37,7 @@ jobs:
           mkdir -p "$prefix"
           cp -a "$RUNNER_TEMP/vcpkg-installed/x64-linux/include" "$prefix/"
           cp -a "$RUNNER_TEMP/vcpkg-installed/x64-linux/lib" "$prefix/"
+          find "$prefix/lib" -type f -name '*.so*' -delete
           test -f "$prefix/lib/libSDL2.a"
           test -f "$prefix/lib/libSDL2_image.a"
           test -f "$prefix/lib/libSDL2_mixer.a"
