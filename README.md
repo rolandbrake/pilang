@@ -124,38 +124,14 @@ targets:
     output: "my-app.exe"
 ```
 
-## Math Plotting
+## Visual Computing
 
-Turn arrays, functions, and simulations into 2D charts or interactive 3D
-surface, mesh, and wireframe plots. The plotting modules are designed for quick
-visual feedback while you experiment.
-
-<p align="center">
-    <a href="./samples/surface.pi">
-        <img src="resources/math_plot.png" alt="Pilang mathematical plot" height="400">
-    </a>
-</p>
-
-## Image Processing
-
-Load, inspect, and transform images with built-in operations such as grayscale
-conversion and edge detection, then display the result in the same script.
+Turn data, functions, and simulations into 2D charts or interactive 3D plots;
+process images with built-in filters; and explore scenes, meshes, and OBJ
+models without leaving Pilang.
 
 <p align="center">
- <a href="./samples/imshow.pi">
-    <img src="resources/img_process.png" alt="Pilang image processing" height="400">
-  </a>
-</p>
-
-## 3D Graphics
-
-Explore software-projected 3D scenes, meshes, and OBJ model rendering without
-leaving Pilang.
-
-<p align="center">
-  <a href="./samples/graphics/tunnel_3d.pi">
-    <img src="resources/3d_models.png" alt="Pilang 3D graphics in progress" height="400">
-  </a>
+  <img src="resources/features.png" alt="Pilang charts, image processing, and 3D graphics" height="400">
 </p>
 
 
