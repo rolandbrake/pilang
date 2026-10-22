@@ -4202,7 +4202,8 @@ static void _primary(Parser *parser)
                         bool prev_object_member = parser->object_member;
                         char *prev_fun = parser->fun_name;
                         char *prev_obj = parser->object_name;
-                        parser->object_member = TRUE;
+                        /* Maps store plain function values; they do not bind `this`. */
+                        parser->object_member = FALSE;
                         parser->object_name = NULL;
 
                         if (_is_functionLiteral(parser, parser->current))

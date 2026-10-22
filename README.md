@@ -131,7 +131,9 @@ process images with built-in filters; and explore scenes, meshes, and OBJ
 models without leaving Pilang.
 
 <p align="center">
-  <img src="resources/features.png" alt="Pilang charts, image processing, and 3D graphics" height="400">
+  <a href="./samples/">
+    <img src="resources/features.png" alt="Pilang charts, image processing, and 3D graphics" height="400">
+  </a>
 </p>
 
 
@@ -143,7 +145,7 @@ Windows executables. [for ready to run games](https://github.com/rolandbrake/pil
 
 <p align="center">
   <a href="https://github.com/rolandbrake/pilang-games" target="_blank">
-    <img src="resources/_games.png" alt="Pilang games in progress" height="600">
+    <img src="resources/_games.png" alt="Pilang games in progress" height="500">
   </a>
 </p>
 

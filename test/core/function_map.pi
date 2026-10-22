@@ -1,0 +1,24 @@
+let ops = {
+    "+": fun (a, b) { return a + b },
+    "-": fun (a, b) { return a - b },
+    "*": fun (a, b) { return a * b },
+    "/": fun (a, b) {
+        if b == 0 {
+            error("division by zero")
+        }
+
+        return a / b
+    }
+}
+
+fun calculate(op, a, b) {
+    if !(op in ops) 
+        error("unknown operator: " + op)    
+
+    return ops[op](a, b)
+}
+
+assert(calculate("+", 6, 7) == 13, "function maps should dispatch addition")
+assert(calculate("-", 6, 7) == -1, "function maps should dispatch subtraction")
+assert(calculate("*", 6, 7) == 42, "function maps should dispatch multiplication")
+assert(calculate("/", 21, 7) == 3, "function maps should dispatch division")
