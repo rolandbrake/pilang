@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{TITLE}}</title>
+    {{ICON}}
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" />
+    <style>
+      :root {
+        background: #00b0f0;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background-color: #00b0f0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.26) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.26) 1px, transparent 1px);
+        background-size: 32px 32px;
+      }
+      canvas {
+        display: block;
+        max-width: calc(100vw - 48px);
+        max-height: calc(100vh - 48px);
+        border: 1px solid #000;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+      #loading-screen {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        z-index: 1;
+        background: #00b0f0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.26) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.26) 1px, transparent 1px);
+        background-size: 32px 32px;
+        transition: opacity 0.45s ease;
+      }
+      #loading-screen.is-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #loading-brand {
+        display: grid;
+        justify-items: center;
+        gap: 28px;
+      }
+      #loading-screen img {
+        width: min(144px, 38vw);
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+      #loading-screen p {
+        margin: 0;
+        color: #fff;
+        font:
+          700 clamp(12px, 1.4vw, 18px) "JetBrains Mono",
+          monospace;
+        text-shadow: 2px 2px #000;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 0.45;
+          transform: scale(0.96);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <canvas></canvas>
+    <div id="loading-screen" role="status" aria-label="Loading">
+      <div id="loading-brand">
+        <img src="_launch.png" alt="" />
+        <p>Powered by Pilang © 2026</p>
+      </div>
+    </div>
+    <script type="module">
+      import createPilang from './pilang.js';
+
+      const startedAt = performance.now();
+      const loadingScreen = document.getElementById('loading-screen');
+      const minimumLoadingTime = 2000;
+      const files = [{{FILES}}];
+
+      function fitCanvas() {
+        const availableWidth = document.documentElement.clientWidth - 48;
+        const availableHeight = document.documentElement.clientHeight - 48;
+        const scale = Math.min(1, availableWidth / canvas.width, availableHeight / canvas.height);
+        canvas.style.width = `${canvas.width * scale}px`;
+        canvas.style.height = `${canvas.height * scale}px`;
+      }
+
+      const canvas = document.querySelector('canvas');
+      const app = await createPilang({ canvas, noInitialRun: true });
+      new ResizeObserver(fitCanvas).observe(canvas);
+      new MutationObserver(fitCanvas).observe(canvas, { attributes: true, attributeFilter: ['width', 'height'] });
+      addEventListener('resize', fitCanvas);
+      visualViewport?.addEventListener('resize', fitCanvas);
+
+      for (const path of files) {
+        const response = await fetch(path);
+        if (!response.ok) throw new Error(`Could not load ${path}`);
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        app.FS.mkdirTree('/' + path.split('/').slice(0, -1).join('/'));
+        app.FS.writeFile('/' + path, bytes);
+      }
+
+      await new Promise(resolve => setTimeout(resolve, Math.max(0, minimumLoadingTime - (performance.now() - startedAt))));
+      loadingScreen.classList.add('is-hidden');
+      setTimeout(() => loadingScreen.remove(), 450);
+      app.ccall('execute_px', 'number', ['string'], ['/' + files[0]]);
+      requestAnimationFrame(fitCanvas);
+      setTimeout(fitCanvas, 0);
+    </script>
+  </body>
+</html>

@@ -177,6 +177,7 @@ static int _map_compare(PiMap *left, PiMap *right)
 
     free(left_keys);
     free(right_keys);
+    return 0;
 }
 
 // Clones a PiMap object, preserving its prototype chain and key-value pairs.

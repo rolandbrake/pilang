@@ -3,6 +3,10 @@
 #include <string.h>
 #include <sys/time.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -231,10 +235,12 @@ Value pi_sleep(VM *vm, int argc, Value *argv)
     if (ms < 0)
         ms = 0;
 
-    while (ms > 0 && !interrupt_requested)
+    while (ms > 0 && vm->running && !interrupt_requested)
     {
         double chunk = ms < SLEEP_INTERRUPT_SLICE_MS ? ms : SLEEP_INTERRUPT_SLICE_MS;
-#ifdef _WIN32
+#ifdef __EMSCRIPTEN__
+        emscripten_sleep((unsigned)chunk);
+#elif defined(_WIN32)
         Sleep((DWORD)chunk);
 #else
         struct timespec req;

@@ -7,6 +7,7 @@
 #include <signal.h>
 typedef sig_atomic_t InterruptFlag;
 #else
+#include <emscripten.h>
 typedef int InterruptFlag;
 #endif
 
@@ -76,9 +77,31 @@ typedef int InterruptFlag;
         goto *dispatch[_op];                \
     } while (0)
 
+#ifdef __EMSCRIPTEN__
+#define VM_BROWSER_YIELD()                                      \
+    do                                                          \
+    {                                                           \
+        if (!vm->running)                                       \
+        {                                                       \
+            VM_SYNC_PC();                                       \
+            goto L_VM_DONE;                                     \
+        }                                                       \
+        if (++browser_steps >= BROWSER_YIELD_STEPS)             \
+        {                                                       \
+            browser_steps = 0;                                  \
+            VM_SYNC_PC();                                       \
+            emscripten_sleep(0);                                \
+            VM_DISPATCH_SLOW();                                 \
+        }                                                       \
+    } while (0)
+#else
+#define VM_BROWSER_YIELD() do { } while (0)
+#endif
+
 #define VM_DISPATCH_SAFE()                           \
     do                                               \
     {                                                \
+        VM_BROWSER_YIELD();                          \
         if (++safepoint_steps >= VM_SAFEPOINT_STEPS) \
         {                                            \
             safepoint_steps = 0;                     \
@@ -90,7 +113,7 @@ typedef int InterruptFlag;
 #define BEGIN_VM_LOOP() VM_DISPATCH_SLOW()
 #define END_INSTR() goto L_VM_AFTER_INSTR
 
-#define BROWSER_YIELD_STEPS 50000
+#define BROWSER_YIELD_STEPS 4096
 #define INTERRUPT_CHECK_STEPS 4096
 #define VM_SAFEPOINT_STEPS 8192
 

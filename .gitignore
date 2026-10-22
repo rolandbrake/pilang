@@ -30,6 +30,7 @@
 *.js
 !utils/js/*.js
 *.html
+!resources/web-package.html
 
 
 # Debug files

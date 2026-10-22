@@ -47,7 +47,7 @@ Download the ZIP, extract it, then open PowerShell in the extracted
 `Pilang-v<version>` folder:
 
 ```powershell
-.\bin\pilang.exe --version
+.\bin\pilang.exe ver
 .\bin\pilang.exe samples\hello.pi
 ```
 
@@ -56,7 +56,7 @@ Download the ZIP, extract it, then open PowerShell in the extracted
 Download and extract the `.tar.gz` archive, then run from its `Pilang-v<version>` folder:
 
 ```sh
-./bin/pilang --version
+./bin/pilang ver
 ./bin/pilang samples/hello.pi
 ```
 
@@ -392,7 +392,6 @@ Developer helpers:
 
 ```sh
 ./bin/pilang dis test.pi
-./bin/pilang dis -o bytecode.txt test.pi
 ./bin/pilang fmt test.pi
 ./bin/pilang min test.pi
 ```

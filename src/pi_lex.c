@@ -527,6 +527,9 @@ void add_token(PiTokenType type)
             scanner->tokens[open_pos].close_at = index;
         }
         break;
+
+    default:
+        break;
     }
     }
 

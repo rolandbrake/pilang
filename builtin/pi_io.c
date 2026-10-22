@@ -7,6 +7,10 @@
 #include <stdlib.h>
 #include <time.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/console.h>
+#endif
+
 #ifdef _WIN32
 #include <conio.h>
 #include <io.h>
@@ -53,7 +57,10 @@ static void _append_char(char *buffer, int *offset, char c)
 
 static void _write_stdoutText(const char *text)
 {
-#ifdef _WIN32
+#ifdef __EMSCRIPTEN__
+    emscripten_out(text);
+    return;
+#elif defined(_WIN32)
     HANDLE out = (HANDLE)_get_osfhandle(_fileno(stdout));
     DWORD mode = 0;
 

@@ -185,6 +185,105 @@ static bool _web_safePath(const char *path)
     return path && path[0] && path[0] != '/' && path[0] != '\\' && !strchr(path, ':') && !strstr(path, "..");
 }
 
+static bool _web_copyAsset(const char *runtime_path, const char *asset, const char *output)
+{
+    FILE *source = _open_splashAsset(runtime_path, asset);
+    FILE *destination = source ? fopen(output, "wb") : NULL;
+    bool ok = source && destination && _copy_file(source, destination);
+    if (source)
+        fclose(source);
+    if (destination)
+        fclose(destination);
+    return ok;
+}
+
+static bool _web_writeHtmlEscaped(FILE *output, const char *text)
+{
+    for (; *text; text++)
+    {
+        const char *escaped = NULL;
+        switch (*text)
+        {
+        case '&':
+            escaped = "&amp;";
+            break;
+        case '<':
+            escaped = "&lt;";
+            break;
+        case '>':
+            escaped = "&gt;";
+            break;
+        case '"':
+            escaped = "&quot;";
+            break;
+        case '\'':
+            escaped = "&#39;";
+            break;
+        }
+        if (escaped)
+        {
+            if (fputs(escaped, output) == EOF)
+                return FALSE;
+        }
+        else if (fputc((unsigned char)*text, output) == EOF)
+            return FALSE;
+    }
+    return TRUE;
+}
+
+static bool _web_writeJsonString(FILE *output, const char *text)
+{
+    if (fputc('"', output) == EOF)
+        return FALSE;
+    for (; *text; text++)
+    {
+        if (*text == '"' || *text == '\\')
+        {
+            if (fputc('\\', output) == EOF)
+                return FALSE;
+        }
+        if (fputc((unsigned char)*text, output) == EOF)
+            return FALSE;
+    }
+    return fputc('"', output) != EOF;
+}
+
+static bool _web_writeTemplate(FILE *output, const char *template, const char *files, const PiPackage *package)
+{
+    const char *cursor = template;
+    while (*cursor)
+    {
+        const char *token = strstr(cursor, "{{");
+        if (!token)
+            return fputs(cursor, output) != EOF;
+        if (fwrite(cursor, 1, (size_t)(token - cursor), output) != (size_t)(token - cursor))
+            return FALSE;
+        if (!strncmp(token, "{{TITLE}}", 9))
+        {
+            if (!_web_writeHtmlEscaped(output, package->name))
+                return FALSE;
+            cursor = token + 9;
+        }
+        else if (!strncmp(token, "{{ICON}}", 8))
+        {
+            if (package->icon && _web_safePath(package->icon) &&
+                (fputs("<link rel=\"icon\" href=\"", output) == EOF ||
+                 !_web_writeHtmlEscaped(output, package->icon) || fputs("\">", output) == EOF))
+                return FALSE;
+            cursor = token + 8;
+        }
+        else if (!strncmp(token, "{{FILES}}", 9))
+        {
+            if (fputs(files, output) == EOF)
+                return FALSE;
+            cursor = token + 9;
+        }
+        else if (fputc(*cursor++, output) == EOF)
+            return FALSE;
+    }
+    return TRUE;
+}
+
 static bool _web_makeParents(char *path)
 {
     for (char *p = path + 1; *p; p++)
@@ -234,7 +333,7 @@ static bool _web_removeTree(const char *path)
     return ok && RemoveDirectoryA(path) != 0;
 }
 
-static bool _web_copyPath(const char *output, const char *source, const char *relative, FILE *index)
+static bool _web_copyPath(const char *output, const char *source, const char *relative, FILE *files, bool *first)
 {
     DWORD attr = GetFileAttributesA(source);
     if (attr == INVALID_FILE_ATTRIBUTES)
@@ -252,7 +351,11 @@ static bool _web_copyPath(const char *output, const char *source, const char *re
         if (out)
             fclose(out);
         if (ok)
-            fprintf(index, "\"%s\",", relative);
+        {
+            if ((!*first && fputc(',', files) == EOF) || !_web_writeJsonString(files, relative))
+                return FALSE;
+            *first = FALSE;
+        }
         return ok;
     }
     char pattern[MAX_PATH];
@@ -269,7 +372,7 @@ static bool _web_copyPath(const char *output, const char *source, const char *re
         char child_source[MAX_PATH], child_relative[MAX_PATH];
         snprintf(child_source, sizeof(child_source), "%s\\%s", source, item.cFileName);
         snprintf(child_relative, sizeof(child_relative), "%s/%s", relative, item.cFileName);
-        if (!_web_copyPath(output, child_source, child_relative, index))
+        if (!_web_copyPath(output, child_source, child_relative, files, first))
         {
             ok = FALSE;
             break;
@@ -321,14 +424,6 @@ bool package_web(const char *runtime_path, const PiPackage *package, char *error
         _bundle_error(error, error_size, "could not create web output directory");
         return FALSE;
     }
-    char html[MAX_PATH];
-    snprintf(html, sizeof(html), "%s/index.html", package->output);
-    FILE *index = fopen(html, "wb");
-    if (!index)
-    {
-        _bundle_error(error, error_size, "could not create index.html");
-        return FALSE;
-    }
     char entry_px[MAX_PATH];
     snprintf(entry_px, sizeof(entry_px), "%s", package->entry);
     char *extension = strrchr(entry_px, '.');
@@ -337,15 +432,51 @@ bool package_web(const char *runtime_path, const PiPackage *package, char *error
     else
         strncat(entry_px, ".px", sizeof(entry_px) - strlen(entry_px) - 1);
 
-    fprintf(index, "<!doctype html><meta charset=\"utf-8\"><title>%s</title>", package->name);
-    if (package->icon && _web_safePath(package->icon))
-        fprintf(index, "<link rel=\"icon\" href=\"%s\">", package->icon);
-    fprintf(index, "<canvas></canvas><script type=\"module\">import createPilang from './pilang.js';const app=await createPilang({canvas:document.querySelector('canvas'),noInitialRun:true});const files=[");
-    bool ok = _web_safePath(entry_px) && _web_copyPath(package->output, entry_px, entry_px, index);
+    FILE *files = tmpfile();
+    bool first = TRUE;
+    bool ok = files && _web_safePath(entry_px) && _web_copyPath(package->output, entry_px, entry_px, files, &first);
     for (size_t i = 0; ok && i < package->file_count; i++)
-        ok = _web_safePath(package->files[i]) && _web_copyPath(package->output, package->files[i], package->files[i], index);
-    fprintf(index, "];for(const p of files){const r=await fetch(p),b=new Uint8Array(await r.arrayBuffer());app.FS.mkdirTree('/'+p.split('/').slice(0,-1).join('/'));app.FS.writeFile('/'+p,b)}app.ccall('execute_px','number',['string'],['/'+files[0]]);</script>");
-    fclose(index);
+        ok = _web_safePath(package->files[i]) && _web_copyPath(package->output, package->files[i], package->files[i], files, &first);
+    char splash[MAX_PATH];
+    snprintf(splash, sizeof(splash), "%s/_launch.png", package->output);
+    ok = ok && _web_copyAsset(runtime_path, "_launch.png", splash);
+    long files_size = files && fseek(files, 0, SEEK_END) == 0 ? ftell(files) : -1;
+    if (files_size < 0 || fseek(files, 0, SEEK_SET) != 0)
+        ok = FALSE;
+    char *file_list = ok ? malloc((size_t)files_size + 1) : NULL;
+    if (!file_list || fread(file_list, 1, (size_t)files_size, files) != (size_t)files_size)
+        ok = FALSE;
+    if (files)
+        fclose(files);
+    if (file_list)
+        file_list[files_size] = '\0';
+    FILE *template_file = ok ? _open_splashAsset(runtime_path, "web-package.html") : NULL;
+    if (!template_file)
+    {
+        free(file_list);
+        _bundle_error(error, error_size, "could not read web template 'resources/web-package.html'");
+        return FALSE;
+    }
+    if (fseek(template_file, 0, SEEK_END) != 0)
+        ok = FALSE;
+    long template_size = ok ? ftell(template_file) : -1;
+    if (template_size < 0 || fseek(template_file, 0, SEEK_SET) != 0)
+        ok = FALSE;
+    char *template = ok ? malloc((size_t)template_size + 1) : NULL;
+    if (!template || fread(template, 1, (size_t)template_size, template_file) != (size_t)template_size)
+        ok = FALSE;
+    fclose(template_file);
+    if (template)
+        template[template_size] = '\0';
+    char html[MAX_PATH];
+    snprintf(html, sizeof(html), "%s/index.html", package->output);
+    FILE *index = ok ? fopen(html, "wb") : NULL;
+    if (!index || !_web_writeTemplate(index, template, file_list, package))
+        ok = FALSE;
+    if (index)
+        fclose(index);
+    free(template);
+    free(file_list);
     char js[MAX_PATH], wasm[MAX_PATH], target[MAX_PATH];
     snprintf(js, sizeof(js), "%s/bin/pilang.js", root);
     snprintf(wasm, sizeof(wasm), "%s/bin/pilang.wasm", root);
@@ -614,9 +745,12 @@ bool package_bundle(const char *runtime_path, const PiPackage *package, char *er
     if (!ok && (!error || !error[0]))
         _bundle_error(error, error_size, "failed while appending the compiled application");
     PiPackageTrailer trailer = {{'P', 'I', 'P', 'A', 'C', 'K', '3', package->console ? 'C' : 'G'},
-                                (uint64_t)offset, (uint64_t)size,
-                                (uint64_t)launch_offset, (uint64_t)launch_size,
-                                (uint64_t)font_offset, (uint64_t)font_size};
+                                (uint64_t)offset,
+                                (uint64_t)size,
+                                (uint64_t)launch_offset,
+                                (uint64_t)launch_size,
+                                (uint64_t)font_offset,
+                                (uint64_t)font_size};
     if (ok)
         ok = fwrite(&trailer, 1, sizeof(trailer), output) == sizeof(trailer);
     if (!ok && (!error || !error[0]))

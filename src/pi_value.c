@@ -8,7 +8,9 @@
 #include "pi_module.h"
 #include "pi_vm.h"
 
-#if defined(__GNUC__)
+#if defined(__clang__)
+#define PI_STRICT_FP __attribute__((optnone))
+#elif defined(__GNUC__)
 #define PI_STRICT_FP __attribute__((optimize("no-fast-math")))
 #else
 #define PI_STRICT_FP
@@ -1005,6 +1007,7 @@ List *as_list(Value val)
     if (val.type == VAL_OBJ && OBJ_TYPE(val) == OBJ_LIST)
         return AS_LIST(val)->items;
     error("Expected a list, but got %s", type_name(val));
+    return NULL;
 }
 
 bool is_numeric(Value val)

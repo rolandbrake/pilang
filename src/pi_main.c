@@ -377,7 +377,6 @@ static void _print_usage(const char *program)
     printf("  %s run [file] [args...]       Run main.pi or the specified Pilang file\n", program);
     printf("  %s <file> [args...]           Shorthand for 'run <file>'\n", program);
     printf("  %s dis <file>                 Print bytecode for the specified Pilang file\n", program);
-    printf("  %s dis -o <output> <file>     Write bytecode to a file\n", program);
     printf("  %s build [file]               Build main.pi or the specified project\n", program);
     printf("  %s pack [target:win|web]      Package the current project\n", program);
     printf("  %s fmt <file>                 Format a file in place\n", program);
@@ -1343,13 +1342,13 @@ int main(int argc, char *argv[])
 
     const char *command = argv[1];
 
-    if (strcmp(command, "help") == 0 || strcmp(command, "--help") == 0 || strcmp(command, "-h") == 0)
+    if (strcmp(command, "help") == 0)
     {
         _print_usage(argv[0]);
         return 0;
     }
 
-    if (strcmp(command, "--version") == 0 || strcmp(command, "-v") == 0)
+    if (strcmp(command, "ver") == 0)
     {
         printf("Pilang: %s\n", PI_VERSION);
         return 0;
@@ -1463,30 +1462,13 @@ int main(int argc, char *argv[])
 
     if (strcmp(command, "dis") == 0)
     {
-        const char *input = NULL;
-        const char *output = NULL;
-
-        if (argc == 3)
+        if (argc != 3)
         {
-            input = argv[2];
-        }
-        else if (argc == 5 && strcmp(argv[2], "-o") == 0)
-        {
-            output = argv[3];
-            input = argv[4];
-        }
-        else if (argc == 5 && strcmp(argv[3], "-o") == 0)
-        {
-            input = argv[2];
-            output = argv[4];
-        }
-        else
-        {
-            fprintf(stderr, "Usage: %s dis <file>\n       %s dis -o <output> <file>\n", argv[0], argv[0]);
+            fprintf(stderr, "Usage: %s dis <file>\n", argv[0]);
             return 1;
         }
 
-        return _disassemble_file(input, output);
+        return _disassemble_file(argv[2], NULL);
     }
 
     if (strcmp(command, "min") == 0 || strcmp(command, "fmt") == 0)

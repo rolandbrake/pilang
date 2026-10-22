@@ -138,6 +138,7 @@ Value pi_rand(VM *vm, int argc, Value *argv)
 
     else
         vm_error(vm, "[rand] expects 0, 1, or 2 numeric arguments.");
+    return NEW_NIL();
 }
 
 Value pi_RandN(VM *vm, int argc, Value *argv)

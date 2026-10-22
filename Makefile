@@ -153,6 +153,7 @@ EMCC_FLAGS ?= \
 	-s EXPORT_ES6=1 \
 	-s EXPORTED_FUNCTIONS='["_main","_set_source","_execute_source","_execute_px","_disassemble_source","_stop_execution","_pause_execution","_resume_execution"]' \
 	-s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","FS"]' \
+	-s ASYNCIFY=1 \
 	-Os \
 	-s FULL_ES3=1 \
 	-s OFFSCREEN_FRAMEBUFFER=1 \
