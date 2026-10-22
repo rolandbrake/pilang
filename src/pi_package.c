@@ -398,12 +398,19 @@ bool package_web(const char *runtime_path, const PiPackage *package, char *error
     if (!project)
         return FALSE;
     *project = '\0';
-    char command[MAX_PATH + 32];
-    snprintf(command, sizeof(command), "make -C \"%s\" web", root);
-    if (system(command) != 0)
+    char js[MAX_PATH], wasm[MAX_PATH];
+    snprintf(js, sizeof(js), "%s/bin/pilang.js", root);
+    snprintf(wasm, sizeof(wasm), "%s/bin/pilang.wasm", root);
+    if (GetFileAttributesA(js) == INVALID_FILE_ATTRIBUTES ||
+        GetFileAttributesA(wasm) == INVALID_FILE_ATTRIBUTES)
     {
-        _bundle_error(error, error_size, "Emscripten web runtime build failed");
-        return FALSE;
+        char command[MAX_PATH + 32];
+        snprintf(command, sizeof(command), "make -C \"%s\" web", root);
+        if (system(command) != 0)
+        {
+            _bundle_error(error, error_size, "Emscripten web runtime build failed");
+            return FALSE;
+        }
     }
     if (!_web_safePath(package->output))
     {
@@ -477,9 +484,7 @@ bool package_web(const char *runtime_path, const PiPackage *package, char *error
         fclose(index);
     free(template);
     free(file_list);
-    char js[MAX_PATH], wasm[MAX_PATH], target[MAX_PATH];
-    snprintf(js, sizeof(js), "%s/bin/pilang.js", root);
-    snprintf(wasm, sizeof(wasm), "%s/bin/pilang.wasm", root);
+    char target[MAX_PATH];
     snprintf(target, sizeof(target), "%s/pilang.js", package->output);
     FILE *in = fopen(js, "rb"), *out = in ? fopen(target, "wb") : NULL;
     ok = ok && in && out && _copy_file(in, out);
@@ -548,10 +553,10 @@ static bool _set_windowsIcon(const char *executable, const char *icon_path)
     unsigned char group[20] = {0, 0, 1, 0, 1, 0};
     if (memcmp(png, signature, sizeof(signature)) == 0)
     {
-        uint32_t width = ((uint32_t)png[16] << 24) | ((uint32_t)png[17] << 16) |
-                         ((uint32_t)png[18] << 8) | png[19];
+        uint32_t width = ((uint32_t)png[16] << 24)  | ((uint32_t)png[17] << 16) |
+                         ((uint32_t)png[18] << 8)   | png[19];
         uint32_t height = ((uint32_t)png[20] << 24) | ((uint32_t)png[21] << 16) |
-                          ((uint32_t)png[22] << 8) | png[23];
+                          ((uint32_t)png[22] << 8)  | png[23];
         if (!width || !height || width > 256 || height > 256)
             ok = FALSE;
         group[6] = (unsigned char)(width == 256 ? 0 : width);
