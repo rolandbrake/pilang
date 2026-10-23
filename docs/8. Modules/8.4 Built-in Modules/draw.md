@@ -28,6 +28,13 @@ default. Pass `false` as the final argument to disable it:
 draw.canvas(640, 480, "Demo", nil, false)
 ```
 
+The optional arguments may also be passed by name, so omitted options do not
+need placeholder values:
+
+```swift
+draw.canvas(640, 480, title="Demo", show_launch=false)
+```
+
 ## `draw.run(callback = nil)`
 
 Runs the drawing loop. Pass a callback when you want frame-driven drawing.

@@ -210,12 +210,6 @@ void vm_error(VM *vm, const char *message);
 void vm_errorf(VM *vm, const char *fmt, ...);
 Value vm_callMethodNoArgs(VM *vm, Value receiver, const char *name);
 
-// keyword arguments for native builtin functions
-Value vm_kwargs(VM *vm);
-bool vm_hasKwarg(VM *vm, const char *name);
-bool vm_getKwarg(VM *vm, const char *name, Value *out);
-Value vm_getKwargOr(VM *vm, const char *name, Value fallback);
-
 void free_vm(VM *vm);
 
 #endif // PI_VM_H

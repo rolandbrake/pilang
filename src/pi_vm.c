@@ -534,39 +534,6 @@ static void _gc_collect(VM *vm)
 #endif
 }
 
-Value vm_kwargs(VM *vm)
-{
-    if (!vm)
-        return NEW_NIL();
-    return vm->_kw_args;
-}
-
-bool vm_hasKwarg(VM *vm, const char *name)
-{
-    if (!vm || !name || !IS_MAP(vm->_kw_args))
-        return FALSE;
-    return _ht_get(AS_MAP(vm->_kw_args)->table, name) != NULL;
-}
-
-bool vm_getKwarg(VM *vm, const char *name, Value *out)
-{
-    if (!vm || !name || !out || !IS_MAP(vm->_kw_args))
-        return FALSE;
-
-    Value *value = _ht_get(AS_MAP(vm->_kw_args)->table, name);
-    if (!value)
-        return FALSE;
-
-    *out = *value;
-    return TRUE;
-}
-
-Value vm_getKwargOr(VM *vm, const char *name, Value fallback)
-{
-    Value value;
-    return vm_getKwarg(vm, name, &value) ? value : fallback;
-}
-
 #ifdef DEBUG
 static inline int _count_objs(VM *vm)
 {

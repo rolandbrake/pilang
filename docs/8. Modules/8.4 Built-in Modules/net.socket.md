@@ -19,6 +19,9 @@ socket.close(client)
 
 Creates an unconnected TCP socket. This version supports `SOCK_STREAM` only.
 
+Optional socket settings can be named, for example
+`socket.Socket(family=socket.AF_INET, type=socket.SOCK_STREAM)`.
+
 ## `connect(socket, host, port, options = {})`
 
 Connects a socket. `options.timeout` is an optional timeout in milliseconds
@@ -81,6 +84,8 @@ supported when Pilang gains a byte-buffer value.
 
 Reads up to `max_bytes` and returns a map with `data` and `eof`. `eof` is true
 when the remote peer has closed the connection.
+
+For readability, use `socket.receive(client, max_bytes=4096)`.
 
 ## `close(socket)`
 

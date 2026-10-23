@@ -12,6 +12,7 @@
 #endif
 
 #include "pi_socket.h"
+#include "../pi_kwargs.h"
 
 #ifdef _WIN32
 typedef SOCKET NativeSocket;
@@ -93,6 +94,26 @@ Value socket_Socket(VM *vm, int argc, Value *argv)
     int family = argc > 0 ? (int)AS_NUM(argv[0]) : AF_INET;
     int type = argc > 1 ? (int)AS_NUM(argv[1]) : SOCK_STREAM;
     int protocol = argc > 2 ? (int)AS_NUM(argv[2]) : IPPROTO_TCP;
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "family", &value) && !IS_NIL(value))
+        {
+            if (!IS_NUM(value)) vm_error(vm, "socket.Socket arguments must be numbers.");
+            family = (int)AS_NUM(value);
+        }
+        if (_kw_get(kwargs, "type", &value) && !IS_NIL(value))
+        {
+            if (!IS_NUM(value)) vm_error(vm, "socket.Socket arguments must be numbers.");
+            type = (int)AS_NUM(value);
+        }
+        if (_kw_get(kwargs, "protocol", &value) && !IS_NIL(value))
+        {
+            if (!IS_NUM(value)) vm_error(vm, "socket.Socket arguments must be numbers.");
+            protocol = (int)AS_NUM(value);
+        }
+    }
     if (type != SOCK_STREAM)
         vm_error(vm, "socket.Socket currently supports SOCK_STREAM only.");
 
@@ -206,6 +227,17 @@ Value socket_receive(VM *vm, int argc, Value *argv)
         if (!IS_NUM(argv[1]) || AS_NUM(argv[1]) != (int)AS_NUM(argv[1]) || AS_NUM(argv[1]) <= 0)
             vm_error(vm, "socket.receive max_bytes must be a positive integer.");
         max_bytes = (int)AS_NUM(argv[1]);
+    }
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "max_bytes", &value) && !IS_NIL(value))
+        {
+            if (!IS_NUM(value) || AS_NUM(value) != (int)AS_NUM(value) || AS_NUM(value) <= 0)
+                vm_error(vm, "socket.receive max_bytes must be a positive integer.");
+            max_bytes = (int)AS_NUM(value);
+        }
     }
 
     char *buffer = malloc((size_t)max_bytes + 1);

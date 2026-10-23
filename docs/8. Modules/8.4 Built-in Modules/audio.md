@@ -76,6 +76,8 @@ audio.play(clip, 2)   // play three times total
 audio.play(clip, -1)  // loop forever
 ```
 
+Use `audio.play(clip, loops=-1)` to name the optional loop count.
+
 ### `audio.pause(clip)`
 
 Pauses the active playback channel. Returns `true` when the clip had an active

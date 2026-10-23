@@ -20,6 +20,7 @@
 #include "../src/pi_func.h"
 #include "../src/pi_vm.h"
 #include "pi_builtin.h"
+#include "pi_kwargs.h"
 
 #define SLEEP_INTERRUPT_SLICE_MS 25.0
 
@@ -354,6 +355,29 @@ Value tm_of(VM *vm, int argc, Value *argv)
     tm_value.tm_hour = (argc >= 4) ? (int)as_number(argv[3]) : 0;
     tm_value.tm_min = (argc >= 5) ? (int)as_number(argv[4]) : 0;
     tm_value.tm_sec = (argc >= 6) ? (int)as_number(argv[5]) : 0;
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "hour", &value) && !IS_NIL(value))
+        {
+            if (!IS_NUM(value))
+                vm_error(vm, "[time.of] date parts must be numbers.");
+            tm_value.tm_hour = (int)AS_NUM(value);
+        }
+        if (_kw_get(kwargs, "minute", &value) && !IS_NIL(value))
+        {
+            if (!IS_NUM(value))
+                vm_error(vm, "[time.of] date parts must be numbers.");
+            tm_value.tm_min = (int)AS_NUM(value);
+        }
+        if (_kw_get(kwargs, "second", &value) && !IS_NIL(value))
+        {
+            if (!IS_NUM(value))
+                vm_error(vm, "[time.of] date parts must be numbers.");
+            tm_value.tm_sec = (int)AS_NUM(value);
+        }
+    }
     tm_value.tm_isdst = -1;
 
     mktime(&tm_value);

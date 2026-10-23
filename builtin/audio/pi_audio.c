@@ -1,24 +1,91 @@
+#include "../pi_kwargs.h"
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include "pi_audio.h"
 #include "../pi_builtin.h"
 #include "../../src/pi_object.h"
 
-EM_JS(int, _web_audio_load, (const char *path), { Module.piAudio ||= []; const a = new Audio(UTF8ToString(path)); Module.piAudio.push(a); return Module.piAudio.length - 1; });
-EM_JS(void, _web_audio_play, (int id), { const a=Module.piAudio&&Module.piAudio[id]; if(a){a.currentTime=0;a.play().catch(()=>{});} });
-EM_JS(void, _web_audio_volume, (int id, double value), { const a=Module.piAudio&&Module.piAudio[id]; if(a)a.volume=value; });
-EM_JS(void, _web_audio_pause, (int id), { const a=Module.piAudio&&Module.piAudio[id]; if(a)a.pause(); });
-EM_JS(void, _web_audio_stop, (int id), { const a=Module.piAudio&&Module.piAudio[id]; if(a){a.pause();a.currentTime=0;} });
-EM_JS(int, _web_audio_playing, (int id), { const a=Module.piAudio&&Module.piAudio[id]; return !!(a&&!a.paused&&!a.ended); });
+EM_JS(int, _web_audio_load, (const char *path), {
+    Module.piAudio || = [];
+
+    const a = new Audio(UTF8ToString(path));
+    Module.piAudio.push(a);
+
+    return Module.piAudio.length - 1;
+});
+
+EM_JS(void, _web_audio_play, (int id, int loops), {
+    const a = Module.piAudio && Module.piAudio[id];
+    if (!a)
+        return;
+
+    let remaining = loops;
+
+    a.loop = loops < 0;
+    a.onended = loops > 0
+        ? () =>
+    {
+        if (remaining-- > 0)
+        {
+            a.currentTime = 0;
+            a.play().catch(() = > {});
+        }
+    }
+        : null;
+
+        a.currentTime = 0;
+        a.play().catch(() = > {});
+});
+
+EM_JS(void, _web_audio_volume, (int id, double value), {
+    const a = Module.piAudio && Module.piAudio[id];
+
+    if (a)
+        a.volume = value;
+});
+
+EM_JS(void, _web_audio_pause, (int id), {
+    const a = Module.piAudio && Module.piAudio[id];
+
+    if (a)
+        a.pause();
+});
+
+EM_JS(void, _web_audio_stop, (int id), {
+    const a = Module.piAudio && Module.piAudio[id];
+
+    if (a)
+    {
+        a.pause();
+        a.currentTime = 0;
+    }
+});
+
+EM_JS(int, _web_audio_playing, (int id), {
+    const a = Module.piAudio && Module.piAudio[id];
+
+    return !!(a && !a.paused && !a.ended);
+});
+
 EM_JS(void, _web_music_play, (const char *path, int loops), {
     const music = new Audio(UTF8ToString(path));
+
     if (Module.piMusic)
         Module.piMusic.pause();
+
     music.loop = loops < 0;
+
     Module.piMusic = music;
     Module.piMusicRequested = true;
-    const play = function() { music.play().catch(function(){}); };
+
+    const play = function()
+    {
+        music.play().catch(function(){});
+    };
+
     play();
+
     if (!Module.piAudioUnlock)
     {
         Module.piAudioUnlock = function()
@@ -26,12 +93,34 @@ EM_JS(void, _web_music_play, (const char *path, int loops), {
             if (Module.piMusicRequested && Module.piMusic)
                 Module.piMusic.play().catch(function(){});
         };
-        document.addEventListener('pointerdown', Module.piAudioUnlock, {once : true});
-        document.addEventListener('keydown', Module.piAudioUnlock, {once : true});
+
+        document.addEventListener(
+            'pointerdown',
+            Module.piAudioUnlock,
+            {once : true});
+
+        document.addEventListener(
+            'keydown',
+            Module.piAudioUnlock,
+            {once : true});
     }
 });
-EM_JS(int, _web_music_playing, (), { const a=Module.piMusic; return !!(Module.piMusicRequested && a && !a.ended); });
-EM_JS(void, _web_music_stop, (), { if(Module.piMusic){Module.piMusic.pause();Module.piMusic.currentTime=0;}Module.piMusicRequested=false; });
+
+EM_JS(int, _web_music_playing, (), {
+    const a = Module.piMusic;
+
+    return !!(Module.piMusicRequested && a && !a.ended);
+});
+
+EM_JS(void, _web_music_stop, (), {
+    if (Module.piMusic)
+    {
+        Module.piMusic.pause();
+        Module.piMusic.currentTime = 0;
+    }
+
+    Module.piMusicRequested = false;
+});
 
 static ObjAudio *_web_audio(VM *vm, Value value)
 {
@@ -51,7 +140,27 @@ Value au_load(VM *vm, int argc, Value *argv)
 
 Value au_play(VM *vm, int argc, Value *argv)
 {
-    _web_audio_play(_web_audio(vm, argv[0])->browser_id);
+    if (argc < 1)
+        vm_error(vm, "[audio.play] expects an audio clip.");
+    int loops = 0;
+    if (argc > 1 && !IS_NIL(argv[1]))
+    {
+        if (!IS_NUM(argv[1]) || AS_NUM(argv[1]) < -1 || AS_NUM(argv[1]) != (int)AS_NUM(argv[1]))
+            vm_error(vm, "[audio.play] loops must be an integer greater than or equal to -1.");
+        loops = (int)AS_NUM(argv[1]);
+    }
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "loops", &value) && !IS_NIL(value))
+        {
+            if (!IS_NUM(value) || AS_NUM(value) < -1 || AS_NUM(value) != (int)AS_NUM(value))
+                vm_error(vm, "[audio.play] loops must be an integer greater than or equal to -1.");
+            loops = (int)AS_NUM(value);
+        }
+    }
+    _web_audio_play(_web_audio(vm, argv[0])->browser_id, loops);
     return NEW_BOOL(TRUE);
 }
 
@@ -97,6 +206,17 @@ Value au_playMusic(VM *vm, int argc, Value *argv)
         if (!IS_NUM(argv[1]) || AS_NUM(argv[1]) < -1 || AS_NUM(argv[1]) != (int)AS_NUM(argv[1]))
             vm_error(vm, "[audio.play_music] loops must be an integer greater than or equal to -1.");
         loops = (int)AS_NUM(argv[1]);
+    }
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "loops", &value) && !IS_NIL(value))
+        {
+            if (!IS_NUM(value) || AS_NUM(value) < -1 || AS_NUM(value) != (int)AS_NUM(value))
+                vm_error(vm, "[audio.play_music] loops must be an integer greater than or equal to -1.");
+            loops = (int)AS_NUM(value);
+        }
     }
     _web_music_play(AS_CSTRING(argv[0]), loops);
     return NEW_BOOL(TRUE);
@@ -304,11 +424,22 @@ Value au_play(VM *vm, int argc, Value *argv)
 {
     ObjAudio *audio = _require_audio(vm, argc, argv, "play");
     int loops = 0;
-    if (argc > 1)
+    if (argc > 1 && !IS_NIL(argv[1]))
     {
         if (!IS_NUM(argv[1]) || AS_NUM(argv[1]) < -1 || AS_NUM(argv[1]) != (int)AS_NUM(argv[1]))
             vm_error(vm, "[audio.play] loops must be an integer greater than or equal to -1.");
         loops = (int)AS_NUM(argv[1]);
+    }
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "loops", &value) && !IS_NIL(value))
+        {
+            if (!IS_NUM(value) || AS_NUM(value) < -1 || AS_NUM(value) != (int)AS_NUM(value))
+                vm_error(vm, "[audio.play] loops must be an integer greater than or equal to -1.");
+            loops = (int)AS_NUM(value);
+        }
     }
 
     int current = _active_channel(audio);

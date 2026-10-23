@@ -4,10 +4,10 @@
 
 import draw
 
-let frame_count = 0
-let move_hits = 0
-let key_hits = 0
-let close_hits = 0
+frame_count = 0
+move_hits = 0
+key_hits = 0
+close_hits = 0
 
 fun on_move(event) {
     move_hits += 1
@@ -74,7 +74,10 @@ fun paint(ctx) {
     }
 }
 
-let ctx = draw.canvas(720, 320, "PiLang draw use-case")
+let ctx = draw.canvas(720, 320, "positional title", nil,
+                      title="PiLang draw use-case",
+                      show_launch=true, show_launch=false,
+                      ignored_option=true)
 
 assert(draw.is_running(ctx) == true, "canvas() should create a running draw context")
 let mouse = draw.mouse(ctx)

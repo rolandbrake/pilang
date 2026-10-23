@@ -1,6 +1,6 @@
 import time:t;
 
-built = t.of(2025, 1, 15, 9, 30, 45)
+built = t.of(2025, 1, 15, hour=9, minute=30, second=45)
 parsed = t.parse("2025-01-15 09:30:45", "%Y-%m-%d %H:%M:%S")
 formatted = t.format(built, "%Y/%m/%d %H:%M:%S")
 iso_local = t.iso(built)

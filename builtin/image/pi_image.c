@@ -8,6 +8,7 @@
 
 #include "pi_image.h"
 #include "../pi_builtin.h"
+#include "../pi_kwargs.h"
 #include "../../src/common.h"
 #include "../../src/pi_value.h"
 #include "../../src/pi_object.h"
@@ -133,6 +134,13 @@ Value im_overlaps(VM *vm, int argc, Value *argv)
     int bx = (int)AS_NUM(argv[4]);
     int by = (int)AS_NUM(argv[5]);
     int threshold = argc > 6 && IS_NUM(argv[6]) ? (int)AS_NUM(argv[6]) : 1;
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "alpha", &value) && !IS_NIL(value) && IS_NUM(value))
+            threshold = (int)AS_NUM(value);
+    }
     if (threshold < 0 || threshold > 255)
         vm_error(vm, "[image.overlaps] alpha must be between 0 and 255.");
 
@@ -310,6 +318,17 @@ Value im_show(VM *vm, int argc, Value *argv)
 
         title = AS_CSTRING(argv[1]);
     }
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "title", &value) && !IS_NIL(value))
+        {
+            if (!IS_STRING(value))
+                vm_error(vm, "[image.show] title must be a string.");
+            title = AS_CSTRING(value);
+        }
+    }
 
     // Only initialise video if not already running (e.g. inside the Pi machine).
     if (SDL_WasInit(SDL_INIT_VIDEO) == 0)
@@ -406,6 +425,16 @@ Value im_img2tensor(VM *vm, int argc, Value *argv)
         else if (IS_NUM(argv[1]))
             normalize = AS_NUM(argv[1]) != 0.0;
     }
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "normalize", &value) && !IS_NIL(value))
+        {
+            if (IS_BOOL(value)) normalize = AS_BOOL(value);
+            else if (IS_NUM(value)) normalize = AS_NUM(value) != 0.0;
+        }
+    }
 
     // Output tensor is [h, w, channels] — row-major, matching numpy convention.
     int shape[3] = {h, w, channels};
@@ -479,6 +508,16 @@ Value im_tensor2img(VM *vm, int argc, Value *argv)
             normalize = AS_BOOL(argv[1]);
         else if (IS_NUM(argv[1]))
             normalize = AS_NUM(argv[1]) != 0.0;
+    }
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "normalize", &value) && !IS_NIL(value))
+        {
+            if (IS_BOOL(value)) normalize = AS_BOOL(value);
+            else if (IS_NUM(value)) normalize = AS_NUM(value) != 0.0;
+        }
     }
 
     // Auto-detect whether values are in [0,1] or [0,255]: if the max value is

@@ -60,6 +60,8 @@ println(o.signal(o.SIGINT, "default"))
 
 Terminates a process by id where supported.
 
+Use `os.kill(pid, signal=os.SIGTERM)` to name the optional signal.
+
 ```swift
 // o.kill(pid, o.SIGTERM)
 ```

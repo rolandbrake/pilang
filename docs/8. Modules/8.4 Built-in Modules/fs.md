@@ -18,6 +18,8 @@ let f = fs.open("notes.txt", "w")
 fs.close(f)
 ```
 
+You may name the optional mode: `fs.open("notes.txt", mode="w")`.
+
 ## `fs.read(handle)`
 
 Reads from the current file position to the end and returns a string.

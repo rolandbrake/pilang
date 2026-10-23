@@ -32,6 +32,8 @@ Exits the process with the given numeric status code.
 sys.exit(sys.EXIT_SUCCESS)
 ```
 
+The status can also be named: `sys.exit(code=sys.EXIT_SUCCESS)`.
+
 ## `sys.platform()`
 
 Returns a string describing the current platform.

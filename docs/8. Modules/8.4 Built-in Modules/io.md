@@ -98,6 +98,8 @@ if (key == "q")
     println("quit")
 ```
 
+Use `io.key(timeout_ms=50)` when naming the timeout is clearer.
+
 ## `io.clear()`
 
 Clears the terminal screen and moves the cursor to the top-left corner.
@@ -115,6 +117,7 @@ the terminal is cleared from that position to the end of the screen.
 io.pos(0, 0)       // top-left corner
 io.pos(4, 2)       // column 4, row 2
 io.pos(0, 0, true) // top-left, then clear to end of screen
+io.pos(0, 0, clear=true)
 ```
 
 ## `io.cursor(visible = true)`
@@ -126,6 +129,8 @@ io.cursor(false)
 // draw a terminal UI
 io.cursor(true)
 ```
+
+The optional visibility flag can be named: `io.cursor(visible=false)`.
 
 ## `io.prompt(text, ...)`
 

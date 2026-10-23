@@ -446,11 +446,12 @@ The language website and playground are available at:
 
 Use it to read docs, browse examples, and try Pilang in the browser.
 
-<p align="center">
-    <a href="./samples/graphics/monkey_3d.pi">
-        <img src="resources/monkey.gif" alt="Pilang rotating OBJ monkey model" width="180" >
-    </a>
+<br/>
+<br/>
+<p align="center">    
+    <img src="resources/pi_monster.png" alt="The PI Monster!" width="80" />    
 </p>
+<br/>
 
 ## License
 

@@ -18,6 +18,7 @@
 
 #include "pi_fs.h"
 #include "pi_builtin.h"
+#include "pi_kwargs.h"
 
 Value fs_read(VM *vm, int argc, Value *argv)
 {
@@ -186,7 +187,7 @@ Value fs_readLinesLimit(VM *vm, int argc, Value *argv)
         vm_error(vm, "[read_lines] expects a path string.");
 
     int limit = -1;
-    if (argc >= 2)
+    if (argc >= 2 && !IS_NIL(argv[1]))
     {
         if (!IS_NUM(argv[1]))
             vm_error(vm, "[read_lines] limit must be a number.");
@@ -239,6 +240,17 @@ Value fs_open(VM *vm, int argc, Value *argv)
             mode = AS_CSTRING(argv[1]);
         else
             vm_error(vm, "[open] expects a string argument as a file mode.");
+    }
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "mode", &value) && !IS_NIL(value))
+        {
+            if (!IS_STRING(value))
+                vm_error(vm, "[open] expects a string argument as a file mode.");
+            mode = AS_CSTRING(value);
+        }
     }
 
     PiString *path = AS_STRING(argv[0]);

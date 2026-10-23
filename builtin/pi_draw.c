@@ -25,6 +25,7 @@ EM_JS(void, _web_stop_loop, (), { if(Module.piFrameLoop){cancelAnimationFrame(Mo
 
 #include "../src/common.h"
 #include "pi_builtin.h"
+#include "pi_kwargs.h"
 #include "pi_plot3d.h"
 #include "../src/pi_func.h"
 #include "../src/pi_table.h"
@@ -684,6 +685,7 @@ static void _pump_events(VM *vm, PiContext *ctx)
 
 Value dw_canvas(VM *vm, int argc, Value *argv)
 {
+
     if (!IS_NUM(argv[0]) || !IS_NUM(argv[1]))
         vm_error(vm, "canvas() takes two numbers as arguments");
 
@@ -694,18 +696,47 @@ Value dw_canvas(VM *vm, int argc, Value *argv)
                             ? AS_CSTRING(argv[2])
                             : "PiLang";
     const char *icon_path = NULL;
-    if (argc > 3)
+    if (argc > 3 && !IS_NIL(argv[3]))
     {
         if (!IS_STRING(argv[3]))
             vm_error(vm, "canvas() icon must be an image path");
         icon_path = AS_CSTRING(argv[3]);
     }
     bool show_launch = TRUE;
-    if (argc > 4)
+    if (argc > 4 && !IS_NIL(argv[4]))
     {
         if (!IS_BOOL(argv[4]))
             vm_error(vm, "canvas() launch flag must be a boolean");
         show_launch = AS_BOOL(argv[4]);
+    }
+
+    /*
+     * canvas() is a configuration-style API, so accept names for its
+     * optional trailing arguments.  Positional calls deliberately retain
+     * their existing fast path and behavior.
+     */
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "title", &value) && !IS_NIL(value))
+        {
+            if (!IS_STRING(value))
+                vm_error(vm, "canvas() title must be a string");
+            title = AS_CSTRING(value);
+        }
+        if (_kw_get(kwargs, "icon", &value) && !IS_NIL(value))
+        {
+            if (!IS_STRING(value))
+                vm_error(vm, "canvas() icon must be an image path");
+            icon_path = AS_CSTRING(value);
+        }
+        if (_kw_get(kwargs, "show_launch", &value) && !IS_NIL(value))
+        {
+            if (!IS_BOOL(value))
+                vm_error(vm, "canvas() launch flag must be a boolean");
+            show_launch = AS_BOOL(value);
+        }
     }
 
 #if defined(_WIN32) && !defined(__EMSCRIPTEN__)

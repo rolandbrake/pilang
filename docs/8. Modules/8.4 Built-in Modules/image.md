@@ -90,6 +90,9 @@ if image.overlaps(player, player_x, player_y, enemy, enemy_x, enemy_y) {
 }
 ```
 
+Pass the optional alpha threshold by name with `alpha=`, for example
+`image.overlaps(a, ax, ay, b, bx, by, alpha=128)`.
+
 ## Geometry
 
 ### `image.resize(img, width, height)`
@@ -129,6 +132,8 @@ window or presses a key.
 image.show(img, "Preview")
 ```
 
+The window title may be named: `image.show(img, title="Preview")`.
+
 For chart-style display with axes, ticks, subplots, and heatmaps, use
 `plot.imshow(chart, img)`.
 
@@ -147,6 +152,8 @@ let t = image.img2tensor(img, true)
 println(tensor.shape(t))
 ```
 
+Use `image.img2tensor(img, normalize=true)` to name the conversion option.
+
 ### `image.tensor2img(tensor, normalize = false)`
 
 Converts a tensor with shape `[height, width, channels]` back to an image.
@@ -158,6 +165,8 @@ already in `0..1`, the converter auto-scales them to image range.
 let t = image.img2tensor(img, true)
 let copy = image.tensor2img(t, true)
 ```
+
+Use `image.tensor2img(t, normalize=true)` to name the conversion option.
 
 ## Full Workflow
 

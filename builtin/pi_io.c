@@ -27,6 +27,7 @@
 
 #include "../src/common.h"
 #include "pi_builtin.h"
+#include "pi_kwargs.h"
 #include "../src/pi_func.h"
 
 static void _append(char *buffer, int *offset, const char *text)
@@ -1266,6 +1267,13 @@ Value io_pos(VM *vm, int argc, Value *argv)
     int x = (int)AS_NUM(argv[0]);
     int y = (int)AS_NUM(argv[1]);
     bool clear = argc >= 3 ? as_bool(argv[2]) : false;
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "clear", &value) && !IS_NIL(value))
+            clear = as_bool(value);
+    }
 
     if (x < 0)
         x = 0;
@@ -1284,6 +1292,13 @@ Value io_cursor(VM *vm, int argc, Value *argv)
     bool visible = true;
     if (argc >= 1)
         visible = as_bool(argv[0]);
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "visible", &value) && !IS_NIL(value))
+            visible = as_bool(value);
+    }
 
     _write_stdoutText(visible ? "\033[?25h" : "\033[?25l");
     fflush(stdout);
@@ -1298,6 +1313,17 @@ Value io_key(VM *vm, int argc, Value *argv)
         if (!IS_NUM(argv[0]))
             vm_error(vm, "[io.key] timeout must be a millisecond number.");
         timeout_ms = (int)AS_NUM(argv[0]);
+    }
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "timeout_ms", &value) && !IS_NIL(value))
+        {
+            if (!IS_NUM(value))
+                vm_error(vm, "[io.key] timeout must be a millisecond number.");
+            timeout_ms = (int)AS_NUM(value);
+        }
     }
 
 #ifdef _WIN32

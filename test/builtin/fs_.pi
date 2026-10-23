@@ -1,6 +1,6 @@
 import fs
 
-f = fs.open("test.txt", "w")
+f = fs.open("test.txt", mode="w")
 println(f)
 
 fs.write(f, "Hello from fs module\n")

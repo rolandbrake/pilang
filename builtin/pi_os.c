@@ -8,6 +8,7 @@
 #include "../src/pi_object.h"
 #include "../src/pi_table.h"
 #include "pi_builtin.h"
+#include "pi_kwargs.h"
 
 #ifdef __EMSCRIPTEN__
 
@@ -400,11 +401,22 @@ Value os_signal(VM *vm, int argc, Value *argv)
 
 Value os_kill(VM *vm, int argc, Value *argv)
 {
+    
     if (argc < 1 || !IS_NUM(argv[0]) || (argc >= 2 && !IS_NUM(argv[1])))
         vm_error(vm, "[os.kill] expects (pid, [signal]).");
 
     int pid = (int)as_number(argv[0]);
     int sig = (argc >= 2) ? (int)as_number(argv[1]) : SIGTERM;
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "signal", &value) && !IS_NIL(value))
+        {
+            if (!IS_NUM(value)) vm_error(vm, "[os.kill] expects (pid, [signal]).");
+            sig = (int)AS_NUM(value);
+        }
+    }
 
 #ifdef _WIN32
     HANDLE proc = OpenProcess(PROCESS_TERMINATE, FALSE, (DWORD)pid);

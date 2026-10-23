@@ -71,6 +71,8 @@ println(value.year)
 
 Creates a local time object from numeric parts.
 
+Optional clock parts can be named: `time.of(2025, 1, 15, hour=9, minute=30)`.
+
 ```swift
 let date = t.of(2026, 5, 18, 14, 30, 0)
 println(date.day)

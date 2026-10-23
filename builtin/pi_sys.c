@@ -15,6 +15,7 @@
 
 #include "pi_sys.h"
 #include "pi_builtin.h"
+#include "pi_kwargs.h"
 
 #include "../src/pi_value.h"
 #include "../src/pi_object.h"
@@ -101,6 +102,13 @@ Value sy_exit(VM *vm, int argc, Value *argv)
     int code = 0;
     if (argc > 0)
         code = (int)as_number(argv[0]);
+    PiMap *kwargs = _kw_map(vm);
+    if (kwargs)
+    {
+        Value value;
+        if (_kw_get(kwargs, "code", &value) && !IS_NIL(value))
+            code = (int)as_number(value);
+    }
 
     exit(code);
 }
