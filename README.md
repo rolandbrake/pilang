@@ -108,20 +108,24 @@ After building Pilang, add a `package.loon` beside your entry file and run:
 
 ```powershell
 cd test\package
-..\..\bin\pilang.exe pack target:win
+..\..\bin\pilang.exe pack
 ```
 
-After adding `bin/` to `PATH`, use `pilang pack target:win`. The resulting
-`.exe` includes the Pilang runtime and application, with no SDL DLLs required
-beside it. See [`test/package/package.loon`](test/package/package.loon)
-for a complete manifest example.
+`pack` creates every target declared in `package.loon`. To create just one,
+use `pilang pack target:win` or `pilang pack target:web`. A Windows `.exe`
+includes the Pilang runtime and application, with no SDL DLLs required beside
+it. See [`test/package/package.loon`](test/package/package.loon) for a
+complete manifest example.
 
 ```loon
 name: "My App"
+version: "1.0.0"
 entry: "main.pi"
 targets:
   win:
     output: "my-app.exe"
+  web:
+    output: "dist"
 ```
 
 ## Visual Computing

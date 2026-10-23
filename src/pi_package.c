@@ -166,6 +166,63 @@ bool package_load(PiPackage *package, const char *target)
     return TRUE;
 }
 
+bool package_targets(char ***targets, size_t *target_count)
+{
+    *targets = NULL;
+    *target_count = 0;
+    char *source = _read_text("package.loon");
+    if (!source)
+    {
+        fprintf(stderr, "Could not read package.loon in the current directory.\n");
+        return FALSE;
+    }
+    LoonError error = {0};
+    LoonValue *manifest = loon_parse(source, &error);
+    free(source);
+    if (!manifest)
+    {
+        fprintf(stderr, "Invalid package.loon at %zu:%zu: %s\n", error.line, error.column, error.message);
+        return FALSE;
+    }
+    const LoonValue *configured_targets = manifest->type == LOON_OBJECT
+                                              ? loon_objectGet(manifest, "targets")
+                                              : NULL;
+    if (!configured_targets || configured_targets->type != LOON_OBJECT ||
+        configured_targets->as.object.count == 0)
+    {
+        fprintf(stderr, "Manifest field 'targets' must be a non-empty object.\n");
+        loon_free(manifest);
+        return FALSE;
+    }
+    *target_count = configured_targets->as.object.count;
+    *targets = calloc(*target_count, sizeof(**targets));
+    if (!*targets)
+    {
+        loon_free(manifest);
+        *target_count = 0;
+        return FALSE;
+    }
+    for (size_t i = 0; i < *target_count; i++)
+        (*targets)[i] = strdup(configured_targets->as.object.members[i].key);
+    loon_free(manifest);
+    for (size_t i = 0; i < *target_count; i++)
+        if (!(*targets)[i])
+        {
+            package_freeTargets(*targets, *target_count);
+            *targets = NULL;
+            *target_count = 0;
+            return FALSE;
+        }
+    return TRUE;
+}
+
+void package_freeTargets(char **targets, size_t target_count)
+{
+    for (size_t i = 0; i < target_count; i++)
+        free(targets[i]);
+    free(targets);
+}
+
 void package_free(PiPackage *package)
 {
     free(package->name);
@@ -553,10 +610,10 @@ static bool _set_windowsIcon(const char *executable, const char *icon_path)
     unsigned char group[20] = {0, 0, 1, 0, 1, 0};
     if (memcmp(png, signature, sizeof(signature)) == 0)
     {
-        uint32_t width = ((uint32_t)png[16] << 24)  | ((uint32_t)png[17] << 16) |
-                         ((uint32_t)png[18] << 8)   | png[19];
+        uint32_t width = ((uint32_t)png[16] << 24) | ((uint32_t)png[17] << 16) |
+                         ((uint32_t)png[18] << 8) | png[19];
         uint32_t height = ((uint32_t)png[20] << 24) | ((uint32_t)png[21] << 16) |
-                          ((uint32_t)png[22] << 8)  | png[23];
+                          ((uint32_t)png[22] << 8) | png[23];
         if (!width || !height || width > 256 || height > 256)
             ok = FALSE;
         group[6] = (unsigned char)(width == 256 ? 0 : width);

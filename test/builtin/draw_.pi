@@ -23,7 +23,7 @@ fun on_close(event) {
 
 fun paint(ctx) {
     frame_count += 1
-
+    
     draw.clear(ctx, 0x101820)
 
     draw.push(ctx)

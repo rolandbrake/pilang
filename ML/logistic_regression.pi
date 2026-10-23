@@ -120,13 +120,14 @@ fun compute_gradient(x, y, w, b) {
 fun gradient_descent(x, y, w_in, b_in, alpha, num_iters) {
     let w = w_in
     let b = b_in
+    let dj_dw = 0, dj_db = 0    
 
     // Store cost after each update step
     let cost_history = []
 
     for iter in range(num_iters) {
         // Compute current gradients
-        let (dj_dw, dj_db) = compute_gradient(x, y, w, b)
+        (dj_dw, dj_db) = compute_gradient(x, y, w, b)
 
         // Update parameters
         w -= alpha * dj_dw

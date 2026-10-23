@@ -4,3 +4,5 @@ entry: "main.pi"
 targets:
   win:
     output: "test.exe"
+  web:
+    output: "dist"

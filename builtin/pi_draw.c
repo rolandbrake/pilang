@@ -1051,13 +1051,9 @@ Value dw_rect(VM *vm, int argc, Value *argv)
     SDL_FRect rect = {min_x, min_y, max_x - min_x, max_y - min_y};
 
     if (filled)
-    {
         SDL_RenderFillRectF((SDL_Renderer *)ctx->renderer, &rect);
-    }
     else
-    {
         SDL_RenderDrawRectF((SDL_Renderer *)ctx->renderer, &rect);
-    }
 
     return NEW_NIL();
 }

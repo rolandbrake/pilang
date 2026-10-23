@@ -2,135 +2,39 @@
 // The loader supports vertex (v) and triangular face (f) records.
 
 
-// import fs
-// import draw
-// import string
-// import math.{sin, cos}
-// import type.{float, int}
-
-// WIDTH = 600
-// HEIGHT = 600
-// MODEL_PATH = "./monkey.obj"
-
-// ctx = draw.canvas(WIDTH, HEIGHT, "PiLang OBJ viewer - Suzanne")
-// vertices = []
-// faces = []
-// edges = []
-// angle = 0
-
-// fun face_index(token) {
-//     // OBJ indices start at one. The split also accepts v/vt/vn face tokens.
-//     return int(string.split(token, "/")[0]) - 1
-// }
-
-// fun add_edge(a, b, seen) {
-//     if a > b {
-//         let swap = a
-//         a = b
-//         b = swap
-//     }
-
-//     let key = a + ":" + b
-//     if seen[key] == nil {
-//         seen[key] = true
-//         edges.append([a, b])
-//     }
-// }
-
-// fun load_obj(path) {
-//     let file = fs.open(path, "r")
-//     let source = fs.read(file)
-//     fs.close(file)
-
-//     let seen_edges = {}
-//     for raw_line in string.split(source, "\n") {
-//         let parts = string.split(raw_line.trim(), " ")
-//         if #parts == 0 continue
-
-//         if parts[0] == "v" {
-//             vertices.append({
-//                 x: float(parts[1]),
-//                 y: float(parts[2]),
-//                 z: float(parts[3])
-//             })
-//         }
-
-//         if parts[0] == "f" {
-//             let a = face_index(parts[1])
-//             let b = face_index(parts[2])
-//             let c = face_index(parts[3])
-//             faces.append([a, b, c])
-//             add_edge(a, b, seen_edges)
-//             add_edge(b, c, seen_edges)
-//             add_edge(c, a, seen_edges)
-//         }
-//     }
-// }
-
-// fun project(vertex, yaw_c, yaw_s, pitch_c, pitch_s) {
-//     let x = vertex.x * yaw_c - vertex.z * yaw_s
-//     let z = vertex.x * yaw_s + vertex.z * yaw_c
-//     let y = vertex.y * pitch_c - z * pitch_s
-//     let depth = vertex.y * pitch_s + z * pitch_c + 4.5
-
-//     return {x: WIDTH / 2 + x / depth * 480, y: HEIGHT / 2 - y / depth * 480}
-// }
-
-// fun render(canvas) {
-//     angle += .018
-//     let yaw_c = cos(angle)
-//     let yaw_s = sin(angle)
-
-//     let pitch_c = cos(.15)
-//     let pitch_s = -sin(.15)
-//     let projected = []
-
-//     for vertex in vertices {
-//         projected.append(project(vertex, yaw_c, yaw_s, pitch_c, pitch_s))
-//     }
-
-//     draw.clear(canvas, 0x10131F)
-//     for edge in edges {
-//         let a = projected[edge[0]]
-//         let b = projected[edge[1]]
-//         draw.line(canvas, a.x, a.y, b.x, b.y, draw.COLOR_CYAN)
-//     }
-    
-// }
-
-// load_obj(MODEL_PATH)
-// draw.animate(ctx, render)
-// draw.run(ctx)
-
-
-
-import draw
 import fs
-import math.{sin, cos, sqrt}
+import draw
 import string
+import math.{sin, cos}
 import type.{float, int}
 
-WIDTH = 500
-HEIGHT = 500
+WIDTH = 600
+HEIGHT = 600
 MODEL_PATH = "./monkey.obj"
-
-FACE_SIGN = 1        // if the monkey looks inside-out or has holes, set to -1
-BUCKETS = 64         // depth buckets used for far-to-near drawing
-NEAR = 2.5
-FAR = 6.5
-AMBIENT = .25
-LIGHT = [-.3, .5, -.8]   // z is negative so the light points toward the viewer
 
 ctx = draw.canvas(WIDTH, HEIGHT, "PiLang OBJ viewer - Suzanne")
 vertices = []
 faces = []
+edges = []
 angle = 0
-solid = true
-space_was_down = false
 
 fun face_index(token) {
     // OBJ indices start at one. The split also accepts v/vt/vn face tokens.
     return int(string.split(token, "/")[0]) - 1
+}
+
+fun add_edge(a, b, seen) {
+    if a > b {
+        let swap = a
+        a = b
+        b = swap
+    }
+
+    let key = a + ":" + b
+    if seen[key] == nil {
+        seen[key] = true
+        edges.append([a, b])
+    }
 }
 
 fun load_obj(path) {
@@ -138,6 +42,7 @@ fun load_obj(path) {
     let source = fs.read(file)
     fs.close(file)
 
+    let seen_edges = {}
     for raw_line in string.split(source, "\n") {
         let parts = string.split(raw_line.trim(), " ")
         if #parts == 0 continue
@@ -155,6 +60,9 @@ fun load_obj(path) {
             let b = face_index(parts[2])
             let c = face_index(parts[3])
             faces.append([a, b, c])
+            add_edge(a, b, seen_edges)
+            add_edge(b, c, seen_edges)
+            add_edge(c, a, seen_edges)
         }
     }
 }
@@ -165,23 +73,14 @@ fun project(vertex, yaw_c, yaw_s, pitch_c, pitch_s) {
     let y = vertex.y * pitch_c - z * pitch_s
     let depth = vertex.y * pitch_s + z * pitch_c + 4.5
 
-    return {
-        x: WIDTH / 2 + x / depth * 480,
-        y: HEIGHT / 2 - y / depth * 480,
-        cx: x, cy: y, cd: depth
-    }
+    return {x: WIDTH / 2 + x / depth * 480, y: HEIGHT / 2 - y / depth * 480}
 }
 
 fun render(canvas) {
     angle += .018
-    let space_down = draw.key(canvas, draw.KEY_SPACE)
-    if space_down && !space_was_down {
-        solid = !solid
-    }
-    space_was_down = space_down
-
     let yaw_c = cos(angle)
     let yaw_s = sin(angle)
+
     let pitch_c = cos(.15)
     let pitch_s = -sin(.15)
     let projected = []
@@ -190,61 +89,162 @@ fun render(canvas) {
         projected.append(project(vertex, yaw_c, yaw_s, pitch_c, pitch_s))
     }
 
-    // bucket visible faces by depth instead of sorting
-    let buckets = []
-    for i in 0..BUCKETS { buckets.append([]) }
-
-    for face in faces {
-        let a = projected[face[0]]
-        let b = projected[face[1]]
-        let c = projected[face[2]]
-
-        let ux = b.cx - a.cx
-        let uy = b.cy - a.cy
-        let ud = b.cd - a.cd
-        let vx = c.cx - a.cx
-        let vy = c.cy - a.cy
-        let vd = c.cd - a.cd
-
-        let nx = uy * vd - ud * vy
-        let ny = ud * vx - ux * vd
-        let nd = ux * vy - uy * vx
-        let len = sqrt(nx * nx + ny * ny + nd * nd)
-        if len == 0 continue
-
-        nx = nx / len * FACE_SIGN
-        ny = ny / len * FACE_SIGN
-        nd = nd / len * FACE_SIGN
-        if nd >= 0 continue          // facing away from the camera
-
-        let shade = max(nx * LIGHT[0] + ny * LIGHT[1] + nd * LIGHT[2], 0)
-        let brightness = AMBIENT + (1 - AMBIENT) * shade
-
-        let depth = (a.cd + b.cd + c.cd) / 3
-        let slot = int((depth - NEAR) / (FAR - NEAR) * BUCKETS)
-        slot = max(0, min(BUCKETS - 1, slot))
-        buckets[slot].append([face, brightness])
+    draw.clear(canvas, 0x10131F)
+    for edge in edges {
+        let a = projected[edge[0]]
+        let b = projected[edge[1]]
+        draw.line(canvas, a.x, a.y, b.x, b.y, draw.COLOR_CYAN)
     }
-
-    draw.clear(canvas, 0x29ADFF)
-
-    // far to near
-    for i in 0..BUCKETS {
-        for item in buckets[BUCKETS - 1 - i] {
-            let face = item[0]
-            let brightness = item[1]
-            let red = int(brightness * 255)
-            let blue = int(brightness * 77)
-            let color = (red << 16) | blue
-
-            let a = projected[face[0]]
-            let b = projected[face[1]]
-            let c = projected[face[2]]
-            draw.triangle(canvas, a.x, a.y, b.x, b.y, c.x, c.y, color, solid)
-        }
-    }
+    
 }
 
 load_obj(MODEL_PATH)
 draw.animate(ctx, render)
 draw.run(ctx)
+
+
+
+// import draw
+// import fs
+// import math.{sin, cos, sqrt}
+// import string
+// import type.{float, int}
+
+// WIDTH = 500
+// HEIGHT = 500
+// MODEL_PATH = "./monkey.obj"
+
+// FACE_SIGN = 1        // if the monkey looks inside-out or has holes, set to -1
+// BUCKETS = 64         // depth buckets used for far-to-near drawing
+// NEAR = 2.5
+// FAR = 6.5
+// AMBIENT = .25
+// LIGHT = [-.3, .5, -.8]   // z is negative so the light points toward the viewer
+
+// ctx = draw.canvas(WIDTH, HEIGHT, "PiLang OBJ viewer - Suzanne")
+// vertices = []
+// faces = []
+// angle = 0
+// solid = true
+// space_was_down = false
+
+// fun face_index(token) {
+//     // OBJ indices start at one. The split also accepts v/vt/vn face tokens.
+//     return int(string.split(token, "/")[0]) - 1
+// }
+
+// fun load_obj(path) {
+//     let file = fs.open(path, "r")
+//     let source = fs.read(file)
+//     fs.close(file)
+
+//     for raw_line in string.split(source, "\n") {
+//         let parts = string.split(raw_line.trim(), " ")
+//         if #parts == 0 continue
+
+//         if parts[0] == "v" {
+//             vertices.append({
+//                 x: float(parts[1]),
+//                 y: float(parts[2]),
+//                 z: float(parts[3])
+//             })
+//         }
+
+//         if parts[0] == "f" {
+//             let a = face_index(parts[1])
+//             let b = face_index(parts[2])
+//             let c = face_index(parts[3])
+//             faces.append([a, b, c])
+//         }
+//     }
+// }
+
+// fun project(vertex, yaw_c, yaw_s, pitch_c, pitch_s) {
+//     let x = vertex.x * yaw_c - vertex.z * yaw_s
+//     let z = vertex.x * yaw_s + vertex.z * yaw_c
+//     let y = vertex.y * pitch_c - z * pitch_s
+//     let depth = vertex.y * pitch_s + z * pitch_c + 4.5
+
+//     return {
+//         x: WIDTH / 2 + x / depth * 480,
+//         y: HEIGHT / 2 - y / depth * 480,
+//         cx: x, cy: y, cd: depth
+//     }
+// }
+
+// fun render(canvas) {
+//     angle += .018
+//     let space_down = draw.key(canvas, draw.KEY_SPACE)
+//     if space_down && !space_was_down {
+//         solid = !solid
+//     }
+//     space_was_down = space_down
+
+//     let yaw_c = cos(angle)
+//     let yaw_s = sin(angle)
+//     let pitch_c = cos(.15)
+//     let pitch_s = -sin(.15)
+//     let projected = []
+
+//     for vertex in vertices {
+//         projected.append(project(vertex, yaw_c, yaw_s, pitch_c, pitch_s))
+//     }
+
+//     // bucket visible faces by depth instead of sorting
+//     let buckets = []
+//     for i in 0..BUCKETS { buckets.append([]) }
+
+//     for face in faces {
+//         let a = projected[face[0]]
+//         let b = projected[face[1]]
+//         let c = projected[face[2]]
+
+//         let ux = b.cx - a.cx
+//         let uy = b.cy - a.cy
+//         let ud = b.cd - a.cd
+//         let vx = c.cx - a.cx
+//         let vy = c.cy - a.cy
+//         let vd = c.cd - a.cd
+
+//         let nx = uy * vd - ud * vy
+//         let ny = ud * vx - ux * vd
+//         let nd = ux * vy - uy * vx
+//         let len = sqrt(nx * nx + ny * ny + nd * nd)
+//         if len == 0 continue
+
+//         nx = nx / len * FACE_SIGN
+//         ny = ny / len * FACE_SIGN
+//         nd = nd / len * FACE_SIGN
+//         if nd >= 0 continue          // facing away from the camera
+
+//         let shade = max(nx * LIGHT[0] + ny * LIGHT[1] + nd * LIGHT[2], 0)
+//         let brightness = AMBIENT + (1 - AMBIENT) * shade
+
+//         let depth = (a.cd + b.cd + c.cd) / 3
+//         let slot = int((depth - NEAR) / (FAR - NEAR) * BUCKETS)
+//         slot = max(0, min(BUCKETS - 1, slot))
+//         buckets[slot].append([face, brightness])
+//     }
+
+//     draw.clear(canvas, 0x29ADFF)
+
+//     // far to near
+//     for i in 0..BUCKETS {
+//         for item in buckets[BUCKETS - 1 - i] {
+//             let face = item[0]
+//             let brightness = item[1]
+//             let red = int(brightness * 255)
+//             let blue = int(brightness * 77)
+//             let color = (red << 16) | blue
+
+//             let a = projected[face[0]]
+//             let b = projected[face[1]]
+//             let c = projected[face[2]]
+//             draw.triangle(canvas, a.x, a.y, b.x, b.y, c.x, c.y, color, solid)
+//         }
+//     }
+// }
+
+// load_obj(MODEL_PATH)
+// draw.animate(ctx, render)
+// draw.run(ctx)

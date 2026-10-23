@@ -378,7 +378,7 @@ static void _print_usage(const char *program)
     printf("  %s <file> [args...]           Shorthand for 'run <file>'\n", program);
     printf("  %s dis <file>                 Print bytecode for the specified Pilang file\n", program);
     printf("  %s build [file]               Build main.pi or the specified project\n", program);
-    printf("  %s pack [target:win|web]      Package the current project\n", program);
+    printf("  %s pack [target:name]         Package targets declared in package.loon\n", program);
     printf("  %s fmt <file>                 Format a file in place\n", program);
     printf("  %s min <file>                 Minimize a file in place\n", program);
     printf("  %s help                       Display this help message\n", program);
@@ -1299,6 +1299,61 @@ static void _init_sdl_runtime(void)
         error("TTF_Init failed: %s", TTF_GetError());
 }
 
+static int _package_target(const char *program, const char *target)
+{
+    if (strcmp(target, "win") != 0 && strcmp(target, "web") != 0)
+    {
+        fprintf(stderr, "%sPackaging failed:%s target '%s' is not supported yet.\n",
+                _package_color("\033[31m"), _package_color("\033[0m"), target);
+        return 1;
+    }
+    PiPackage package;
+    if (!package_load(&package, target))
+    {
+        fprintf(stderr, "%sPackaging failed:%s package.loon is invalid.\n",
+                _package_color("\033[31m"), _package_color("\033[0m"));
+        return 1;
+    }
+    printf("%sPackaging%s %s %s (%s)\n", _package_color("\033[36m"),
+           _package_color("\033[0m"), package.name, package.version, target);
+    int status = _build_file(package.entry);
+    if (status != 0)
+    {
+        fprintf(stderr, "%sPackaging failed:%s could not compile '%s'.\n",
+                _package_color("\033[31m"), _package_color("\033[0m"), package.entry);
+        package_free(&package);
+        return status;
+    }
+    const char *runtime_path = program;
+#ifdef _WIN32
+    char runtime_path_buffer[MAX_PATH];
+    DWORD runtime_length = GetModuleFileNameA(NULL, runtime_path_buffer, sizeof(runtime_path_buffer));
+    if (runtime_length == 0 || runtime_length >= sizeof(runtime_path_buffer))
+    {
+        fprintf(stderr, "%sPackaging failed:%s could not locate the Pilang executable.\n",
+                _package_color("\033[31m"), _package_color("\033[0m"));
+        package_free(&package);
+        return 1;
+    }
+    runtime_path = runtime_path_buffer;
+#endif
+    char package_error[256];
+    bool packaged = strcmp(target, "web") == 0
+                        ? package_web(runtime_path, &package, package_error, sizeof(package_error))
+                        : package_bundle(runtime_path, &package, package_error, sizeof(package_error));
+    if (!packaged)
+    {
+        fprintf(stderr, "%sPackaging failed:%s %s\n", _package_color("\033[31m"),
+                _package_color("\033[0m"), package_error[0] ? package_error : "unknown error");
+        status = 1;
+    }
+    else
+        printf("%sPackage created:%s %s\n", _package_color("\033[32m"),
+               _package_color("\033[0m"), package.output);
+    package_free(&package);
+    return status;
+}
+
 int main(int argc, char *argv[])
 {
     static char *main_argv[] = {"main.pi"};
@@ -1376,68 +1431,26 @@ int main(int argc, char *argv[])
     if (strcmp(command, "pack") == 0)
     {
         _package_initOutput();
-        const char *target = "win";
         if (argc == 3 && strncmp(argv[2], "target:", 7) == 0)
-            target = argv[2] + 7;
-        else if (argc != 2)
+            return _package_target(argv[0], argv[2] + 7);
+        if (argc != 2)
         {
-            fprintf(stderr, "Usage: %s pack [target:win|web]\n", argv[0]);
+            fprintf(stderr, "Usage: %s pack [target:name]\n", argv[0]);
             return 1;
         }
-        if (strcmp(target, "win") != 0 && strcmp(target, "web") != 0)
-        {
-            fprintf(stderr, "%sPackaging failed:%s target '%s' is not supported yet.\n",
-                    _package_color("\033[31m"), _package_color("\033[0m"), target);
-            return 1;
-        }
-        PiPackage package;
-        if (!package_load(&package, target))
+        char **targets;
+        size_t target_count;
+        if (!package_targets(&targets, &target_count))
         {
             fprintf(stderr, "%sPackaging failed:%s package.loon is invalid.\n",
                     _package_color("\033[31m"), _package_color("\033[0m"));
             return 1;
         }
-        printf("%sPackaging%s %s %s (%s)\n", _package_color("\033[36m"),
-               _package_color("\033[0m"), package.name, package.version, target);
         int status = 0;
-        if (strcmp(target, "win") == 0 || strcmp(target, "web") == 0)
-        {
-            status = _build_file(package.entry);
-            if (status != 0)
-            {
-                fprintf(stderr, "%sPackaging failed:%s could not compile '%s'.\n",
-                        _package_color("\033[31m"), _package_color("\033[0m"), package.entry);
-                package_free(&package);
-                return status;
-            }
-        }
-        const char *runtime_path = argv[0];
-#ifdef _WIN32
-        char runtime_path_buffer[MAX_PATH];
-        DWORD runtime_length = GetModuleFileNameA(NULL, runtime_path_buffer, sizeof(runtime_path_buffer));
-        if (runtime_length == 0 || runtime_length >= sizeof(runtime_path_buffer))
-        {
-            fprintf(stderr, "%sPackaging failed:%s could not locate the Pilang executable.\n",
-                    _package_color("\033[31m"), _package_color("\033[0m"));
-            package_free(&package);
-            return 1;
-        }
-        runtime_path = runtime_path_buffer;
-#endif
-        char package_error[256];
-        bool packaged = strcmp(target, "web") == 0
-                            ? package_web(runtime_path, &package, package_error, sizeof(package_error))
-                            : package_bundle(runtime_path, &package, package_error, sizeof(package_error));
-        if (!packaged)
-        {
-            fprintf(stderr, "%sPackaging failed:%s %s\n", _package_color("\033[31m"),
-                    _package_color("\033[0m"), package_error[0] ? package_error : "unknown error");
-            status = 1;
-        }
-        else
-            printf("%sPackage created:%s %s\n", _package_color("\033[32m"),
-                   _package_color("\033[0m"), package.output);
-        package_free(&package);
+        for (size_t i = 0; i < target_count; i++)
+            if (_package_target(argv[0], targets[i]) != 0)
+                status = 1;
+        package_freeTargets(targets, target_count);
         return status;
     }
 
