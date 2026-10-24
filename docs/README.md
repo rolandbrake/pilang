@@ -78,6 +78,7 @@ This documentation is organized as a numbered reference for learning and using P
   - [8.4 Built-in Modules](8.%20Modules/8.4%20Built-in%20Modules/README.md)
     - [plot](8.%20Modules/8.4%20Built-in%20Modules/plot.md)
     - [plot3d](8.%20Modules/8.4%20Built-in%20Modules/plot3d.md)
+    - [draw3d](8.%20Modules/8.4%20Built-in%20Modules/draw3d.md)
     - [image](8.%20Modules/8.4%20Built-in%20Modules/image.md)
     - [image.filters](8.%20Modules/8.4%20Built-in%20Modules/image.filters.md)
     - [image.color](8.%20Modules/8.4%20Built-in%20Modules/image.color.md)

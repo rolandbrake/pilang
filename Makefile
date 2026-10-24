@@ -21,6 +21,8 @@ TARGET ?= $(RELEASE_DIR)/pilang$(EXEEXT)
 WEB_TARGET ?= $(RELEASE_DIR)/pilang.html
 WEB_JS ?= $(RELEASE_DIR)/pilang.js
 WEB_WASM ?= $(RELEASE_DIR)/pilang.wasm
+SHADER_HEADER := builtin/draw3d/generated_shaders.h
+SHADER_SOURCES := builtin/draw3d/shaders/default.vert builtin/draw3d/shaders/default.frag
 
 CORE_SRCS := \
 	src/pi_main.c \
@@ -75,6 +77,7 @@ NATIVE_EXTRA_SRCS := \
 	builtin/net/pi_socket.c \
 	builtin/pi_os.c \
 	builtin/pi_draw.c \
+	builtin/pi_draw3d.c \
 	builtin/pi_plot.c \
 	builtin/pi_plot3d.c \
 	$(IMAGE_SRCS) \
@@ -169,10 +172,13 @@ all: release
 $(RELEASE_DIR):
 	$(MKDIR)
 
-debug: $(RELEASE_DIR)
+$(SHADER_HEADER): $(SHADER_SOURCES) tools/embed_shaders.py
+	python tools/embed_shaders.py $@ builtin/draw3d/shaders/default.vert builtin/draw3d/shaders/default.frag
+
+debug: $(RELEASE_DIR) $(SHADER_HEADER)
 	$(CC) $(NATIVE_CFLAGS) $(DEBUG_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(DEBUG_LDLIBS)
 
-release: $(RELEASE_DIR)
+release: $(RELEASE_DIR) $(SHADER_HEADER)
 	$(CC) $(NATIVE_CFLAGS) $(RELEASE_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(NATIVE_LDLIBS)
 
 web: $(RELEASE_DIR)

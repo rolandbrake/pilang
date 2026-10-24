@@ -14,6 +14,7 @@ import sys.{EXIT_SUCCESS}
 - [col](col.md): collection helpers
 - [audio](audio.md): audio clip loading, metadata, and playback
 - [draw](draw.md): canvas drawing and events
+- [draw3d](draw3d.md): native OpenGL indexed-mesh rendering
 - [fs](fs.md): files, directories, and paths
 - [func](func.md): higher-order function helpers
 - [image](image.md): image loading, geometry, display, and tensor conversion

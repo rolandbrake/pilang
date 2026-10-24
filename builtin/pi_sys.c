@@ -65,15 +65,14 @@ Value pi_zen(VM *vm, int argc, Value *argv)
         " The Zen of Pi-Lang: \n"
         " ----------------------------------------\n"
         " 1. Simplicity is power.\n"
-        " 2. Functions shape the flow.\n"
-        " 3. Tables hold the world.\n"
-        " 4. Readability counts.\n"
-        " 5. Special cases aren't special enough to break the rules.\n"
-        " 6. Freedom in code, structure in choice.\n"
-        " 7. Dynamic, yet precise.\n"
-        " 8. Expressive, yet concise.\n"
-        " 9. Less syntax, more meaning.\n"
-        " 10. A script should feel like art.\n"
+        " 2. Simple components are the foundation, Complex ones are the result of composition.\n"        
+        " 3. Readability counts.\n"
+        " 4. Special cases aren't special enough to break the rules.\n"
+        " 5. Freedom in code, structure in choice.\n"
+        " 6. Dynamic, yet precise.\n"
+        " 7. Expressive, yet concise.\n"
+        " 8. Less syntax, more meaning.\n"
+        " 9. A script should feel like art.\n"
         "----------------------------------------\n")));
 }
 

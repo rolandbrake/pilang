@@ -450,12 +450,10 @@ The language website and playground are available at:
 
 Use it to read docs, browse examples, and try Pilang in the browser.
 
-<br/>
-<br/>
 <p align="center">    
-    <img src="resources/pi_monster.png" alt="The PI Monster!" width="80" />    
+    <img src="resources/pi_monster.png" alt="The PI Monster!" width="400" />    
 </p>
-<br/>
+
 
 ## License
 

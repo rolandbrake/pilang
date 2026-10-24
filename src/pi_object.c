@@ -640,6 +640,7 @@ Object *new_context(void)
 
     ctx->window = NULL;
     ctx->renderer = NULL;
+    ctx->gl_context = NULL;
     ctx->width = 0;
     ctx->height = 0;
     ctx->tx = 0;
@@ -662,6 +663,14 @@ Object *new_context(void)
     ctx->active_plot3d = NULL;
 
     return (Object *)ctx;
+}
+
+ObjModel3D *new_model3d(PiContext *ctx, void *native)
+{
+    ObjModel3D *model = CREATE_OBJ(ObjModel3D, OBJ_MODEL3D);
+    model->ctx = ctx;
+    model->native = native;
+    return model;
 }
 
 Object *new_chart(PiContext *ctx)

@@ -7,7 +7,7 @@
 #include "../../src/pi_object.h"
 
 EM_JS(int, _web_audio_load, (const char *path), {
-    Module.piAudio || = [];
+    Module.piAudio ||= [];
 
     const a = new Audio(UTF8ToString(path));
     Module.piAudio.push(a);
@@ -29,13 +29,13 @@ EM_JS(void, _web_audio_play, (int id, int loops), {
         if (remaining-- > 0)
         {
             a.currentTime = 0;
-            a.play().catch(() = > {});
+            a.play().catch(() => {});
         }
     }
         : null;
 
         a.currentTime = 0;
-        a.play().catch(() = > {});
+        a.play().catch(() => {});
 });
 
 EM_JS(void, _web_audio_volume, (int id, double value), {
@@ -180,7 +180,7 @@ Value au_pause(VM *vm, int argc, Value *argv)
 
 Value au_resume(VM *vm, int argc, Value *argv)
 {
-    _web_audio_play(_web_audio(vm, argv[0])->browser_id);
+    _web_audio_play(_web_audio(vm, argv[0])->browser_id, 0);
     return NEW_NIL();
 }
 
@@ -190,7 +190,9 @@ Value au_stop(VM *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value au_isPlaying(VM *vm, int argc, Value *argv) { return NEW_BOOL(_web_audio_playing(_web_audio(vm, argv[0])->browser_id)); }
+Value au_isPlaying(VM *vm, int argc, Value *argv) { 
+    return NEW_BOOL(_web_audio_playing(_web_audio(vm, argv[0])->browser_id)); 
+}
 Value au_sampleRate(VM *vm, int argc, Value *argv) { return NEW_NUM(0); }
 Value au_channels(VM *vm, int argc, Value *argv) { return NEW_NUM(0); }
 Value au_frames(VM *vm, int argc, Value *argv) { return NEW_NUM(0); }

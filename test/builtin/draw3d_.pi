@@ -1,0 +1,21 @@
+// The draw3d MVP must create and close an independent OpenGL window.
+import draw3d
+
+frames = 0
+ctx = draw3d.canvas(320, 240, "draw3d test")
+mesh = draw3d.mesh(ctx, {
+    position: [[-1, -1, 0], [1, -1, 0], [0, 1, 0]],
+    color: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+    indices: [0, 1, 2]
+})
+
+fun frame(canvas) {
+    frames += 1
+    draw3d.clear(canvas, 0x101820)
+    draw3d.draw(canvas, mesh, {rotation: [0, frames * .1, 0]})
+    if frames == 2 draw3d.close(canvas)
+}
+
+draw3d.animate(ctx, frame)
+draw3d.run(ctx)
+assert(frames == 2, "draw3d animation should render two frames")

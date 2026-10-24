@@ -43,6 +43,8 @@ typedef struct Mix_Chunk Mix_Chunk;
 #define AS_IMAGE(o) ((ObjImage *)AS_OBJ(o))
 #define IS_AUDIO(o) IS_OBJ_TYPE(o, OBJ_AUDIO)
 #define AS_AUDIO(o) ((ObjAudio *)AS_OBJ(o))
+#define IS_MODEL3D(o) IS_OBJ_TYPE(o, OBJ_MODEL3D)
+#define AS_MODEL3D(o) ((ObjModel3D *)AS_OBJ(o))
 
 #define IS_COLLECTION(o) (IS_LIST(o) || IS_TENSOR(o) || IS_MAP(o) || IS_SET(o) || IS_TUPLE(o) || IS_STRING(o))
 
@@ -398,6 +400,13 @@ typedef struct
 ObjAudio *new_audio(SDL_AudioSpec spec, float *samples, Uint32 frames,
                     Mix_Chunk *chunk);
 
+typedef struct
+{
+    Object object;
+    struct PiContext *ctx;
+    void *native;
+} ObjModel3D;
+
 struct PiChart3D;
 struct VM;
 
@@ -410,6 +419,7 @@ typedef struct PiContext
     
     void *window;
     void *renderer;
+    void *gl_context;
     int width, height;
     bool running;
     bool cleaned;          // Native draw resources have been released.
@@ -555,6 +565,7 @@ uint32_t code_hash(uint8_t *code);
 Object *new_code(List *code);
 
 Object *new_context();
+ObjModel3D *new_model3d(PiContext *ctx, void *native);
 Object *new_chart(PiContext *ctx);
 Object *new_chart3d(PiContext *ctx);
 Object *new_event(const char *type, EventType event_type);

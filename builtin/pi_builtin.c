@@ -121,6 +121,9 @@ BuiltinModule *builtin_modules[] = {
     &module_plot,
 #endif
     &module_draw,
+#ifndef __EMSCRIPTEN__
+    &module_draw3d,
+#endif
     &module_plot3d,
     &module_image,
     &module_imageFilters,
