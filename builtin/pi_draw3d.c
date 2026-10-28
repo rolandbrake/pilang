@@ -225,16 +225,23 @@ static int _mesh_create(const GLFuncs *gl, Mesh *mesh,
     gl->BindVertexArray(mesh->vao);
 
     gl->BindBuffer(GL_ARRAY_BUFFER, mesh->vbo);
+
     gl->BufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(vertex_count * 
         sizeof(Vertex)), vertices, GL_STATIC_DRAW);
 
     gl->BindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh->ebo);
+    
     gl->BufferData(GL_ELEMENT_ARRAY_BUFFER, (GLsizeiptr)(index_count * 
         sizeof(unsigned short)), indices, GL_STATIC_DRAW);
 
-    gl->VertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, position));
+    gl->VertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 
+        (void *)offsetof(Vertex, position));
+
     gl->EnableVertexAttribArray(0);
-    gl->VertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, color));
+    
+    gl->VertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 
+        (void *)offsetof(Vertex, color));
+
     gl->EnableVertexAttribArray(1);
 
     mesh->index_count = (GLsizei)index_count;
@@ -394,8 +401,10 @@ static Vec3 _transform_vector(VM *vm, PiMap *transform, const char *name)
     Value x = *(Value *)_list_getAt(AS_LIST(value)->items, 0);
     Value y = *(Value *)_list_getAt(AS_LIST(value)->items, 1);
     Value z = *(Value *)_list_getAt(AS_LIST(value)->items, 2);
+
     if (!IS_NUM(x) || !IS_NUM(y) || !IS_NUM(z))
         vm_errorf(vm, "draw() transform '%s' must be a three-number list", name);
+        
     return (Vec3){(float)as_number(x), (float)as_number(y), (float)as_number(z)};
 }
 

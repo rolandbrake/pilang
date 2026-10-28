@@ -17,15 +17,18 @@ import plot
 let ctx = draw.canvas(720, 480, "2D Plot")
 let chart = plot.chart(ctx)
 
-plot.line(chart, [0, 1, 2, 3], [0, 1, 4, 9])
-plot.title(chart, "Quadratic")
-plot.xlabel(chart, "x")
-plot.ylabel(chart, "y")
-plot.grid(chart, true)
-
-plot.show(chart)
-draw.run(ctx)
+chart.line([0, 1, 2, 3], [0, 1, 4, 9])
+     .title("Quadratic")
+     .xlabel("x")
+     .ylabel("y")
+     .grid(true)
+     .show()
+ctx.run()
 ```
+
+The original `plot.method(chart, ...)` and `draw.method(ctx, ...)` forms are
+still accepted. Chart series, labels, display options, layout, and `show()`
+return the chart; methods with a meaningful result are chain terminators.
 
 ## Chart Lifecycle
 

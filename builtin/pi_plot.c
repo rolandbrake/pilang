@@ -164,15 +164,15 @@ static Value _make_kindSeries(VM *vm, PiChart *chart, const char *kind, List *ta
 
 enum TextFlags
 {
-    TEXT_NONE     =      0,
+    TEXT_NONE = 0,
     TEXT_CENTER_X = 1 << 0,
     TEXT_CENTER_Y = 1 << 1,
-    TEXT_BOLD     = 1 << 2,
+    TEXT_BOLD = 1 << 2,
     TEXT_VERTICAL = 1 << 3
 };
 
 static void _draw_text(SDL_Renderer *r, TTF_Font *font, const char *text,
-                      int x, int y, int rgb, int flags)
+                       int x, int y, int rgb, int flags)
 {
     if (!font || !text)
         return;
@@ -565,10 +565,10 @@ static void _draw_axisTicks(SDL_Renderer *r, PiChart *chart, TTF_Font *font, int
 }
 
 static void _draw_filledBorderedCircle(SDL_Renderer *r,
-                                      int cx, int cy,
-                                      int radius,
-                                      int fill_color,
-                                      int border_color)
+                                       int cx, int cy,
+                                       int radius,
+                                       int fill_color,
+                                       int border_color)
 {
     // ------------------------
     // FILLED CIRCLE (SPAN FILL)
@@ -718,7 +718,7 @@ static void _heatmap_rgb(double t, Uint8 *R, Uint8 *G, Uint8 *B)
 }
 
 static void _draw_colorBar(SDL_Renderer *r, PiChart *chart, double zmin, double zmax,
-                          int W, int H, int margin, int x_pos, int y_top, int y_bottom, int width)
+                           int W, int H, int margin, int x_pos, int y_top, int y_bottom, int width)
 {
     if (zmax <= zmin)
         zmax = zmin + 1e-9;
@@ -1334,10 +1334,10 @@ static int _legend_seriesColor(PiChart *chart, int legend_index)
 }
 
 static void _draw_legend(DrawContext *dc, List *items,
-                        int border_left, int border_top,
-                        int border_right, int border_bottom,
-                        int has_heatmap, PiTensor *heatmap_matrix,
-                        double cell_size, TTF_Font *legend_font)
+                         int border_left, int border_top,
+                         int border_right, int border_bottom,
+                         int has_heatmap, PiTensor *heatmap_matrix,
+                         double cell_size, TTF_Font *legend_font)
 {
     if (LIST_SIZE(items) < 2)
         return;
@@ -1470,7 +1470,7 @@ static void _draw_legend(DrawContext *dc, List *items,
         SDL_RenderDrawRect(r, &sq);
         if (legend_font)
             _draw_text(r, legend_font, AS_CSTRING(*lv),
-                      legend_x_pos + pad + swatch_size + swatch_gap, row_y + row_height / 2, 0x333333, TEXT_CENTER_Y);
+                       legend_x_pos + pad + swatch_size + swatch_gap, row_y + row_height / 2, 0x333333, TEXT_CENTER_Y);
     }
 }
 
@@ -1530,12 +1530,12 @@ static void _draw_scatter(DrawContext *dc, List *items)
 
         int px, py;
         _map_xy(dc->chart,
-               AS_NUM(*vx),
-               AS_NUM(*vy),
-               dc->W, dc->H,
-               dc->margin,
-               dc->ymargin,
-               &px, &py);
+                AS_NUM(*vx),
+                AS_NUM(*vy),
+                dc->W, dc->H,
+                dc->margin,
+                dc->ymargin,
+                &px, &py);
 
         if (shape == 'x')
         {
@@ -1736,10 +1736,10 @@ static void _draw_hist(DrawContext *dc, List *items)
 }
 
 static void _draw_heatmap(DrawContext *dc, List *items,
-                         int heatmap_start_x, int heatmap_start_y,
-                         int heatmap_width, int heatmap_height,
-                         double cell_size,
-                         int border_right, int border_top, int border_bottom)
+                          int heatmap_start_x, int heatmap_start_y,
+                          int heatmap_width, int heatmap_height,
+                          double cell_size,
+                          int border_right, int border_top, int border_bottom)
 {
     if (LIST_SIZE(items) < 2)
         return;
@@ -1808,14 +1808,14 @@ static void _draw_heatmap(DrawContext *dc, List *items,
     int color_bar_x = border_right + 15;
     int color_bar_width = 25;
     _draw_colorBar(dc->r, dc->chart, zmin, zmax, dc->W, dc->H, dc->margin,
-                  color_bar_x, border_top, border_bottom, color_bar_width);
+                   color_bar_x, border_top, border_bottom, color_bar_width);
 
     TTF_Font *small_font = _get_openFont(10);
     if (small_font)
     {
         _draw_text(dc->r, small_font, "Value",
-                  color_bar_x + color_bar_width / 2,
-                  (border_top + border_bottom) / 2, 0x444444, TEXT_VERTICAL | TEXT_BOLD);
+                   color_bar_x + color_bar_width / 2,
+                   (border_top + border_bottom) / 2, 0x444444, TEXT_VERTICAL | TEXT_BOLD);
         TTF_CloseFont(small_font);
     }
 }
@@ -1845,8 +1845,8 @@ static double _tensor_imageScale(PiTensor *M)
 }
 
 static void _draw_imshowTensor2D(DrawContext *dc, PiTensor *M,
-                                int start_x, int start_y, int width, int height,
-                                int border_right, int border_top, int border_bottom)
+                                 int start_x, int start_y, int width, int height,
+                                 int border_right, int border_top, int border_bottom)
 {
     double zmin, zmax;
     _tensor_minmax(M, &zmin, &zmax);
@@ -1904,11 +1904,11 @@ static void _draw_imshowTensor2D(DrawContext *dc, PiTensor *M,
     int color_bar_width = width < 160 ? 18 : 25;
     int color_bar_x = border_right + (width < 160 ? 8 : 15);
     _draw_colorBar(dc->r, dc->chart, zmin, zmax, dc->W, dc->H, dc->margin,
-                  color_bar_x, border_top, border_bottom, color_bar_width);
+                   color_bar_x, border_top, border_bottom, color_bar_width);
 }
 
 static void _draw_imshowTensorImage(DrawContext *dc, PiTensor *M,
-                                   int start_x, int start_y, int width, int height)
+                                    int start_x, int start_y, int width, int height)
 {
     int rows = M->shape[0];
     int cols = M->shape[1];
@@ -1967,7 +1967,7 @@ static void _draw_imshowTensorImage(DrawContext *dc, PiTensor *M,
 }
 
 static void _draw_imshowImage(DrawContext *dc, ObjImage *img,
-                             int start_x, int start_y, int width, int height)
+                              int start_x, int start_y, int width, int height)
 {
     if (!img || !img->surface)
         return;
@@ -1982,8 +1982,8 @@ static void _draw_imshowImage(DrawContext *dc, ObjImage *img,
 }
 
 static void _draw_imshow(DrawContext *dc, List *items,
-                        int start_x, int start_y, int width, int height,
-                        int border_right, int border_top, int border_bottom)
+                         int start_x, int start_y, int width, int height,
+                         int border_right, int border_top, int border_bottom)
 {
     if (LIST_SIZE(items) < 2 || width <= 0 || height <= 0)
         return;
@@ -1994,7 +1994,7 @@ static void _draw_imshow(DrawContext *dc, List *items,
         PiTensor *M = AS_TENSOR(*mv);
         if (M->ndim == 2)
             _draw_imshowTensor2D(dc, M, start_x, start_y, width, height,
-                                border_right, border_top, border_bottom);
+                                 border_right, border_top, border_bottom);
         else if (M->ndim == 3)
             _draw_imshowTensorImage(dc, M, start_x, start_y, width, height);
     }
@@ -2003,10 +2003,10 @@ static void _draw_imshow(DrawContext *dc, List *items,
 }
 
 static void _draw_gridAxisTicks(SDL_Renderer *r, TTF_Font *font,
-                               int border_left, int border_top,
-                               int border_right, int border_bottom,
-                               int rows, int cols,
-                               double cell_width, double cell_height)
+                                int border_left, int border_top,
+                                int border_right, int border_bottom,
+                                int rows, int cols,
+                                double cell_width, double cell_height)
 {
     if (rows <= 0 || cols <= 0 || cell_width <= 0.0 || cell_height <= 0.0)
         return;
@@ -2164,8 +2164,8 @@ static int _contour_interp(double level, double a, double b, double *t)
 }
 
 static void _map_gridPoint(PiTensor *M, double x, double y,
-                          int start_x, int start_y, int width, int height,
-                          int *px, int *py)
+                           int start_x, int start_y, int width, int height,
+                           int *px, int *py)
 {
     double max_x = M->cols > 1 ? (double)(M->cols - 1) : 1.0;
     double max_y = M->rows > 1 ? (double)(M->rows - 1) : 1.0;
@@ -2181,7 +2181,7 @@ static void _draw_softLine(SDL_Renderer *r, int x0, int y0, int x1, int y1)
 }
 
 static void _draw_contour(DrawContext *dc, List *items,
-                         int start_x, int start_y, int width, int height)
+                          int start_x, int start_y, int width, int height)
 {
     if (LIST_SIZE(items) < 2)
         return;
@@ -2249,10 +2249,26 @@ static void _draw_contour(DrawContext *dc, List *items,
                 double xs[4], ys[4];
                 int count = 0;
                 double t;
-                if (_contour_interp(level, z00, z10, &t)) { xs[count] = c + t;     ys[count++] = row; }
-                if (_contour_interp(level, z10, z11, &t)) { xs[count] = c + 1;     ys[count++] = row + t; }
-                if (_contour_interp(level, z01, z11, &t)) { xs[count] = c + t;     ys[count++] = row + 1; }
-                if (_contour_interp(level, z00, z01, &t)) { xs[count] = c;         ys[count++] = row + t; }
+                if (_contour_interp(level, z00, z10, &t))
+                {
+                    xs[count] = c + t;
+                    ys[count++] = row;
+                }
+                if (_contour_interp(level, z10, z11, &t))
+                {
+                    xs[count] = c + 1;
+                    ys[count++] = row + t;
+                }
+                if (_contour_interp(level, z01, z11, &t))
+                {
+                    xs[count] = c + t;
+                    ys[count++] = row + 1;
+                }
+                if (_contour_interp(level, z00, z01, &t))
+                {
+                    xs[count] = c;
+                    ys[count++] = row + t;
+                }
 
                 if (count >= 2)
                 {
@@ -2306,7 +2322,7 @@ static int _vector_seriesColor(List *items, int default_color)
 }
 
 static void _draw_vectorSegment(DrawContext *dc, double x, double y, double u, double v,
-                               double max_mag, double base_len, int stream_mode)
+                                double max_mag, double base_len, int stream_mode)
 {
     double mag = sqrt(u * u + v * v);
     if (mag < 1e-12)
@@ -2362,9 +2378,12 @@ static void _draw_VectorField(DrawContext *dc, List *items, int stream_mode,
         PiList *ul = AS_LIST(*(Value *)_list_getAt(items, 3));
         PiList *vl = AS_LIST(*(Value *)_list_getAt(items, 4));
         int n = LIST_SIZE(xl->items);
-        if (LIST_SIZE(yl->items) < n) n = LIST_SIZE(yl->items);
-        if (LIST_SIZE(ul->items) < n) n = LIST_SIZE(ul->items);
-        if (LIST_SIZE(vl->items) < n) n = LIST_SIZE(vl->items);
+        if (LIST_SIZE(yl->items) < n)
+            n = LIST_SIZE(yl->items);
+        if (LIST_SIZE(ul->items) < n)
+            n = LIST_SIZE(ul->items);
+        if (LIST_SIZE(vl->items) < n)
+            n = LIST_SIZE(vl->items);
 
         double max_mag = 0.0;
         for (int i = 0; i < n; i++)
@@ -2476,8 +2495,8 @@ Value pt_show(VM *vm, int argc, Value *argv)
 
     SDL_Rect viewport;
     if (!_subplot_rect(ctx->width, ctx->height,
-                      chart->subplot_rows, chart->subplot_cols, chart->subplot_index,
-                      &viewport))
+                       chart->subplot_rows, chart->subplot_cols, chart->subplot_index,
+                       &viewport))
         return NIL_VAL;
 
     int is_subplot = _chart_HasSubplot(chart);
@@ -2725,8 +2744,8 @@ Value pt_show(VM *vm, int argc, Value *argv)
         if (!strcmp(kind, "legend"))
         {
             _draw_legend(&dc, items,
-                        border_left, border_top, border_right, border_bottom,
-                        has_grid_plot, grid_matrix, cell_size, legend_font);
+                         border_left, border_top, border_right, border_bottom,
+                         has_grid_plot, grid_matrix, cell_size, legend_font);
         }
         else if (!strcmp(kind, "scatter"))
         {
@@ -2756,25 +2775,25 @@ Value pt_show(VM *vm, int argc, Value *argv)
         else if (!strcmp(kind, "imshow"))
         {
             _draw_imshow(&dc, items,
-                        heatmap_start_x, heatmap_start_y,
-                        heatmap_width, heatmap_height,
-                        border_right, border_top, border_bottom);
+                         heatmap_start_x, heatmap_start_y,
+                         heatmap_width, heatmap_height,
+                         border_right, border_top, border_bottom);
             series_index++;
         }
         else if (!strcmp(kind, "heatmap"))
         {
             _draw_heatmap(&dc, items,
-                         heatmap_start_x, heatmap_start_y,
-                         heatmap_width, heatmap_height,
-                         cell_size,
-                         border_right, border_top, border_bottom);
+                          heatmap_start_x, heatmap_start_y,
+                          heatmap_width, heatmap_height,
+                          cell_size,
+                          border_right, border_top, border_bottom);
             series_index++;
         }
         else if (!strcmp(kind, "contour"))
         {
             _draw_contour(&dc, items,
-                         heatmap_start_x, heatmap_start_y,
-                         heatmap_width, heatmap_height);
+                          heatmap_start_x, heatmap_start_y,
+                          heatmap_width, heatmap_height);
             series_index++;
         }
         else if (!strcmp(kind, "quiver"))
@@ -2800,8 +2819,8 @@ Value pt_show(VM *vm, int argc, Value *argv)
         }
         if (chart->show_ticks)
             _draw_gridAxisTicks(r, tick_font,
-                               border_left, border_top, border_right, border_bottom,
-                               grid_rows, grid_cols, cell_width, cell_height);
+                                border_left, border_top, border_right, border_bottom,
+                                grid_rows, grid_cols, cell_width, cell_height);
     }
 
     if (title_font)
@@ -2815,7 +2834,7 @@ Value pt_show(VM *vm, int argc, Value *argv)
 
     SDL_RenderSetViewport(r, &old_viewport);
     SDL_RenderPresent(r);
-    return NIL_VAL;
+    return argv[0];
 }
 
 static BuiltinFunc plot_funcs[] = {

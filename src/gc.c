@@ -726,6 +726,7 @@ void free_object(Object *obj)
             free(chart->ylabel);
         if (chart->zlabel)
             free(chart->zlabel);
+        free(chart->depth_buffer);
         break;
     }
     case OBJ_EVENT:

@@ -2757,7 +2757,7 @@ OP_CALL_FUNCTION:
             vm_errorf(vm, "Invalid function call: expected a callable object");
 
         Value callee = vm->stack[obj_slot];
-        vm->error_pc = vm->pc;
+        vm->error_pc = instr_pc;
         vm->pc = pc;
 
         if (IS_FUN(callee))
@@ -2933,7 +2933,7 @@ OP_CALL_FUNCTION_KW:
 
         if (IS_FUN(callee))
         {
-            vm->error_pc = vm->pc;
+            vm->error_pc = instr_pc;
             vm->pc = pc;
             result = call_func(vm, AS_FUN(callee), num_args, args, kw_args);
             if (IS_OBJ(result))
@@ -2948,7 +2948,7 @@ OP_CALL_FUNCTION_KW:
                     free(args);
                 vm_error(vm, "Attempt to call a non-function object.");
             }
-            vm->error_pc = vm->pc;
+            vm->error_pc = instr_pc;
             vm->pc = pc;
             result = call_func(vm, AS_FUN(bound), num_args, args, kw_args);
         }
@@ -2993,7 +2993,7 @@ OP_CALL_SPREAD:
         if (!IS_LIST(arg_list_value))
             vm_error(vm, "Spread call arguments must be collected in a list.");
         Value callee = _pop_stack(vm);
-        vm->error_pc = vm->pc;
+        vm->error_pc = instr_pc;
         vm->pc = pc;
         _push_stack(vm, _call_withArgList(vm, callee, AS_LIST(arg_list_value), kw_args));
         VM_DISPATCH_SAFE();

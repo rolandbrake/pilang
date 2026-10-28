@@ -1,0 +1,2 @@
+let chain_value = "pi"
+    .repeat("not a number")

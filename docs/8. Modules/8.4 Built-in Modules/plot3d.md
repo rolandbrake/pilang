@@ -20,18 +20,21 @@ import plot3d
 import tensor
 
 let ctx = draw.canvas(700, 600, "3D Surface")
-let chart = plot3d.chart(ctx)
+let chart = ctx.chart()
 let z = tensor.from([[0, 1, 0], [1, 2, 1], [0, 1, 0]])
 
-plot3d.surface(chart, z)
-plot3d.title(chart, "Surface")
-plot3d.xlabel(chart, "x")
-plot3d.ylabel(chart, "y")
-plot3d.zlabel(chart, "z")
-
-plot3d.show(chart)
-draw.run(ctx)
+chart.surface(z)
+     .title("Surface")
+     .xlabel("x")
+     .ylabel("y")
+     .zlabel("z")
+     .show()
+ctx.run()
 ```
+
+`ctx.chart()` creates a 3D chart when using the plot3d fluent API. The legacy
+`plot3d.chart(ctx)` and `plot3d.method(chart, ...)` forms remain valid.
+Series, labels, view options, subplots, and `show()` return the chart.
 
 ## Chart Lifecycle
 

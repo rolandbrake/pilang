@@ -1,0 +1,19 @@
+import draw.{canvas, close}
+import plot3d
+import tensor
+
+let ctx = canvas(160, 120, "Surface Plot - Ripple")
+let z = tensor.ones(2, 2)
+let chart = ctx.chart()
+
+chart.surface(z)
+chart.title("Damped Ripple Surface")
+     .xlabel("X axis")
+     .ylabel("Y axis")
+     .zlabel("Z axis")
+     .show()
+
+assert(chart.surface(z) == chart, "surface should return its chart")
+assert(chart.title("again") == chart, "title should return its chart")
+
+close(ctx)

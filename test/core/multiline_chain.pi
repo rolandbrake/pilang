@@ -1,0 +1,30 @@
+fun normalize(value) {
+    return value
+        .upper()
+        .lower()
+}
+
+let chained = "pi"
+    .upper()
+    .lower()
+
+let called = "pi".repeat(2)
+    .upper()
+
+let commented = "Pi"
+    // A line comment before a continuation is ignored.
+    .upper()
+    /* A block comment is ignored too. */
+    .lower()
+
+let range_items = 1
+..4
+let spread = [0,
+    ...range_items]
+
+assert(chained == "pi", "a multi-line chain should be one expression")
+assert(called == "PIPI", "a chain should continue after a call with arguments")
+assert(normalize("Pi") == "pi", "a chain should work in a function body")
+assert(commented == "pi", "comments should not interrupt a chain")
+assert(str(range_items) == "1..4", "a range at line start should remain a range")
+assert(spread == [0, 1, 2, 3], "spread should remain distinct from a continuation dot")

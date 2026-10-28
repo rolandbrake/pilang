@@ -256,9 +256,9 @@ static Value _make_plot3dSeries(VM *vm, PiChart3D *chart, const char *kind, List
 }
 
 static Value _make_plot3dTensorSeries(VM *vm, int argc, Value *argv,
-                                     const char *kind,
-                                     const char *chart_error,
-                                     const char *tensor_error)
+                                      const char *kind,
+                                      const char *chart_error,
+                                      const char *tensor_error)
 {
     if (argc < 1 || !IS_CHART3D(argv[0]))
     {
@@ -302,22 +302,22 @@ Value pt3d_chart(VM *vm, int argc, Value *argv)
 Value pt3d_surface(VM *vm, int argc, Value *argv)
 {
     return _make_plot3dTensorSeries(vm, argc, argv, "surface",
-                                   "surface() takes a plot3d chart as first argument",
-                                   "surface requires a 2d tensor as second argument");
+                                    "surface() takes a plot3d chart as first argument",
+                                    "surface requires a 2d tensor as second argument");
 }
 
 Value pt3d_mesh(VM *vm, int argc, Value *argv)
 {
     return _make_plot3dTensorSeries(vm, argc, argv, "mesh",
-                                   "mesh() takes a plot3d chart as first argument",
-                                   "mesh requires a 2d tensor as second argument");
+                                    "mesh() takes a plot3d chart as first argument",
+                                    "mesh requires a 2d tensor as second argument");
 }
 
 Value pt3d_wireframe(VM *vm, int argc, Value *argv)
 {
     return _make_plot3dTensorSeries(vm, argc, argv, "wireframe",
-                                   "wireframe() takes a plot3d chart as first argument",
-                                   "wireframe requires a 2d tensor as second argument");
+                                    "wireframe() takes a plot3d chart as first argument",
+                                    "wireframe requires a 2d tensor as second argument");
 }
 
 Value pt3d_scatter(VM *vm, int argc, Value *argv)
@@ -552,8 +552,8 @@ static Vec3 _rotate_z(Vec3 p, double a)
     double c = cos(a);
     double s = sin(a);
     return _makeVec3(p.x * c - p.y * s,
-                p.x * s + p.y * c,
-                p.z);
+                     p.x * s + p.y * c,
+                     p.z);
 }
 
 static Vec3 _rotate_x(Vec3 p, double a)
@@ -561,8 +561,8 @@ static Vec3 _rotate_x(Vec3 p, double a)
     double c = cos(a);
     double s = sin(a);
     return _makeVec3(p.x,
-                p.y * c - p.z * s,
-                p.y * s + p.z * c);
+                     p.y * c - p.z * s,
+                     p.y * s + p.z * c);
 }
 
 static void _tensor_minmax(PiTensor *M, double *zmin, double *zmax)
@@ -781,14 +781,14 @@ static void _draw_face(SDL_Renderer *r, Face3D *f)
     _set_drawColor(r, f->color, 238);
 
     _fill_triangle(r,
-                  (int)lrint(f->p[0].x), (int)lrint(f->p[0].y),
-                  (int)lrint(f->p[1].x), (int)lrint(f->p[1].y),
-                  (int)lrint(f->p[2].x), (int)lrint(f->p[2].y));
+                   (int)lrint(f->p[0].x), (int)lrint(f->p[0].y),
+                   (int)lrint(f->p[1].x), (int)lrint(f->p[1].y),
+                   (int)lrint(f->p[2].x), (int)lrint(f->p[2].y));
 
     _fill_triangle(r,
-                  (int)lrint(f->p[0].x), (int)lrint(f->p[0].y),
-                  (int)lrint(f->p[2].x), (int)lrint(f->p[2].y),
-                  (int)lrint(f->p[3].x), (int)lrint(f->p[3].y));
+                   (int)lrint(f->p[0].x), (int)lrint(f->p[0].y),
+                   (int)lrint(f->p[2].x), (int)lrint(f->p[2].y),
+                   (int)lrint(f->p[3].x), (int)lrint(f->p[3].y));
 
     _set_drawColor(r, 0x000000, 45);
     SDL_RenderDrawLine(r, (int)f->p[0].x, (int)f->p[0].y, (int)f->p[1].x, (int)f->p[1].y);
@@ -931,14 +931,14 @@ static void _draw_TickOnAxis(SDL_Renderer *r, Point2D p, Point2D axis_a, Point2D
 static void _fill_quad(SDL_Renderer *r, Point2D a, Point2D b, Point2D c, Point2D d)
 {
     _fill_triangle(r,
-                  (int)lrint(a.x), (int)lrint(a.y),
-                  (int)lrint(b.x), (int)lrint(b.y),
-                  (int)lrint(c.x), (int)lrint(c.y));
+                   (int)lrint(a.x), (int)lrint(a.y),
+                   (int)lrint(b.x), (int)lrint(b.y),
+                   (int)lrint(c.x), (int)lrint(c.y));
 
     _fill_triangle(r,
-                  (int)lrint(a.x), (int)lrint(a.y),
-                  (int)lrint(c.x), (int)lrint(c.y),
-                  (int)lrint(d.x), (int)lrint(d.y));
+                   (int)lrint(a.x), (int)lrint(a.y),
+                   (int)lrint(c.x), (int)lrint(c.y),
+                   (int)lrint(d.x), (int)lrint(d.y));
 }
 
 static void _draw_AxisGrid(SDL_Renderer *r, PiChart3D *chart,
@@ -1002,9 +1002,9 @@ static void _draw_AxisGrid(SDL_Renderer *r, PiChart3D *chart,
         Point2D xy_y1 = _project_data(proj, data, data->xmax, y, data->zmin);
 
         SDL_RenderDrawLine(r, (int)lrint(xy_x0.x), (int)lrint(xy_x0.y),
-                              (int)lrint(xy_x1.x), (int)lrint(xy_x1.y));
+                           (int)lrint(xy_x1.x), (int)lrint(xy_x1.y));
         SDL_RenderDrawLine(r, (int)lrint(xy_y0.x), (int)lrint(xy_y0.y),
-                              (int)lrint(xy_y1.x), (int)lrint(xy_y1.y));
+                           (int)lrint(xy_y1.x), (int)lrint(xy_y1.y));
 
         /* XZ side grid, at y = 0. */
         Point2D xz_x0 = _project_data(proj, data, x, data->ymin, data->zmin);
@@ -1013,9 +1013,9 @@ static void _draw_AxisGrid(SDL_Renderer *r, PiChart3D *chart,
         Point2D xz_z1 = _project_data(proj, data, data->xmax, data->ymin, z);
 
         SDL_RenderDrawLine(r, (int)lrint(xz_x0.x), (int)lrint(xz_x0.y),
-                              (int)lrint(xz_x1.x), (int)lrint(xz_x1.y));
+                           (int)lrint(xz_x1.x), (int)lrint(xz_x1.y));
         SDL_RenderDrawLine(r, (int)lrint(xz_z0.x), (int)lrint(xz_z0.y),
-                              (int)lrint(xz_z1.x), (int)lrint(xz_z1.y));
+                           (int)lrint(xz_z1.x), (int)lrint(xz_z1.y));
 
         /* YZ side grid, at x = cols - 1. Shared by Y and Z axes, with Y to
            the right of Z. */
@@ -1025,14 +1025,13 @@ static void _draw_AxisGrid(SDL_Renderer *r, PiChart3D *chart,
         Point2D yz_z1 = _project_data(proj, data, data->xmax, data->ymax, z);
 
         SDL_RenderDrawLine(r, (int)lrint(yz_y0.x), (int)lrint(yz_y0.y),
-                              (int)lrint(yz_y1.x), (int)lrint(yz_y1.y));
+                           (int)lrint(yz_y1.x), (int)lrint(yz_y1.y));
         SDL_RenderDrawLine(r, (int)lrint(yz_z0.x), (int)lrint(yz_z0.y),
-                              (int)lrint(yz_z1.x), (int)lrint(yz_z1.y));
+                           (int)lrint(yz_z1.x), (int)lrint(yz_z1.y));
     }
 
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
 }
-
 
 static void _draw_AxisPlain(SDL_Renderer *r, Point2D a, Point2D b, int color)
 {
@@ -1041,8 +1040,8 @@ static void _draw_AxisPlain(SDL_Renderer *r, Point2D a, Point2D b, int color)
 }
 
 static void _draw_AxisTickLabel(SDL_Renderer *r, TTF_Font *font,
-                                 Point2D p, double nx, double ny,
-                                 const char *text, int color)
+                                Point2D p, double nx, double ny,
+                                const char *text, int color)
 {
     /*
         nx, ny is a fixed, pre-computed outward screen-space direction for
@@ -1068,8 +1067,8 @@ static void _draw_AxisTickLabel(SDL_Renderer *r, TTF_Font *font,
 }
 
 static void _draw_AxesTicksLabels(SDL_Renderer *r, TTF_Font *font,
-                                   PiChart3D *chart, Projector3D *proj,
-                                   SurfaceData *data)
+                                  PiChart3D *chart, Projector3D *proj,
+                                  SurfaceData *data)
 {
     /*
         X is drawn on the front floor edge (high y). Y is drawn on the
@@ -1105,9 +1104,9 @@ static void _draw_AxesTicksLabels(SDL_Renderer *r, TTF_Font *font,
         the empty margin.
     */
     Point2D center = _project_data(proj, data,
-                                  (data->xmin + data->xmax) * 0.5,
-                                  (data->ymin + data->ymax) * 0.5,
-                                  (data->zmin + data->zmax) * 0.5);
+                                   (data->xmin + data->xmax) * 0.5,
+                                   (data->ymin + data->ymax) * 0.5,
+                                   (data->zmin + data->zmax) * 0.5);
 
     double xnx, xny, ynx, yny, znx, zny;
 
@@ -1115,36 +1114,54 @@ static void _draw_AxesTicksLabels(SDL_Renderer *r, TTF_Font *font,
     {
         double dx = X.x - X0.x, dy = X.y - X0.y;
         double len = sqrt(dx * dx + dy * dy);
-        dx /= len; dy /= len;
+        dx /= len;
+        dy /= len;
         double n1x = -dy, n1y = dx;
         double mx = (X0.x + X.x) * 0.5, my = (X0.y + X.y) * 0.5;
         double toward = (mx - center.x) * n1x + (my - center.y) * n1y;
-        if (toward < 0) { n1x = -n1x; n1y = -n1y; }
-        xnx = n1x; xny = n1y;
+        if (toward < 0)
+        {
+            n1x = -n1x;
+            n1y = -n1y;
+        }
+        xnx = n1x;
+        xny = n1y;
     }
 
     /* Y axis direction (O -> Y); outward = perpendicular, away from center. */
     {
         double dx = Y.x - O.x, dy = Y.y - O.y;
         double len = sqrt(dx * dx + dy * dy);
-        dx /= len; dy /= len;
+        dx /= len;
+        dy /= len;
         double n1x = -dy, n1y = dx;
         double mx = (O.x + Y.x) * 0.5, my = (O.y + Y.y) * 0.5;
         double toward = (mx - center.x) * n1x + (my - center.y) * n1y;
-        if (toward < 0) { n1x = -n1x; n1y = -n1y; }
-        ynx = n1x; yny = n1y;
+        if (toward < 0)
+        {
+            n1x = -n1x;
+            n1y = -n1y;
+        }
+        ynx = n1x;
+        yny = n1y;
     }
 
     /* Z axis direction (O -> Z); outward = perpendicular, away from center. */
     {
         double dx = Z.x - O.x, dy = Z.y - O.y;
         double len = sqrt(dx * dx + dy * dy);
-        dx /= len; dy /= len;
+        dx /= len;
+        dy /= len;
         double n1x = -dy, n1y = dx;
         double mx = (O.x + Z.x) * 0.5, my = (O.y + Z.y) * 0.5;
         double toward = (mx - center.x) * n1x + (my - center.y) * n1y;
-        if (toward < 0) { n1x = -n1x; n1y = -n1y; }
-        znx = n1x; zny = n1y;
+        if (toward < 0)
+        {
+            n1x = -n1x;
+            n1y = -n1y;
+        }
+        znx = n1x;
+        zny = n1y;
     }
 
     char label[64];
@@ -1260,7 +1277,7 @@ static int _heatmap_StyleColor(Plot3DSeriesStyle *style, double t)
 }
 
 static void _draw_colorbar(SDL_Renderer *r, TTF_Font *font,
-                          SurfaceData *data, Plot3DSeriesStyle *style)
+                           SurfaceData *data, Plot3DSeriesStyle *style)
 {
     int W = 0;
     int H = 0;
@@ -1515,8 +1532,8 @@ static int _scatter_DataBounds(List *items, SurfaceData *data)
 }
 
 static void _draw_scatter3d(SDL_Renderer *r, TTF_Font *font,
-                           PiChart3D *chart, Projector3D *proj,
-                           List *items)
+                            PiChart3D *chart, Projector3D *proj,
+                            List *items)
 {
     SurfaceData data;
     if (!_scatter_DataBounds(items, &data))
@@ -1567,8 +1584,14 @@ static void _draw_scatter3d(SDL_Renderer *r, TTF_Font *font,
 static int _plot3d_PaletteColor(int index)
 {
     static const int colors[] = {
-        0x2563eb, 0xdc2626, 0x16a34a, 0xf59e0b,
-        0x7c3aed, 0x0891b2, 0xdb2777, 0x4b5563,
+        0x2563eb,
+        0xdc2626,
+        0x16a34a,
+        0xf59e0b,
+        0x7c3aed,
+        0x0891b2,
+        0xdb2777,
+        0x4b5563,
     };
     return colors[index % (int)(sizeof(colors) / sizeof(colors[0]))];
 }
@@ -1724,8 +1747,8 @@ static void _draw_AllScatter3d(SDL_Renderer *r, TTF_Font *font,
     free(points);
 }
 
-static void _draw_surface(SDL_Renderer *r, Projector3D *proj, SurfaceData *data,
-                         Plot3DSeriesStyle *style)
+static void _draw_surface(SDL_Renderer *r, PiChart3D *chart, Projector3D *proj,
+                          SurfaceData *data, Plot3DSeriesStyle *style)
 {
     int face_count = (data->M->rows - 1) * (data->M->cols - 1);
     if (face_count <= 0)
@@ -1737,9 +1760,19 @@ static void _draw_surface(SDL_Renderer *r, Projector3D *proj, SurfaceData *data,
         return;
 
     size_t pixels = (size_t)W * (size_t)H;
-    double *zbuf = (double *)malloc(sizeof(double) * pixels);
-    if (!zbuf)
+    if (pixels > SIZE_MAX / sizeof(double))
         return;
+
+    if (chart->depth_buffer_capacity < pixels)
+    {
+        double *buffer = realloc(chart->depth_buffer, sizeof(double) * pixels);
+        if (!buffer)
+            return;
+        chart->depth_buffer = buffer;
+        chart->depth_buffer_capacity = pixels;
+    }
+
+    double *zbuf = chart->depth_buffer;
 
     for (size_t i = 0; i < pixels; i++)
         zbuf[i] = -DBL_MAX;
@@ -1770,8 +1803,6 @@ static void _draw_surface(SDL_Renderer *r, Projector3D *proj, SurfaceData *data,
             _draw_DepthFace(r, zbuf, W, H, &f);
         }
     }
-
-    free(zbuf);
 }
 
 static void _draw_WireGrid(SDL_Renderer *r, Projector3D *proj, SurfaceData *data,
@@ -1873,7 +1904,7 @@ static void _draw_SurfaceLike(SDL_Renderer *r, TTF_Font *font,
     */
     if (mode == 0)
     {
-        _draw_surface(r, proj, &data, &style);
+        _draw_surface(r, chart, proj, &data, &style);
     }
     else if (mode == 1)
     {
@@ -1889,7 +1920,6 @@ static void _draw_SurfaceLike(SDL_Renderer *r, TTF_Font *font,
     if (style.show_colorbar && mode != 2)
         _draw_colorbar(r, font, &data, &style);
 }
-
 
 /*
     Interactive 3D view control
@@ -1984,8 +2014,8 @@ static void _plot3d_render(PiChart3D *chart, int present)
 
     SDL_Rect viewport;
     if (!_subplot_rect(ctx->width, ctx->height,
-                      chart->subplot_rows, chart->subplot_cols, chart->subplot_index,
-                      &viewport))
+                       chart->subplot_rows, chart->subplot_cols, chart->subplot_index,
+                       &viewport))
         return;
 
     _plot3d_HandleMouse(chart, viewport);
@@ -2099,7 +2129,7 @@ Value pt3d_show(VM *vm, int argc, Value *argv)
         chart->ctx->active_plot3d = chart;
 
     _plot3d_render(chart, 1);
-    return NIL_VAL;
+    return argv[0];
 }
 
 static BuiltinFunc plot3d_funcs[] = {

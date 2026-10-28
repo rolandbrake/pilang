@@ -17,7 +17,7 @@ ctx = draw.canvas(WIDTH, HEIGHT, "PiLang Pong")
 
 left_y = (HEIGHT - PADDLE_HEIGHT) / 2
 right_y = left_y
-ball_x = (WIDTH - BALL_SIZE) / 2
+ball_x = (WIDTH - BALL_SIZE)  / 2
 ball_y = (HEIGHT - BALL_SIZE) / 2
 ball_vx = BALL_SPEED
 ball_vy = BALL_SPEED * .45
@@ -39,9 +39,9 @@ fun reset_ball(direction) {
 }
 
 fun paddle_hit(paddle_y, paddle_x) {
-    return ball_x < paddle_x + PADDLE_WIDTH &&
-           ball_x + BALL_SIZE > paddle_x &&
-           ball_y < paddle_y + PADDLE_HEIGHT &&
+    return ball_x < paddle_x + PADDLE_WIDTH  and
+           ball_x + BALL_SIZE > paddle_x     and
+           ball_y < paddle_y + PADDLE_HEIGHT and
            ball_y + BALL_SIZE > paddle_y
 }
 
@@ -73,11 +73,12 @@ fun update(canvas, dt) {
 
     let left_x = PADDLE_MARGIN
     let right_x = WIDTH - PADDLE_MARGIN - PADDLE_WIDTH
-    if ball_vx < 0 && paddle_hit(left_y, left_x) {
+    if ball_vx < 0 and paddle_hit(left_y, left_x) {
         ball_x = left_x + PADDLE_WIDTH
         ball_vx = -ball_vx * 1.04
     }
-    if ball_vx > 0 && paddle_hit(right_y, right_x) {
+    
+    if ball_vx > 0 and paddle_hit(right_y, right_x) {
         ball_x = right_x - BALL_SIZE
         ball_vx = -ball_vx * 1.04
     }

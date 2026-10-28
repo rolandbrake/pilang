@@ -1,0 +1,13 @@
+import draw.{canvas, close}
+
+let ctx = canvas(80, 80, "draw chain")
+
+ctx.clear(0)
+   .translate(2, 3)
+   .scale(1, 1)
+   .alpha(1)
+   .line(0, 0, 5, 5)
+   .rect(1, 1, 4, 4)
+   .present()
+
+assert(ctx.close() == ctx, "close should return its canvas")

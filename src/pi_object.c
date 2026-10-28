@@ -713,6 +713,8 @@ Object *new_chart3d(PiContext *ctx)
     chart->xlabel = NULL;
     chart->ylabel = NULL;
     chart->zlabel = NULL;
+    chart->depth_buffer = NULL;
+    chart->depth_buffer_capacity = 0;
     return (Object *)chart;
 }
 

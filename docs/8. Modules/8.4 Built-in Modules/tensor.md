@@ -7,6 +7,19 @@ operations.
 import tensor:t
 ```
 
+## Method calls and aliasing
+
+Tensor operations are also available as receiver methods: `matrix.transpose()`
+is equivalent to `t.transpose(matrix)`. Operations that create data return a
+new tensor, including `reshape`, `slice`, `concat`, `transpose`, `flatten`,
+`expand_dims`, `squeeze` (unless it produces a scalar), arithmetic transforms,
+and linear-algebra transforms. `shape`, reductions, predicates, and indexing
+return values and end a chain.
+
+`shuffle()` is the in-place exception: it rearranges the receiver and returns
+that same tensor. Its name does not make the aliasing explicit, so avoid using
+it when an independent copy is required.
+
 ## `tensor.zeros(shape...)`
 
 Creates a tensor filled with zeros. Shape can be passed as separate numbers or

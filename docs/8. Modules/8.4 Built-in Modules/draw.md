@@ -6,6 +6,24 @@ The `draw` module provides canvas drawing, events, _transforms, and drawing stat
 import draw
 ```
 
+## Fluent canvases
+
+Canvas actions may be called as receiver methods and return the same canvas,
+so drawing state and drawing actions can be chained:
+
+```swift
+let ctx = draw.canvas(640, 480, "Demo")
+ctx.clear(0x101820)
+   .translate(20, 20)
+   .rect(0, 0, 120, 60, draw.COLOR_CYAN)
+   .present()
+```
+
+The established `draw.method(ctx, ...)` forms remain valid and now return the
+canvas for these action methods too. Queries such as `ctx.mouse()`, `ctx.key()`,
+`ctx.size()`, `ctx.poll()`, and `ctx.wait()` return values rather than the
+canvas and therefore end a chain.
+
 ## `draw.canvas(width, height, title = nil, icon = nil, show_launch = true)`
 
 Creates a drawing canvas or window.

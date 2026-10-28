@@ -1,0 +1,12 @@
+import draw.{canvas, close}
+import plot
+
+let ctx = canvas(120, 100, "plot chain")
+let chart = plot.chart(ctx)
+chart.line([0, 1], [0, 1])
+     .title("line")
+     .xlabel("x")
+     .ylabel("y")
+     .show()
+assert(chart.grid(true) == chart, "plot setters should return their chart")
+close(ctx)

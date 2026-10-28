@@ -505,6 +505,9 @@ typedef struct PiChart3D
     char *xlabel;
     char *ylabel;
     char *zlabel;
+
+    double *depth_buffer;
+    size_t depth_buffer_capacity;
 } PiChart3D;
 
 uint64_t string_hash(char *chars, size_t length);

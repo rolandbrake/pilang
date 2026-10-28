@@ -7,6 +7,9 @@
 #include "pi_col.h"
 #include "pi_func.h"
 #include "pi_tensor.h"
+#include "pi_plot3d.h"
+#include "pi_draw.h"
+#include "pi_plot.h"
 
 static NativeMethod native_methods[] = {
     {OBJ_STRING, "trim", pi_trim},
@@ -142,6 +145,64 @@ static NativeMethod native_methods[] = {
     {OBJ_TENSOR, "correlation", tn_correlation},
     {OBJ_TENSOR, "zscore", tn_zscore},
     {OBJ_TENSOR, "shuffle", tn_shuffle},
+
+    {OBJ_CONTEXT, "chart", pt3d_chart},
+    {OBJ_CONTEXT, "clear", dw_clear},
+    {OBJ_CONTEXT, "pixel", dw_pixel},
+    {OBJ_CONTEXT, "line", dw_line},
+    {OBJ_CONTEXT, "triangle", dw_triangle},
+    {OBJ_CONTEXT, "rect", dw_rect},
+    {OBJ_CONTEXT, "polygon", dw_polygon},
+    {OBJ_CONTEXT, "circle", dw_circle},
+    {OBJ_CONTEXT, "translate", dw_translate},
+    {OBJ_CONTEXT, "scale", dw_scale},
+    {OBJ_CONTEXT, "rotate", dw_rotate},
+    {OBJ_CONTEXT, "alpha", dw_alpha},
+    {OBJ_CONTEXT, "text", dw_text},
+    {OBJ_CONTEXT, "image", dw_image},
+    {OBJ_CONTEXT, "push", dw_push},
+    {OBJ_CONTEXT, "pop", dw_pop},
+    {OBJ_CONTEXT, "cursor", dw_cursor},
+    {OBJ_CONTEXT, "present", dw_present},
+    {OBJ_CONTEXT, "animate", dw_animate},
+    {OBJ_CONTEXT, "on", dw_on},
+    {OBJ_CONTEXT, "off", dw_off},
+    {OBJ_CONTEXT, "close", dw_close},
+    {OBJ_CONTEXT, "run", dw_run},
+
+    {OBJ_CHART3D, "surface", pt3d_surface},
+    {OBJ_CHART3D, "mesh", pt3d_mesh},
+    {OBJ_CHART3D, "wireframe", pt3d_wireframe},
+    {OBJ_CHART3D, "scatter", pt3d_scatter},
+    {OBJ_CHART3D, "show", pt3d_show},
+    {OBJ_CHART3D, "title", pt3d_title},
+    {OBJ_CHART3D, "xlabel", pt3d_xlabel},
+    {OBJ_CHART3D, "ylabel", pt3d_ylabel},
+    {OBJ_CHART3D, "zlabel", pt3d_zlabel},
+    {OBJ_CHART3D, "grid", pt3d_grid},
+    {OBJ_CHART3D, "view", pt3d_view},
+    {OBJ_CHART3D, "subplot", pt3d_subplot},
+
+    {OBJ_CHART, "func", pt_func},
+    {OBJ_CHART, "scatter", pt_scatter},
+    {OBJ_CHART, "line", pt_line},
+    {OBJ_CHART, "bar", pt_bar},
+    {OBJ_CHART, "hist", pt_hist},
+    {OBJ_CHART, "step", pt_step},
+    {OBJ_CHART, "imshow", pt_imshow},
+    {OBJ_CHART, "heatmap", pt_heatmap},
+    {OBJ_CHART, "contour", pt_contour},
+    {OBJ_CHART, "quiver", pt_quiver},
+    {OBJ_CHART, "streamplot", pt_streamplot},
+    {OBJ_CHART, "show", pt_show},
+    {OBJ_CHART, "title", pt_title},
+    {OBJ_CHART, "xlabel", pt_xlabel},
+    {OBJ_CHART, "ylabel", pt_ylabel},
+    {OBJ_CHART, "grid", pt_grid},
+    {OBJ_CHART, "axes", pt_axes},
+    {OBJ_CHART, "tick", pt_tick},
+    {OBJ_CHART, "legend", pt_legend},
+    {OBJ_CHART, "subplot", pt_subplot},
 };
 
 static int native_methodCount = sizeof(native_methods) / sizeof(NativeMethod);
@@ -173,6 +234,18 @@ NativeMethod *pi_nativeMethodFor(ObjectType type, const char *name)
         break;
     case OBJ_TENSOR:
         first = 67;
+        last = 129;
+        break;
+    case OBJ_CONTEXT:
+        first = 129;
+        last = 152;
+        break;
+    case OBJ_CHART3D:
+        first = 152;
+        last = 165;
+        break;
+    case OBJ_CHART:
+        first = 165;
         break;
     default:
         return NULL;

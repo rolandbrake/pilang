@@ -90,12 +90,13 @@ static bool _check(Parser *parser, PiTokenType type);
 static bool _match(Parser *parser, PiTokenType type);
 static Token _consume(Parser *parser, PiTokenType type, const char *message);
 static void _advance(Parser *parser);
-void set_pos(Parser *parser, Token token);
 static bool _is_functionLiteral(Parser *parser, int index);
 static bool _is_objectLiteral(Parser *parser, int index);
 static char *_get_pendingFunctionName(Parser *parser);
 static bool _numeric_literalSegment(Parser *parser, int start, int end, double *value);
 static double _consume_fillEndpoint(Parser *parser);
+
+void set_pos(Parser *parser, Token token);
 
 typedef struct
 {
@@ -480,7 +481,7 @@ static void _emit_setLiteral(Parser *parser)
 
         double previous_number = 0;
         bool previous_is_number = _numeric_literalSegment(parser, item_start, parser->current,
-                                                         &previous_number);
+                                                          &previous_number);
 
         while (_check(parser, TK_COMMA) && _peek_next(parser).type == TK_ELLIPSIS)
         {
@@ -767,9 +768,9 @@ static int _parse_compConditions(Parser *parser, Segment segment, Segment *conds
 }
 
 static void _emit_listCompLoops(Parser *parser, ListComprehension *comp,
-                               ComprehensionIterator *iters, int iter_count,
-                               Segment *conds, int cond_count,
-                               int iter_index, int acc_slot)
+                                ComprehensionIterator *iters, int iter_count,
+                                Segment *conds, int cond_count,
+                                int iter_index, int acc_slot)
 {
     if (iter_index == iter_count)
     {
@@ -1104,7 +1105,7 @@ static bool _is_assign(Parser *parser)
     if (parser->is_store &&
         (parser->force_store ||
          _check_n(parser, 11, TK_ASSIGN, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_DIV_ASSIGN, TK_MULT_ASSIGN,
-                 TK_MOD_ASSIGN, TK_BITOR_ASSIGN, TK_XOR_ASSIGN, TK_BITAND_ASSIGN, TK_INCR, TK_DECR)))
+                  TK_MOD_ASSIGN, TK_BITOR_ASSIGN, TK_XOR_ASSIGN, TK_BITAND_ASSIGN, TK_INCR, TK_DECR)))
     {
         parser->is_store = FALSE;
         parser->force_store = FALSE;
@@ -1116,8 +1117,11 @@ static bool _is_assign(Parser *parser)
 
 static bool _has_accessContinuation(Parser *parser, Token token)
 {
-    return _peek(parser).line == token.line &&
-           _check_n(parser, 3, TK_DOT, TK_LBRACKET, TK_LPAREN);
+    return (_check(parser, TK_DOT) &&
+            _peek_next(parser).type == TK_ID &&
+            _peek(parser).line == _peek_next(parser).line) ||
+           (_peek(parser).line == token.line &&
+            _check_n(parser, 2, TK_LBRACKET, TK_LPAREN));
 }
 
 static bool _is_memberAssignment(Parser *parser, Token token)
@@ -2248,7 +2252,7 @@ static int _find_switchCaseColon(Parser *parser)
 }
 
 static bool _switch_literalEquality(Parser *parser, int subject_start, int subject_end,
-                                   Segment _condition, int *constant_index)
+                                    Segment _condition, int *constant_index)
 {
     int condition_length = _condition.end - _condition.start;
 
@@ -2358,7 +2362,7 @@ static void _switch_stmt(Parser *parser)
         int constant_index = -1;
         bool fast_equality = subject_on_stack &&
                              _switch_literalEquality(parser, subject_start, subject_end,
-                                                    _condition, &constant_index);
+                                                     _condition, &constant_index);
         if (!fast_equality)
         {
             if (subject_on_stack)
@@ -2665,7 +2669,7 @@ static void _assignment(Parser *parser, bool emit_load)
     // a single expression, e.g. "a = b = c = d = 0".
     _cond_expr(parser);
     while (_match_n(parser, 9, TK_ASSIGN, TK_PLUS_ASSIGN, TK_MINUS_ASSIGN, TK_DIV_ASSIGN, TK_MULT_ASSIGN,
-                   TK_MOD_ASSIGN, TK_BITOR_ASSIGN, TK_XOR_ASSIGN, TK_BITAND_ASSIGN))
+                    TK_MOD_ASSIGN, TK_BITOR_ASSIGN, TK_XOR_ASSIGN, TK_BITAND_ASSIGN))
     {
 
         op = _previous(parser).type;
@@ -2779,7 +2783,7 @@ static void _assignment(Parser *parser, bool emit_load)
 }
 
 static bool _is_pipelineBoundary(Parser *parser, int index, int start,
-                                int paren_depth, int bracket_depth, int brace_depth)
+                                 int paren_depth, int bracket_depth, int brace_depth)
 {
     if (paren_depth != 0 || bracket_depth != 0 || brace_depth != 0)
         return FALSE;
@@ -2862,7 +2866,7 @@ static int _find_pipelineCallParen(Parser *parser, int start, int end)
 }
 
 static int _split_pipelineArgs(Parser *parser, int start, int end,
-                              Segment *args, int max_args)
+                               Segment *args, int max_args)
 {
     int count = 0;
     int arg_start = start;
@@ -2949,7 +2953,7 @@ static void _parse_pipelineStage(Parser *parser, PipelineStage *stage)
     {
         stage->callee = (Segment){start, call_paren};
         stage->arg_count = _split_pipelineArgs(parser, call_paren + 1, end - 1,
-                                              stage->args, MAX_PIPELINE_ARGS);
+                                               stage->args, MAX_PIPELINE_ARGS);
     }
     else
     {
@@ -3192,7 +3196,7 @@ static void _compare_expr(Parser *parser)
     int comparison_count = 0;
 
     while (_match_n(parser, 6, TK_EQUAL, TK_NOT_EQUAL, TK_GREATER,
-                   TK_LESS, TK_GREATER_EQUAL, TK_LESS_EQUAL))
+                    TK_LESS, TK_GREATER_EQUAL, TK_LESS_EQUAL))
     {
         PiTokenType op = _previous(parser).type;
         Token op_token = _previous(parser);
@@ -3497,7 +3501,8 @@ static void _member_expr(Parser *parser)
     {
         Token token = _previous(parser);
 
-        if (token.line < _peek(parser).line)
+        if (token.line < _peek(parser).line &&
+            !_has_accessContinuation(parser, token))
             break;
 
         set_pos(parser, token);
@@ -3913,7 +3918,7 @@ static void _primary(Parser *parser)
                     int size = 1;
                     double previous_number = 0;
                     bool previous_is_number = _numeric_literalSegment(parser, _current, parser->current - 1,
-                                                                     &previous_number);
+                                                                      &previous_number);
                     while (!_check(parser, TK_RPAREN) && !_is_atEnd(parser))
                     {
                         if (_match(parser, TK_ELLIPSIS))
@@ -3937,7 +3942,7 @@ static void _primary(Parser *parser)
                         _cond_expr(parser);
                         size++;
                         previous_is_number = _numeric_literalSegment(parser, item_start, parser->current,
-                                                                    &previous_number);
+                                                                     &previous_number);
                         if (!_match(parser, TK_COMMA))
                             break;
                     }
@@ -4073,7 +4078,7 @@ static void _primary(Parser *parser)
                     size++;
                     double previous_number = 0;
                     bool previous_is_number = _numeric_literalSegment(parser, item_start, parser->current,
-                                                                     &previous_number);
+                                                                      &previous_number);
 
                     while (_check(parser, TK_COMMA) && _peek_next(parser).type == TK_ELLIPSIS)
                     {

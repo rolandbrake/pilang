@@ -1044,7 +1044,7 @@ Value dw_clear(VM *vm, int argc, Value *argv)
     SDL_RenderClear((SDL_Renderer *)ctx->renderer);
     ctx->plot_subplots_cleared = FALSE;
 
-    return NEW_NIL();
+    return argv[0];
 }
 
 static void _draw_circle(SDL_Renderer *r, int cx, int cy, int radius)
@@ -1104,7 +1104,7 @@ Value dw_pixel(VM *vm, int argc, Value *argv)
     _set_color(ctx->renderer, color, ctx->alpha);
     SDL_RenderDrawPoint((SDL_Renderer *)ctx->renderer, (int)x, (int)y);
 
-    return NEW_NIL();
+    return argv[0];
 }
 
 Value dw_line(VM *vm, int argc, Value *argv)
@@ -1128,7 +1128,7 @@ Value dw_line(VM *vm, int argc, Value *argv)
     _set_color(ctx->renderer, color, ctx->alpha);
     SDL_RenderDrawLine((SDL_Renderer *)ctx->renderer, (int)x1, (int)y1, (int)x2, (int)y2);
 
-    return NEW_NIL();
+    return argv[0];
 }
 
 Value dw_triangle(VM *vm, int argc, Value *argv)
@@ -1193,7 +1193,7 @@ Value dw_triangle(VM *vm, int argc, Value *argv)
         SDL_RenderDrawLine((SDL_Renderer *)ctx->renderer, (int)x3, (int)y3, (int)x1, (int)y1);
     }
 
-    return NEW_NIL();
+    return argv[0];
 }
 
 Value dw_rect(VM *vm, int argc, Value *argv)
@@ -1236,7 +1236,7 @@ Value dw_rect(VM *vm, int argc, Value *argv)
     else
         SDL_RenderDrawRectF((SDL_Renderer *)ctx->renderer, &rect);
 
-    return NEW_NIL();
+    return argv[0];
 }
 
 Value dw_polygon(VM *vm, int argc, Value *argv)
@@ -1336,7 +1336,7 @@ Value dw_polygon(VM *vm, int argc, Value *argv)
     }
 
     free(points);
-    return NEW_NIL();
+    return argv[0];
 }
 
 Value dw_circle(VM *vm, int argc, Value *argv)
@@ -1370,7 +1370,7 @@ Value dw_circle(VM *vm, int argc, Value *argv)
     else
         _draw_circle((SDL_Renderer *)ctx->renderer, (int)x, (int)y, final_radius);
 
-    return NEW_NIL();
+    return argv[0];
 }
 
 Value dw_translate(VM *vm, int argc, Value *argv)
@@ -1381,7 +1381,7 @@ Value dw_translate(VM *vm, int argc, Value *argv)
 
     ctx->tx += as_number(argv[1]);
     ctx->ty += as_number(argv[2]);
-    return NEW_NIL();
+    return argv[0];
 }
 
 Value dw_scale(VM *vm, int argc, Value *argv)
@@ -1392,7 +1392,7 @@ Value dw_scale(VM *vm, int argc, Value *argv)
 
     ctx->sx *= as_number(argv[1]);
     ctx->sy *= as_number(argv[2]);
-    return NEW_NIL();
+    return argv[0];
 }
 
 Value dw_rotate(VM *vm, int argc, Value *argv)
@@ -1402,7 +1402,7 @@ Value dw_rotate(VM *vm, int argc, Value *argv)
         return NEW_NIL();
 
     ctx->angle += as_number(argv[1]);
-    return NEW_NIL();
+    return argv[0];
 }
 
 Value dw_alpha(VM *vm, int argc, Value *argv)
@@ -1412,7 +1412,7 @@ Value dw_alpha(VM *vm, int argc, Value *argv)
         return NEW_NIL();
 
     ctx->alpha = as_number(argv[1]);
-    return NEW_NIL();
+    return argv[0];
 }
 
 static TTF_Font *_load_styledFont(const char *font_path, int size, bool bold, bool italic)
@@ -1838,7 +1838,7 @@ Value dw_present(VM *vm, int argc, Value *argv)
         vm_error(vm, "present() takes a canvas as first argument");
 
     SDL_RenderPresent(ctx->renderer);
-    return NEW_NIL();
+    return argv[0];
 }
 
 // Add this function to pi_draw.c
@@ -1857,7 +1857,7 @@ Value dw_animate(VM *vm, int argc, Value *argv)
     // Store the callback in the context
     ctx->frame_callback = argv[1];
 
-    return NEW_NIL();
+    return argv[0];
 }
 
 // Close the window
@@ -1868,7 +1868,7 @@ Value dw_close(VM *vm, int argc, Value *argv)
         return NEW_NIL();
 
     ctx->running = FALSE;
-    return NEW_NIL();
+    return argv[0];
 }
 
 // Register event handler
