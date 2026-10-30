@@ -5,30 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{TITLE}}</title>
     {{ICON}}
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" />
+
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap"
+    />
+
     <style>
       :root {
         background: #00b0f0;
       }
+
       * {
         box-sizing: border-box;
       }
+
       html,
       body {
         width: 100%;
         height: 100%;
         margin: 0;
       }
+
       body {
         display: grid;
         place-items: center;
         overflow: hidden;
         background-color: #00b0f0;
         background-image:
-          linear-gradient(rgba(255, 255, 255, 0.26) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255, 255, 255, 0.26) 1px, transparent 1px);
+          linear-gradient(rgba(255, 255, 255, 0.188) 1px, transparent 1px),
+          linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.188) 1px,
+            transparent 1px
+          );
         background-size: 32px 32px;
       }
+
       canvas {
         display: block;
         max-width: calc(100vw - 48px);
@@ -37,98 +50,296 @@
         image-rendering: pixelated;
         image-rendering: crisp-edges;
       }
+
+      /* Loading screen */
+
       #loading-screen {
         position: fixed;
         inset: 0;
         display: grid;
         place-items: center;
-        z-index: 1;
-        background: #00b0f0;
+        z-index: 10;
+        background-color: #00b0f0;
         background-image:
-          linear-gradient(rgba(255, 255, 255, 0.26) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(255, 255, 255, 0.26) 1px, transparent 1px);
+          linear-gradient(rgba(255, 255, 255, 0.188) 1px, transparent 1px),
+          linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.188) 1px,
+            transparent 1px
+          );
         background-size: 32px 32px;
-        transition: opacity 0.45s ease;
+        opacity: 1;
       }
+
       #loading-screen.is-hidden {
-        opacity: 0;
-        pointer-events: none;
+        display: none;
       }
-      #loading-brand {
-        display: grid;
-        justify-items: center;
+
+      #loading-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: min(280px, calc(100vw - 64px));
         gap: 28px;
       }
-      #loading-screen img {
-        width: min(144px, 38vw);
-        animation: pulse 1.5s ease-in-out infinite;
+
+      /* Static logo: no animation or opacity changes */
+
+      #loading-logo {
+        display: block;
+        width: min(75px, 48vw);
+        height: auto;
+        object-fit: contain;
+        opacity: 1;
+        transform: none;
+        animation: none;
       }
-      #loading-screen p {
+
+      /* Minimal progress bar */
+
+      #loading-progress {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        gap: 10px;
+      }
+
+      #loading-label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        color: #fff;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-shadow: 1px 1px #000;
+      }
+
+      #loading-percent {
+        font-variant-numeric: tabular-nums;
+      }
+
+      #loading-track {
+        width: 100%;
+        height: 6px;
+        overflow: hidden;
+        border: 1px solid #000;
+        background: rgba(0, 0, 0, 0.12);
+        /* box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35); */
+      }
+
+      #loading-bar {
+        width: 0%;
+        height: 100%;
+        background: #fff;
+        border-right: 1px solid #000;
+        transition: width 0.15s linear;
+      }
+
+      /* Copyright fixed to the bottom of the screen */
+
+      #loading-copyright {
+        position: fixed;
+        left: 16px;
+        right: 16px;
+        bottom: max(18px, env(safe-area-inset-bottom));
         margin: 0;
         color: #fff;
-        font:
-          700 clamp(12px, 1.4vw, 18px) "JetBrains Mono",
-          monospace;
-        text-shadow: 2px 2px #000;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 10px;
+        font-weight: 400;
+        letter-spacing: 0.5px;
+        line-height: 1.5;
+        text-align: center;
+        text-shadow: 1px 1px #000;
+        pointer-events: none;
       }
-      @keyframes pulse {
-        0%,
-        100% {
-          opacity: 0.45;
-          transform: scale(0.96);
-        }
-        50% {
-          opacity: 1;
-          transform: scale(1);
+
+      @media (prefers-reduced-motion: reduce) {
+        #loading-bar {
+          transition: none;
         }
       }
     </style>
   </head>
+
   <body>
     <canvas></canvas>
+
     <div id="loading-screen" role="status" aria-label="Loading">
-      <div id="loading-brand">
-        <img src="_launch.png" alt="" />
-        <p>Powered by Pilang © 2026</p>
+      <div id="loading-content">
+        <img id="loading-logo" src="_launch.png" alt="" />
+
+        <div id="loading-progress">
+          <div id="loading-label">
+            <span>LOADING</span>
+            <span id="loading-percent">0%</span>
+          </div>
+
+          <div
+            id="loading-track"
+            role="progressbar"
+            aria-label="Loading progress"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+          >
+            <div id="loading-bar"></div>
+          </div>
+        </div>
       </div>
+
+      <p id="loading-copyright">Powered by Pilang © 2026</p>
     </div>
+
     <script type="module">
-      import createPilang from './pilang.js';
+      import createPilang from "./pilang.js";
 
       const startedAt = performance.now();
-      const loadingScreen = document.getElementById('loading-screen');
       const minimumLoadingTime = 2000;
+
+      const canvas = document.querySelector("canvas");
+      const loadingScreen = document.getElementById("loading-screen");
+      const loadingBar = document.getElementById("loading-bar");
+      const loadingPercent = document.getElementById("loading-percent");
+      const loadingTrack = document.getElementById("loading-track");
+
       const files = [{{FILES}}];
 
+      let displayedProgress = 0;
+
+      function setProgress(value) {
+        displayedProgress = Math.max(
+          displayedProgress,
+          Math.min(100, Math.round(value))
+        );
+
+        loadingBar.style.width = `${displayedProgress}%`;
+        loadingPercent.textContent = `${displayedProgress}%`;
+
+        loadingTrack.setAttribute(
+          "aria-valuenow",
+          String(displayedProgress)
+        );
+      }
+
       function fitCanvas() {
-        const availableWidth = document.documentElement.clientWidth - 48;
-        const availableHeight = document.documentElement.clientHeight - 48;
-        const scale = Math.min(1, availableWidth / canvas.width, availableHeight / canvas.height);
+        if (!canvas.width || !canvas.height) return;
+
+        const availableWidth =
+          document.documentElement.clientWidth - 48;
+
+        const availableHeight =
+          document.documentElement.clientHeight - 48;
+
+        const scale = Math.min(
+          1,
+          availableWidth / canvas.width,
+          availableHeight / canvas.height
+        );
+
         canvas.style.width = `${canvas.width * scale}px`;
         canvas.style.height = `${canvas.height * scale}px`;
       }
 
-      const canvas = document.querySelector('canvas');
-      const app = await createPilang({ canvas, noInitialRun: true });
-      new ResizeObserver(fitCanvas).observe(canvas);
-      new MutationObserver(fitCanvas).observe(canvas, { attributes: true, attributeFilter: ['width', 'height'] });
-      addEventListener('resize', fitCanvas);
-      visualViewport?.addEventListener('resize', fitCanvas);
+      async function loadFiles(app) {
+        const totalFiles = files.length;
 
-      for (const path of files) {
-        const response = await fetch(path);
-        if (!response.ok) throw new Error(`Could not load ${path}`);
-        const bytes = new Uint8Array(await response.arrayBuffer());
-        app.FS.mkdirTree('/' + path.split('/').slice(0, -1).join('/'));
-        app.FS.writeFile('/' + path, bytes);
+        for (let i = 0; i < totalFiles; i++) {
+          const path = files[i];
+
+          const response = await fetch(path);
+
+          if (!response.ok) {
+            throw new Error(`Could not load ${path}`);
+          }
+
+          const bytes = new Uint8Array(
+            await response.arrayBuffer()
+          );
+
+          const directory =
+            "/" + path.split("/").slice(0, -1).join("/");
+
+          app.FS.mkdirTree(directory);
+          app.FS.writeFile("/" + path, bytes);
+
+          setProgress(
+            10 + ((i + 1) / totalFiles) * 80
+          );
+        }
       }
 
-      await new Promise(resolve => setTimeout(resolve, Math.max(0, minimumLoadingTime - (performance.now() - startedAt))));
-      loadingScreen.classList.add('is-hidden');
-      setTimeout(() => loadingScreen.remove(), 450);
-      app.ccall('execute_px', 'number', ['string'], ['/' + files[0]]);
-      requestAnimationFrame(fitCanvas);
-      setTimeout(fitCanvas, 0);
+      async function waitForMinimumLoadingTime() {
+        const elapsed = performance.now() - startedAt;
+
+        const remaining = Math.max(
+          0,
+          minimumLoadingTime - elapsed
+        );
+
+        if (remaining > 0) {
+          await new Promise(resolve =>
+            setTimeout(resolve, remaining)
+          );
+        }
+      }
+
+      function hideLoadingScreen() {
+        setProgress(100);
+        loadingScreen.classList.add("is-hidden");
+      }
+
+      async function main() {
+        try {
+          setProgress(5);
+
+          const app = await createPilang({
+            canvas,
+            noInitialRun: true
+          });
+
+          new ResizeObserver(fitCanvas).observe(canvas);
+
+          new MutationObserver(fitCanvas).observe(canvas, {
+            attributes: true,
+            attributeFilter: ["width", "height"]
+          });
+
+          addEventListener("resize", fitCanvas);
+          visualViewport?.addEventListener("resize", fitCanvas);
+
+          setProgress(10);
+
+          await loadFiles(app);
+
+          setProgress(95);
+
+          await waitForMinimumLoadingTime();
+
+          app.ccall(
+            "execute_px",
+            "number",
+            ["string"],
+            ["/" + files[0]]
+          );
+
+          requestAnimationFrame(fitCanvas);
+          setTimeout(fitCanvas, 0);
+
+          hideLoadingScreen();
+        } catch (error) {
+          console.error("Failed to load application:", error);
+
+          loadingPercent.textContent = "ERROR";
+          loadingBar.style.background = "#ff4d4d";
+          loadingTrack.setAttribute("aria-valuenow", "0");
+        }
+      }
+
+      main();
     </script>
   </body>
 </html>

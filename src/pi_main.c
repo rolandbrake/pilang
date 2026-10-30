@@ -773,18 +773,28 @@ static void _show_launchScreen(const char *filename, uint64_t offset, uint64_t s
     }
     fclose(file);
 
-    SDL_RWops *stream = SDL_RWFromMem(data, (int)size);
-    SDL_Surface *surface = stream ? IMG_Load_RW(stream, 1) : NULL;
+    SDL_RWops *rw = SDL_RWFromMem(data, (int)size);
+    SDL_Surface *surface = rw ? IMG_Load_RW(rw, 1) : NULL;
     free(data);
+
     if (!surface)
         return;
 
-    SDL_Window *window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                          window_width, window_height, 0);
-    SDL_Renderer *renderer = window ? SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED) : NULL;
-    SDL_Texture *texture = renderer ? SDL_CreateTextureFromSurface(renderer, surface) : NULL;
+    SDL_Window *window = SDL_CreateWindow(
+        title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+        window_width, window_height, 0);
+
+    SDL_Renderer *renderer = window
+                                 ? SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED)
+                                 : NULL;
+
+    SDL_Texture *logo = renderer
+                            ? SDL_CreateTextureFromSurface(renderer, surface)
+                            : NULL;
+
     SDL_FreeSurface(surface);
-    if (!texture)
+
+    if (!logo)
     {
         if (renderer)
             SDL_DestroyRenderer(renderer);
@@ -793,94 +803,317 @@ static void _show_launchScreen(const char *filename, uint64_t offset, uint64_t s
         return;
     }
 
-    int width, height, image_width, image_height;
-    SDL_GetRendererOutputSize(renderer, &width, &height);
-    SDL_QueryTexture(texture, NULL, NULL, &image_width, &image_height);
-    float scale = fminf((float)width * 0.55f / image_width, (float)height * 0.36f / image_height);
-    SDL_Rect destination = {(width - (int)(image_width * scale)) / 2,
-                            height / 2 - (int)(image_height * scale) - height / 20,
-                            (int)(image_width * scale), (int)(image_height * scale)};
-    time_t now = time(NULL);
-    struct tm *local = localtime(&now);
-    char caption[64];
-    snprintf(caption, sizeof(caption), "Powered by Pilang \xC2\xA9 %d", local ? local->tm_year + 1900 : 2026);
+    int w, h, iw, ih;
+    SDL_GetRendererOutputSize(renderer, &w, &h);
+    SDL_QueryTexture(logo, NULL, NULL, &iw, &ih);
+
+    float scale = fminf(w * 0.22f / iw, h * 0.14f / ih);
+
+    SDL_Rect logo_rect = {
+        (w - (int)(iw * scale)) / 2,
+        h / 2 - (int)(ih * scale) - h / 20,
+        (int)(iw * scale),
+        (int)(ih * scale)};
+
+    /* Load embedded font. */
     file = fopen(filename, "rb");
-    void *font_data = font_size && file && fseek(file, (long)font_offset, SEEK_SET) == 0 ? malloc((size_t)font_size) : NULL;
-    bool font_loaded = font_data && fread(font_data, 1, (size_t)font_size, file) == font_size;
+    void *font_data = NULL;
+
+    if (file && font_size && fseek(file, (long)font_offset, SEEK_SET) == 0)
+    {
+        font_data = malloc((size_t)font_size);
+
+        if (!font_data || fread(font_data, 1, (size_t)font_size, file) != font_size)
+        {
+            free(font_data);
+            font_data = NULL;
+        }
+    }
+
     if (file)
         fclose(file);
-    if (!font_loaded)
-    {
-        free(font_data);
-        font_data = NULL;
-    }
-    SDL_RWops *font_stream = font_data ? SDL_RWFromMem(font_data, (int)font_size) : NULL;
-    TTF_Font *font = font_stream ? TTF_OpenFontRW(font_stream, 1, height / 38) : NULL;
+
+    int font_px = h / 50;
+    if (font_px < 10)
+        font_px = 10;
+    if (font_px > 20)
+        font_px = 20;
+
+    rw = font_data ? SDL_RWFromConstMem(font_data, (int)font_size) : NULL;
+    TTF_Font *font = rw ? TTF_OpenFontRW(rw, 1, font_px) : NULL;
+
     if (font)
         TTF_SetFontStyle(font, TTF_STYLE_BOLD);
-    SDL_Surface *caption_surface = font ? TTF_RenderUTF8_Blended(font, caption, (SDL_Color){255, 255, 255, 255}) : NULL;
-    SDL_Texture *caption_texture = caption_surface ? SDL_CreateTextureFromSurface(renderer, caption_surface) : NULL;
-    SDL_Rect caption_destination = {0};
-    if (caption_texture)
+
+    int label_px = h / 65;
+    if (label_px < 10)
+        label_px = 10;
+    if (label_px > 14)
+        label_px = 14;
+
+    rw = font_data ? SDL_RWFromConstMem(font_data, (int)font_size) : NULL;
+    TTF_Font *label_font = rw ? TTF_OpenFontRW(rw, 1, label_px) : NULL;
+
+    if (label_font)
+        TTF_SetFontStyle(label_font, TTF_STYLE_BOLD);
+
+    SDL_Color white = {255, 255, 255, 255};
+
+    SDL_Texture *caption = NULL;
+    SDL_Texture *loading = NULL;
+    SDL_Texture *percent = NULL;
+
+    SDL_Rect caption_rect = {0}, loading_rect = {0}, percent_rect = {0};
+
+    time_t now = time(NULL);
+    struct tm *local = localtime(&now);
+
+    char text[64];
+
+    snprintf(text, sizeof(text), "Powered by Pilang \xC2\xA9 %d",
+             local ? local->tm_year + 1900 : 2026);
+
+    SDL_Surface *s = font ? TTF_RenderUTF8_Blended(font, text, white) : NULL;
+
+    if (s)
     {
-        SDL_QueryTexture(caption_texture, NULL, NULL, &caption_destination.w, &caption_destination.h);
-        caption_destination.x = (width - caption_destination.w) / 2;
-        caption_destination.y = destination.y + destination.h + height / 28;
+        caption = SDL_CreateTextureFromSurface(renderer, s);
+        SDL_FreeSurface(s);
     }
-    if (caption_surface)
-        SDL_FreeSurface(caption_surface);
-    Uint32 started = SDL_GetTicks();
+
+    if (caption)
+    {
+        SDL_QueryTexture(caption, NULL, NULL,
+                         &caption_rect.w, &caption_rect.h);
+
+        caption_rect.x = (w - caption_rect.w) / 2;
+        caption_rect.y = h - caption_rect.h - (int)(h * 0.035f);
+
+        SDL_SetTextureBlendMode(caption, SDL_BLENDMODE_BLEND);
+    }
+
+    s = label_font
+            ? TTF_RenderUTF8_Blended(label_font, "LOADING", white)
+            : NULL;
+
+    if (s)
+    {
+        loading = SDL_CreateTextureFromSurface(renderer, s);
+        SDL_FreeSurface(s);
+    }
+
+    if (loading)
+        SDL_QueryTexture(loading, NULL, NULL,
+                         &loading_rect.w, &loading_rect.h);
+
+    int bar_width = (int)(w * 0.55f);
+
+    if (bar_width > 440)
+        bar_width = 440;
+
+    if (bar_width > w - 32)
+        bar_width = w - 32;
+
+    if (bar_width < 180 && w >= 212)
+        bar_width = 180;
+
+    if (bar_width < 1)
+        bar_width = 1;
+
+    const int bar_height = 3;
+
+    int bar_x = (w - bar_width) / 2;
+    int bar_y = logo_rect.y + logo_rect.h + h / 16;
+
+    if (bar_y + bar_height + 35 > h - 50)
+        bar_y = h - bar_height - 85;
+
+    if (bar_y < 12)
+        bar_y = 12;
+
+    loading_rect.x = bar_x;
+    loading_rect.y = bar_y - loading_rect.h - 10;
+
+    char percent_text[8] = "0%";
+
+    s = label_font
+            ? TTF_RenderUTF8_Blended(label_font, percent_text, white)
+            : NULL;
+
+    if (s)
+    {
+        percent = SDL_CreateTextureFromSurface(renderer, s);
+        SDL_FreeSurface(s);
+    }
+
+    if (percent)
+    {
+        SDL_QueryTexture(percent, NULL, NULL,
+                         &percent_rect.w, &percent_rect.h);
+
+        percent_rect.x = bar_x + bar_width - percent_rect.w;
+        percent_rect.y = bar_y - percent_rect.h - 10;
+    }
+
+    SDL_SetTextureBlendMode(logo, SDL_BLENDMODE_BLEND);
+
     const Uint32 duration = 2000;
+    Uint32 started = SDL_GetTicks();
+
+    int previous_percent = -1;
+
     SDL_Event event;
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+
     while (SDL_GetTicks() - started < duration)
     {
         while (SDL_PollEvent(&event))
+        {
             if (event.type == SDL_QUIT)
-                started = SDL_GetTicks() - duration;
+                goto cleanup;
+        }
+
         Uint32 elapsed = SDL_GetTicks() - started;
-        Uint8 alpha = elapsed < 500    ? (Uint8)(elapsed * 255 / 500)
-                      : elapsed < 1500 ? 255
-                                       : (Uint8)((duration - elapsed) * 255 / 500);
+
+        float progress = (float)elapsed / duration;
+
+        if (progress > 1.0f)
+            progress = 1.0f;
+
+        int pct = (int)(progress * 100);
+
+        /* Update percentage text. */
+        if (pct != previous_percent)
+        {
+            previous_percent = pct;
+
+            snprintf(percent_text, sizeof(percent_text), "%d%%", pct);
+
+            if (percent)
+                SDL_DestroyTexture(percent);
+
+            percent = NULL;
+
+            s = label_font
+                    ? TTF_RenderUTF8_Blended(label_font, percent_text, white)
+                    : NULL;
+
+            if (s)
+            {
+                percent = SDL_CreateTextureFromSurface(renderer, s);
+                SDL_FreeSurface(s);
+            }
+
+            percent_rect.w = percent_rect.h = 0;
+
+            if (percent)
+            {
+                SDL_QueryTexture(percent, NULL, NULL,
+                                 &percent_rect.w, &percent_rect.h);
+
+                percent_rect.x = bar_x + bar_width - percent_rect.w;
+                percent_rect.y = bar_y - percent_rect.h - 10;
+            }
+        }
+
+        /* Background. */
         SDL_SetRenderDrawColor(renderer, 0, 176, 240, 255);
         SDL_RenderClear(renderer);
+
+        /* Denser background grid. */
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 48);
-        int grid = height / 16;
-        for (int x = 0; x < width; x += grid)
+
+        int grid = h / 32;
+
+        if (grid < 1)
+            grid = 1;
+
+        for (int x = 0; x < w; x += grid)
+            SDL_RenderDrawLine(renderer, x, 0, x, h);
+
+        for (int y = 0; y < h; y += grid)
+            SDL_RenderDrawLine(renderer, 0, y, w, y);
+
+        /* Logo - always fully visible, no fade effect. */
+        SDL_SetTextureAlphaMod(logo, 255);
+        SDL_SetTextureColorMod(logo, 255, 255, 255);
+        SDL_RenderCopy(renderer, logo, NULL, &logo_rect);
+
+        /* Copyright with shadow. */
+        if (caption)
         {
-            SDL_RenderDrawLine(renderer, x, 0, x, height);
-            SDL_RenderDrawLine(renderer, x + 1, 0, x + 1, height);
+            SDL_Rect shadow = caption_rect;
+            shadow.x++;
+            shadow.y++;
+
+            SDL_SetTextureColorMod(caption, 0, 0, 0);
+            SDL_SetTextureAlphaMod(caption, 140);
+            SDL_RenderCopy(renderer, caption, NULL, &shadow);
+
+            SDL_SetTextureColorMod(caption, 255, 255, 255);
+            SDL_SetTextureAlphaMod(caption, 255);
+            SDL_RenderCopy(renderer, caption, NULL, &caption_rect);
         }
-        for (int y = 0; y < height; y += grid)
+
+        /* Loading label. */
+        if (loading)
+            SDL_RenderCopy(renderer, loading, NULL, &loading_rect);
+
+        /* Percentage. */
+        if (percent)
+            SDL_RenderCopy(renderer, percent, NULL, &percent_rect);
+
+        /* Progress bar border. */
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+
+        SDL_Rect border = {
+            bar_x - 1,
+            bar_y - 1,
+            bar_width + 2,
+            bar_height + 2};
+
+        SDL_RenderFillRect(renderer, &border);
+
+        /* Progress track. */
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 35);
+
+        SDL_Rect track = {
+            bar_x,
+            bar_y,
+            bar_width,
+            bar_height};
+
+        SDL_RenderFillRect(renderer, &track);
+
+        /* Progress fill. */
+        if (progress > 0.0f)
         {
-            SDL_RenderDrawLine(renderer, 0, y, width, y);
-            SDL_RenderDrawLine(renderer, 0, y + 1, width, y + 1);
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+
+            SDL_Rect fill = {
+                bar_x,
+                bar_y,
+                (int)(bar_width * progress),
+                bar_height};
+
+            SDL_RenderFillRect(renderer, &fill);
         }
-        SDL_SetTextureAlphaMod(texture, alpha);
-        SDL_RenderCopy(renderer, texture, NULL, &destination);
-        if (caption_texture)
-        {
-            SDL_SetTextureColorMod(caption_texture, 0, 0, 0);
-            SDL_Rect shadow = caption_destination;
-            shadow.x += 2;
-            shadow.y += 2;
-            SDL_SetTextureAlphaMod(caption_texture, alpha);
-            SDL_RenderCopy(renderer, caption_texture, NULL, &shadow);
-            SDL_SetTextureColorMod(caption_texture, 255, 255, 255);
-            SDL_RenderCopy(renderer, caption_texture, NULL, &caption_destination);
-        }
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255 - alpha);
-        SDL_RenderFillRect(renderer, NULL);
+
         SDL_RenderPresent(renderer);
         SDL_Delay(16);
     }
-    if (caption_texture)
-        SDL_DestroyTexture(caption_texture);
-    if (font)
-        TTF_CloseFont(font);
+
+cleanup:
+
+    if (loading)    SDL_DestroyTexture(loading);
+    if (percent)    SDL_DestroyTexture(percent);
+    if (caption)    SDL_DestroyTexture(caption);
+    if (logo)       SDL_DestroyTexture(logo);
+    if (label_font) TTF_CloseFont(label_font);
+    if (font)       TTF_CloseFont(font);
+
     free(font_data);
-    SDL_DestroyTexture(texture);
+
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
 }

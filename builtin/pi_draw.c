@@ -27,9 +27,9 @@ EM_JS(void, _web_canvas_init, (int w, int h), {
         left : false
     };
 
-    addEventListener('keydown', e = > { Module.piKeys[e.keyCode] = true; });
+    addEventListener('keydown', e => { Module.piKeys[e.keyCode] = true; });
 
-    addEventListener('keyup', e = > { Module.piKeys[e.keyCode] = false; });
+    addEventListener('keyup', e => { Module.piKeys[e.keyCode] = false; });
 
     c.onmousemove = e =>
     {
@@ -44,12 +44,12 @@ EM_JS(void, _web_canvas_init, (int w, int h), {
 
     c.onmousedown = e =>
     {
-        Module.piMouse.left = e.button == = 0;
+        Module.piMouse.left = e.button === 0;
     };
 
     c.onmouseup = e =>
     {
-        if (e.button == = 0)
+        if (e.button === 0)
         {
             Module.piMouse.left = false;
         }
@@ -63,7 +63,7 @@ EM_JS(void, _web_canvas_image,
           const c = Module.piCtx;
           const path = UTF8ToString(p);
 
-          Module.piImgs || = {};
+          Module.piImgs = Module.piImgs || {};
 
           let i = Module.piImgs[path];
 
@@ -115,17 +115,17 @@ EM_JS(void, _web_canvas_text,
           c.textBaseline = 'top';
 
           c.textAlign =
-              (a == = 'center' || a == = 'middle')
+              (a === 'center' || a === 'middle')
                   ? 'center'
-              : (a == = 'right' || a == = 'end')
+              : (a === 'right' || a === 'end')
                   ? 'right'
                   : 'left';
 
-          if (a == = 'middle')
+          if (a === 'middle')
           {
               y -= size / 2;
           }
-          else if (a == = 'bottom')
+          else if (a === 'bottom')
           {
               y -= size;
           }

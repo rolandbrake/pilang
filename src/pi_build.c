@@ -65,9 +65,9 @@ bool px_writeHeader(FILE *file, const PX_Header *header)
 bool px_readHeader(FILE *file, PX_Header *header)
 {
     uint64_t value;
-#define READ_FIELD(field, bytes)         \
+#define READ_FIELD(field, bytes)          \
     if (!_read_uint(file, &value, bytes)) \
-        return FALSE;                    \
+        return FALSE;                     \
     header->field = value;
 
     READ_FIELD(magic, 4);
@@ -111,9 +111,9 @@ bool px_writeModuleRecord(FILE *file, const PX_ModuleRecord *record)
 bool px_readModuleRecord(FILE *file, PX_ModuleRecord *record)
 {
     uint64_t value;
-#define READ_FIELD(field, bytes)         \
+#define READ_FIELD(field, bytes)          \
     if (!_read_uint(file, &value, bytes)) \
-        return FALSE;                    \
+        return FALSE;                     \
     record->field = value;
     READ_FIELD(name_offset, 4);
     READ_FIELD(name_length, 4);
@@ -203,7 +203,7 @@ static bool _write_value(FILE *file, Value value)
 bool px_writeModulePayload(FILE *file, const List *code,
                            const List *constants, const List *names)
 {
-    if (!code || !constants || !names || code->size > UINT32_MAX ||
+    if (!code || !constants || !names || code->size  > UINT32_MAX ||
         constants->size > UINT32_MAX  || names->size > UINT32_MAX)
         return FALSE;
 
@@ -299,7 +299,7 @@ static ObjCode *_read_code(FILE *file)
     uint64_t bytecode_size;
     uint64_t flags;
     uint64_t param_count;
-    if (!_read_uint(file, &bytecode_size, 4) || bytecode_size > PI_MAX_LIST_SIZE ||
+    if (!_read_uint(file, &bytecode_size, 4) || bytecode_size > PI_MAX_LIST_SIZE  ||
         !_read_uint(file, &flags, 1) || !_read_uint(file, &param_count, 4)        ||
         param_count > PI_MAX_LIST_SIZE)
         return NULL;
@@ -386,9 +386,9 @@ bool px_readModulePayload(FILE *file, PX_ModulePayload *payload)
     uint64_t bytecode_size;
     uint64_t constant_count;
     uint64_t name_count;
-    if (!payload || !_read_uint(file, &bytecode_size, 4)                          ||
+    if (!payload || !_read_uint(file, &bytecode_size, 4)                           ||
         !_read_uint(file, &constant_count, 4) || !_read_uint(file, &name_count, 4) ||
-        bytecode_size > PI_MAX_LIST_SIZE || constant_count > PI_MAX_LIST_SIZE    ||
+        bytecode_size > PI_MAX_LIST_SIZE || constant_count > PI_MAX_LIST_SIZE      ||
         name_count > PI_MAX_LIST_SIZE)
         return FALSE;
 
@@ -482,11 +482,13 @@ bool px_writeEntryBuild(const char *build_path, const char *source_path,
     const char name[] = "<main>";
     size_t source_size = strlen(source);
     size_t path_length = strlen(source_path);
+
     if (source_size > UINT32_MAX || path_length > UINT32_MAX)
         goto failed;
 
     uint64_t string_table_offset = PX_HEADER_SIZE + PX_MODULE_RECORD_SIZE;
     uint64_t payload_offset = string_table_offset + sizeof(name) - 1 + path_length;
+
     PX_Header header = {
         .magic = PX_MAGIC,
         .format_version = PX_FORMAT_VERSION,
@@ -498,6 +500,7 @@ bool px_writeEntryBuild(const char *build_path, const char *source_path,
         .string_table_offset = string_table_offset,
         .payload_offset = payload_offset,
     };
+
     PX_ModuleRecord record = {
         .name_offset = 0,
         .name_length = sizeof(name) - 1,
@@ -559,17 +562,24 @@ Compiler *px_readEntryBuild(const char *build_path, const char *source_path,
 
     PX_Header header;
     PX_ModuleRecord record;
+
     size_t source_size = strlen(source);
     uint64_t source_hash = px_hashBytes(source, source_size);
-    bool valid = px_readHeader(file, &header)                   &&
-                 px_headerIsValid(&header, PX_VM_ABI)           &&
-                 header.module_count == 1                       &&
-                 header.project_hash == source_hash             &&
+
+    bool valid = px_readHeader(file, &header)                    &&
+                 px_headerIsValid(&header, PX_VM_ABI)            &&
+
+                 header.module_count == 1                        &&
+                 header.project_hash == source_hash              &&
+
                  _seek_to(file, header.module_table_offset)      &&
-                 px_readModuleRecord(file, &record)             &&
-                 (record.flags & PX_MODULE_ENTRY) != 0          &&
-                 record.source_size == source_size              &&
-                 record.source_hash == source_hash              &&
+                 px_readModuleRecord(file, &record)              &&
+
+                 (record.flags & PX_MODULE_ENTRY) != 0           &&
+
+                 record.source_size == source_size               &&
+                 record.source_hash == source_hash               &&
+
                  _read_path(file, &header, &record, source_path) &&
                  _seek_to(file, record.payload_offset);
 
@@ -816,7 +826,7 @@ PX_BuiltModule *px_findBuiltModuleByName(PX_ProjectBuild *build, const char *nam
 static char *_read_tableString(FILE *file, const PX_Header *header,
                               uint32_t offset, uint32_t length)
 {
-    if (offset > header->payload_offset - header->string_table_offset ||
+    if (offset > header->payload_offset - header->string_table_offset          ||
         length > header->payload_offset - header->string_table_offset - offset ||
         !_seek_to(file, header->string_table_offset + offset))
         return NULL;

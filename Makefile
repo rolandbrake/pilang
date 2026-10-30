@@ -85,7 +85,7 @@ NATIVE_EXTRA_SRCS := \
 
 NATIVE_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS) $(NATIVE_EXTRA_SRCS)
 WEB_SRCS := $(CORE_SRCS) $(COMMON_BUILTIN_SRCS) \
-	builtin/pi_draw.c builtin/pi_plot3d.c $(IMAGE_SRCS) $(AUDIO_SRCS)
+	builtin/pi_draw.c builtin/pi_plot.c builtin/pi_plot3d.c $(IMAGE_SRCS) $(AUDIO_SRCS)
 
 CSTD ?= -std=c99
 # WARNINGS ?= -Wall -Wextra
