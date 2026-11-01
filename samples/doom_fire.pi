@@ -1,0 +1,122 @@
+import draw
+
+WIDTH  = 100
+HEIGHT = 100
+SCALE  = 5
+
+
+FIRE_WIDTH  = WIDTH
+FIRE_HEIGHT = HEIGHT
+
+
+// Fire color palette.
+FIRE_PALETTE = [
+    0x000000,
+    0x070707,
+    0x1F0707,
+    0x2F0F07,
+    0x470F07,
+    0x571707,
+    0x671F07,
+    0x771F07,
+    0x8F2707,
+    0x9F2F07,
+    0xAF3F07,
+    0xBF4707,
+    0xC74707,
+    0xDF4F07,
+    0xDF5707,
+    0xDF5707,
+    0xD75F07,
+    0xD7670F,
+    0xCF6F0F,
+    0xCF770F,
+    0xCF7F0F,
+    0xCF8717,
+    0xC78717,
+    0xC78F17,
+    0xC7971F,
+    0xBF9F1F,
+    0xBF9F1F,
+    0xBFA727,
+    0xBFA727,
+    0xBFAF2F,
+    0xC7AF37,
+    0xC7B737
+]
+
+// Initialize the fire buffer.
+fun init_fire() {
+
+    // Fire buffer
+    fire = [0] * (FIRE_WIDTH * FIRE_HEIGHT)
+
+    // Ignite the bottom row.
+    for x in 0..FIRE_WIDTH 
+        fire[(FIRE_HEIGHT - 1) * FIRE_WIDTH + x] = 31
+    
+}
+
+// Propagate the fire upwards.
+fun update_fire() {
+
+    for y in 1..FIRE_HEIGHT {
+        for x in 0..FIRE_WIDTH {
+
+            let src = y * FIRE_WIDTH + x,
+            cooling = rand(0, 1),
+            target_x = x + rand(-1, 1)
+
+            target_x = max(0, min(target_x, FIRE_WIDTH - 1))           
+
+            let dst = (y - 1) * FIRE_WIDTH + target_x,            
+            intensity = fire[src]
+
+            fire[dst] = max(intensity - cooling, 0)         
+        }
+    }
+}
+
+
+// Render the fire.
+fun render(canvas) {
+    let intensity, color
+
+    canvas.clear(draw.COLOR_BLACK)    
+
+    for y in 0..FIRE_HEIGHT {
+        for x in 0..FIRE_WIDTH {
+            intensity = fire[y * FIRE_WIDTH + x]
+
+            if intensity > 0 {
+                color = FIRE_PALETTE[intensity]
+
+                canvas.rect(                    
+                    x * SCALE,
+                    y * SCALE,
+                    SCALE,
+                    SCALE,
+                    color,
+                    true
+                )
+            }
+        }
+    }
+}
+
+// Main loop.
+fun frame(canvas) {
+    update_fire()
+    render(canvas)
+}
+
+init_fire()
+
+canvas = draw.canvas(
+    WIDTH * SCALE,
+    HEIGHT * SCALE,
+    "Pilang - Doom Fire"
+)
+
+canvas.animate(frame)
+      .run()

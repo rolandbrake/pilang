@@ -8,6 +8,7 @@ platform testing, and code contributions are all welcome.
 1. Search existing issues and pull requests to avoid duplicate work.
 2. Open an issue first for a large feature or behavior change.
 3. Keep each pull request focused on one change.
+4. Make sure to follow the naming convention for any change you want to make. [Style Guid](STYLE.md)
 
 ## Building and testing
 
