@@ -67,7 +67,7 @@ Windows executables. [for ready to run games](https://github.com/rolandbrake/pil
 ```swift
 import math:m
 
-area  = (radius) ->  m.PI * radius ** 2
+area  = radius ->  m.PI * radius ** 2
 
 radii = [2, 4, 8]
 
@@ -174,7 +174,7 @@ for shape in shapes {
     println(shape)
     println("area = " + shape.area())
     println("perimeter = " + shape.perimeter())
-    println("")
+    println()
 }
 ```
 
@@ -223,18 +223,22 @@ Pilang includes native SDL-backed drawing and plotting modules for quick visual 
 
 ```swift
 import draw
-import plot
+import plot.{chart}
 
-let ctx = draw.canvas(480, 480, "Training Loss")
-let chart = plot.chart(ctx)
+ctx = draw.canvas(480, 480, "Plot Example")
+cht = chart(ctx)
 
-plot.line(chart, steps, losses, draw.COLOR_RED)
-plot.title(chart, "Training Loss")
-plot.xlabel(chart, "step")
-plot.ylabel(chart, "loss")
-plot.grid(chart, true)
 
-plot.show(chart)
+Xs = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+Ys = [0.8, 0.6, 0.4, 0.2, 0.1, 0.05, 0.01, 0.005, 0.001, 0.0001]
+
+cht.line(Xs, Ys, draw.COLOR_BLUE)
+   .title("Plot Example")
+   .xlabel("X axis")
+   .ylabel("Y axis")
+   .grid(true)
+   .show()
+     
 draw.run(ctx)
 ```
 

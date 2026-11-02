@@ -1,0 +1,124 @@
+
+import draw
+
+WIDTH = 240
+HEIGHT = 180
+SCALE = 3
+
+MAX_ITER = 80
+
+// Complex plane boundaries.
+X_MIN = -2.5
+X_MAX = 1.0
+Y_MIN = -1.3125
+Y_MAX = 1.3125
+
+palette = [
+    0x000000,
+    0x09052F,
+    0x10094F,
+    0x15116F,
+    0x191D8F,
+    0x1935AF,
+    0x1753CF,
+    0x1777DF,
+    0x1597DF,
+    0x17B7CF,
+    0x27C7AF,
+    0x37D78F,
+    0x57DF6F,
+    0x87E747,
+    0xB7DF37,
+    0xDFD727,
+    0xEFBF17,
+    0xEFA317,
+    0xEF8717,
+    0xEF6B17,
+    0xDF4F17,
+    0xCF3717,
+    0xBF271F,
+    0xAF172F,
+    0x9F1747,
+    0x8F1767,
+    0x77177F,
+    0x5F178F,
+    0x47177F,
+    0x2F1767,
+    0x171747,
+    0x070727
+]
+
+// Calculate Mandelbrot set.
+fun render(canvas) {
+
+    let px, py,
+        cx, cy,
+        zx, zy,
+        zx2, zy2,
+        temp,
+        iteration,
+        color_index,
+        color
+
+    canvas.clear(draw.COLOR_BLACK)
+
+    for py in 0..HEIGHT {
+        for px in 0..WIDTH {
+
+            // Map screen coordinates to complex plane.
+            cx = X_MIN + px * (X_MAX - X_MIN) / WIDTH
+            cy = Y_MIN + py * (Y_MAX - Y_MIN) / HEIGHT
+
+            // Initial complex value.
+            zx = 0.0
+            zy = 0.0
+
+            iteration = 0
+
+            // Escape-time iteration.
+            for i in 0..MAX_ITER {
+
+                zx2 = zx * zx
+                zy2 = zy * zy
+
+                if zx2 + zy2 <= 4.0 {
+
+                    temp = zx2 - zy2 + cx
+
+                    zy = 2.0 * zx * zy + cy
+                    zx = temp
+
+                    iteration = iteration + 1
+                }
+            }
+
+            // Color the pixel.
+            if iteration == MAX_ITER 
+                color = 0x000000
+            else {
+                color_index = iteration % 32
+                color = palette[color_index]
+            }
+
+            canvas.rect(
+                px * SCALE,
+                py * SCALE,
+                SCALE,
+                SCALE,
+                color,
+                true
+            )
+        }
+    }
+}
+
+// Create and render.
+canvas = draw.canvas(
+    WIDTH * SCALE,
+    HEIGHT * SCALE,
+    "Pilang - Mandelbrot"
+)
+
+render(canvas)
+
+canvas.run()

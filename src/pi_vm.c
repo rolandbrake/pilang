@@ -1930,10 +1930,12 @@ OP_COMPARE:
                 result = !_set_equals(left_set, right_set);
                 break;
             case 2:
-                result = _set_isSubset(right_set, left_set) && set_size(left_set) != set_size(right_set);
+                result = _set_isSubset(right_set, left_set) &&
+                         set_size(left_set) != set_size(right_set);
                 break;
             case 3:
-                result = _set_isSubset(left_set, right_set) && set_size(left_set) != set_size(right_set);
+                result = _set_isSubset(left_set, right_set) && 
+                         set_size(left_set) != set_size(right_set);
                 break;
             case 4:
                 result = _set_isSubset(right_set, left_set);
@@ -1996,9 +1998,11 @@ OP_COMPARE:
                 double end = range->end;
                 double step = range->step;
                 if (step > 0)
-                    result = (num >= start && num <= end && fmod(num - start, step) < 1e-10);
+                    result = (num >= start && num <= end && 
+                             fmod(num - start, step) < 1e-10);
                 else if (step < 0)
-                    result = (num <= start && num >= end && fmod(start - num, -step) < 1e-10);
+                    result = (num <= start && num >= end && 
+                             fmod(start - num, -step) < 1e-10);
                 else
                     result = (num == start);
                 break;
