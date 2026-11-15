@@ -27,9 +27,9 @@ EM_JS(void, _web_canvas_init, (int w, int h), {
         left : false
     };
 
-    addEventListener('keydown', e => { Module.piKeys[e.keyCode] = true; });
+    addEventListener('keydown', e = > { Module.piKeys[e.keyCode] = true; });
 
-    addEventListener('keyup', e => { Module.piKeys[e.keyCode] = false; });
+    addEventListener('keyup', e = > { Module.piKeys[e.keyCode] = false; });
 
     c.onmousemove = e =>
     {
@@ -44,12 +44,12 @@ EM_JS(void, _web_canvas_init, (int w, int h), {
 
     c.onmousedown = e =>
     {
-        Module.piMouse.left = e.button === 0;
+        Module.piMouse.left = e.button == = 0;
     };
 
     c.onmouseup = e =>
     {
-        if (e.button === 0)
+        if (e.button == = 0)
         {
             Module.piMouse.left = false;
         }
@@ -115,17 +115,17 @@ EM_JS(void, _web_canvas_text,
           c.textBaseline = 'top';
 
           c.textAlign =
-              (a === 'center' || a === 'middle')
+              (a == = 'center' || a == = 'middle')
                   ? 'center'
-              : (a === 'right' || a === 'end')
+              : (a == = 'right' || a == = 'end')
                   ? 'right'
                   : 'left';
 
-          if (a === 'middle')
+          if (a == = 'middle')
           {
               y -= size / 2;
           }
-          else if (a === 'bottom')
+          else if (a == = 'bottom')
           {
               y -= size;
           }
@@ -957,9 +957,7 @@ Value dw_canvas(VM *vm, int argc, Value *argv)
         }
     }
     else
-    {
         _set_windowIcon((SDL_Window *)ctx->window);
-    }
 
     SDL_ShowWindow((SDL_Window *)ctx->window);
 
@@ -1006,6 +1004,7 @@ Value dw_run(VM *vm, int argc, Value *argv)
     SDL_Event e;
     while (ctx->running)
     {
+        Uint32 frame_start = SDL_GetTicks();
         _pump_events(vm, ctx);
         if (!ctx->running)
             break;
@@ -1023,8 +1022,9 @@ Value dw_run(VM *vm, int argc, Value *argv)
 
         SDL_RenderPresent(ctx->renderer);
 
-        // Cap frame rate to 60 FPS
-        SDL_Delay(16);
+        Uint32 elapsed = SDL_GetTicks() - frame_start;
+        if (elapsed < 16)
+            SDL_Delay(16 - elapsed);
     }
 
     dw_cleanupContext(ctx);
