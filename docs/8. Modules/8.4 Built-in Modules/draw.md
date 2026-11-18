@@ -208,6 +208,9 @@ draw.cursor(ctx, false) // hide cursor
 
 Draws text.
 
+Text in `draw`, `plot`, and `plot3d` uses the bundled JetBrains Mono Light
+font by default. `draw.text` still accepts an explicit font path.
+
 ```swift
 draw.text("Hello", 20, 30)
 ```

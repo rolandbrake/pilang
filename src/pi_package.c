@@ -455,11 +455,13 @@ bool package_web(const char *runtime_path, const PiPackage *package, char *error
     if (!project)
         return FALSE;
     *project = '\0';
-    char js[MAX_PATH], wasm[MAX_PATH];
+    char js[MAX_PATH], wasm[MAX_PATH], data[MAX_PATH];
     snprintf(js, sizeof(js), "%s/bin/pilang.js", root);
     snprintf(wasm, sizeof(wasm), "%s/bin/pilang.wasm", root);
+    snprintf(data, sizeof(data), "%s/bin/pilang.data", root);
     if (GetFileAttributesA(js) == INVALID_FILE_ATTRIBUTES ||
-        GetFileAttributesA(wasm) == INVALID_FILE_ATTRIBUTES)
+        GetFileAttributesA(wasm) == INVALID_FILE_ATTRIBUTES ||
+        GetFileAttributesA(data) == INVALID_FILE_ATTRIBUTES)
     {
         char command[MAX_PATH + 32];
         snprintf(command, sizeof(command), "make -C \"%s\" web", root);
@@ -504,6 +506,10 @@ bool package_web(const char *runtime_path, const PiPackage *package, char *error
     char splash[MAX_PATH];
     snprintf(splash, sizeof(splash), "%s/_launch.png", package->output);
     ok = ok && _web_copyAsset(runtime_path, "_launch.png", splash);
+    char font[MAX_PATH];
+    snprintf(font, sizeof(font), "%s/resources/JetBrainsMono-Light.ttf", package->output);
+    ok = ok && _web_makeParents(font) &&
+         _web_copyAsset(runtime_path, "JetBrainsMono-Light.ttf", font);
     long files_size = files && fseek(files, 0, SEEK_END) == 0 ? ftell(files) : -1;
     if (files_size < 0 || fseek(files, 0, SEEK_SET) != 0)
         ok = FALSE;
@@ -551,6 +557,14 @@ bool package_web(const char *runtime_path, const PiPackage *package, char *error
         fclose(out);
     snprintf(target, sizeof(target), "%s/pilang.wasm", package->output);
     in = fopen(wasm, "rb");
+    out = in ? fopen(target, "wb") : NULL;
+    ok = ok && in && out && _copy_file(in, out);
+    if (in)
+        fclose(in);
+    if (out)
+        fclose(out);
+    snprintf(target, sizeof(target), "%s/pilang.data", package->output);
+    in = fopen(data, "rb");
     out = in ? fopen(target, "wb") : NULL;
     ok = ok && in && out && _copy_file(in, out);
     if (in)

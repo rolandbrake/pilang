@@ -9,6 +9,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_ttf.h>
+#include "pi_font.h"
 #ifdef __EMSCRIPTEN__
 
 #include <emscripten.h>
@@ -27,9 +28,9 @@ EM_JS(void, _web_canvas_init, (int w, int h), {
         left : false
     };
 
-    addEventListener('keydown', e = > { Module.piKeys[e.keyCode] = true; });
+    addEventListener('keydown', e => { Module.piKeys[e.keyCode] = true; });
 
-    addEventListener('keyup', e = > { Module.piKeys[e.keyCode] = false; });
+    addEventListener('keyup', e => { Module.piKeys[e.keyCode] = false; });
 
     c.onmousemove = e =>
     {
@@ -44,12 +45,12 @@ EM_JS(void, _web_canvas_init, (int w, int h), {
 
     c.onmousedown = e =>
     {
-        Module.piMouse.left = e.button == = 0;
+        Module.piMouse.left = e.button === 0;
     };
 
     c.onmouseup = e =>
     {
-        if (e.button == = 0)
+        if (e.button === 0)
         {
             Module.piMouse.left = false;
         }
@@ -110,22 +111,22 @@ EM_JS(void, _web_canvas_text,
           c.font =
               (bold ? "bold " : "") +
               (italic ? "italic " : "") +
-              size + 'px sans-serif';
+              size + 'px "JetBrains Mono", monospace';
 
           c.textBaseline = 'top';
 
           c.textAlign =
-              (a == = 'center' || a == = 'middle')
+              (a === 'center' || a === 'middle')
                   ? 'center'
-              : (a == = 'right' || a == = 'end')
+              : (a === 'right' || a === 'end')
                   ? 'right'
                   : 'left';
 
-          if (a == = 'middle')
+          if (a === 'middle')
           {
               y -= size / 2;
           }
-          else if (a == = 'bottom')
+          else if (a === 'bottom')
           {
               y -= size;
           }
@@ -1448,17 +1449,7 @@ static TTF_Font *_load_defaultFont(PiContext *ctx, int size, bool bold, bool ita
             return entry->font;
     }
 
-    const char *default_fonts[] = {
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "C:/Windows/Fonts/arial.ttf",
-        "/System/Library/Fonts/Helvetica.ttc"};
-    TTF_Font *font = NULL;
-    for (int i = 0; i < 3; i++)
-    {
-        font = TTF_OpenFont(default_fonts[i], size);
-        if (font)
-            break;
-    }
+    TTF_Font *font = pi_openDefaultFont(size);
     if (!font)
         return NULL;
 

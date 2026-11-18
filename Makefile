@@ -11,16 +11,18 @@ endif
 
 ifeq ($(USE_POWERSHELL),1)
 MKDIR = powershell -NoProfile -Command "New-Item -ItemType Directory -Force '$(RELEASE_DIR)' | Out-Null"
-CLEAN = powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue '$(TARGET)', '$(WEB_TARGET)', '$(WEB_JS)', '$(WEB_WASM)'"
+CLEAN = powershell -NoProfile -Command "Remove-Item -Force -ErrorAction SilentlyContinue '$(TARGET)', '$(WEB_TARGET)', '$(WEB_JS)', '$(WEB_WASM)', '$(WEB_DATA)', '$(WEB_FONT_TARGET)'"
 else
 MKDIR = mkdir -p $(RELEASE_DIR)
-CLEAN = rm -f $(TARGET) $(WEB_TARGET) $(WEB_JS) $(WEB_WASM)
+CLEAN = rm -f $(TARGET) $(WEB_TARGET) $(WEB_JS) $(WEB_WASM) $(WEB_DATA) $(WEB_FONT_TARGET)
 endif
 
 TARGET ?= $(RELEASE_DIR)/pilang$(EXEEXT)
 WEB_TARGET ?= $(RELEASE_DIR)/pilang.html
 WEB_JS ?= $(RELEASE_DIR)/pilang.js
 WEB_WASM ?= $(RELEASE_DIR)/pilang.wasm
+WEB_DATA ?= $(RELEASE_DIR)/pilang.data
+WEB_FONT_TARGET := $(RELEASE_DIR)/resources/JetBrainsMono-Light.ttf
 SHADER_HEADER := builtin/draw3d/generated_shaders.h
 SHADER_SOURCES := builtin/draw3d/shaders/default.vert builtin/draw3d/shaders/default.frag
 
@@ -163,6 +165,7 @@ EMCC_FLAGS ?= \
 	--use-port=sdl2 \
 	--use-port=sdl2_image:formats=png \
 	--use-port=sdl2_ttf \
+	--preload-file resources/JetBrainsMono-Light.ttf@/resources/JetBrainsMono-Light.ttf \
 	--shell-file index.html
 
 .PHONY: all debug release web run test loon-test clean
@@ -175,13 +178,22 @@ $(RELEASE_DIR):
 $(SHADER_HEADER): $(SHADER_SOURCES) tools/embed_shaders.py
 	python tools/embed_shaders.py $@ builtin/draw3d/shaders/default.vert builtin/draw3d/shaders/default.frag
 
+ifeq ($(USE_POWERSHELL),1)
+WEB_FONT_COPY = powershell -NoProfile -Command "New-Item -ItemType Directory -Force '$(RELEASE_DIR)/resources' | Out-Null; Copy-Item 'resources/JetBrainsMono-Light.ttf' '$(WEB_FONT_TARGET)' -Force"
+else
+WEB_FONT_COPY = mkdir -p $(RELEASE_DIR)/resources && cp resources/JetBrainsMono-Light.ttf $(WEB_FONT_TARGET)
+endif
+
+$(WEB_FONT_TARGET): resources/JetBrainsMono-Light.ttf | $(RELEASE_DIR)
+	$(WEB_FONT_COPY)
+
 debug: $(RELEASE_DIR) $(SHADER_HEADER)
 	$(CC) $(NATIVE_CFLAGS) $(DEBUG_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(DEBUG_LDLIBS)
 
 release: $(RELEASE_DIR) $(SHADER_HEADER)
 	$(CC) $(NATIVE_CFLAGS) $(RELEASE_CFLAGS) -o $(TARGET) $(NATIVE_SRCS) $(NATIVE_LDLIBS)
 
-web: $(RELEASE_DIR)
+web: $(RELEASE_DIR) $(WEB_FONT_TARGET)
 	$(EMCC) $(CPPFLAGS) $(EMCC_FLAGS) -o $(WEB_TARGET) $(WEB_SRCS)
 
 run: release

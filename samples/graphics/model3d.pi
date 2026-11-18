@@ -968,56 +968,74 @@ fun cord(p) {
     return {x: (p.x + 1)/2 * WIDTH, y:(1 - (p.y + 1)/2) * HEIGHT}
 }
 
-FPS = 60
-dt = 1/FPS
-SPIN_SPEED = 2 * PI
 
-dz = 1
+FPS = 60
+dt = 1 / FPS
+
+// Rotation speed: one full rotation every 10 seconds
+SPIN_SPEED = 2 * PI / 10
+
+dz    = 1
 angle = 0
 
-edges = []
+edges     = []
 edge_seen = {}
 
-for(f in fs) {
-    for(i in 0..#f) {
+// Generate unique edges from faces
+for (f in fs) {
+    for (i in 0..#f) {
         let a = f[i]
-        let b = f[(i+1) % #f]
-        if(a > b) {
+        let b = f[(i + 1) % #f]
+
+        if (a > b) {
             let t = a
             a = b
             b = t
         }
+
         let key = a + ":" + b
-        if(edge_seen[key] == null) {
+
+        if (edge_seen[key] == null) {
             edge_seen[key] = true
             push(edges, [a, b])
         }
     }
 }
 
+// Render the 3D model
 fun render(canvas) {
     draw.clear(canvas, draw.COLOR_BLACK)
 
+    // Update rotation angle
     angle += SPIN_SPEED * dt
 
-    let cosa = cos(angle)
-    let sina = sin(angle)
+    let cosa   = cos(angle)
+    let sina   = sin(angle)
     let sverts = []
 
-    for(v in vs) {
+    // Rotate and project vertices
+    for (v in vs) {
         let rx = v.x * cosa - v.z * sina
         let rz = v.x * sina + v.z * cosa + dz
+
         let p = proj(rx, v.y, rz)
         push(sverts, cord(p))
     }
 
-    for(e in edges) {
+    // Draw wireframe edges
+    for (e in edges) {
         let p1 = sverts[e[0]]
         let p2 = sverts[e[1]]
-        draw.line(canvas, p1.x, p1.y, p2.x, p2.y, draw.COLOR_GREEN)
-    }
 
+        draw.line(
+            canvas,
+            p1.x, p1.y,
+            p2.x, p2.y,
+            draw.COLOR_GREEN
+        )
+    }
 }
 
+// Start animation
 draw.animate(ctx, render)
 draw.run(ctx)

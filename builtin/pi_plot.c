@@ -7,6 +7,7 @@
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
+#include "pi_font.h"
 
 #include "../src/common.h"
 #include "../src/pi_func.h"
@@ -23,22 +24,7 @@ static TTF_Font *_get_openFont(int size)
         else
             return NULL;
     }
-    const char *candidates[] = {
-        "release/VeraMono.ttf",
-        "VeraMono.ttf",
-        "C:/Windows/Fonts/arial.ttf",
-        "C:/Windows/Fonts/calibri.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
-        "/Library/Fonts/Arial.ttf",
-    };
-    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++)
-    {
-        TTF_Font *f = TTF_OpenFont(candidates[i], size);
-        if (f)
-            return f;
-    }
-    return NULL;
+    return pi_openDefaultFont(size);
 }
 
 static void _set_drawColor(SDL_Renderer *r, int rgb, Uint8 a)
