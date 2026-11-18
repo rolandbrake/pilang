@@ -1,6 +1,5 @@
-// ==========================================
+
 // Lang Module - Standard Wrapper Classes
-// ==========================================
 // This module provides wrapper classes for common data structures and types.
 // It includes Iterator, List, Tuple, String, Number, Boolean, Map, Set, Range, Stack, and Queue.
 // These classes offer convenient methods for manipulation, _transformation, and iteration.
@@ -10,9 +9,6 @@
 // `in` for containment, `**` for exponentiation, `!!` for boolean coercion, and `nil` for no value.
 
 
-// --------------------------------------------------
-// Iterator
-// --------------------------------------------------
 // An iterator provides a way to traverse a sequence one element at a time.
 // It is constructed with a list of values and yields one value at a time.
 // Methods like map, filter, reduce, each, and collect consume the iterator and return either a List or a value.
@@ -147,9 +143,7 @@ class Iterator {
 }
 
 
-// --------------------------------------------------
-// List
-// --------------------------------------------------
+
 // A dynamic array-like collection that stores an ordered sequence of elements.
 // Supports adding, removing, _transforming, and querying elements.
 // Many methods return a new List or modify the list in place and return `this` for chaining.
@@ -222,9 +216,7 @@ class List {
     removeAt(index) {
 
         let value = this._items[index]
-
         this._items[index:index+1] = []
-
         return value
     }
 
@@ -233,20 +225,16 @@ class List {
     pop() {
 
         let value = this._items[-1]
-
         this._items = this._items[:-1]
-
         return value
     }
 
     // Removes and returns the first element of the list.
     // return:s The first element.
     shift() {
-
+        
         let value = this._items[0]
-
         this._items = this._items[1:]
-
         return value
     }
 
@@ -627,10 +615,6 @@ class List {
     }
 }
 
-
-// --------------------------------------------------
-// Tuple
-// --------------------------------------------------
 // An immutable ordered sequence. Once created, its elements cannot be changed.
 // Provides access, searching, slicing, and iteration.
 
@@ -726,9 +710,6 @@ class Tuple {
 }
 
 
-// --------------------------------------------------
-// String
-// --------------------------------------------------
 // Wrapper for primitive string values, providing common string manipulation methods.
 // Most methods return a new String instance, leaving the original unchanged.
 
@@ -892,9 +873,6 @@ class String {
 }
 
 
-// --------------------------------------------------
-// Number
-// --------------------------------------------------
 // Wrapper for numeric primitives, providing mathematical operations.
 // Methods return new Number instances or primitive values as appropriate.
 
@@ -972,9 +950,6 @@ class Number {
 }
 
 
-// --------------------------------------------------
-// Boolean
-// --------------------------------------------------
 // Wrapper for boolean primitives (true/false). Provides toggling and formatting.
 
 class Boolean {
@@ -1004,9 +979,7 @@ class Boolean {
 }
 
 
-// --------------------------------------------------
-// Map
-// --------------------------------------------------
+
 // A key‑value store (dictionary) where keys are strings (or any hashable type) and values can be any type.
 // Provides set, get, remove, and iteration over keys, values, or entries.
 
@@ -1131,9 +1104,7 @@ class Map {
 }
 
 
-// --------------------------------------------------
-// Set
-// --------------------------------------------------
+
 // A collection of unique elements (no duplicates). Supports add, remove, and set operations (union, intersection, difference).
 
 class Set {
@@ -1263,9 +1234,7 @@ class Set {
 }
 
 
-// --------------------------------------------------
-// Range
-// --------------------------------------------------
+
 // Represents a sequence of numbers with a start, end (exclusive), and step.
 // Does not store all values; instead, it generates them on the fly via an iterator.
 
@@ -1312,9 +1281,6 @@ class Range {
 }
 
 
-// --------------------------------------------------
-// Stack
-// --------------------------------------------------
 // Last‑In‑First‑Out (LIFO) data structure. Elements are added with `push` and removed with `pop`.
 // Underlying storage is a List, with operations performed at the end.
 
@@ -1376,9 +1342,7 @@ class Stack {
 }
 
 
-// --------------------------------------------------
-// Queue
-// --------------------------------------------------
+
 // First‑In‑First‑Out (FIFO) data structure. Elements are added with `enqueue` and removed with `dequeue`.
 // Underlying storage is a List; `dequeue` removes from the front.
 

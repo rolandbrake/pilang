@@ -1360,7 +1360,7 @@ static void _variable(Parser *parser, bool is_const)
     }
 }
 
-static List *_param_list(Parser *parser)
+static List *_param_list(Parser *parser, bool method)
 {
     int size = 0;
     Token name;
@@ -1382,14 +1382,17 @@ static List *_param_list(Parser *parser)
             if (_match(parser, TK_ASSIGN))
             {
                 /*
-                 * Compile defaults as zero-argument functions. Function
-                 * declarations are hoisted, so evaluating the expression here
-                 * would run it before preceding imports and initializers.
+                 * Defer defaults until a call so imports and initializers have
+                 * run; method defaults receive the current instance as `this`.
                  */
+                if (method)
+                    emit(parser->comp, OP_PUSH_NIL);
                 push_function(parser->comp, "<default>");
+                if (method)
+                    add_local(parser->comp, "this");
                 _expr(parser);
                 emit(parser->comp, OP_RETURN);
-                pop_function(parser->comp, 0);
+                pop_function(parser->comp, method ? 1 : 0);
             }
             else
                 emit(parser->comp, OP_PUSH_NIL);
@@ -1444,7 +1447,7 @@ static void _emit_spreadMapLiteral(Parser *parser)
 
         if (_match(parser, TK_LPAREN))
         {
-            List *params = _param_list(parser);
+            List *params = _param_list(parser, TRUE);
             int size = LIST_SIZE(params);
             _consume(parser, TK_RPAREN, "Expect ')' before function body.");
             _consume(parser, TK_LBRACE, "Expect '{' before function body.");
@@ -1531,7 +1534,7 @@ static void _emit_classMap(Parser *parser, const char *class_name, const char *p
 
         if (_match(parser, TK_LPAREN))
         {
-            List *params = _param_list(parser);
+            List *params = _param_list(parser, TRUE);
             int param_count = LIST_SIZE(params);
             _consume(parser, TK_RPAREN, "Expect ')' before method body.");
             _consume(parser, TK_LBRACE, "Expect '{' before method body.");
@@ -1656,7 +1659,7 @@ static void _func_decl(Parser *parser)
         }
 
         _consume(parser, TK_LPAREN, "Expect '(' after function name.");
-        List *params = _param_list(parser);
+        List *params = _param_list(parser, FALSE);
         int size = LIST_SIZE(params);
         _consume(parser, TK_RPAREN, "Expect ')' before function body.");
         _consume(parser, TK_LBRACE, "Expect '{' before function body.");
@@ -3910,7 +3913,7 @@ static void _primary(Parser *parser)
             {
                 //  Arrow function: (params) -> body
                 parser->current = _current;
-                List *params = _param_list(parser);
+                List *params = _param_list(parser, parser->object_member);
                 int size = LIST_SIZE(params);
                 _consume(parser, TK_RPAREN, "Expect ')' after expression.");
                 _consume(parser, TK_RARROW, "Expect '->' after function parameters.");
@@ -4192,7 +4195,7 @@ static void _primary(Parser *parser)
                     if (_match(parser, TK_LPAREN))
                     {
                         // Method shorthand: { key(params) { body } }
-                        List *params = _param_list(parser);
+                        List *params = _param_list(parser, TRUE);
                         int param_size = LIST_SIZE(params);
                         _consume(parser, TK_RPAREN, "Expect ')' before function body.");
                         _consume(parser, TK_LBRACE, "Expect '{' before function body.");
@@ -4303,7 +4306,7 @@ static void _primary(Parser *parser)
         Compiler *comp = parser->comp;
         // Function expressions do not have their name set until we parse the parameter list, since the name may be needed for recursion within the function body. So we use a placeholder name for now and set the actual name after parsing the parameters.
         _consume(parser, TK_LPAREN, "Expect '(' after function name.");
-        List *params = _param_list(parser);
+        List *params = _param_list(parser, parser->object_member);
         int size = LIST_SIZE(params);
         _consume(parser, TK_RPAREN, "Expect ')' before function body.");
         _consume(parser, TK_LBRACE, "Expect '{' before function body.");

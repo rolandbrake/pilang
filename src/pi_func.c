@@ -279,9 +279,8 @@ Value call_func(VM *vm, Function *function, size_t argc, Value *argv, Value kw_a
     }
 
     /*
-     * Defaults are compiled as zero-argument functions so their expressions
-     * run only when an argument is omitted, rather than when the declaration
-     * is hoisted. A nil entry denotes a parameter without an explicit default.
+     * Deferred defaults run only when an argument is omitted. Method defaults
+     * take the current instance as their sole parameter; nil means no default.
      */
     Value *defaults = (Value *)function->params->data;
     for (size_t i = param_offset; i < param_count; i++)
@@ -290,9 +289,15 @@ Value call_func(VM *vm, Function *function, size_t argc, Value *argv, Value kw_a
             continue;
 
         Value default_value = defaults[i];
-        vm->stack[param_base + i] = IS_FUN(default_value)
-                                          ? call_func(vm, AS_FUN(default_value), 0, NULL, NEW_NIL())
-                                          : NEW_NIL();
+        if (IS_FUN(default_value))
+        {
+            Function *default_function = AS_FUN(default_value);
+            vm->stack[param_base + i] = default_function->arity == 1
+                                            ? call_func(vm, default_function, 1, &instance, NEW_NIL())
+                                            : call_func(vm, default_function, 0, NULL, NEW_NIL());
+        }
+        else
+            vm->stack[param_base + i] = NEW_NIL();
     }
 
     if (!FUNC_HAS_FLAG(function, FUNC_NEED_ARGS) &&

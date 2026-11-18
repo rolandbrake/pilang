@@ -15,6 +15,25 @@ fun default_color(color = draw.COLOR_RED) {
 assert(default_color() == draw.COLOR_RED,
        "a default expression should resolve imported module constants")
 
+class Defaults {
+    constructor(x, y) {
+        this.x = x
+        this.y = y
+    }
+
+    calc(x = this.x, y = this.y) {
+        return x + y
+    }
+}
+
+let defaults = Defaults(5, 10)
+assert(defaults.calc() == 15,
+       "method defaults should resolve properties from the current instance")
+assert(defaults.calc(2) == 12,
+       "an explicit method argument should override its default")
+assert(defaults.calc(y = 4) == 9,
+       "keyword arguments should override method defaults")
+
 fun keeps_arguments(value, color = draw.COLOR_RED) {
     return value
 }

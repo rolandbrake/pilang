@@ -2,19 +2,20 @@
 // Controls: Arrow keys or A/D move, Arrow Up or W rotates,
 // Arrow Down soft-drops, Space hard-drops, P pauses, R restarts.
 
-import draw
-import audio
-import random
-import time.{clock}
-import math:m
+import draw,
+       audio,
+       random,
+       time.{clock},
+       math:m
 
-const BOARD_WIDTH = 10
-const BOARD_HEIGHT = 20
-const CELL_SIZE = 26
-const BOARD_X = 48
-const BOARD_Y = 40
-const WIDTH = 560
-const HEIGHT = 600
+const BOARD_WIDTH = 10,
+      BOARD_HEIGHT = 20,
+      CELL_SIZE = 26,
+      BOARD_X = 48,
+      BOARD_Y = 40,
+      WIDTH = 560,
+      HEIGHT = 600
+
 
 PIECES = [
     {kind: 0, rotations: [
@@ -134,10 +135,11 @@ fun piece_blocks(active, px = nil, py = nil, rotation = nil) {
 }
 
 fun collides(active, px, py, rotation) {
-    let blocks = piece_blocks(active, px, py, rotation)
-    for block in blocks {
-        let bx = block[0],
-            by = block[1]
+    let shape = PIECES[active.kind].rotations[rotation]
+    for block in shape {
+        let bx = px + block[0],
+            by = py + block[1]
+
         if bx < 0 || bx >= BOARD_WIDTH || by >= BOARD_HEIGHT
             return true
         if by >= 0 && board[by][bx] != 0
@@ -158,16 +160,20 @@ fun try_move(dx, dy) {
 }
 
 fun try_rotate() {
-    let rot = (piece.rotation + 1) % 4
-    if !collides(piece, piece.x, piece.y, rot) {
-        piece.rotation = rot
-    } elif !collides(piece, piece.x - 1, piece.y, rot) {
-        piece.x -= 1
-        piece.rotation = rot
-    } elif !collides(piece, piece.x + 1, piece.y, rot) {
-        piece.x += 1
-        piece.rotation = rot
+    let rot = (piece.rotation + 1) % 4,
+        kicks = [0, -1, 1, -2, 2]
+
+    for dx in kicks {
+        let nx = piece.x + dx
+
+        if !collides(piece, nx, piece.y, rot) {
+            piece.x = nx
+            piece.rotation = rot
+            return true
+        }
     }
+
+    return false
 }
 
 fun lock_piece() {

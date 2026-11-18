@@ -1,9 +1,9 @@
 import math
 
-const WIDTH = 96
-const HEIGHT = 25
-const MAX_ITER = 32
-const PIXEL = "O"    // Use "@", "#", "■", or "●" if preferred
+const WIDTH = 96,
+      HEIGHT = 25,
+      MAX_ITER = 32,
+      PIXEL = "O"    // Use "@", "#", "■", or "●" if preferred
 
 fun mandelbrot(cx, cy) {
     let x = 0
@@ -22,21 +22,21 @@ fun mandelbrot(cx, cy) {
 }
 
 fun print_pixel(iter) {
-    if (iter == MAX_ITER) {
+    if (iter == MAX_ITER) 
         printf("{0:fg:white bold}", PIXEL)
-    } elif (iter < 3) {
+    elif (iter < 3) 
         printf("{0:fg:blue bold}", PIXEL)
-    } elif (iter < 6) {
+    elif (iter < 6) 
         printf("{0:fg:cyan bold}", PIXEL)
-    } elif (iter < 10) {
+    elif (iter < 10) 
         printf("{0:fg:green bold}", PIXEL)
-    } elif (iter < 15) {
+    elif (iter < 15) 
         printf("{0:fg:yellow bold}", PIXEL)
-    } elif (iter < 22) {
+    elif (iter < 22) 
         printf("{0:fg:magenta bold}", PIXEL)
-    } else {
+    else 
         printf("{0:fg:red bold}", PIXEL)
-    }
+    
 }
 
 for (yPixel in 0..HEIGHT) {
