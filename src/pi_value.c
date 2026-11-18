@@ -843,6 +843,9 @@ char *as_stringWithFormat(VM *vm, Value val)
             return _fmt_alloc(256, "<instance %s>", name);
         }
 
+        case OBJ_ITERATOR:
+            return _dup_Cstring("<iterator>");
+
         case OBJ_SET:
         {
             PiSet *set = AS_SET(val);
@@ -1226,6 +1229,7 @@ char *type_name(Value val)
         case OBJ_TUPLE:    return "tuple";
         case OBJ_MODULE:   return "module";
         case OBJ_RANGE:    return "range";
+        case OBJ_ITERATOR: return "iterator";
         case OBJ_SLICE:    return "slice";
         case OBJ_FUN:      return "function";
         case OBJ_CODE:     return "code";

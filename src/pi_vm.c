@@ -743,12 +743,10 @@ static void _list_extendFromIterable(VM *vm, PiList *plist, Value iterable)
     if (!IS_OBJ(iterable) || !is_iterable(AS_OBJ(iterable)))
         vm_error(vm, "Spread expects an iterable value.");
 
-    Object *iter = AS_OBJ(iterable);
-    iter_reset(iter);
-
-    while (iter_hasNext(iter))
+    Value iterator = vm_newIterator(vm, iterable);
+    Value value;
+    while (vm_iteratorNext(vm, AS_ITERATOR(iterator), NEW_NIL(), &value))
     {
-        Value value = iter_next(iter);
         if (IS_OBJ(value))
             add_obj(vm, AS_OBJ(value));
         _vm_listAppendValue(plist, value);
@@ -1225,6 +1223,274 @@ static Value _call_methodNoArgs(VM *vm, Value receiver, const char *name)
     }
 
     return receiver;
+}
+
+static Value _call_requiredMethodNoArgs(VM *vm, Value receiver, const char *name)
+{
+    if (!IS_OBJECT(receiver))
+        vm_error(vm, "Method receiver must be a class or instance.");
+
+    Value method;
+    bool found = IS_INSTANCE(receiver)
+                     ? instance_getMember(AS_INSTANCE(receiver), name, &method)
+                     : class_getMember(AS_CLASS(receiver), name, &method);
+    if (!found || !IS_FUN(method))
+        vm_error(vm, "Method must be callable.");
+
+    Object *target = IS_INSTANCE(receiver) || FUNC_HAS_FLAG(AS_FUN(method), FUNC_NATIVE)
+                         ? AS_OBJ(receiver)
+                         : NULL;
+    Value bound = _bind(vm, AS_FUN(method), target);
+    return call_func(vm, AS_FUN(bound), 0, NULL, NEW_NIL());
+}
+
+static bool _iteratorHasCustomMethod(VM *vm, Value receiver, const char *name)
+{
+    if (!IS_OBJECT(receiver))
+        return FALSE;
+
+    Value method;
+    bool found = IS_INSTANCE(receiver)
+                     ? instance_getMember(AS_INSTANCE(receiver), name, &method)
+                     : class_getMember(AS_CLASS(receiver), name, &method);
+    if (!found || !IS_FUN(method))
+        vm_error(vm, "Iterator Method must be callable.");
+    return !FUNC_HAS_FLAG(AS_FUN(method), FUNC_NATIVE);
+}
+
+Value vm_newIterator(VM *vm, Value iterable)
+{
+    if (IS_ITERATOR(iterable))
+        return iterable;
+
+    if (!IS_OBJ(iterable) || !is_iterable(AS_OBJ(iterable)))
+        vm_error(vm, "iter() expects an iterable value.");
+
+    if (IS_OBJECT(iterable))
+    {
+        bool custom_iterator = _iteratorHasCustomMethod(vm, iterable, "iterator");
+        bool custom_next = _iteratorHasCustomMethod(vm, iterable, "next");
+        if (!custom_iterator && !custom_next)
+            return NEW_OBJ(add_obj(vm, new_iterator(iterable, PI_ITER_OBJECT_FIELDS, NEW_NIL(), FALSE)));
+
+        Value cursor = iterable;
+        if (custom_iterator)
+        {
+            if (vm->sp >= STACK_MAX)
+                vm_error(vm, "Iterator stack overflow.");
+            _push_stack(vm, iterable);
+            cursor = _call_requiredMethodNoArgs(vm, iterable, "iterator");
+            _pop_stack(vm);
+        }
+
+        if (!IS_OBJ(cursor))
+            vm_error(vm, "iterator() must return an object.");
+        if (IS_ITERATOR(cursor))
+            return cursor;
+        if (!IS_OBJECT(cursor) || !_iteratorHasCustomMethod(vm, cursor, "next"))
+            vm_error(vm, "iterator() must return an iterator with a custom next() method.");
+
+        if (vm->sp >= STACK_MAX)
+            vm_error(vm, "Iterator stack overflow.");
+        _push_stack(vm, cursor);
+        Value iterator = NEW_OBJ(add_obj(vm, new_iterator(iterable, PI_ITER_CUSTOM, cursor, FALSE)));
+        _pop_stack(vm);
+        return iterator;
+    }
+
+    PiIteratorType type;
+    switch (OBJ_TYPE(iterable))
+    {
+    case OBJ_LIST:
+        type = PI_ITER_LIST;
+        break;
+    case OBJ_TUPLE:
+        type = PI_ITER_TUPLE;
+        break;
+    case OBJ_STRING:
+        type = PI_ITER_STRING;
+        break;
+    case OBJ_MAP:
+        type = PI_ITER_MAP;
+        break;
+    case OBJ_RANGE:
+        type = PI_ITER_RANGE;
+        break;
+    case OBJ_TENSOR:
+        type = PI_ITER_TENSOR;
+        break;
+    case OBJ_SET:
+        type = PI_ITER_SET;
+        break;
+    default:
+        vm_error(vm, "iter() does not support this iterable type.");
+    }
+
+    return NEW_OBJ(add_obj(vm, new_iterator(iterable, type, NEW_NIL(), FALSE)));
+}
+
+static bool _iterator_nextOne(VM *vm, PiIterator *iterator, Value *out)
+{
+    Value iterable = iterator->iterable;
+    switch (iterator->type)
+    {
+    case PI_ITER_LIST:
+    {
+        List *items = AS_LIST(iterable)->items;
+        if (iterator->state.index >= (size_t)LIST_SIZE(items))
+            return FALSE;
+        *out = *(Value *)_list_getAt(items, (int)iterator->state.index++);
+        return TRUE;
+    }
+    case PI_ITER_TUPLE:
+    {
+        List *items = AS_TUPLE(iterable)->items;
+        if (iterator->state.index >= (size_t)LIST_SIZE(items))
+            return FALSE;
+        *out = *(Value *)_list_getAt(items, (int)iterator->state.index++);
+        return TRUE;
+    }
+    case PI_ITER_STRING:
+    {
+        PiString *string = AS_STRING(iterable);
+        if (iterator->state.index >= string->length)
+            return FALSE;
+        char *chars = malloc(2);
+        if (!chars)
+            vm_error(vm, "Out of memory while iterating string.");
+        chars[0] = string->chars[iterator->state.index++];
+        chars[1] = '\0';
+        *out = NEW_OBJ(add_obj(vm, new_pistring(chars)));
+        return TRUE;
+    }
+    case PI_ITER_MAP:
+    {
+        if (!_ht_next(&iterator->state.table))
+            return FALSE;
+        char *key = strdup(iterator->state.table.key);
+        if (!key)
+            vm_error(vm, "Out of memory while iterating map.");
+        *out = NEW_OBJ(add_obj(vm, new_pistring(key)));
+        return TRUE;
+    }
+    case PI_ITER_RANGE:
+    {
+        PiRange *range = AS_RANGE(iterable);
+        double value = iterator->state.range_current;
+        if (range->step > 0 ? value >= range->end : value <= range->end)
+            return FALSE;
+        iterator->state.range_current += range->step;
+        *out = NEW_NUM(value);
+        return TRUE;
+    }
+    case PI_ITER_TENSOR:
+    {
+        PiTensor *tensor = AS_TENSOR(iterable);
+        if (tensor->ndim == 0 || iterator->state.index >= (size_t)tensor->shape[0])
+            return FALSE;
+        int index = (int)iterator->state.index++;
+        *out = tensor->ndim == 1
+                   ? NEW_NUM(tensor_getFlat(tensor, index))
+                   : NEW_OBJ(add_obj(vm, tensor_rowAsList(tensor, index)));
+        return TRUE;
+    }
+    case PI_ITER_SET:
+    {
+        PiSet *set = AS_SET(iterable);
+        if (iterator->state.index >= (size_t)set_size(set))
+            return FALSE;
+        *out = set_get(set, (int)iterator->state.index++);
+        return TRUE;
+    }
+    case PI_ITER_OBJECT_FIELDS:
+        if (IS_INSTANCE(iterable) && !AS_INSTANCE(iterable)->fields)
+            return FALSE;
+        if (!_ht_next(&iterator->state.table))
+            return FALSE;
+        *out = *(Value *)iterator->state.table.value;
+        return TRUE;
+    case PI_ITER_CUSTOM:
+    {
+        if (IS_ITERATOR(iterator->state.cursor))
+            return vm_iteratorNext(vm, AS_ITERATOR(iterator->state.cursor), NEW_NIL(), out);
+        Value value = _call_requiredMethodNoArgs(vm, iterator->state.cursor, "next");
+        if (IS_NIL(value))
+            return FALSE;
+        *out = value;
+        return TRUE;
+    }
+    default:
+        vm_error(vm, "Invalid iterator type.");
+    }
+    return FALSE;
+}
+
+static void _iterator_resetBuiltin(PiIterator *iterator)
+{
+    switch (iterator->type)
+    {
+    case PI_ITER_LIST:
+    case PI_ITER_TUPLE:
+    case PI_ITER_STRING:
+    case PI_ITER_TENSOR:
+    case PI_ITER_SET:
+        iterator->state.index = 0;
+        break;
+    case PI_ITER_MAP:
+        iterator->state.table = _ht_iterator(AS_MAP(iterator->iterable)->table);
+        break;
+    case PI_ITER_RANGE:
+        iterator->state.range_current = AS_RANGE(iterator->iterable)->start;
+        break;
+    case PI_ITER_OBJECT_FIELDS:
+        if (IS_CLASS(iterator->iterable))
+            iterator->state.table = _ht_iterator(AS_CLASS(iterator->iterable)->members);
+        else if (AS_INSTANCE(iterator->iterable)->fields)
+            iterator->state.table = _ht_iterator(AS_INSTANCE(iterator->iterable)->fields);
+        break;
+    case PI_ITER_CUSTOM:
+        break;
+    }
+}
+
+bool vm_iteratorNext(VM *vm, PiIterator *iterator, Value default_value, Value *out)
+{
+    if (iterator->exhausted)
+    {
+        *out = default_value;
+        return FALSE;
+    }
+
+    if (vm->sp >= STACK_MAX)
+        vm_error(vm, "Iterator stack overflow.");
+    _push_stack(vm, NEW_OBJ((Object *)iterator));
+
+    bool has_value = _iterator_nextOne(vm, iterator, out);
+    if (!has_value && iterator->cycle)
+    {
+        if (iterator->type == PI_ITER_CUSTOM)
+        {
+            if (_iteratorHasCustomMethod(vm, iterator->iterable, "iterator"))
+                iterator->state.cursor = _call_requiredMethodNoArgs(vm, iterator->iterable, "iterator");
+            else
+                iterator->state.cursor = iterator->iterable;
+            if (!IS_OBJECT(iterator->state.cursor))
+                vm_error(vm, "iterator() must return an iterator object.");
+        }
+        else
+            _iterator_resetBuiltin(iterator);
+
+        has_value = _iterator_nextOne(vm, iterator, out);
+    }
+
+    if (!has_value)
+    {
+        iterator->exhausted = TRUE;
+        *out = default_value;
+    }
+
+    _pop_stack(vm);
+    return has_value;
 }
 
 static bool _call_methodWithArgs(VM *vm, Value receiver, const char *name,
@@ -1934,7 +2200,7 @@ OP_COMPARE:
                          set_size(left_set) != set_size(right_set);
                 break;
             case 3:
-                result = _set_isSubset(left_set, right_set) && 
+                result = _set_isSubset(left_set, right_set) &&
                          set_size(left_set) != set_size(right_set);
                 break;
             case 4:
@@ -1998,22 +2264,22 @@ OP_COMPARE:
                 double end = range->end;
                 double step = range->step;
                 if (step > 0)
-                    result = (num >= start && num <= end && 
-                             fmod(num - start, step) < 1e-10);
+                    result = (num >= start && num <= end &&
+                              fmod(num - start, step) < 1e-10);
                 else if (step < 0)
-                    result = (num <= start && num >= end && 
-                             fmod(start - num, -step) < 1e-10);
+                    result = (num <= start && num >= end &&
+                              fmod(start - num, -step) < 1e-10);
                 else
                     result = (num == start);
                 break;
             }
             default:
             {
-                Object *iterable = AS_OBJ(right);
-                iter_reset(iterable);
-                while (iter_hasNext(iterable))
+                Value iterator = vm_newIterator(vm, right);
+                Value value;
+                while (vm_iteratorNext(vm, AS_ITERATOR(iterator), NEW_NIL(), &value))
                 {
-                    if (equals(left, iter_next(iterable)))
+                    if (equals(left, value))
                     {
                         result = TRUE;
                         break;
@@ -3005,11 +3271,10 @@ OP_CALL_SPREAD:
 
 OP_PUSH_ITER:
     {
-        Value iterable = POP();
-        if (!IS_OBJ(iterable) || !is_iterable(AS_OBJ(iterable)))
-            vm_error(vm, "Error: Object is not iterable.");
-        iter = AS_OBJ(iterable);
-        iter_reset(iter);
+        Value iterable = _peek_stack(vm);
+        Value iterator = vm_newIterator(vm, iterable);
+        POP();
+        iter = AS_OBJ(iterator);
         if (vm->iter_sp + 1 >= STACK_MAX)
             vm_error(vm, "[iter] Iterator stack overflow.");
         vm->iters[++vm->iter_sp] = iter;
@@ -3027,186 +3292,66 @@ OP_LOOP:
             vm_error(vm, "Error: No active iterator.");
         iter = vm->iters[vm->iter_sp];
 
-        if (iter->type == OBJ_LIST)
-        {
-            PiList *list = (PiList *)iter;
-            List *items = list->items;
-            if (list->current < items->size)
-            {
-                int index = list->current;
-                Value value = ((Value *)items->data)[list->current++];
-                if (IS_OBJ(value))
-                    add_obj(vm, AS_OBJ(value));
-                if (pair_loop)
-                {
-                    _push_stack(vm, NEW_NIL());
-                    _push_stack(vm, _make_iterPair(vm, NEW_NUM(index), value));
-                    pc += 2;
-                }
-                else
-                {
-                    bool fused_store = _vm_storeLoopValueIfLocal(vm, code, &pc, value);
-                    if (!fused_store)
-                    {
-                        PUSH(value);
-                        pc += 2;
-                    }
-                }
-            }
-            else
-            {
-                vm->iter_sp--;
-                pc += address - 1;
-            }
-            VM_DISPATCH_SAFE();
-        }
+        if (iter->type != OBJ_ITERATOR)
+            vm_error(vm, "Internal iterator stack contains a non-iterator.");
 
-        if (iter->type == OBJ_RANGE)
+        PiIterator *iterator = (PiIterator *)iter;
+        size_t index = 0;
+        Value value;
+        if (!vm_iteratorNext(vm, iterator, NEW_NIL(), &value))
         {
-            PiRange *range = (PiRange *)iter;
-            double value = range->current;
-            bool has_next = range->step > 0 ? value < range->end : value > range->end;
-            if (has_next)
-            {
-                range->current = value + range->step;
-                if (pair_loop)
-                {
-                    _push_stack(vm, NEW_NIL());
-                    _push_stack(vm, _make_iterPair(vm, NEW_NUM((value - range->start) / range->step), NEW_NUM(value)));
-                    pc += 2;
-                }
-                else
-                {
-                    bool fused_store = _vm_storeLoopValueIfLocal(vm, code, &pc, NEW_NUM(value));
-                    if (!fused_store)
-                    {
-                        PUSH(NEW_NUM(value));
-                        pc += 2;
-                    }
-                }
-            }
-            else
-            {
-                vm->iter_sp--;
-                pc += address - 1;
-            }
-            VM_DISPATCH_SAFE();
+            vm->iter_sp--;
+            pc += address - 1;
         }
-
-        if (iter->type == OBJ_TUPLE)
+        else
         {
-            PiTuple *tuple = (PiTuple *)iter;
-            List *items = tuple->items;
-            if (tuple->current < items->size)
+            if (IS_OBJ(value))
+                add_obj(vm, AS_OBJ(value));
+            if (pair_loop)
             {
-                int index = tuple->current;
-                Value value = ((Value *)items->data)[tuple->current++];
-                if (IS_OBJ(value))
-                    add_obj(vm, AS_OBJ(value));
-                if (pair_loop)
+                if (iterator->type == PI_ITER_LIST   || iterator->type == PI_ITER_TUPLE  ||
+                    iterator->type == PI_ITER_STRING || iterator->type == PI_ITER_TENSOR ||
+                    iterator->type == PI_ITER_SET)
+                    index = iterator->state.index - 1;
+                else if (iterator->type == PI_ITER_RANGE)
                 {
-                    _push_stack(vm, NEW_NIL());
-                    _push_stack(vm, _make_iterPair(vm, NEW_NUM(index), value));
-                    pc += 2;
+                    PiRange *range = AS_RANGE(iterator->iterable);
+                    double range_value = iterator->state.range_current - range->step;
+                    index = (size_t)((range_value - range->start) / range->step);
+                }
+
+                if (iterator->type == PI_ITER_CUSTOM)
+                {
+                    bool valid_pair = IS_LIST(value)
+                                          ? PILIST_SIZE(value) == 2
+                                          : IS_TUPLE(value) &&
+                                                LIST_SIZE(AS_TUPLE(value)->items) == 2;
+                    if (!valid_pair)
+                        vm_error(vm, "Pair iteration requires next() to return a two-element list or tuple.");
+                }
+                else if (iterator->type == PI_ITER_MAP)
+                {
+                    Value key = value;
+                    Value map_value = *(Value *)iterator->state.table.value;
+                    value = _make_iterPair(vm, key, map_value);
                 }
                 else
                 {
-                    bool fused_store = _vm_storeLoopValueIfLocal(vm, code, &pc, value);
-                    if (!fused_store)
-                    {
-                        _push_stack(vm, value);
-                        pc += 2;
-                    }
+                    value = _make_iterPair(vm, NEW_NUM(index), value);
                 }
-            }
-            else
-            {
-                vm->iter_sp--;
-                pc += address - 1;
-            }
-            VM_DISPATCH_SAFE();
-        }
-
-        if (iter->type == OBJ_STRING)
-        {
-            PiString *string = (PiString *)iter;
-            if (string->current < string->length)
-            {
-                int index = string->current;
-                char *chars = malloc(2);
-                if (!chars)
-                    vm_error(vm, "Out of memory while iterating string.");
-                chars[0] = string->chars[string->current++];
-                chars[1] = '\0';
-                Value value = NEW_OBJ(add_obj(vm, new_pistring(chars)));
-                if (pair_loop)
-                {
-                    _push_stack(vm, NEW_NIL());
-                    _push_stack(vm, _make_iterPair(vm, NEW_NUM(index), value));
-                }
-                else
-                    _push_stack(vm, value);
+                _push_stack(vm, NEW_NIL());
+                _push_stack(vm, value);
                 pc += 2;
             }
             else
             {
-                vm->iter_sp--;
-                pc += address - 1;
-            }
-            VM_DISPATCH_SAFE();
-        }
-
-        if (iter_hasNext(iter))
-        {
-            if (iter->type == OBJ_MAP)
-            {
-                PiMap *map = (PiMap *)iter;
-                _ht_next(&map->it);
-                if (pair_loop)
+                bool fused_store = _vm_storeLoopValueIfLocal(vm, code, &pc, value);
+                if (!fused_store)
                 {
-                    Value value = *(Value *)map->it.value;
-                    if (IS_OBJ(value))
-                        add_obj(vm, AS_OBJ(value));
-                    _push_stack(vm, NEW_NIL());
-                    _push_stack(vm, _make_iterPair(vm, NEW_OBJ(add_obj(vm, new_pistring(strdup(map->it.key)))), value));
+                    PUSH(value);
+                    pc += 2;
                 }
-                else
-                    _push_stack(vm, NEW_OBJ(add_obj(vm, new_pistring(strdup(map->it.key)))));
             }
-            else
-            {
-                int index = 0;
-                if (pair_loop)
-                {
-                    switch (iter->type)
-                    {
-                    case OBJ_TENSOR:
-                        index = ((PiTensor *)iter)->current;
-                        break;
-                    case OBJ_SET:
-                        index = ((PiSet *)iter)->current;
-                        break;
-                    default:
-                        break;
-                    }
-                }
-                Value value = iter_next(iter);
-                if (IS_OBJ(value))
-                    add_obj(vm, AS_OBJ(value));
-                if (pair_loop)
-                {
-                    _push_stack(vm, NEW_NIL());
-                    _push_stack(vm, _make_iterPair(vm, NEW_NUM(index), value));
-                }
-                else
-                    _push_stack(vm, value);
-            }
-            pc += 2;
-        }
-        else
-        {
-            vm->iter_sp--;
-            pc += address - 1;
         }
         VM_DISPATCH_SAFE();
     }
@@ -3223,6 +3368,7 @@ OP_PUSH_RANGE:
         Value step = _pop_stack(vm);
         Value end = _pop_stack(vm);
         Value start = _pop_stack(vm);
+
         if (!IS_NUM(start) || !IS_NUM(end))
             vm_error(vm, "PiRange `start` and `end` must be numbers.");
         if (!IS_NIL(step) && !IS_NUM(step))

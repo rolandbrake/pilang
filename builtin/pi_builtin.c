@@ -92,6 +92,10 @@ BuiltinFunc builtin_functions[] = {
     {"reduce", pi_reduce},
     {"find", pi_find},
 
+    // Iteration
+    {"iter", pi_iter},
+    {"next", pi_nextValue},
+
     // Object
     {"clone", pi_clone},
     {"id", pi_id},

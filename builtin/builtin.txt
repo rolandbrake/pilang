@@ -84,6 +84,11 @@ issubset
 issuperset
 isdisjoint
 
+Global Iteration
+----------------
+iter
+next
+
 Global Functional
 -----------------
 map

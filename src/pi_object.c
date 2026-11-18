@@ -507,6 +507,43 @@ Object *new_range(double start, double end, double step)
     return (Object *)range;
 }
 
+Object *new_iterator(Value iterable, PiIteratorType type, Value cursor, bool cycle)
+{
+    PiIterator *iterator = CREATE_OBJ(PiIterator, OBJ_ITERATOR);
+    iterator->iterable = iterable;
+    iterator->type = type;
+    iterator->cycle = cycle;
+    iterator->exhausted = FALSE;
+
+    switch (type)
+    {
+    case PI_ITER_LIST:
+    case PI_ITER_TUPLE:
+    case PI_ITER_STRING:
+    case PI_ITER_TENSOR:
+    case PI_ITER_SET:
+        iterator->state.index = 0;
+        break;
+    case PI_ITER_MAP:
+        iterator->state.table = _ht_iterator(AS_MAP(iterable)->table);
+        break;
+    case PI_ITER_RANGE:
+        iterator->state.range_current = AS_RANGE(iterable)->start;
+        break;
+    case PI_ITER_OBJECT_FIELDS:
+        if (IS_CLASS(iterable))
+            iterator->state.table = _ht_iterator(AS_CLASS(iterable)->members);
+        else if (AS_INSTANCE(iterable)->fields)
+            iterator->state.table = _ht_iterator(AS_INSTANCE(iterable)->fields);
+        break;
+    case PI_ITER_CUSTOM:
+        iterator->state.cursor = cursor;
+        break;
+    }
+
+    return (Object *)iterator;
+}
+
 Object *new_slice(double start, double stop, double step)
 {
     PiSlice *slice = CREATE_OBJ(PiSlice, OBJ_SLICE);
@@ -902,6 +939,7 @@ bool is_iterable(Object *obj)
     case OBJ_INSTANCE:
     case OBJ_SET:
     case OBJ_TUPLE:
+    case OBJ_ITERATOR:
         return TRUE;
     default:
         return FALSE;
@@ -978,8 +1016,8 @@ Value get_slice(Object *sequence, double start, double end, double step)
     case OBJ_TUPLE:
     {
         List *src = sequence->type == OBJ_LIST
-                          ? ((PiList *)sequence)->items
-                          : ((PiTuple *)sequence)->items;
+                        ? ((PiList *)sequence)->items
+                        : ((PiTuple *)sequence)->items;
         int size = LIST_SIZE(src);
 
         int _start = isinf(start) ? (_step > 0 ? 0 : size - 1)

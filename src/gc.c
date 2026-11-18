@@ -194,6 +194,8 @@ size_t gc_objectBytes(Object *obj)
     }
     case OBJ_RANGE:
         return sizeof(PiRange);
+    case OBJ_ITERATOR:
+        return sizeof(PiIterator);
     case OBJ_SLICE:
         return sizeof(PiSlice);
     case OBJ_SET:
@@ -289,6 +291,15 @@ static void _mark_references(Object *obj)
 
     switch (obj->type)
     {
+    case OBJ_ITERATOR:
+    {
+        PiIterator *iterator = (PiIterator *)obj;
+        mark_value(iterator->iterable);
+        if (iterator->type == PI_ITER_CUSTOM)
+            mark_value(iterator->state.cursor);
+        break;
+    }
+
     case OBJ_LIST:
     {
         // Mark the elements of a list

@@ -29,6 +29,7 @@ typedef struct Mix_Chunk Mix_Chunk;
 #define IS_MODULE(o) IS_OBJ_TYPE(o, OBJ_MODULE)
 #define IS_FUN(o) IS_OBJ_TYPE(o, OBJ_FUN)
 #define IS_RANGE(o) IS_OBJ_TYPE(o, OBJ_RANGE)
+#define IS_ITERATOR(o) IS_OBJ_TYPE(o, OBJ_ITERATOR)
 #define IS_SLICE(o) IS_OBJ_TYPE(o, OBJ_SLICE)
 #define IS_SET(o) IS_OBJ_TYPE(o, OBJ_SET)
 #define IS_TUPLE(o) IS_OBJ_TYPE(o, OBJ_TUPLE)
@@ -58,6 +59,7 @@ typedef struct Mix_Chunk Mix_Chunk;
 #define AS_INSTANCE(o) ((PiInstance *)AS_OBJ(o))
 #define AS_MODULE(o) ((ObjModule *)AS_OBJ(o))
 #define AS_RANGE(o) ((PiRange *)AS_OBJ(o))
+#define AS_ITERATOR(o) ((PiIterator *)AS_OBJ(o))
 #define AS_SLICE(o) ((PiSlice *)AS_OBJ(o))
 #define AS_SET(o) ((PiSet *)AS_OBJ(o))
 #define AS_TUPLE(o) ((PiTuple *)AS_OBJ(o))
@@ -103,15 +105,16 @@ typedef enum
     OBJ_CODE,
     OBJ_FILE,
     OBJ_SOCKET,
-    OBJ_IMAGE,        
+    OBJ_IMAGE,
     OBJ_AUDIO,
     OBJ_MODEL3D,
 
     // GUI and event-related objects
     OBJ_CONTEXT,
-    OBJ_CHART,  
+    OBJ_CHART,
     OBJ_CHART3D,
     OBJ_EVENT,
+    OBJ_ITERATOR,
 
 } ObjectType;
 
@@ -212,6 +215,35 @@ typedef struct
     double current; // Iterator state: current value in the range
 } PiRange;
 
+typedef enum
+{
+    PI_ITER_LIST,
+    PI_ITER_TUPLE,
+    PI_ITER_STRING,
+    PI_ITER_MAP,
+    PI_ITER_RANGE,
+    PI_ITER_TENSOR,
+    PI_ITER_SET,
+    PI_ITER_OBJECT_FIELDS,
+    PI_ITER_CUSTOM // For user-defined iterable objects
+} PiIteratorType;
+
+typedef struct
+{
+    Object object;
+    Value iterable;
+    PiIteratorType type;
+    union
+    {
+        size_t index;
+        HT_Iterator table;
+        double range_current;
+        Value cursor;
+    } state;
+    bool cycle;
+    bool exhausted;
+} PiIterator;
+
 typedef struct
 {
     Object object;
@@ -253,13 +285,13 @@ typedef struct
     } data; // union for different data types
 
     TensorType type; // data type (e.g., float32, int64)
-    int *shape;   // array of dimensions
-    int *strides; // steps in memory for each dimension
-    int ndim;     // number of dimensions
-    int size;     // total number of elements
-    int rows;     // cached shape[0] for rank-2 matrix compatibility helpers
-    int cols;     // cached shape[1] for rank-2 matrix compatibility helpers
-    int current;  // Iterator state along the first dimension
+    int *shape;      // array of dimensions
+    int *strides;    // steps in memory for each dimension
+    int ndim;        // number of dimensions
+    int size;        // total number of elements
+    int rows;        // cached shape[0] for rank-2 matrix compatibility helpers
+    int cols;        // cached shape[1] for rank-2 matrix compatibility helpers
+    int current;     // Iterator state along the first dimension
 } PiTensor;
 
 typedef struct PiClass
@@ -320,7 +352,7 @@ typedef struct
 {
     Object object;
     List *items; // List of values for tuple
-    int current;   // Iterator state
+    int current; // Iterator state
 } PiTuple;
 
 /* Resolved global slots belong to compiled code, not to a VM instance. */
@@ -410,24 +442,22 @@ typedef struct
 struct PiChart3D;
 struct VM;
 
-
 typedef struct PiContext
 {
 
     Object object;
 
-    
     void *window;
     void *renderer;
     void *gl_context;
     int width, height;
     bool running;
-    bool cleaned;          // Native draw resources have been released.
+    bool cleaned; // Native draw resources have been released.
     float tx, ty, sx, sy, angle, alpha;
-    void *font;             // default font
-    void *_transform_stack; 
+    void *font; // default font
+    void *_transform_stack;
 
-    void *userdata; /* PiDraw extra state (_transform stack, font, fps); owned by builtin/pi_draw.c */
+    void *userdata;    /* PiDraw extra state (_transform stack, font, fps); owned by builtin/pi_draw.c */
     void *image_cache; /* PiDraw cached SDL textures; owned by builtin/pi_draw.c */
 
     Value frame_callback;
@@ -436,19 +466,15 @@ typedef struct PiContext
     SDL_Rect clip_rect; // clipping rectangle
     bool clip_enabled;
 
-
     HandlerList handlers[EVENT_COUNT];
 
-    
     EventQueue *event_queue;
 
-    
     uint32_t last_fps_time;
     int frame_count;
     double current_fps;
 
     bool plot_subplots_cleared;
-
 
     int mouse_x, mouse_y;
     uint32_t mouse_buttons;
@@ -562,6 +588,7 @@ bool map_delete(PiMap *map, Value key);
 int map_size(PiMap *map);
 
 Object *new_range(double start, double end, double step);
+Object *new_iterator(Value iterable, PiIteratorType type, Value cursor, bool cycle);
 Object *new_slice(double start, double end, double step);
 
 uint32_t code_hash(uint8_t *code);

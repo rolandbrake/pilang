@@ -1,0 +1,47 @@
+items = [10, 20]
+first = iter(items)
+second = iter(items)
+
+assert(next(first) == 10, "iterator should yield the first list item")
+assert(next(first) == 20, "iterator should advance independently")
+assert(next(second) == 10, "iterators over one list should have independent state")
+assert(next(first, default=-1) == -1, "next should return its keyword default on exhaustion")
+assert(next(first) == 0, "next should use zero as its default")
+
+cyclic = iter([1, 2], cycle=true)
+assert(next(cyclic) == 1, "cyclic iterator should start at the beginning")
+assert(next(cyclic) == 2, "cyclic iterator should yield all items")
+assert(next(cyclic) == 1, "cyclic iterator should restart at exhaustion")
+
+positional_cycle = iter([7], true)
+assert(next(positional_cycle) == 7, "iter should accept a positional cycle flag")
+assert(next(positional_cycle) == 7, "positional cycle should restart")
+
+empty = iter([])
+assert(next(empty, 42) == 42, "empty iterators should return the provided default")
+assert(next(iter([], cycle=true), 43) == 43, "cycling an empty iterable should return the default")
+
+nil_items = iter([nil, 2])
+assert(next(nil_items) == nil, "nil collection items should not signal exhaustion")
+assert(next(nil_items) == 2, "iteration should continue after a nil item")
+assert(next(nil_items, -1) == -1, "nil should be returned as the default after exhaustion")
+
+assert(list(iter([3, 4])) == [3, 4], "list() should consume a general iterator")
+
+values = []
+for value in iter([5, 6]) {
+    values = values + value
+}
+assert(values == [5, 6], "for-in should consume a general iterator")
+
+map = {"left": 1, "right": 2}
+map_iterator = iter(map)
+assert(next(map_iterator) == "left", "map iterators should yield keys")
+keys = []
+map_values = []
+for key, value in map {
+    keys = keys + key
+    map_values = map_values + value
+}
+assert(keys == ["left", "right"], "map pair loops should preserve keys")
+assert(map_values == [1, 2], "map pair loops should preserve values")

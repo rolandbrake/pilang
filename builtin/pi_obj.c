@@ -5,6 +5,7 @@
 
 #include "pi_obj.h"
 #include "../src/pi_class.h"
+#include "pi_col.h"
 
 static int _normalize_compare(int cmp)
 {
@@ -705,37 +706,62 @@ Value pi_delete(VM *vm, int argc, Value *argv)
 Value pi_iterator(VM *vm, int argc, Value *argv)
 {
     Value target;
+    Value args[2];
+    int _argc = 1;
 
     if (argc == 1)
         target = argv[0];
-    else if (argc >= 2)
+    else if (argc >= 2 && IS_CLASS(argv[0]))
+    {
         target = argv[1];
+        if (argc >= 3)
+        {
+            args[1] = argv[2];
+            _argc = 2;
+        }
+    }
+    else if (argc >= 2)
+    {
+        target = argv[0];
+        args[1] = argv[1];
+        _argc = 2;
+    }
     else
         vm_error(vm, "[iterator] expects either obj.iterator() or Object.iterator(value).");
 
-    if (!IS_OBJ(target) || !is_iterable(AS_OBJ(target)))
-        vm_error(vm, "[iterator] target is not iterable.");
-
-    iter_reset(AS_OBJ(target));
-    return target;
+    args[0] = target;
+    return pi_iter(vm, _argc, args);
 }
 
 Value pi_next(VM *vm, int argc, Value *argv)
 {
     Value target;
+    Value args[2];
+    int _argc = 1;
 
     if (argc == 1)
         target = argv[0];
     else if (argc >= 2)
-        target = argv[1];
+    {
+        if (IS_CLASS(argv[0]))
+        {
+            target = argv[1];
+            if (argc >= 3)
+            {
+                args[1] = argv[2];
+                _argc = 2;
+            }
+        }
+        else
+        {
+            target = argv[0];
+            args[1] = argv[1];
+            _argc = 2;
+        }
+    }
     else
         vm_error(vm, "[next] expects either obj.next() or Object.next(value).");
 
-    if (!IS_OBJ(target) || !is_iterable(AS_OBJ(target)))
-        vm_error(vm, "[next] target is not iterable.");
-
-    if (!iter_hasNext(AS_OBJ(target)))
-        return NEW_NIL();
-
-    return iter_next(AS_OBJ(target));
+    args[0] = target;
+    return pi_nextValue(vm, _argc, args);
 }

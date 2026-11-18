@@ -104,5 +104,7 @@ Value cl_zip(VM *vm, int argc, Value *argv);
 Value cl_join(VM *vm, int argc, Value *argv);
 
 Value cl_isIterable(VM *vm, int argc, Value *argv);
+Value pi_iter(VM *vm, int argc, Value *argv);
+Value pi_nextValue(VM *vm, int argc, Value *argv);
 
 #endif // PI_COL_H

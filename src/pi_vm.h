@@ -209,6 +209,8 @@ Frame *pop_frame(VM *vm);
 void vm_error(VM *vm, const char *message);
 void vm_errorf(VM *vm, const char *fmt, ...);
 Value vm_callMethodNoArgs(VM *vm, Value receiver, const char *name);
+Value vm_newIterator(VM *vm, Value iterable);
+bool vm_iteratorNext(VM *vm, PiIterator *iterator, Value default_value, Value *out);
 
 void free_vm(VM *vm);
 

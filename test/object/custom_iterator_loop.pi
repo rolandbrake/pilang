@@ -1,0 +1,68 @@
+class Counter {
+    constructor(limit) {
+        this.limit = limit
+        this.current = 0
+    }
+
+    iterator() {
+        this.current = 0
+        return this
+    }
+
+    next() {
+        if this.current >= this.limit {
+            return nil
+        }
+
+        let value = this.current
+        this.current += 1
+        return value
+    }
+}
+
+values = []
+for value in Counter(4) {
+    values = values + value
+}
+assert(values == [0, 1, 2, 3], "for-in should use class iterator and next overrides")
+
+values = []
+for value in Counter(2) {
+    values = values + value
+}
+assert(values == [0, 1], "for-in should reset custom iterators for each loop")
+
+counter = iter(Counter(2), cycle=true)
+assert(next(counter) == 0, "global iter should invoke a class iterator override")
+assert(next(counter) == 1, "global next should invoke a class next override")
+assert(next(counter) == 0, "cycling custom iterators should restart")
+
+class PairIterator {
+    constructor() {
+        this.index = 0
+    }
+
+    iterator() {
+        this.index = 0
+        return this
+    }
+
+    next() {
+        if this.index >= 2 {
+            return nil
+        }
+
+        let index = this.index
+        this.index += 1
+        return [index, index * 10]
+    }
+}
+
+indices = []
+values = []
+for index, value in PairIterator() {
+    indices = indices + index
+    values = values + value
+}
+assert(indices == [0, 1], "pair loops should unpack custom iterator indices")
+assert(values == [0, 10], "pair loops should unpack custom iterator values")

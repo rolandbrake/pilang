@@ -6,6 +6,7 @@
 #include "pi_col.h"
 #include "../src/pi_list.h"
 #include "pi_builtin.h"
+#include "pi_kwargs.h"
 
 static int _compare(const void *a, const void *b)
 {
@@ -709,6 +710,14 @@ Value cl_add(VM *vm, int argc, Value *argv)
     for (int i = 1; i < argc; i++)
     {
         Value elem = argv[i];
+        if (IS_ITERATOR(elem))
+        {
+            Value iterator_value;
+            while (vm_iteratorNext(vm, AS_ITERATOR(elem), NEW_NIL(), &iterator_value))
+                set_add(set, iterator_value);
+            continue;
+        }
+
         if (!IS_COLLECTION(elem))
         {
 
@@ -1511,6 +1520,61 @@ Value cl_isIterable(VM *vm, int argc, Value *argv)
         vm_error(vm, "[is_iterable] expects at least one argument.");
 
     return NEW_BOOL(IS_OBJ(argv[0]) && is_iterable(AS_OBJ(argv[0])));
+}
+
+Value pi_iter(VM *vm, int argc, Value *argv)
+{
+    if (argc < 1 || argc > 2)
+        vm_error(vm, "iter() expects one iterable and an optional cycle flag.");
+
+    PiMap *kwargs = _kw_map(vm);
+    _kw_validate(vm, kwargs, "cycle");
+
+    Value cycle_value = NEW_NIL();
+    bool has_cycle_keyword = _kw_get(kwargs, "cycle", &cycle_value);
+
+    if (has_cycle_keyword && argc > 1)
+        vm_error(vm, "iter() cycle was provided more than once.");
+
+    if (argc > 1)
+        cycle_value = argv[1];
+
+    bool cycle = FALSE;
+    if (!IS_NIL(cycle_value))
+    {
+        if (!IS_BOOL(cycle_value))
+            vm_error(vm, "iter() cycle must be a boolean.");
+        cycle = AS_BOOL(cycle_value);
+    }
+
+    Value iterator = vm_newIterator(vm, argv[0]);
+    AS_ITERATOR(iterator)->cycle = cycle;
+    return iterator;
+}
+
+Value pi_nextValue(VM *vm, int argc, Value *argv)
+{
+    if (argc < 1 || argc > 2)
+        vm_error(vm, "next() expects an iterator and an optional default value.");
+
+    PiMap *kwargs = _kw_map(vm);
+    _kw_validate(vm, kwargs, "default");
+
+    Value default_value = NEW_NUM(0);
+    bool has_default_keyword = _kw_get(kwargs, "default", &default_value);
+
+    if (has_default_keyword && argc > 1)
+        vm_error(vm, "next() default was provided more than once.");
+
+    if (argc > 1)
+        default_value = argv[1];
+
+    if (!IS_ITERATOR(argv[0]))
+        vm_error(vm, "next() expects an iterator returned by iter().");
+
+    Value result;
+    vm_iteratorNext(vm, AS_ITERATOR(argv[0]), default_value, &result);
+    return result;
 }
 
 // Functions exported by the col module.

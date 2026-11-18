@@ -5,6 +5,7 @@
 #include "pi_methods.h"
 #include "_pi_string.h"
 #include "pi_col.h"
+#include "pi_obj.h"
 #include "pi_func.h"
 #include "pi_tensor.h"
 #include "pi_plot3d.h"
@@ -12,6 +13,9 @@
 #include "pi_plot.h"
 
 static NativeMethod native_methods[] = {
+    {OBJ_ITERATOR, "iterator", pi_iterator},
+    {OBJ_ITERATOR, "next", pi_next},
+
     {OBJ_STRING, "trim", pi_trim},
     {OBJ_STRING, "upper", pi_upper},
     {OBJ_STRING, "lower", pi_lower},
@@ -216,36 +220,40 @@ NativeMethod *pi_nativeMethodFor(ObjectType type, const char *name)
     int last = native_methodCount;
     switch (type)
     {
-    case OBJ_STRING:
+    case OBJ_ITERATOR:
         first = 0;
-        last = 18;
+        last = 2;
+        break;
+    case OBJ_STRING:
+        first = 2;
+        last = 20;
         break;
     case OBJ_LIST:
-        first = 18;
-        last = 40;
+        first = 20;
+        last = 42;
         break;
     case OBJ_TUPLE:
-        first = 40;
-        last = 50;
+        first = 42;
+        last = 52;
         break;
     case OBJ_SET:
-        first = 50;
-        last = 67;
+        first = 52;
+        last = 69;
         break;
     case OBJ_TENSOR:
-        first = 67;
-        last = 129;
+        first = 69;
+        last = 131;
         break;
     case OBJ_CONTEXT:
-        first = 129;
-        last = 152;
+        first = 131;
+        last = 154;
         break;
     case OBJ_CHART3D:
-        first = 152;
-        last = 165;
+        first = 154;
+        last = 166;
         break;
     case OBJ_CHART:
-        first = 165;
+        first = 166;
         break;
     default:
         return NULL;

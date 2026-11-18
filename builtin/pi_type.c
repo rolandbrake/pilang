@@ -205,12 +205,10 @@ Value pi_list(VM *vm, int argc, Value *argv)
     }
     else if (IS_OBJ(arg) && is_iterable(AS_OBJ(arg)))
     {
-        Object *iterable_obj = AS_OBJ(arg);
-        iter_reset(iterable_obj);
-
-        while (iter_hasNext(iterable_obj))
+        Value iterator = vm_newIterator(vm, arg);
+        Value item;
+        while (vm_iteratorNext(vm, AS_ITERATOR(iterator), NEW_NIL(), &item))
         {
-            Value item = iter_next(iterable_obj);
             _list_add(new_items, &item);
         }
     }

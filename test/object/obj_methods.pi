@@ -26,6 +26,13 @@ assert(User.get("TAG") == "base", "inherited member should be readable")
 
 it = User.iterator()
 assert(it.next() != nil, "class iterator should produce members")
+object_it = Object.iterator([1, 2], cycle=true)
+assert(object_it.next() == 1, "Object.iterator should accept cycle keywords")
+assert(object_it.next() == 2, "Object.iterator should create an independent iterator")
+assert(object_it.next() == 1, "Object.iterator cycle should match iter()")
+empty_it = Object.iterator([])
+assert(Object.next(empty_it, default=-1) == -1, "Object.next should accept keyword defaults")
+assert(Object.next(iter([1, 2]), -1) == 1, "Object.next should support positional receivers")
 assert(Object.type(User) == "class", "Object.type should identify classes")
 assert(Object.get(User, "AGE") == 32, "Object.get should read class members")
 
