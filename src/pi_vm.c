@@ -529,7 +529,7 @@ static void _gc_collect(VM *vm)
     vm->gc_requested = FALSE;
 
 #ifdef DEBUG
-    printf("[GC] Before: %zu bytes, After: %zu bytes, Collected: %zu bytes, Next threshold: %zu bytes\n",
+    printf(PI_COLOR_INFO "[GC] Before: %zu bytes, After: %zu bytes, Collected: %zu bytes, Next threshold: %zu bytes" PI_COLOR_RESET "\n",
            before, after, collected, vm->next_gc_bytes);
 #endif
 }
@@ -541,7 +541,7 @@ static inline int _count_objs(VM *vm)
     Object *obj = vm->objects;
     while (obj)
     {
-        printf("[DEBUG] Counting object at %p\n", (void *)obj);
+        printf(PI_COLOR_INFO "[DEBUG] Counting object at %p" PI_COLOR_RESET "\n", (void *)obj);
         count++;
         obj = obj->next;
     }
@@ -572,20 +572,20 @@ void vm_error(VM *vm, const char *message)
 
     if (instr)
     {
-        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR]");
+        fprintf(stderr, "\n" PI_COLOR_ERROR "[RUNTIME ERROR]" PI_COLOR_RESET);
         if (module_label)
             fprintf(stderr, " in %s", module_label);
         fprintf(stderr, " at line %d, column %d", instr->line, instr->column);
         if (instr->fun_name)
             fprintf(stderr, " in function '%s'", instr->fun_name);
-        fprintf(stderr, ":\033[0m %s\n\n", message);
+        fprintf(stderr, ": %s\n\n", message);
     }
     else
     {
-        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR]");
+        fprintf(stderr, "\n" PI_COLOR_ERROR "[RUNTIME ERROR]" PI_COLOR_RESET);
         if (module_label)
             fprintf(stderr, " in %s", module_label);
-        fprintf(stderr, " at unknown location:\033[0m %s\n\n", message);
+        fprintf(stderr, " at unknown location: %s\n\n", message);
     }
 
     exit(EXIT_FAILURE);
@@ -622,20 +622,20 @@ void vm_errorf(VM *vm, const char *fmt, ...)
 
     if (instr)
     {
-        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR]");
+        fprintf(stderr, "\n" PI_COLOR_ERROR "[RUNTIME ERROR]" PI_COLOR_RESET);
         if (module_label)
             fprintf(stderr, " in %s", module_label);
         fprintf(stderr, " at line %d, column %d", instr->line, instr->column);
         if (instr->fun_name)
             fprintf(stderr, " in function '%s'", instr->fun_name);
-        fprintf(stderr, ":\033[0m %s\n\n", message);
+        fprintf(stderr, ": %s\n\n", message);
     }
     else
     {
-        fprintf(stderr, "\n\033[1;31m[RUNTIME ERROR]");
+        fprintf(stderr, "\n" PI_COLOR_ERROR "[RUNTIME ERROR]" PI_COLOR_RESET);
         if (module_label)
             fprintf(stderr, " in %s", module_label);
-        fprintf(stderr, " at unknown location:\033[0m %s\n\n", message);
+        fprintf(stderr, " at unknown location: %s\n\n", message);
     }
 
     exit(EXIT_FAILURE);
@@ -4565,7 +4565,7 @@ OP_PUSH_NIL:
     VM_DISPATCH_SAFE();
 
 OP_DEBUG:
-    printf("[DEBUG] Current PC: %d\n", pc);
+    printf(PI_COLOR_INFO "[DEBUG] Current PC: %d" PI_COLOR_RESET "\n", pc);
     VM_DISPATCH_SAFE();
 
 OP_PRINT:

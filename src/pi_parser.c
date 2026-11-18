@@ -1308,7 +1308,11 @@ static void _var_decl(Parser *parser, bool is_const)
 
 static void _variable(Parser *parser, bool is_const)
 {
-    Token token = _consume(parser, TK_ID, "Expect variable name");
+    Token token;
+    if (_match_n(parser, 3, TK_ID, TK_INF, TK_NAN))
+        token = _previous(parser);
+    else
+        token = _consume(parser, TK_ID, "Expect variable name");
     char *name = token_value(token);
     bool reserved_local_function = FALSE;
 
@@ -1350,7 +1354,10 @@ static void _variable(Parser *parser, bool is_const)
         emit(parser->comp, OP_PUSH_NIL);
 
     if (!reserved_local_function)
+    {
+        set_pos(parser, token);
         add_variableConst(parser->comp, name, is_const);
+    }
 }
 
 static List *_param_list(Parser *parser)
@@ -1630,6 +1637,7 @@ static void _class_decl(Parser *parser)
     _consume(parser, TK_LBRACE, "Expect '{' before class body.");
 
     _emit_classMap(parser, class_name, parent_name);
+    set_pos(parser, name_tok);
     add_variable(parser->comp, class_name);
 }
 static void _func_decl(Parser *parser)
@@ -1642,7 +1650,10 @@ static void _func_decl(Parser *parser)
         char *name = token_value(id_token);
 
         if (is_localScope(parser->comp))
+        {
+            set_pos(parser, id_token);
             add_local(parser->comp, name);
+        }
 
         _consume(parser, TK_LPAREN, "Expect '(' after function name.");
         List *params = _param_list(parser);
@@ -1699,6 +1710,7 @@ static void _func_decl(Parser *parser)
         {
             // Mark function definition location before storing it
             set_pos(parser, id_token);
+            warn_builtinRedefinition(parser->comp, name);
             emit_8u(parser->comp, OP_STORE_GLOBAL, name, store_name(parser->comp, name));
         }
     }
@@ -2705,8 +2717,14 @@ static void _assignment(Parser *parser, bool emit_load)
             right = assign->right;
 
             Token lhs = parser->tokens[left];
-
-            if (parser->tokens[left].type != TK_ID)
+            bool builtin_constant_target = FALSE;
+            if (lhs.type == TK_INF || lhs.type == TK_NAN)
+            {
+                char *lhs_name = token_value(lhs);
+                builtin_constant_target = has_declaredBinding(parser->comp, lhs_name);
+                free(lhs_name);
+            }
+            if (parser->tokens[left].type != TK_ID && !builtin_constant_target)
                 p_error("Invalid assignment target", parser->tokens[left].line, parser->tokens[left].column);
 
             // Sync the runtime error position to LHS token
@@ -3752,10 +3770,22 @@ static void _primary(Parser *parser)
         Token token = _previous(parser);
         set_pos(parser, token);
 
-        if (token.type == TK_NAN)
-            emit_16u(parser->comp, OP_LOAD_CONST, "NAN", 0);
-        else if (token.type == TK_INF)
-            emit_16u(parser->comp, OP_LOAD_CONST, "INF", 0);
+        if (token.type == TK_NAN || token.type == TK_INF)
+        {
+            char *name = token_value(token);
+            if (has_declaredBinding(parser->comp, name))
+            {
+                if (parser->is_store && _is_assign(parser))
+                    store_variable(parser->comp, name);
+                else
+                    load_variable(parser->comp, name);
+            }
+            else if (token.type == TK_NAN)
+                emit_16u(parser->comp, OP_LOAD_CONST, "NAN", 0);
+            else
+                emit_16u(parser->comp, OP_LOAD_CONST, "INF", 0);
+            free(name);
+        }
         else
         {
             int index = store_tokenConst(parser->comp, token);

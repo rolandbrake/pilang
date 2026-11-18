@@ -190,6 +190,9 @@ int code_size(Compiler *comp);
 void set_errorSource(const char *source_name);
 void p_error(const char *message, int line, int column);
 void p_errorf(int line, int column, const char *format, ...);
+void p_warningf(int line, int column, const char *format, ...);
+void warn_builtinRedefinition(Compiler *comp, const char *name);
+bool has_declaredBinding(Compiler *comp, const char *name);
 
 // Debugging and memory management functions
 void dis(Compiler *comp);

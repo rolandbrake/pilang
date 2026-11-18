@@ -33,3 +33,8 @@ covered in [Modules](../../8.%20Modules/README.md).
 
 Module-scoped functions must be imported before use unless the program has
 already exposed them in the current scope.
+
+Built-in names can be shadowed or redefined. Pilang reports each redefinition
+as a yellow warning and continues with the new binding. CLI warnings are
+yellow, errors red, successful operations green, and informational status
+messages blue.

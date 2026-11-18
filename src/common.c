@@ -86,7 +86,7 @@ void error(const char *format, ...)
     va_start(args, format);
 
     fflush(stdout); // Make sure stdout is flushed before printing to stderr
-    fprintf(stderr, "[Error] ");
+    fprintf(stderr, PI_COLOR_ERROR "[Error]" PI_COLOR_RESET " ");
     vfprintf(stderr, format, args);
     fprintf(stderr, "\n");
 

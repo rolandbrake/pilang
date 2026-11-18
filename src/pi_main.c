@@ -74,7 +74,7 @@ static void _browser_printExecutionTime(void)
 {
     clock_t end_time = clock();
     double time_taken = ((double)(end_time - start_time)) * 1000.0 / CLOCKS_PER_SEC;
-    printf("Execution Time: %.4f ms\n", time_taken);
+    printf(PI_COLOR_INFO "Execution Time: %.4f ms" PI_COLOR_RESET "\n", time_taken);
 }
 
 static void _browser_errorHandler(const char *message, int line, int column)
@@ -371,8 +371,7 @@ static const char *_package_color(const char *color)
 
 static void _print_usage(const char *program)
 {
-    printf("Pilang v%s\n", PI_VERSION);
-    printf("Usage:\n");
+    printf(PI_COLOR_INFO "Pilang v%s\nUsage:\n" PI_COLOR_RESET, PI_VERSION);
     printf("  %s                            Start the interactive prompt\n", program);
     printf("  %s run [file] [args...]       Run main.pi or the specified Pilang file\n", program);
     printf("  %s <file> [args...]           Shorthand for 'run <file>'\n", program);
@@ -394,13 +393,13 @@ char *read_file(const char *filename)
     FILE *file = fopen(filename, "rb");
     if (!file)
     {
-        fprintf(stderr, "Could not open file '%s': %s\n", filename, strerror(errno));
+        fprintf(stderr, PI_COLOR_ERROR "Could not open file '%s': %s" PI_COLOR_RESET "\n", filename, strerror(errno));
         return NULL;
     }
 
     if (fseek(file, 0, SEEK_END) != 0)
     {
-        fprintf(stderr, "Could not seek file '%s'\n", filename);
+        fprintf(stderr, PI_COLOR_ERROR "Could not seek file '%s'" PI_COLOR_RESET "\n", filename);
         fclose(file);
         return NULL;
     }
@@ -408,14 +407,14 @@ char *read_file(const char *filename)
     long length = ftell(file);
     if (length < 0)
     {
-        fprintf(stderr, "Could not read file size for '%s'\n", filename);
+        fprintf(stderr, PI_COLOR_ERROR "Could not read file size for '%s'" PI_COLOR_RESET "\n", filename);
         fclose(file);
         return NULL;
     }
 
     if (fseek(file, 0, SEEK_SET) != 0)
     {
-        fprintf(stderr, "Could not seek file '%s'\n", filename);
+        fprintf(stderr, PI_COLOR_ERROR "Could not seek file '%s'" PI_COLOR_RESET "\n", filename);
         fclose(file);
         return NULL;
     }
@@ -423,14 +422,14 @@ char *read_file(const char *filename)
     char *buffer = (char *)malloc(length + 1);
     if (!buffer)
     {
-        fprintf(stderr, "Out of memory while reading '%s'\n", filename);
+        fprintf(stderr, PI_COLOR_ERROR "Out of memory while reading '%s'" PI_COLOR_RESET "\n", filename);
         fclose(file);
         return NULL;
     }
     size_t bytes_read = fread(buffer, 1, (size_t)length, file);
     if (bytes_read != (size_t)length)
     {
-        fprintf(stderr, "Failed to fully read '%s'\n", filename);
+        fprintf(stderr, PI_COLOR_ERROR "Failed to fully read '%s'" PI_COLOR_RESET "\n", filename);
         free(buffer);
         fclose(file);
         return NULL;
@@ -457,13 +456,13 @@ static int _run_compiler(Compiler *comp, Parser *parser, const char *entry_name,
     bool interrupted = interrupt_requested != 0;
     if (interrupted)
     {
-        fprintf(stderr, "\n[ctrl+c] exectuion interrupted\n");
+        fprintf(stderr, "\n" PI_COLOR_WARNING "[ctrl+c] execution interrupted" PI_COLOR_RESET "\n");
         interrupt_requested = 0;
     }
 
     clock_t end = clock();
     double time_taken = ((double)(end - start)) * 1000.0 / CLOCKS_PER_SEC;
-    printf("Execution Time: %.4f ms\n", time_taken);
+    printf(PI_COLOR_INFO "Execution Time: %.4f ms" PI_COLOR_RESET "\n", time_taken);
 
     if (parser)
         free_parser(parser);
@@ -702,9 +701,9 @@ static int _build_file(const char *filename)
 
     bool written = valid && px_writeProjectBuild(build_path, filename, source, compiler, &modules);
     if (written)
-        printf("Build completed: %s\n", build_path);
+        printf(PI_COLOR_SUCCESS "Build completed: %s" PI_COLOR_RESET "\n", build_path);
     else
-        fprintf(stderr, "Could not write build '%s'.\n", build_path);
+        fprintf(stderr, PI_COLOR_ERROR "Could not write build '%s'." PI_COLOR_RESET "\n", build_path);
 
     free(base_path);
     px_freeProjectBuild(&modules);
@@ -728,7 +727,7 @@ static int _run_executableFile(const char *filename)
     if (!build || !px_readExecutableBuild(filename, build))
     {
         free(build);
-        fprintf(stderr, "Could not load executable '%s'.\n", filename);
+        fprintf(stderr, PI_COLOR_ERROR "Could not load executable '%s'." PI_COLOR_RESET "\n", filename);
         return 1;
     }
 
@@ -741,7 +740,7 @@ static int _run_executableFile(const char *filename)
     {
         px_freeProjectBuild(build);
         free(build);
-        fprintf(stderr, "Executable '%s' has no entry module.\n", filename);
+        fprintf(stderr, PI_COLOR_ERROR "Executable '%s' has no entry module." PI_COLOR_RESET "\n", filename);
         return 1;
     }
 
@@ -1139,7 +1138,7 @@ static int _run_embeddedBuild(const char *filename, uint64_t offset)
     if (!build || !px_readEmbeddedBuild(filename, offset, build))
     {
         free(build);
-        fprintf(stderr, "Could not load packaged application '%s'.\n", filename);
+        fprintf(stderr, PI_COLOR_ERROR "Could not load packaged application '%s'." PI_COLOR_RESET "\n", filename);
         return 1;
     }
     PX_BuiltModule *entry = NULL;
@@ -1178,7 +1177,7 @@ static int _disassemble_file(const char *filename, const char *output_filename)
         output = fopen(output_filename, "wb");
         if (!output)
         {
-            fprintf(stderr, "Could not open output file '%s': %s\n", output_filename, strerror(errno));
+            fprintf(stderr, PI_COLOR_ERROR "Could not open output file '%s': %s" PI_COLOR_RESET "\n", output_filename, strerror(errno));
             free_parser(parser);
             free_compiler(comp);
             free(source);
@@ -1269,7 +1268,7 @@ static int _run_utilsTool(const char *mode, const char *filename)
     char *tool = _utils_ToolPath();
     if (!tool || !_file_exists(tool))
     {
-        fprintf(stderr, "Missing PiForminator.px beside the pilang executable. Build utils/PiForminator.pi first.\n");
+        fprintf(stderr, PI_COLOR_ERROR "Missing PiForminator.px beside the pilang executable. Build utils/PiForminator.pi first." PI_COLOR_RESET "\n");
         free(tool);
         return 1;
     }
@@ -1319,12 +1318,12 @@ static int _repl_braceDepth(const char *buf)
 // Runs a REPL.
 static int _run_repl(void)
 {
-#define C_RESET "\033[0m"
+#define C_RESET PI_COLOR_RESET
 #define C_BOLD "\033[1m"
-#define C_RED "\033[31m"
-#define C_GREEN "\033[32m"
-#define C_YELLOW "\033[33m"
-#define C_CYAN "\033[36m"
+#define C_RED PI_COLOR_ERROR
+#define C_GREEN PI_COLOR_SUCCESS
+#define C_YELLOW PI_COLOR_WARNING
+#define C_CYAN PI_COLOR_INFO
 
     printf(
         C_CYAN C_BOLD "Pilang v" PI_VERSION C_RESET
@@ -1496,7 +1495,7 @@ static int _run_repl(void)
 
             if (interrupt_requested)
             {
-                fprintf(stderr, "\n[ctrl+c] exectuion interrupted\n");
+                fprintf(stderr, "\n" PI_COLOR_WARNING "[ctrl+c] execution interrupted" PI_COLOR_RESET "\n");
                 interrupt_requested = 0;
                 // clear the buffer so stale input isn't re-executed
                 buf[0] = '\0';
@@ -1537,23 +1536,23 @@ static int _package_target(const char *program, const char *target)
     if (strcmp(target, "win") != 0 && strcmp(target, "web") != 0)
     {
         fprintf(stderr, "%sPackaging failed:%s target '%s' is not supported yet.\n",
-                _package_color("\033[31m"), _package_color("\033[0m"), target);
+                _package_color(PI_COLOR_ERROR), _package_color(PI_COLOR_RESET), target);
         return 1;
     }
     PiPackage package;
     if (!package_load(&package, target))
     {
         fprintf(stderr, "%sPackaging failed:%s package.loon is invalid.\n",
-                _package_color("\033[31m"), _package_color("\033[0m"));
+                _package_color(PI_COLOR_ERROR), _package_color(PI_COLOR_RESET));
         return 1;
     }
-    printf("%sPackaging%s %s %s (%s)\n", _package_color("\033[36m"),
-           _package_color("\033[0m"), package.name, package.version, target);
+    printf("%sPackaging%s %s %s (%s)\n", _package_color(PI_COLOR_INFO),
+           _package_color(PI_COLOR_RESET), package.name, package.version, target);
     int status = _build_file(package.entry);
     if (status != 0)
     {
         fprintf(stderr, "%sPackaging failed:%s could not compile '%s'.\n",
-                _package_color("\033[31m"), _package_color("\033[0m"), package.entry);
+                _package_color(PI_COLOR_ERROR), _package_color(PI_COLOR_RESET), package.entry);
         package_free(&package);
         return status;
     }
@@ -1564,7 +1563,7 @@ static int _package_target(const char *program, const char *target)
     if (runtime_length == 0 || runtime_length >= sizeof(runtime_path_buffer))
     {
         fprintf(stderr, "%sPackaging failed:%s could not locate the Pilang executable.\n",
-                _package_color("\033[31m"), _package_color("\033[0m"));
+                _package_color(PI_COLOR_ERROR), _package_color(PI_COLOR_RESET));
         package_free(&package);
         return 1;
     }
@@ -1576,13 +1575,13 @@ static int _package_target(const char *program, const char *target)
                         : package_bundle(runtime_path, &package, package_error, sizeof(package_error));
     if (!packaged)
     {
-        fprintf(stderr, "%sPackaging failed:%s %s\n", _package_color("\033[31m"),
-                _package_color("\033[0m"), package_error[0] ? package_error : "unknown error");
+        fprintf(stderr, "%sPackaging failed:%s %s\n", _package_color(PI_COLOR_ERROR),
+                _package_color(PI_COLOR_RESET), package_error[0] ? package_error : "unknown error");
         status = 1;
     }
     else
-        printf("%sPackage created:%s %s\n", _package_color("\033[32m"),
-               _package_color("\033[0m"), package.output);
+        printf("%sPackage created:%s %s\n", _package_color(PI_COLOR_SUCCESS),
+               _package_color(PI_COLOR_RESET), package.output);
     package_free(&package);
     return status;
 }
@@ -1638,7 +1637,7 @@ int main(int argc, char *argv[])
 
     if (strcmp(command, "ver") == 0)
     {
-        printf("Pilang: %s\n", PI_VERSION);
+        printf(PI_COLOR_INFO "Pilang: %s" PI_COLOR_RESET "\n", PI_VERSION);
         return 0;
     }
 
@@ -1648,12 +1647,12 @@ int main(int argc, char *argv[])
                                                               : NULL;
         if (!input)
         {
-            fprintf(stderr, "Usage: %s build [file]\n", argv[0]);
+            fprintf(stderr, PI_COLOR_ERROR "Usage: %s build [file]" PI_COLOR_RESET "\n", argv[0]);
             return 1;
         }
         if (argc == 2 && !_file_exists(input))
         {
-            fprintf(stderr, "Could not find main.pi in the current directory.\n");
+            fprintf(stderr, PI_COLOR_ERROR "Could not find main.pi in the current directory." PI_COLOR_RESET "\n");
             return 1;
         }
         pi_cli_argc = 1;
@@ -1668,7 +1667,7 @@ int main(int argc, char *argv[])
             return _package_target(argv[0], argv[2] + 7);
         if (argc != 2)
         {
-            fprintf(stderr, "Usage: %s pack [target:name]\n", argv[0]);
+            fprintf(stderr, PI_COLOR_ERROR "Usage: %s pack [target:name]" PI_COLOR_RESET "\n", argv[0]);
             return 1;
         }
         char **targets;
@@ -1676,7 +1675,7 @@ int main(int argc, char *argv[])
         if (!package_targets(&targets, &target_count))
         {
             fprintf(stderr, "%sPackaging failed:%s package.loon is invalid.\n",
-                    _package_color("\033[31m"), _package_color("\033[0m"));
+                    _package_color(PI_COLOR_ERROR), _package_color(PI_COLOR_RESET));
             return 1;
         }
         int status = 0;
@@ -1694,7 +1693,7 @@ int main(int argc, char *argv[])
         {
             if (!_file_exists("main.pi"))
             {
-                fprintf(stderr, "Could not find main.pi in the current directory.\n");
+                fprintf(stderr, PI_COLOR_ERROR "Could not find main.pi in the current directory." PI_COLOR_RESET "\n");
                 return 1;
             }
             pi_cli_argc = 1;
@@ -1710,7 +1709,7 @@ int main(int argc, char *argv[])
     {
         if (argc != 3)
         {
-            fprintf(stderr, "Usage: %s dis <file>\n", argv[0]);
+            fprintf(stderr, PI_COLOR_ERROR "Usage: %s dis <file>" PI_COLOR_RESET "\n", argv[0]);
             return 1;
         }
 
@@ -1721,7 +1720,7 @@ int main(int argc, char *argv[])
     {
         if (argc != 3)
         {
-            fprintf(stderr, "Usage: %s %s <file>\n", argv[0], command);
+            fprintf(stderr, PI_COLOR_ERROR "Usage: %s %s <file>" PI_COLOR_RESET "\n", argv[0], command);
             return 1;
         }
         return _run_utilsTool(command, argv[2]);
@@ -1736,7 +1735,7 @@ int main(int argc, char *argv[])
         return _run_file(command);
     }
 
-    fprintf(stderr, "Unknown command: %s\nUse '%s help' to see available commands.\n", command, argv[0]);
+    fprintf(stderr, PI_COLOR_ERROR "Unknown command: %s\nUse '%s help' to see available commands." PI_COLOR_RESET "\n", command, argv[0]);
     return 1;
 }
 

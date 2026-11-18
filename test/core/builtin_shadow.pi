@@ -1,0 +1,15 @@
+let INF = 3;
+
+fun print(value) {
+    return value;
+}
+
+{
+    let len = 7;
+    assert(len == 7, "local builtin shadowing");
+}
+
+print(INF);
+assert(INF == 3, "builtin constant shadowing");
+INF = 4;
+assert(INF == 4, "builtin constant assignment");

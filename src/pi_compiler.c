@@ -280,7 +280,7 @@ void add_code(Compiler *comp, Byte _byte)
 {
     if (!comp || !comp->code)
     {
-        fprintf(stderr, "Invalid compiler or code list\n");
+        fprintf(stderr, PI_COLOR_ERROR "Invalid compiler or code list" PI_COLOR_RESET "\n");
         exit(EXIT_FAILURE);
     }
 
@@ -293,7 +293,7 @@ void add_code(Compiler *comp, Byte _byte)
         comp->code->data = realloc(comp->code->data, cap * sizeof(Byte));
         if (comp->code->data == NULL)
         {
-            fprintf(stderr, "Memory allocation failed\n");
+            fprintf(stderr, PI_COLOR_ERROR "Memory allocation failed" PI_COLOR_RESET "\n");
             exit(EXIT_FAILURE);
         }
         comp->code->capacity = cap;
@@ -354,6 +354,8 @@ void print_locals(Compiler *comp)
 
 void add_localConst(Compiler *comp, char *name, bool is_const)
 {
+    warn_builtinRedefinition(comp, name);
+
     PiStack *locals = comp->current->locals;
 
     // Check for name conflict ONLY in current block
@@ -485,6 +487,29 @@ bool is_builtin(Compiler *comp, const char *name)
     return FALSE;
 }
 
+void warn_builtinRedefinition(Compiler *comp, const char *name)
+{
+    if (is_builtin(comp, name))
+        p_warningf(comp->current_line, comp->current_col,
+                   "Redefining built-in name [%s].", name);
+}
+
+bool has_declaredBinding(Compiler *comp, const char *name)
+{
+    for (int depth = _stack_size(comp->contexts) - 1; depth >= 0; depth--)
+    {
+        Context *context = _context_at(comp, depth);
+        for (int i = _stack_size(context->locals) - 1; i >= 0; i--)
+        {
+            Local *local = *(Local **)stack_getAt(context->locals, i);
+            if (strcmp(local->name, name) == 0)
+                return TRUE;
+        }
+    }
+
+    return comp->declared_globals && _ht_get(comp->declared_globals, name) != NULL;
+}
+
 static bool _global_isConst(Compiler *comp, const char *name)
 {
     bool *is_const = comp->declared_globals ? (bool *)_ht_get(comp->declared_globals, name) : NULL;
@@ -547,9 +572,7 @@ void add_variableConst(Compiler *comp, char *name, bool is_const)
     {
         if (_ht_get(comp->declared_globals, name) != NULL)
             p_errorf(comp->current_line, comp->current_col, "Name already exists [%s]", name);
-        if (is_builtin(comp, name))
-            p_errorf(comp->current_line, comp->current_col,
-                     "Name already exists [%s]; this name is reserved by a builtin.", name);
+        warn_builtinRedefinition(comp, name);
 
         ht_put(comp->declared_globals, name, &is_const);
 
@@ -1128,7 +1151,7 @@ void dis(Compiler *comp)
         snprintf(header_buf, sizeof(header_buf), "\n== Disassembly of %s ==\n\n",
                  strcmp(scope_name, "<global>") == 0 ? "global scope" : scope_name);
 #else
-        snprintf(header_buf, sizeof(header_buf), "\n\033[1;36m== Disassembly of %s ==\033[0m\n\n",
+        snprintf(header_buf, sizeof(header_buf), "\n" PI_COLOR_INFO "== Disassembly of %s ==" PI_COLOR_RESET "\n\n",
                  strcmp(scope_name, "<global>") == 0 ? "global scope" : scope_name);
 #endif
         _dis_emit(header_buf);
@@ -1425,10 +1448,10 @@ void p_error(const char *message, int line, int column)
     {
 
         if (error_source && error_source[0] != '\0')
-            fprintf(stderr, "[Parsing Error] in %s at line %d, column %d: %s\n",
+            fprintf(stderr, PI_COLOR_ERROR "[PARSE ERROR]" PI_COLOR_RESET " in %s at line %d, column %d: %s\n",
                     error_source, line, column, message);
         else
-            fprintf(stderr, "[Parsing Error] at line %d, column %d: %s\n",
+            fprintf(stderr, PI_COLOR_ERROR "[PARSE ERROR]" PI_COLOR_RESET " at line %d, column %d: %s\n",
                     line, column, message);
         exit(EXIT_FAILURE);
     }
@@ -1451,15 +1474,32 @@ void p_errorf(int line, int column, const char *format, ...)
         fflush(stdout);
 
         if (error_source && error_source[0] != '\0')
-            fprintf(stderr, "\n\033[1;31m[PARSE ERROR] in %s at line %d, column %d:\033[0m %s",
+            fprintf(stderr, "\n" PI_COLOR_ERROR "[PARSE ERROR]" PI_COLOR_RESET " in %s at line %d, column %d: %s",
                     error_source, line, column, buffer);
         else
-            fprintf(stderr, "\n\033[1;31m[PARSE ERROR] at line %d, column %d:\033[0m %s",
+            fprintf(stderr, "\n" PI_COLOR_ERROR "[PARSE ERROR]" PI_COLOR_RESET " at line %d, column %d: %s",
                     line, column, buffer);
         fprintf(stderr, "\n");
 
         exit(EXIT_FAILURE);
     }
+}
+
+void p_warningf(int line, int column, const char *format, ...)
+{
+    char buffer[1024];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+
+    fflush(stdout);
+    if (error_source && error_source[0] != '\0')
+        fprintf(stderr, PI_COLOR_WARNING "[WARNING]" PI_COLOR_RESET " in %s at line %d, column %d: %s\n",
+                error_source, line, column, buffer);
+    else
+        fprintf(stderr, PI_COLOR_WARNING "[WARNING]" PI_COLOR_RESET " at line %d, column %d: %s\n",
+                line, column, buffer);
 }
 
 void free_compiler(Compiler *comp)

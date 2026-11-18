@@ -29,7 +29,7 @@ else:
 GREEN = "\033[92m"
 RED = "\033[91m"
 YELLOW = "\033[93m"
-CYAN = "\033[96m"
+BLUE = "\033[34m"
 DIM = "\033[90m"
 RESET = "\033[0m"
 
@@ -147,7 +147,7 @@ def main():
 
     grouped = collect_tests(args.filter)
     if not grouped:
-        print("No test files found.")
+        print(f"{BLUE}No test files found.{RESET}")
         return
 
     total = 0
@@ -156,7 +156,7 @@ def main():
     expected_failures = 0
     total_duration = 0.0  # <-- added
 
-    print(f"\n{CYAN}Pilang Diagnostic Test Suite{RESET}")
+    print(f"\n{BLUE}Pilang Diagnostic Test Suite{RESET}")
     print(f"{DIM}Interpreter: {PI_COMMAND}{RESET}")
     print(f"{DIM}Test root:    {TEST_DIR}{RESET}\n")
 
@@ -182,7 +182,7 @@ def main():
     print(f"Total:              {total}")
     print(f"{GREEN}Passed:             {passed}{RESET}")
     print(f"{RED}Failed:             {len(failed)}{RESET}")
-    print(f"{CYAN}Expected failures:  {expected_failures}{RESET}")
+    print(f"{BLUE}Expected failures:  {expected_failures}{RESET}")
 
     avg_duration = total_duration / total if total > 0 else 0.0
     print(f"{DIM}Average runtime:   {avg_duration:.1f} ms{RESET}")  # <-- added
@@ -193,7 +193,7 @@ def main():
             print_failure(record)
         raise SystemExit(1)
 
-    print("\nFinished")
+    print(f"\n{GREEN}Finished{RESET}")
 
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ Value pi_error(VM *vm, int argc, Value *argv)
 
     const char *str = as_string(argv[0]);    
     
-    fprintf(stderr, "\033[31mError: %s\033[0m\n", str);
+    fprintf(stderr, PI_COLOR_ERROR "Error: %s" PI_COLOR_RESET "\n", str);
 
     exit(EXIT_FAILURE);
 }
@@ -46,7 +46,7 @@ Value pi_assert(VM *vm, int argc, Value *argv)
 
     if (!as_bool(condition))
     {
-        printf("Assertion failed: %s\n", message);
+        fprintf(stderr, PI_COLOR_ERROR "Assertion failed: %s" PI_COLOR_RESET "\n", message);
         free((void *)message);
         exit(EXIT_FAILURE);
     }
