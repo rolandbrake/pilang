@@ -1,4 +1,5 @@
 #include "../pi_kwargs.h"
+#include <math.h>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -7,11 +8,51 @@
 #include "../../src/pi_object.h"
 
 EM_JS(int, _web_audio_load, (const char *path), {
-    Module.piAudio ||= [];
+    Module.piAudio || = [];
 
     const a = new Audio(UTF8ToString(path));
     Module.piAudio.push(a);
 
+    return Module.piAudio.length - 1;
+});
+
+EM_JS(int, _web_audio_tone, (double frequency, double duration), {
+    const rate = 22050;
+    const frames = Math.max(1, Math.floor(rate * duration));
+    const wav = new ArrayBuffer(44 + frames * 2);
+    const view = new DataView(wav);
+    const text = (offset, value) =>
+    {
+        for (let i = 0; i < value.length; i++)
+            view.setUint8(offset + i, value.charCodeAt(i));
+    };
+
+    text(0, "RIFF");
+    view.setUint32(4, 36 + frames * 2, true);
+    text(8, "WAVE");
+    text(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, rate, true);
+    view.setUint32(28, rate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    text(36, "data");
+    view.setUint32(40, frames * 2, true);
+
+    for (let i = 0; i < frames; i++)
+    {
+        const fade = Math.min(1, i / (rate * 0.008), (frames - i) / (rate * 0.02));
+        const sample = Math.sin(2 * Math.PI * frequency * i / rate) * fade * 0.35;
+        view.setInt16(44 + i * 2, sample * 32767, true);
+    }
+
+    Module.piAudio || = [];
+    const url = URL.createObjectURL(new Blob([wav],
+                                             {type: "audio/wav" }));
+    const a = new Audio(url);
+    Module.piAudio.push(a);
     return Module.piAudio.length - 1;
 });
 
@@ -138,6 +179,22 @@ Value au_load(VM *vm, int argc, Value *argv)
     return NEW_OBJ(add_obj(vm, (Object *)a));
 }
 
+Value au_tone(VM *vm, int argc, Value *argv)
+{
+    if (argc < 2 || !IS_NUM(argv[0]) || !IS_NUM(argv[1]))
+        vm_error(vm, "[audio.tone] expects a frequency and duration.");
+    double frequency = AS_NUM(argv[0]);
+    double duration = AS_NUM(argv[1]);
+    if (!isfinite(frequency) || frequency < 20 || frequency > 20000)
+        vm_error(vm, "[audio.tone] frequency must be from 20 to 20000 Hz.");
+    if (!isfinite(duration) || duration <= 0 || duration > 5)
+        vm_error(vm, "[audio.tone] duration must be greater than 0 and no more than 5 seconds.");
+
+    ObjAudio *a = (ObjAudio *)alloc_object(sizeof(*a), OBJ_AUDIO);
+    a->browser_id = _web_audio_tone(frequency, duration);
+    return NEW_OBJ(add_obj(vm, (Object *)a));
+}
+
 Value au_play(VM *vm, int argc, Value *argv)
 {
     if (argc < 1)
@@ -190,8 +247,9 @@ Value au_stop(VM *vm, int argc, Value *argv)
     return NEW_NIL();
 }
 
-Value au_isPlaying(VM *vm, int argc, Value *argv) { 
-    return NEW_BOOL(_web_audio_playing(_web_audio(vm, argv[0])->browser_id)); 
+Value au_isPlaying(VM *vm, int argc, Value *argv)
+{
+    return NEW_BOOL(_web_audio_playing(_web_audio(vm, argv[0])->browser_id));
 }
 Value au_sampleRate(VM *vm, int argc, Value *argv) { return NEW_NUM(0); }
 Value au_channels(VM *vm, int argc, Value *argv) { return NEW_NUM(0); }
@@ -229,10 +287,11 @@ Value au_stopMusic(VM *vm, int argc, Value *argv)
     _web_music_stop();
     return NEW_BOOL(TRUE);
 }
-static BuiltinFunc audio_funcs[] = {{"load", au_load}, {"sample_rate", au_sampleRate}, {"channels", au_channels}, {"frames", au_frames}, {"duration", au_duration}, {"format", au_format}, {"play", au_play}, {"volume", au_volume}, {"pause", au_pause}, {"resume", au_resume}, {"stop", au_stop}, {"is_playing", au_isPlaying}, {"play_music", au_playMusic}, {"music_isPlaying", au_musicIsPlaying}, {"stop_music", au_stopMusic}};
+static BuiltinFunc audio_funcs[] = {{"load", au_load}, {"tone", au_tone}, {"sample_rate", au_sampleRate}, {"channels", au_channels}, {"frames", au_frames}, {"duration", au_duration}, {"format", au_format}, {"play", au_play}, {"volume", au_volume}, {"pause", au_pause}, {"resume", au_resume}, {"stop", au_stop}, {"is_playing", au_isPlaying}, {"play_music", au_playMusic}, {"music_isPlaying", au_musicIsPlaying}, {"stop_music", au_stopMusic}};
 static BuiltinConst audio_consts[] = {};
 DEFINE_BUILTIN_MODULE(module_audio, "audio", audio_funcs, audio_consts);
 #else
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -394,6 +453,74 @@ Value au_load(VM *vm, int argc, Value *argv)
                                                    (float *)converted_buffer, frames, chunk)));
 }
 
+Value au_tone(VM *vm, int argc, Value *argv)
+{
+    if (argc < 2 || !IS_NUM(argv[0]) || !IS_NUM(argv[1]))
+        vm_error(vm, "[audio.tone] expects a frequency and duration.");
+    double frequency = AS_NUM(argv[0]);
+    double duration = AS_NUM(argv[1]);
+    if (!isfinite(frequency) || frequency < 20 || frequency > 20000)
+        vm_error(vm, "[audio.tone] frequency must be from 20 to 20000 Hz.");
+    if (!isfinite(duration) || duration <= 0 || duration > 5)
+        vm_error(vm, "[audio.tone] duration must be greater than 0 and no more than 5 seconds.");
+
+    _ensure_mixer(vm);
+
+    int sample_rate, channels;
+    Uint16 format;
+    if (!Mix_QuerySpec(&sample_rate, &format, &channels))
+        vm_error(vm, "[audio.tone] audio output is unavailable.");
+    if (format != AUDIO_F32SYS || sample_rate <= 0 || channels <= 0)
+        vm_error(vm, "[audio.tone] unsupported audio output format.");
+
+    double requested_frames = duration * sample_rate;
+    if (requested_frames > UINT32_MAX)
+        vm_error(vm, "[audio.tone] duration is too long.");
+    Uint32 frames = (Uint32)requested_frames;
+    if (frames == 0)
+        frames = 1;
+    size_t sample_count = (size_t)frames * (size_t)channels;
+    if (sample_count > UINT32_MAX / sizeof(float))
+        vm_error(vm, "[audio.tone] duration is too long.");
+
+    size_t bytes = sample_count * sizeof(float);
+    float *samples = (float *)malloc(bytes);
+    if (!samples)
+        vm_error(vm, "[audio.tone] out of memory.");
+
+    double fade_in = sample_rate * 0.008;
+    double fade_out = sample_rate * 0.02;
+    for (Uint32 frame = 0; frame < frames; frame++)
+    {
+        double envelope = 1.0;
+        if (frame < fade_in)
+            envelope = frame / fade_in;
+        double remaining = frames - frame;
+        if (remaining < fade_out && remaining / fade_out < envelope)
+            envelope = remaining / fade_out;
+
+        float sample = (float)(sinf((float)(2.0 * 3.141592653589793 *
+                                            frequency * frame / sample_rate)) *
+                               envelope * 0.35);
+        for (int channel = 0; channel < channels; channel++)
+            samples[(size_t)frame * (size_t)channels + (size_t)channel] = sample;
+    }
+
+    Mix_Chunk *chunk = Mix_QuickLoad_RAW((Uint8 *)samples, (Uint32)bytes);
+    if (!chunk)
+    {
+        free(samples);
+        vm_errorf(vm, "[audio.tone] failed to create tone: %s", Mix_GetError());
+    }
+
+    SDL_AudioSpec spec = {0};
+    spec.freq = sample_rate;
+    spec.format = format;
+    spec.channels = (Uint8)channels;
+    spec.size = (Uint32)bytes;
+    return NEW_OBJ(add_obj(vm, (Object *)new_audio(spec, samples, frames, chunk)));
+}
+
 Value au_sampleRate(VM *vm, int argc, Value *argv)
 {
     return NEW_NUM(_require_audio(vm, argc, argv, "sample_rate")->spec.freq);
@@ -550,6 +677,7 @@ Value au_stopMusic(VM *vm, int argc, Value *argv)
 
 static BuiltinFunc audio_funcs[] = {
     {"load", au_load},
+    {"tone", au_tone},
     {"sample_rate", au_sampleRate},
     {"channels", au_channels},
     {"frames", au_frames},

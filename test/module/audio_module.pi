@@ -3,6 +3,7 @@ import math.{floor}
 import fs
 
 assert(type(audio.load) == "function", "audio should expose load")
+assert(type(audio.tone) == "function", "audio should expose tone")
 
 
 let clip = audio.load("./sample.wav")
@@ -12,3 +13,8 @@ assert(audio.channels(clip) == 1, "channel count should be read from WAV")
 assert(audio.frames(clip) == 120968, "frame count should be derived from WAV data")
 assert(floor(audio.duration(clip)) == 5, "duration should be frames divided by sample rate")
 assert(audio.format(clip) == "f32", "loaded clips should use canonical float32 samples")
+
+let tone = audio.tone(880, .1)
+assert(type(tone) == "audio", "tone should return an audio clip")
+assert(audio.duration(tone) > .09, "tone duration should be retained")
+assert(audio.play(tone) >= 0, "synthesized tones should play")

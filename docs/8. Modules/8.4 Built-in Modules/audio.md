@@ -1,7 +1,8 @@
 # audio Module
 
-The `audio` module loads sound clips and plays them through the native SDL_mixer
-backend. It is intended for short sound effects and simple game audio.
+The `audio` module loads or synthesizes sound clips and plays them through the
+native SDL_mixer backend. It is intended for short sound effects and simple
+game audio.
 
 ```swift
 import audio
@@ -30,6 +31,19 @@ let effect = audio.load("sounds/coin.ogg")
 
 Relative paths are resolved from the directory containing the executing `.pi`
 file. Absolute paths are used unchanged.
+
+## Synthesized tones
+
+### `audio.tone(frequency, duration)`
+
+Creates and returns a sine-wave audio clip without loading a file. Frequency
+must be from 20 to 20,000 Hz, and duration must be greater than 0 and no more
+than 5 seconds.
+
+```swift
+let clear = audio.tone(880, 0.18)
+audio.play(clear)
+```
 
 ## Clip Metadata
 

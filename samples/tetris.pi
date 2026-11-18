@@ -1,96 +1,118 @@
+// Tetris for the PiLang SDL draw API.
+// Controls: Arrow keys or A/D move, Arrow Up or W rotates,
+// Arrow Down soft-drops, Space hard-drops, P pauses, R restarts.
+
+import draw
+import audio
 import random
-import io
+import time.{clock}
+import math:m
 
-const WIDTH = 10
-const HEIGHT = 20
+const BOARD_WIDTH = 10
+const BOARD_HEIGHT = 20
+const CELL_SIZE = 26
+const BOARD_X = 48
+const BOARD_Y = 40
+const WIDTH = 560
+const HEIGHT = 600
 
-let PIECES = [
-    {
-        name: "I",
-        color: "cyan",
-        rotations: [
-            [[0, 1], [1, 1], [2, 1], [3, 1]],
-            [[2, 0], [2, 1], [2, 2], [2, 3]],
-            [[0, 2], [1, 2], [2, 2], [3, 2]],
-            [[1, 0], [1, 1], [1, 2], [1, 3]]
-        ]
-    },
-    {
-        name: "O",
-        color: "yellow",
-        rotations: [
-            [[1, 0], [2, 0], [1, 1], [2, 1]],
-            [[1, 0], [2, 0], [1, 1], [2, 1]],
-            [[1, 0], [2, 0], [1, 1], [2, 1]],
-            [[1, 0], [2, 0], [1, 1], [2, 1]]
-        ]
-    },
-    {
-        name: "T",
-        color: "magenta",
-        rotations: [
-            [[1, 0], [0, 1], [1, 1], [2, 1]],
-            [[1, 0], [1, 1], [2, 1], [1, 2]],
-            [[0, 1], [1, 1], [2, 1], [1, 2]],
-            [[1, 0], [0, 1], [1, 1], [1, 2]]
-        ]
-    },
-    {
-        name: "S",
-        color: "green",
-        rotations: [
-            [[1, 0], [2, 0], [0, 1], [1, 1]],
-            [[1, 0], [1, 1], [2, 1], [2, 2]],
-            [[1, 1], [2, 1], [0, 2], [1, 2]],
-            [[0, 0], [0, 1], [1, 1], [1, 2]]
-        ]
-    },
-    {
-        name: "Z",
-        color: "red",
-        rotations: [
-            [[0, 0], [1, 0], [1, 1], [2, 1]],
-            [[2, 0], [1, 1], [2, 1], [1, 2]],
-            [[0, 1], [1, 1], [1, 2], [2, 2]],
-            [[1, 0], [0, 1], [1, 1], [0, 2]]
-        ]
-    },
-    {
-        name: "J",
-        color: "blue",
-        rotations: [
-            [[0, 0], [0, 1], [1, 1], [2, 1]],
-            [[1, 0], [2, 0], [1, 1], [1, 2]],
-            [[0, 1], [1, 1], [2, 1], [2, 2]],
-            [[1, 0], [1, 1], [0, 2], [1, 2]]
-        ]
-    },
-    {
-        name: "L",
-        color: "white",
-        rotations: [
-            [[2, 0], [0, 1], [1, 1], [2, 1]],
-            [[1, 0], [1, 1], [1, 2], [2, 2]],
-            [[0, 1], [1, 1], [2, 1], [0, 2]],
-            [[0, 0], [1, 0], [1, 1], [1, 2]]
-        ]
-    }
+PIECES = [
+    {kind: 0, rotations: [
+        [[0, 1], [1, 1], [2, 1], [3, 1]],
+        [[2, 0], [2, 1], [2, 2], [2, 3]],
+        [[0, 2], [1, 2], [2, 2], [3, 2]],
+        [[1, 0], [1, 1], [1, 2], [1, 3]]
+    ]},
+
+    {kind: 1, rotations: [
+        [[1, 0], [2, 0], [1, 1], [2, 1]],
+        [[1, 0], [2, 0], [1, 1], [2, 1]],
+        [[1, 0], [2, 0], [1, 1], [2, 1]],
+        [[1, 0], [2, 0], [1, 1], [2, 1]]
+    ]},
+    
+    {kind: 2, rotations: [
+        [[1, 0], [0, 1], [1, 1], [2, 1]],
+        [[1, 0], [1, 1], [2, 1], [1, 2]],
+        [[0, 1], [1, 1], [2, 1], [1, 2]],
+        [[1, 0], [0, 1], [1, 1], [1, 2]]
+    ]},
+
+    {kind: 3, rotations: [
+        [[1, 0], [2, 0], [0, 1], [1, 1]],
+        [[1, 0], [1, 1], [2, 1], [2, 2]],
+        [[1, 1], [2, 1], [0, 2], [1, 2]],
+        [[0, 0], [0, 1], [1, 1], [1, 2]]
+    ]},
+
+    {kind: 4, rotations: [
+        [[0, 0], [1, 0], [1, 1], [2, 1]],
+        [[2, 0], [1, 1], [2, 1], [1, 2]],
+        [[0, 1], [1, 1], [1, 2], [2, 2]],
+        [[1, 0], [0, 1], [1, 1], [0, 2]]
+    ]},
+
+    {kind: 5, rotations: [
+        [[0, 0], [0, 1], [1, 1], [2, 1]],
+        [[1, 0], [2, 0], [1, 1], [1, 2]],
+        [[0, 1], [1, 1], [2, 1], [2, 2]],
+        [[1, 0], [1, 1], [0, 2], [1, 2]]
+    ]},
+    
+    {kind: 6, rotations: [
+        [[2, 0], [0, 1], [1, 1], [2, 1]],
+        [[1, 0], [1, 1], [1, 2], [2, 2]],
+        [[0, 1], [1, 1], [2, 1], [0, 2]],
+        [[0, 0], [1, 0], [1, 1], [1, 2]]
+    ]}
 ]
 
+COLORS = [
+    draw.COLOR_CYAN,
+    draw.COLOR_YELLOW,
+    draw.COLOR_MAGENTA,
+    draw.COLOR_LIME,
+    draw.COLOR_RED,
+    draw.COLOR_BLUE,
+    draw.COLOR_ORANGE
+]
+
+ctx = draw.canvas(WIDTH, HEIGHT, "PiLang Tetris")
+clear_sound = audio.tone(880, .18)
+
+board = []
+piece = nil
+next = nil
+score = 0
+lines = 0
+over = false
+paused = false
+fall_time = 0.0
+frame_time = clock()
+
+left_old = false
+right_old = false
+down_old = false
+rotate_old = false
+drop_old = false
+pause_old = false
+restart_old = false
+left_wait = 0.0
+right_wait = 0.0
+down_wait = 0.0
+
 fun make_board() {
-    let board = []
-
-    for y in 0..HEIGHT {
+    let rows = []
+    for y in 0..BOARD_HEIGHT {
         let row = []
-        for x in 0..WIDTH
+        for x in 0..BOARD_WIDTH
             row.push(0)
-        board.push(row)
+        rows.push(row)
     }
-
-    return board
+    return rows
 }
 
-fun new_piece() {
+fun random_piece() {
     return {
         kind: random.randint(0, #PIECES - 1),
         rotation: 0,
@@ -99,288 +121,410 @@ fun new_piece() {
     }
 }
 
-fun piece_blocks(piece, x = nil, y = nil, rotation = nil) {
-    if (x == nil)
-        x = piece.x
-    if (y == nil)
-        y = piece.y
-    if (rotation == nil)
-        rotation = piece.rotation
+fun piece_blocks(active, px = nil, py = nil, rotation = nil) {
+    if px == nil px = active.x
+    if py == nil py = active.y
+    if rotation == nil rotation = active.rotation
 
-    let shape = PIECES[piece.kind].rotations[rotation]
-    let blocks = []
-
+    let result = [],
+        shape = PIECES[active.kind].rotations[rotation]
     for block in shape
-        blocks.push([x + block[0], y + block[1]])
-
-    return blocks
+        result.push([px + block[0], py + block[1]])
+    return result
 }
 
-fun has_block(blocks, x, y) {
+fun collides(active, px, py, rotation) {
+    let blocks = piece_blocks(active, px, py, rotation)
     for block in blocks {
-        if (block[0] == x && block[1] == y)
+        let bx = block[0],
+            by = block[1]
+        if bx < 0 || bx >= BOARD_WIDTH || by >= BOARD_HEIGHT
+            return true
+        if by >= 0 && board[by][bx] != 0
             return true
     }
-
     return false
 }
 
-fun collides(board, piece, x, y, rotation) {
-    let blocks = piece_blocks(piece, x, y, rotation)
-
-    for block in blocks {
-        let bx = block[0]
-        let by = block[1]
-
-        if (bx < 0 || bx >= WIDTH || by < 0 || by >= HEIGHT)
-            return true
-        if (board[by][bx] != 0)
-            return true
-    }
-
-    return false
-}
-
-fun try_move(board, piece, dx, dy) {
-    let nx = piece.x + dx
-    let ny = piece.y + dy
-
-    if (!collides(board, piece, nx, ny, piece.rotation)) {
+fun try_move(dx, dy) {
+    let nx = piece.x + dx,
+        ny = piece.y + dy
+    if !collides(piece, nx, ny, piece.rotation) {
         piece.x = nx
         piece.y = ny
         return true
     }
-
     return false
 }
 
-fun try_rotate(board, piece) {
-    let next_rotation = (piece.rotation + 1) % 4
-
-    if (!collides(board, piece, piece.x, piece.y, next_rotation)) {
-        piece.rotation = next_rotation
-        return true
+fun try_rotate() {
+    let rot = (piece.rotation + 1) % 4
+    if !collides(piece, piece.x, piece.y, rot) {
+        piece.rotation = rot
+    } elif !collides(piece, piece.x - 1, piece.y, rot) {
+        piece.x -= 1
+        piece.rotation = rot
+    } elif !collides(piece, piece.x + 1, piece.y, rot) {
+        piece.x += 1
+        piece.rotation = rot
     }
-
-    if (!collides(board, piece, piece.x - 1, piece.y, next_rotation)) {
-        piece.x--
-        piece.rotation = next_rotation
-        return true
-    }
-
-    if (!collides(board, piece, piece.x + 1, piece.y, next_rotation)) {
-        piece.x++
-        piece.rotation = next_rotation
-        return true
-    }
-
-    return false
 }
 
-fun lock_piece(board, piece) {
-    let blocks = piece_blocks(piece)
-
-    for block in blocks
-        board[block[1]][block[0]] = piece.kind + 1
-}
-
-fun is_full_row(row) {
-    for cell in row {
-        if (cell == 0)
-            return false
+fun lock_piece() {
+    for block in piece_blocks(piece) {
+        let bx = block[0],
+            by = block[1]
+        if by >= 0
+            board[by][bx] = piece.kind + 1
     }
-
-    return true
 }
 
-fun empty_row() {
-    let row = []
-    for x in 0..WIDTH
-        row.push(0)
-    return row
-}
-
-fun clear_lines(board) {
-    let kept = []
-    let cleared = 0
+fun clear_lines() {
+    let kept = [],
+        cleared = 0
 
     for row in board {
-        if (is_full_row(row))
-            cleared++
+        let full = true
+        for cell in row {
+            if cell == 0 full = false
+        }
+        if full
+            cleared += 1
         else
             kept.push(row)
     }
 
-    while (#kept < HEIGHT)
-        kept.insert(0, empty_row())
+    while #kept < BOARD_HEIGHT {
+        let row = []
 
-    for y in 0..HEIGHT
-        board[y] = kept[y]
+        for x in 0..BOARD_WIDTH
+            row.push(0)
+
+        kept.insert(0, row)
+    }
+
+    board = kept
+
+    if cleared > 0 {
+        lines += cleared
+
+        if cleared == 1
+            score += 100
+        elif cleared == 2
+            score += 300
+        elif cleared == 3
+            score += 500
+        elif cleared == 4
+            score += 800
+
+        audio.play(clear_sound)
+    }
 
     return cleared
 }
 
-fun score_for(lines) {
-    if (lines == 1) return 100
-    if (lines == 2) return 300
-    if (lines == 3) return 500
-    if (lines == 4) return 800
-    return 0
+fun spawn_piece() {
+    piece = next
+    piece.x = 3
+    piece.y = 0
+    piece.rotation = 0
+    next = random_piece()
+
+    if collides(piece, piece.x, piece.y, piece.rotation)
+        over = true
 }
 
-fun print_cell(kind) {
-    if (kind == 0) {
-        printf("  ")
-    } elif (kind == 1) {
-        printf("{0:fg:cyan bold}", "[]")
-    } elif (kind == 2) {
-        printf("{0:fg:yellow bold}", "[]")
-    } elif (kind == 3) {
-        printf("{0:fg:magenta bold}", "[]")
-    } elif (kind == 4) {
-        printf("{0:fg:green bold}", "[]")
-    } elif (kind == 5) {
-        printf("{0:fg:red bold}", "[]")
-    } elif (kind == 6) {
-        printf("{0:fg:blue bold}", "[]")
+fun hard_drop() {
+    let distance = 0
+
+    while try_move(0, 1) {
+        distance += 1
+    }
+
+    score += distance * 2
+    lock_piece()
+    clear_lines()
+    spawn_piece()
+}
+
+fun soft_drop() {
+    if !try_move(0, 1) {
+        lock_piece()
+        clear_lines()
+        spawn_piece()
     } else {
-        printf("{0:fg:white bold}", "[]")
+        score += 1
     }
 }
 
-fun render(board, piece, score, lines, turn) {
-    io.pos(0, 0)
-    printf("{0:fg:cyan bold}  {1:fg:white} {2:d}  {3:fg:white} {4:d}  {5:fg:white} {6:d}\n",
-           "ASCII TETRIS", "score", score, "lines", lines, "turn", turn)
-    printf("{0:fg:yellow} {1}\n", "controls:"
-        , "a/left | d/right | s/down | w/up rotate | space drop | q quit")
-    printf("+")
-    for x in 0..WIDTH
-        printf("--")
-    printf("+\n")
-
-    let active = piece_blocks(piece)
-
-    for y in 0..HEIGHT {
-        printf("|")
-        for x in 0..WIDTH {
-            if (has_block(active, x, y))
-                print_cell(piece.kind + 1)
-            else
-                print_cell(board[y][x])
-        }
-        printf("|\n")
-    }
-
-    printf("+")
-    for x in 0..WIDTH
-        printf("--")
-    printf("+\n")
+fun speed() {
+    let result = .72 - lines * .015
+    if result < .12 result = .12
+    return result
 }
 
-fun drop_piece(board, piece) {
-    while (try_move(board, piece, 0, 1))
-        nil
+fun start_game() {
+    random.seed(m.floor(clock() * 1000000))
+
+    board = make_board()
+    next = random_piece()
+
+    score = 0
+    lines = 0
+    over = false
+    paused = false
+
+    fall_time = 0.0
+    left_wait = 0.0
+    right_wait = 0.0
+    down_wait = 0.0
+    left_old = false
+    right_old = false
+    down_old = false
+    rotate_old = false
+    drop_old = false
+    pause_old = false
+    restart_old = false
+
+    spawn_piece()
 }
 
-fun spawn_or_end(board) {
-    let piece = new_piece()
-    if (collides(board, piece, piece.x, piece.y, piece.rotation))
-        return nil
-    return piece
-}
+fun update(canvas, dt) {
+    let r_down = draw.key(canvas, draw.KEY_R)
 
-fun play() {
-    random.seed(time())
-    io.clear()
-    io.cursor(false)
+    if r_down && !restart_old
+        start_game()
 
-    let board = make_board()
-    let piece = spawn_or_end(board)
-    let score = 0
-    let lines = 0
-    let turn = 1
-    let fall_delay = 500
-    let last_fall = time()
-    let running = piece != nil
-    let quit = false
-    let dirty = true
+    restart_old = r_down
 
-    while (running) {
-        if (dirty) {
-            render(board, piece, score, lines, turn)
-            dirty = false
-        }
+    if over return
 
-        let command = io.key(25)
+    let p_down = draw.key(canvas, draw.KEY_P)
 
-        if (command == "q" || command == "quit") {
-            quit = true
-            running = false
+    if p_down && !pause_old
+        paused = !paused
+
+    pause_old = p_down
+    if paused return
+
+    let left_down = draw.key(canvas, draw.KEY_LEFT)   || draw.key(canvas, draw.KEY_A),
+        right_down = draw.key(canvas, draw.KEY_RIGHT) || draw.key(canvas, draw.KEY_D),
+        down_down = draw.key(canvas, draw.KEY_DOWN)   || draw.key(canvas, draw.KEY_S),
+        rotate_down = draw.key(canvas, draw.KEY_UP)   || draw.key(canvas, draw.KEY_W),
+        drop_down = draw.key(canvas, draw.KEY_SPACE)
+
+    if left_down {
+        if !left_old {
+            try_move(-1, 0)
+            left_wait = .2
         } else {
-            let should_lock = false
-
-            if (command != nil) {
-                command = lower(command)
-
-                if (command == "a" || command == "left") {
-                    try_move(board, piece, -1, 0)
-                    dirty = true
-                } elif (command == "d" || command == "right") {
-                    try_move(board, piece, 1, 0)
-                    dirty = true
-                } elif (command == "s" || command == "down") {
-                    if (!try_move(board, piece, 0, 1))
-                        should_lock = true
-                    dirty = true
-                } elif (command == "w" || command == "up") {
-                    try_rotate(board, piece)
-                    dirty = true
-                } elif (command == " ") {
-                    drop_piece(board, piece)
-                    should_lock = true
-                    dirty = true
-                }
+            left_wait -= dt
+            if left_wait <= 0 {
+                try_move(-1, 0)
+                left_wait = .08
             }
-
-            if (time() - last_fall >= fall_delay) {
-                if (!try_move(board, piece, 0, 1))
-                    should_lock = true
-                last_fall = time()
-                dirty = true
-            }
-
-            if (should_lock) {
-                lock_piece(board, piece)
-                let cleared = clear_lines(board)
-                if (cleared > 0) {
-                    lines += cleared
-                    score += score_for(cleared)
-                    printf("{0:fg:yellow bold} {1:d} {2}\n", "cleared", cleared, "line(s)")
-                }
-
-                piece = spawn_or_end(board)
-                if (piece == nil)
-                    running = false
-                last_fall = time()
-                dirty = true
-            }
-
-            if (dirty)
-                turn++
         }
+    } else {
+        left_wait = 0.0
     }
 
-    io.cursor(true)
+    if right_down {
+        if !right_old {
+            try_move(1, 0)
+            right_wait = .2
+        } else {
+            right_wait -= dt
+            if right_wait <= 0 {
+                try_move(1, 0)
+                right_wait = .08
+            }
+        }
+    } else {
+        right_wait = 0.0
+    }
 
-    if (quit)
-        printf("{0:fg:yellow bold} {1:fg:white} {2:d}  {3:fg:white} {4:d}\n"
-            , "QUIT", "score", score, "lines", lines)
-    else {
-        render(board, {kind: 0, rotation: 0, x: -4, y: -4}, score, lines, turn)
-        printf("{0:fg:red bold} {1:fg:white} {2:d}  {3:fg:white} {4:d}\n"
-            , "GAME OVER", "score", score, "lines", lines)
+    if down_down {
+        if !down_old {
+            soft_drop()
+            down_wait = .06
+        } else {
+            down_wait -= dt
+            if down_wait <= 0 {
+                soft_drop()
+                down_wait = .06
+            }
+        }
+    } else {
+        down_wait = 0.0
+    }
+
+    if rotate_down && !rotate_old try_rotate()
+    if drop_down && !drop_old hard_drop()
+
+    left_old = left_down
+    right_old = right_down
+    down_old = down_down
+    rotate_old = rotate_down
+    drop_old = drop_down
+
+    fall_time += dt
+
+    let interval = speed()
+
+    while fall_time >= interval && !over {
+        fall_time -= interval
+        soft_drop()
     }
 }
 
-play()
+fun draw_block(canvas, bx, by, kind) {
+    let px = BOARD_X + bx * CELL_SIZE,
+        py = BOARD_Y + by * CELL_SIZE,
+        color = COLORS[kind - 1]
+
+    draw.rect(canvas, px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2, color, true)
+    draw.rect(canvas, px + 4, py + 4, CELL_SIZE - 8, CELL_SIZE - 8,
+              0xFFFFFF, false)
+}
+
+fun draw_ghost(canvas) {
+    if piece == nil || over
+        return
+
+    let ghost_y = piece.y,
+        shape = PIECES[piece.kind].rotations[piece.rotation]
+
+    while !collides(piece, piece.x, ghost_y + 1, piece.rotation)
+        ghost_y += 1
+
+    for block in shape {
+        let px = BOARD_X + (piece.x + block[0]) * CELL_SIZE,
+            py = BOARD_Y + (ghost_y + block[1]) * CELL_SIZE
+
+        if ghost_y + block[1] >= 0
+            draw.rect(canvas, px + 3, py + 3, CELL_SIZE - 6, CELL_SIZE - 6,
+                      draw.COLOR_LIGHT_GRAY, false)
+    }
+}
+
+fun draw_preview(canvas) {
+    let title_x = 356
+
+    draw.text(canvas, title_x, 58, "NEXT", {
+        color: draw.COLOR_WHITE, size: 20, bold: true
+    })
+    draw.rect(canvas, title_x - 10, 88, 170, 142, 0x20263A, true)
+
+    if next != nil {
+        let shape = PIECES[next.kind].rotations[0],
+            min_x = 99,
+            min_y = 99,
+            max_x = -1,
+            max_y = -1
+            
+        for block in shape {
+            if block[0] < min_x min_x = block[0]
+            if block[0] > max_x max_x = block[0]
+            if block[1] < min_y min_y = block[1]
+            if block[1] > max_y max_y = block[1]
+        }
+
+        let box_x = title_x - 10,
+            box_y = 88,
+            box_width = 170,
+            box_height = 142
+
+        let shape_width = (max_x - min_x + 1) * CELL_SIZE,
+            shape_height = (max_y - min_y + 1) * CELL_SIZE
+
+        let start_x = box_x + (box_width - shape_width) / 2,
+            start_y = box_y + (box_height - shape_height) / 2
+
+        for block in shape {
+            let px = start_x + (block[0] - min_x) * CELL_SIZE + 1,
+                py = start_y + (block[1] - min_y) * CELL_SIZE + 1
+
+            draw.rect(canvas, px, py, CELL_SIZE - 2, CELL_SIZE - 2,
+                      COLORS[next.kind], true)
+            draw.rect(canvas, px + 3, py + 3, CELL_SIZE - 8, CELL_SIZE - 8,
+                      draw.COLOR_WHITE, false)
+        }
+    }
+}
+
+fun render(canvas) {
+    let now = clock()
+    let dt = now - frame_time
+    frame_time = now
+
+    if dt > .05 dt = .05
+    if dt < 0 dt = 0
+
+    update(canvas, dt)
+
+    draw.clear(canvas, 0x10131F)
+
+    draw.text(canvas, 356, 18, "TETRIS", {
+        color: draw.COLOR_CYAN, size: 26, bold: true
+    })
+
+    draw.rect(canvas, BOARD_X - 3, BOARD_Y - 3,
+              BOARD_WIDTH * CELL_SIZE + 6,
+              BOARD_HEIGHT * CELL_SIZE + 6,
+              draw.COLOR_LIGHT_GRAY, false)
+
+    for y in 0..BOARD_HEIGHT {
+        for x in 0..BOARD_WIDTH {
+            if board[y][x] != 0
+                draw_block(canvas, x, y, board[y][x])
+            else
+                draw.rect(canvas, BOARD_X + x * CELL_SIZE + 1,
+                          BOARD_Y + y * CELL_SIZE + 1,
+                          CELL_SIZE - 2, CELL_SIZE - 2,
+                          0x171C2C, true)
+        }
+    }
+
+    if piece != nil && !over {
+        for block in piece_blocks(piece) {
+            let bx = block[0],
+                by = block[1]
+            if by >= 0
+                draw_block(canvas, bx, by, piece.kind + 1)
+        }
+    }
+
+    draw_ghost(canvas)
+    draw_preview(canvas)
+
+    draw.text(canvas, 356, 264, "SCORE", {color: draw.COLOR_LIGHT_GRAY, size: 16, bold: true})
+    draw.text(canvas, 356, 288, "" + score, {color: draw.COLOR_WHITE, size: 24, bold: true})
+    draw.text(canvas, 356, 338, "LINES", {color: draw.COLOR_LIGHT_GRAY, size: 16, bold: true})
+    draw.text(canvas, 356, 362, "" + lines, {color: draw.COLOR_WHITE, size: 24, bold: true})
+
+    if paused {
+        draw.rect(canvas, BOARD_X + 38, BOARD_Y + 224, 218, 74, 0x10131F, true)
+        draw.text(canvas, BOARD_X + 92, BOARD_Y + 242, "PAUSED", {
+            color: draw.COLOR_YELLOW, size: 24, bold: true
+        })
+    }
+
+    if over {
+        let box_width = 244,
+            box_height = 126,
+            box_x = BOARD_X + (BOARD_WIDTH * CELL_SIZE - box_width) / 2,
+            box_y = BOARD_Y + (BOARD_HEIGHT * CELL_SIZE - box_height) / 2
+
+        draw.rect(canvas, box_x, box_y, box_width, box_height, 0x10131F, true)
+        draw.text(canvas, box_x + 37, box_y + 22, "GAME OVER", {
+            color: draw.COLOR_RED, size: 24, bold: true
+        })
+        draw.text(canvas, box_x + 30, box_y + 66, "Press R to restart", {
+            color: draw.COLOR_WHITE, size: 17, bold: true
+        })
+    }
+}
+
+start_game()
+draw.animate(ctx, render)
+draw.run(ctx)
